@@ -30,9 +30,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require "core.rkt")
-(require "testing.rkt")
-;; (racr testing) is needed for print-ast
+(require racr)
+(require racr/testing) ;; racr/testing is needed for print-ast
 (require "xsmith-options.rkt")
 (provide do-it)
 
