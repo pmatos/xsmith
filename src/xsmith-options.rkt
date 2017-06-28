@@ -30,54 +30,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require racket/cmdline)
-(require setup/getinfo)
+(provide
+ xsmith-options
+ xsmith-options-defaults
+ xsmith-option)
 
-(require "gen-term.rkt")
-(require "xsmith-options.rkt")
+(define xsmith-options (make-parameter #f))
 
-(define xsmith-info (get-info/full "."))
-(define xsmith-version-string
-  (if xsmith-info
-      (format "~a ~a (~a)"
-              (xsmith-info 'name)
-              (xsmith-info 'version)
-              (xsmith-info 'git-version))
-      "unable to determine program version"))
+(define (xsmith-options-defaults)
+  (make-hasheq '((max-depth . 5))))
 
-(define options (xsmith-options-defaults))
-
-(command-line
- #:help-labels
- "[[GENERAL OPTIONS]]"
- #:once-each
- [("--seed" "-s") seed
-  "Set the random seed"
-  (dict-set! options 'random-seed (string->number seed))]
- [("--output-file" "-o") filename
-  "Output generated program to <filename>"
-  (dict-set! options 'output-filename filename)]
-
- #:help-labels
- "[[LANGUAGE-GENERATION OPTIONS]]"
- #:once-each
- ["--max-depth" n
-  "Set maximum tree depth"
-  (dict-set! options 'max-depth (string->number n))]
-
- #:help-labels
- "[[INFORMATION OPTIONS]]"
- #:once-each
- [("--version" "-v")
-  "Show program version information and exit"
-  (displayln xsmith-version-string)
-  (exit 0)]
- )
-
-(parameterize ((xsmith-options options))
-  (when (dict-has-key? (xsmith-options) 'random-seed)
-    (random-seed (xsmith-option 'random-seed)))
-  (do-it))
+(define (xsmith-option key)
+  (dict-ref (xsmith-options) key))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

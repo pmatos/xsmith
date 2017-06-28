@@ -1,7 +1,7 @@
-#!r6rs
+#lang racket
 ;; -*- mode: Racket -*-
 ;;
-;; Copyright (c) 2016 The University of Utah
+;; Copyright (c) 2016, 2017 The University of Utah
 ;; All rights reserved.
 ;;
 ;; This file is part of Xsmith, a generator of highly effective fuzz testers.
@@ -30,8 +30,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(import (rnrs) (racr core) (racr testing))
+(require "core.rkt")
+(require "testing.rkt")
 ;; (racr testing) is needed for print-ast
+(require "xsmith-options.rkt")
+(provide do-it)
 
 (define spec (create-specification))
 
@@ -92,29 +95,12 @@
   
   (compile-ag-specifications))
 
-(define *max-level* 5)
-
-(define random
-  (let ((a 69069) (c 1) (m (expt 2 32)) (seed 19380110))
-    (lambda new-seed
-      (if (pair? new-seed)
-          (set! seed (car new-seed))
-          (set! seed (mod (+ (* seed a) c) m)))
-      (/ seed m))))
-
-(define (randint . args)
-  (cond ((= (length args) 1)
-          (floor (* (random) (car args))))
-        ((= (length args) 2)
-          (+ (car args) (floor (* (random) (- (cadr args) (car args))))))
-        (else (error 'randint "usage: (randint [lo] hi)"))))
-
 (define (replace-with-term n)
-  (let ((r (randint 3)))
-    (cond ((or (> (att-value 'level n) *max-level*)
+  (let ((r (random 3)))
+    (cond ((or (> (att-value 'level n) (xsmith-option 'max-depth))
                (< r 1))
            ;; Replace with a Num.
-           (rewrite-subtree n (create-ast spec 'Num (list (randint 10)))))
+           (rewrite-subtree n (create-ast spec 'Num (list (random 10)))))
           ((< r 2)
            ;; Replace with a Sum.
            (rewrite-subtree n (create-ast spec 'Sum (list
@@ -126,8 +112,8 @@
           )))
 
 (define (replace-with-stmt n)
-  (let ((r (randint 3)))
-    (cond ((or (> (att-value 'level n) *max-level*)
+  (let ((r (random 3)))
+    (cond ((or (> (att-value 'level n) (xsmith-option 'max-depth))
                (< r 1))
            ;; Replace with an Eval.
            (rewrite-subtree n (create-ast spec 'Eval (list (create-ast spec 'TermHole (list))))))
@@ -139,7 +125,7 @@
           (else
            ;; Replace with a Let.
            (rewrite-subtree n (create-ast spec 'Let (list 'a
-                                                          (randint 10)
+                                                          (random 10)
                                                           (create-ast spec 'StmtHole (list))))))
           )))
 
@@ -164,9 +150,12 @@
          (generate-random-prog
           (create-ast spec 'Prog (list (create-ast spec 'StmtHole (list))))
           )))
-    (print-ast ast
-               printer
-               (current-output-port))))
+    (if (dict-has-key? (xsmith-options) 'output-filename)
+        (call-with-output-file (xsmith-option 'output-filename)
+          #:exists 'replace
+          (lambda (out)
+            (print-ast ast printer out)))
+        (print-ast ast printer (current-output-port)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
