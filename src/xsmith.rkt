@@ -30,7 +30,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require racket/cmdline)
 (require setup/getinfo)
 
 (require "gen-term.rkt")
@@ -47,37 +46,46 @@
 
 (define options (xsmith-options-defaults))
 
-(command-line
- #:help-labels
- "[[GENERAL OPTIONS]]"
- #:once-each
- [("--seed" "-s") seed
-  "Set the random seed"
-  (dict-set! options 'random-seed (string->number seed))]
- [("--output-file" "-o") filename
-  "Output generated program to <filename>"
-  (dict-set! options 'output-filename filename)]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
- #:help-labels
- "[[LANGUAGE-GENERATION OPTIONS]]"
- #:once-each
- ["--max-depth" n
-  "Set maximum tree depth"
-  (dict-set! options 'max-depth (string->number n))]
+(module+ main
+  (require racket/cmdline)
 
- #:help-labels
- "[[INFORMATION OPTIONS]]"
- #:once-each
- [("--version" "-v")
-  "Show program version information and exit"
-  (displayln xsmith-version-string)
-  (exit 0)]
- )
+  (command-line
+   #:help-labels
+   "[[GENERAL OPTIONS]]"
+   #:once-each
+   [("--seed" "-s")
+    seed
+    "Set the random seed"
+    (dict-set! options 'random-seed (string->number seed))]
+   [("--output-file" "-o")
+    filename
+    "Output generated program to <filename>"
+    (dict-set! options 'output-filename filename)]
 
-(parameterize ((xsmith-options options))
-  (when (dict-has-key? (xsmith-options) 'random-seed)
-    (random-seed (xsmith-option 'random-seed)))
-  (do-it))
+   #:help-labels
+   "[[LANGUAGE-GENERATION OPTIONS]]"
+   #:once-each
+   ["--max-depth"
+    n
+    "Set maximum tree depth"
+    (dict-set! options 'max-depth (string->number n))]
+
+   #:help-labels
+   "[[INFORMATION OPTIONS]]"
+   #:once-each
+   [("--version" "-v")
+    "Show program version information and exit"
+    (displayln xsmith-version-string)
+    (exit 0)]
+   )
+
+  (parameterize ((xsmith-options options))
+    (when (dict-has-key? (xsmith-options) 'random-seed)
+      (random-seed (xsmith-option 'random-seed)))
+    (do-it))
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
