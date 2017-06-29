@@ -584,7 +584,7 @@ PACKAGE_STRING='xsmith 0.0.0'
 PACKAGE_BUGREPORT='xsmith-bugs@flux.utah.edu'
 PACKAGE_URL='https://www.flux.utah.edu/project/xsmith'
 
-ac_unique_file="src/random.rkt"
+ac_unique_file="src/xsmith.rkt"
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
 RACO

@@ -1,6 +1,6 @@
 ## -*- mode: Autoconf -*-
 ##
-## Copyright (c) 2016 The University of Utah
+## Copyright (c) 2016, 2017 The University of Utah
 ## All rights reserved.
 ##
 ## This file is part of Xsmith, a generator of highly effective fuzz testers.
@@ -32,7 +32,7 @@
 m4_include([version.m4])
 AC_INIT(xsmith, XSMITH_VERSION, XSMITH_BUGREPORT, xsmith, XSMITH_URL)
 
-AC_CONFIG_SRCDIR(src/random.rkt)
+AC_CONFIG_SRCDIR(src/xsmith.rkt)
 AC_CONFIG_AUX_DIR(autoconf)
 AC_CONFIG_MACRO_DIR(m4)
 AC_CONFIG_HEADERS(config.h)
