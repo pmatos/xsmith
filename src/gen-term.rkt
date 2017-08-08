@@ -32,10 +32,21 @@
 
 (require racr)
 (require racr/testing) ;; racr/testing is needed for print-ast
+(require pprint)
 (require "xsmith-options.rkt")
 (provide do-it)
 
 (define spec (create-specification))
+
+(define page-width      80)
+(define nest-step       4)
+(define lbrace          (char #\{))
+(define rbrace          (char #\}))
+(define lparen          (char #\())
+(define rparen          (char #\)))
+(define semi            (char #\;))
+(define plus            (char #\+))
+(define eqsign          (char #\=))
 
 (with-specification spec
   (ast-rule 'Prog->Stmt)
@@ -92,6 +103,45 @@
                                   (att-value 'pp (ast-child 'left n))
                                   (att-value 'pp (ast-child 'right n))))))
   
+  (ag-rule ppdoc
+           (Prog (lambda (n) (att-value 'ppdoc (ast-child 1 n))))
+           (Let (lambda (n) (v-append
+                             (nest nest-step
+                                   (v-append
+                                    lbrace
+                                    (h-append
+                                     (hs-append
+                                      (text
+                                       (symbol->string (ast-child 'name n)))
+                                      eqsign
+                                      (text
+                                       (number->string (ast-child 'val n))))
+                                     semi)
+                                    (att-value 'ppdoc (ast-child 'body n))))
+                             rbrace)))
+           (Eval (lambda (n) (h-append
+                              (att-value 'ppdoc (ast-child 1 n))
+                              semi)))
+           (Block (lambda (n) (v-append
+                               (nest nest-step
+                                     (v-append
+                                      lbrace
+                                      (att-value 'ppdoc (ast-child 'first n))
+                                      (att-value 'ppdoc (ast-child 'second n))
+                                      ))
+                               rbrace)))
+           (Num (lambda (n) (text (number->string (ast-child 'val n)))))
+           (Ref (lambda (n) (text (symbol->string (ast-child 'name n)))))
+           (Sum (lambda (n) (h-append
+                             lparen
+                             (hs-append
+                              (vs-append
+                               (att-value 'ppdoc (ast-child 'left n))
+                               plus
+                               (att-value 'ppdoc (ast-child 'right n))))
+                             rparen
+                             ))))
+  
   (compile-ag-specifications))
 
 (define (replace-with-term n)
@@ -142,19 +192,26 @@
   n)
 
 (define (do-it)
-  (define (print name) (cons name (lambda (v) v)))
-  (define printer
-    (list (print 'value) (print 'pp)))
+  #;(define (print name) (cons name (lambda (v) v)))
+  #;(define printer
+    (list (print 'value) (print 'ppdoc)))
   (let ((ast
          (generate-random-prog
           (create-ast spec 'Prog (list (create-ast spec 'StmtHole (list))))
           )))
-    (if (dict-has-key? (xsmith-options) 'output-filename)
+    #;(if (dict-has-key? (xsmith-options) 'output-filename)
         (call-with-output-file (xsmith-option 'output-filename)
           #:exists 'replace
           (lambda (out)
             (print-ast ast printer out)))
-        (print-ast ast printer (current-output-port)))))
+        (print-ast ast printer (current-output-port)))
+    (if (dict-has-key? (xsmith-options) 'output-filename)
+        (call-with-output-file (xsmith-option 'output-filename)
+          #:exists 'replace
+          (lambda (out)
+            (pretty-print (att-value 'ppdoc ast) out page-width)))
+        (pretty-print (att-value 'ppdoc ast) (current-output-port) page-width))
+    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
