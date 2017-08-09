@@ -33,10 +33,24 @@
 (require racr)
 (require racr/testing) ;; racr/testing is needed for print-ast
 (require pprint)
+(require "random.rkt")
 (require "xsmith-options.rkt")
 (provide do-it)
 
 (define spec (create-specification))
+
+(define term-choice-table
+  ;; Choose any Term production.
+  (make-choice-table '((Num 1) (Sum 1) (Ref 1))))
+(define term-atoms-choice-table
+  ;; Choose an "atomic" Term production.
+  (make-choice-table '((Num 1))))
+(define stmt-choice-table
+  ;; Choose any Stmt production.
+  (make-choice-table '((Eval 1) (Block 1) (Let 1))))
+(define stmt-atoms-choice-table
+  ;; Choose an "atomic" Stmt production.
+  (make-choice-table '((Eval 1))))
 
 (define page-width      80)
 (define nest-step       4)
@@ -86,6 +100,16 @@
            (Prog (lambda (n) 0))
            (Stmt (lambda (n) (+ 1 (att-value 'level (ast-parent n)))))
            (Term (lambda (n) (+ 1 (att-value 'level (ast-parent n))))))
+
+  (ag-rule choice-table
+           (TermHole (lambda (n)
+                       (if (> (att-value 'level n) (xsmith-option 'max-depth))
+                           term-atoms-choice-table
+                           term-choice-table)))
+           (StmtHole (lambda (n)
+                       (if (> (att-value 'level n) (xsmith-option 'max-depth))
+                           stmt-atoms-choice-table
+                           stmt-choice-table))))
   
   (ag-rule pp
            (Prog (lambda (n) (att-value 'pp (ast-child 1 n))))
@@ -145,49 +169,54 @@
   (compile-ag-specifications))
 
 (define (replace-with-term n)
-  (let ((r (random 3)))
-    (cond ((or (> (att-value 'level n) (xsmith-option 'max-depth))
-               (< r 1))
-           ;; Replace with a Num.
-           (rewrite-subtree n (create-ast spec 'Num (list (random 10)))))
-          ((< r 2)
-           ;; Replace with a Sum.
-           (rewrite-subtree n (create-ast spec 'Sum (list
-                                                     (create-ast spec 'TermHole (list))
-                                                     (create-ast spec 'TermHole (list))))))
-          (else
-           ;; Replace with a Ref.
-           (rewrite-subtree n (create-ast spec 'Ref (list 'a))))
-          )))
+  (let ((c (choose (att-value 'choice-table n))))
+    (case c
+      ((Num)
+       ;; Replace with a Num.
+       (rewrite-subtree n (create-ast spec 'Num (list (random 10)))))
+      ((Sum)
+       ;; Replace with a Sum.
+       (rewrite-subtree n (create-ast spec 'Sum (list
+                                                 (create-ast spec 'TermHole (list))
+                                                 (create-ast spec 'TermHole (list))))))
+      ((Ref)
+       ;; Replace with a Ref.
+       (rewrite-subtree n (create-ast spec 'Ref (list 'a))))
+      (else
+       (error 'replace-with-term "invalid choice ~a" c))
+      )))
 
 (define (replace-with-stmt n)
-  (let ((r (random 3)))
-    (cond ((or (> (att-value 'level n) (xsmith-option 'max-depth))
-               (< r 1))
-           ;; Replace with an Eval.
-           (rewrite-subtree n (create-ast spec 'Eval (list (create-ast spec 'TermHole (list))))))
-          ((< r 2)
-           ;; Replace with a Block.
-           (rewrite-subtree n (create-ast spec 'Block (list
-                                                       (create-ast spec 'StmtHole (list))
-                                                       (create-ast spec 'StmtHole (list))))))
-          (else
-           ;; Replace with a Let.
-           (rewrite-subtree n (create-ast spec 'Let (list 'a
-                                                          (random 10)
-                                                          (create-ast spec 'StmtHole (list))))))
-          )))
+  (let ((c (choose (att-value 'choice-table n))))
+    (case c
+      ((Eval)
+       ;; Replace with an Eval.
+       (rewrite-subtree n (create-ast spec 'Eval (list (create-ast spec 'TermHole (list))))))
+      ((Block)
+       ;; Replace with a Block.
+       (rewrite-subtree n (create-ast spec 'Block (list
+                                                   (create-ast spec 'StmtHole (list))
+                                                   (create-ast spec 'StmtHole (list))))))
+      ((Let)
+       ;; Replace with a Let.
+       (rewrite-subtree n (create-ast spec 'Let (list 'a
+                                                      (random 10)
+                                                      (create-ast spec 'StmtHole (list))))))
+      (else
+       (error 'replace-with-stmt "invalid choice ~a" c))
+      )))
 
 (define (generate-random-prog n)
   (let ((fill-in
          (lambda (n)
-           (cond ((eq? 'TermHole (ast-node-type n))
-                  (replace-with-term n)
-                  #t)
-                 ((eq? 'StmtHole (ast-node-type n))
-                  (replace-with-stmt n)
-                  #t)
-                 (else #f)))))
+           (case (ast-node-type n)
+             ((TermHole)
+              (replace-with-term n)
+              #t)
+             ((StmtHole)
+              (replace-with-stmt n)
+              #t)
+             (else #f)))))
     (perform-rewrites n 'top-down fill-in))
   n)
 
