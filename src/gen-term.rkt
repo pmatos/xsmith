@@ -62,6 +62,8 @@
 (define plus            (char #\+))
 (define eqsign          (char #\=))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (with-specification spec
   (ast-rule 'Prog->Stmt)
   (ast-rule 'Stmt->)
@@ -95,7 +97,7 @@
                                      (att-value 'def (ast-parent n) name))))
            (Term (lambda (n name) (att-value 'def (ast-parent n) name)))
            )
-  
+
   (ag-rule level
            (Prog (lambda (n) 0))
            (Stmt (lambda (n) (+ 1 (att-value 'level (ast-parent n)))))
@@ -110,7 +112,7 @@
                        (if (> (att-value 'level n) (xsmith-option 'max-depth))
                            stmt-atoms-choice-table
                            stmt-choice-table))))
-  
+
   (ag-rule pp
            (Prog (lambda (n) (att-value 'pp (ast-child 1 n))))
            (Let (lambda (n) (list 'let
@@ -126,7 +128,7 @@
            (Sum (lambda (n) (list '+
                                   (att-value 'pp (ast-child 'left n))
                                   (att-value 'pp (ast-child 'right n))))))
-  
+
   (ag-rule ppdoc
            (Prog (lambda (n) (att-value 'ppdoc (ast-child 1 n))))
            (Let (lambda (n) (v-append
@@ -165,43 +167,67 @@
                                (att-value 'ppdoc (ast-child 'right n))))
                              rparen
                              ))))
-  
+
   (compile-ag-specifications))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-syntax-rule (fresh-node type attr-val ...)
+  (create-ast spec type (list attr-val ...)))
+
+(define (fresh-Num)
+  (fresh-node 'Num (random 10)))
+(define (fresh-Sum)
+  (fresh-node 'Sum
+              (fresh-TermHole)
+              (fresh-TermHole)))
+(define (fresh-Ref)
+  (fresh-node 'Ref 'a))
+(define (fresh-TermHole)
+  (fresh-node 'TermHole))
 
 (define (replace-with-term n)
   (let ((c (choose (att-value 'choice-table n))))
     (case c
       ((Num)
        ;; Replace with a Num.
-       (rewrite-subtree n (create-ast spec 'Num (list (random 10)))))
+       (rewrite-subtree n (fresh-Num)))
       ((Sum)
        ;; Replace with a Sum.
-       (rewrite-subtree n (create-ast spec 'Sum (list
-                                                 (create-ast spec 'TermHole (list))
-                                                 (create-ast spec 'TermHole (list))))))
+       (rewrite-subtree n (fresh-Sum)))
       ((Ref)
        ;; Replace with a Ref.
-       (rewrite-subtree n (create-ast spec 'Ref (list 'a))))
+       (rewrite-subtree n (fresh-Ref)))
       (else
        (error 'replace-with-term "invalid choice ~a" c))
       )))
+
+(define (fresh-Eval)
+  (fresh-node 'Eval (fresh-TermHole)))
+(define (fresh-Block)
+  (fresh-node 'Block
+              (fresh-StmtHole)
+              (fresh-StmtHole)))
+(define (fresh-Let)
+  (fresh-node 'Let
+              'a
+              (random 10)
+              (fresh-StmtHole)))
+(define (fresh-StmtHole)
+  (fresh-node 'StmtHole))
 
 (define (replace-with-stmt n)
   (let ((c (choose (att-value 'choice-table n))))
     (case c
       ((Eval)
        ;; Replace with an Eval.
-       (rewrite-subtree n (create-ast spec 'Eval (list (create-ast spec 'TermHole (list))))))
+       (rewrite-subtree n (fresh-Eval)))
       ((Block)
        ;; Replace with a Block.
-       (rewrite-subtree n (create-ast spec 'Block (list
-                                                   (create-ast spec 'StmtHole (list))
-                                                   (create-ast spec 'StmtHole (list))))))
+       (rewrite-subtree n (fresh-Block)))
       ((Let)
        ;; Replace with a Let.
-       (rewrite-subtree n (create-ast spec 'Let (list 'a
-                                                      (random 10)
-                                                      (create-ast spec 'StmtHole (list))))))
+       (rewrite-subtree n (fresh-Let)))
       (else
        (error 'replace-with-stmt "invalid choice ~a" c))
       )))
@@ -220,14 +246,16 @@
     (perform-rewrites n 'top-down fill-in))
   n)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (fresh-Prog)
+  (fresh-node 'Prog (fresh-StmtHole)))
+
 (define (do-it)
   #;(define (print name) (cons name (lambda (v) v)))
   #;(define printer
     (list (print 'value) (print 'ppdoc)))
-  (let ((ast
-         (generate-random-prog
-          (create-ast spec 'Prog (list (create-ast spec 'StmtHole (list))))
-          )))
+  (let ((ast (generate-random-prog (fresh-Prog))))
     #;(if (dict-has-key? (xsmith-options) 'output-filename)
         (call-with-output-file (xsmith-option 'output-filename)
           #:exists 'replace
@@ -241,6 +269,25 @@
             (pretty-print (att-value 'ppdoc ast) out page-width)))
         (pretty-print (att-value 'ppdoc ast) (current-output-port) page-width))
     ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; How to reflect on the grammar.  (But probably we do not need to do this.)
+;;
+;; (map symbol->name
+;;   (ast-rule->production (specification->find-ast-rule spec 'Block)))
+;; => '(Block Stmt Stmt)
+;; (map symbol->context-name
+;;   (ast-rule->production (specification->find-ast-rule spec 'Block)))
+;; => '(Block first second)
+;; (map symbol->non-terminal?
+;;   (ast-rule->production (specification->find-ast-rule spec 'Block)))
+;; => '(#t #<ast-rule> #<ast-rule>)
+;;
+;; The above, for 'Let:
+;; => '(Let name val Stmt)
+;; => '(Let name val body)
+;; => '(#t #f #f #<ast-rule>)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
