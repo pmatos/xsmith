@@ -48,6 +48,9 @@
   (make-choice-table '((Num 1) (Sum 1) (Subtraction 1))))
 (define term-atoms-choice-table
   ;; Choose an "atomic" Term production.
+  (make-choice-table '((Num 1) (Ref 1))))
+(define term-atoms-choice-table/no-ref
+  ;; Choose an "atomic" Term production.
   (make-choice-table '((Num 1))))
 (define stmt-choice-table
   ;; Choose any Stmt production.
@@ -121,11 +124,14 @@
 
   (ag-rule choice-table
            (TermHole (lambda (n)
-                       (if (> (att-value 'level n) (xsmith-option 'max-depth))
-                           term-atoms-choice-table
-                           (if (null? (att-value 'names-available n))
-                               term-choice-table/no-ref
-                               term-choice-table))))
+                       (let ([too-deep? (> (att-value 'level n)
+                                           (xsmith-option 'max-depth))]
+                             [no-names? (null? (att-value 'names-available n))])
+                         (cond
+                           [(and too-deep? no-names?) term-atoms-choice-table/no-ref]
+                           [no-names? term-choice-table/no-ref]
+                           [too-deep? term-atoms-choice-table]
+                           [else term-choice-table]))))
            (StmtHole (lambda (n)
                        (if (> (att-value 'level n) (xsmith-option 'max-depth))
                            stmt-atoms-choice-table
