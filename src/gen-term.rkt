@@ -41,7 +41,7 @@
 
 (define term-choice-table
   ;; Choose any Term production.
-  (make-choice-table '((Num 1) (Sum 1) (Ref 1))))
+  (make-choice-table '((Num 1) (Sum 1) (Subtraction 1) (Ref 1))))
 (define term-atoms-choice-table
   ;; Choose an "atomic" Term production.
   (make-choice-table '((Num 1))))
@@ -60,6 +60,7 @@
 (define rparen          (char #\)))
 (define semi            (char #\;))
 (define plus            (char #\+))
+(define minus           (char #\-))
 (define eqsign          (char #\=))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -75,6 +76,7 @@
   (ast-rule 'Num:Term->val)
   (ast-rule 'Ref:Term->name)
   (ast-rule 'Sum:Term->Term<left-Term<right)
+  (ast-rule 'Subtraction:Term->Term<left-Term<right)
   (ast-rule 'TermHole:Term->)
 
   (compile-ast-specifications 'Prog)
@@ -87,6 +89,8 @@
                                   -1))))
            (Sum (lambda (n) (+ (att-value 'value (ast-child 'left n))
                                (att-value 'value (ast-child 'right n)))))
+           (Subtraction (lambda (n) (- (att-value 'value (ast-child 'left n))
+                                       (att-value 'value (ast-child 'right n)))))
            )
 
   (ag-rule def
@@ -127,7 +131,10 @@
            (Ref (lambda (n) (ast-child 'name n)))
            (Sum (lambda (n) (list '+
                                   (att-value 'pp (ast-child 'left n))
-                                  (att-value 'pp (ast-child 'right n))))))
+                                  (att-value 'pp (ast-child 'right n)))))
+           (Subtraction (lambda (n) (list '-
+                                          (att-value 'pp (ast-child 'left n))
+                                          (att-value 'pp (ast-child 'right n))))))
 
   (ag-rule ppdoc
            (Prog (lambda (n) (att-value 'ppdoc (ast-child 1 n))))
@@ -166,7 +173,16 @@
                                plus
                                (att-value 'ppdoc (ast-child 'right n))))
                              rparen
-                             ))))
+                             )))
+           (Subtraction (lambda (n) (h-append
+                                     lparen
+                                     (hs-append
+                                      (vs-append
+                                       (att-value 'ppdoc (ast-child 'left n))
+                                       minus
+                                       (att-value 'ppdoc (ast-child 'right n))))
+                                     rparen
+                                     ))))
 
   (compile-ag-specifications))
 
@@ -179,6 +195,10 @@
   (fresh-node 'Num (random 10)))
 (define (fresh-Sum)
   (fresh-node 'Sum
+              (fresh-TermHole)
+              (fresh-TermHole)))
+(define (fresh-Subtraction)
+  (fresh-node 'Subtraction
               (fresh-TermHole)
               (fresh-TermHole)))
 (define (fresh-Ref)
@@ -195,6 +215,9 @@
       ((Sum)
        ;; Replace with a Sum.
        (rewrite-subtree n (fresh-Sum)))
+      ((Subtraction)
+       ;; Replace with a Subtraction.
+       (rewrite-subtree n (fresh-Subtraction)))
       ((Ref)
        ;; Replace with a Ref.
        (rewrite-subtree n (fresh-Ref)))
