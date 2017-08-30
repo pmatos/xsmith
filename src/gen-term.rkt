@@ -34,6 +34,7 @@
 (require racr/testing) ;; racr/testing is needed for print-ast
 (require pprint)
 (require "random.rkt")
+(require racket/random)
 (require "xsmith-options.rkt")
 (provide do-it)
 
@@ -42,6 +43,9 @@
 (define term-choice-table
   ;; Choose any Term production.
   (make-choice-table '((Num 1) (Sum 1) (Subtraction 1) (Ref 1))))
+(define term-choice-table/no-ref
+  ;; Choose any Term production.
+  (make-choice-table '((Num 1) (Sum 1) (Subtraction 1))))
 (define term-atoms-choice-table
   ;; Choose an "atomic" Term production.
   (make-choice-table '((Num 1))))
@@ -102,6 +106,14 @@
            (Term (lambda (n name) (att-value 'def (ast-parent n) name)))
            )
 
+  (ag-rule names-available
+           (Prog (λ (n) '()))
+           (Let (λ (n) (cons (ast-child 'name n)
+                             (att-value 'names-available (ast-parent n)))))
+           (Stmt (λ (n) (att-value 'names-available (ast-parent n))))
+           (Term (λ (n) (att-value 'names-available (ast-parent n))))
+           )
+
   (ag-rule level
            (Prog (lambda (n) 0))
            (Stmt (lambda (n) (+ 1 (att-value 'level (ast-parent n)))))
@@ -111,7 +123,9 @@
            (TermHole (lambda (n)
                        (if (> (att-value 'level n) (xsmith-option 'max-depth))
                            term-atoms-choice-table
-                           term-choice-table)))
+                           (if (null? (att-value 'names-available n))
+                               term-choice-table/no-ref
+                               term-choice-table))))
            (StmtHole (lambda (n)
                        (if (> (att-value 'level n) (xsmith-option 'max-depth))
                            stmt-atoms-choice-table
@@ -201,8 +215,8 @@
   (fresh-node 'Subtraction
               (fresh-TermHole)
               (fresh-TermHole)))
-(define (fresh-Ref)
-  (fresh-node 'Ref 'a))
+(define (fresh-Ref var)
+  (fresh-node 'Ref var))
 (define (fresh-TermHole)
   (fresh-node 'TermHole))
 
@@ -220,7 +234,7 @@
        (rewrite-subtree n (fresh-Subtraction)))
       ((Ref)
        ;; Replace with a Ref.
-       (rewrite-subtree n (fresh-Ref)))
+       (rewrite-subtree n (fresh-Ref (random-ref (att-value 'names-available n)))))
       (else
        (error 'replace-with-term "invalid choice ~a" c))
       )))
@@ -233,7 +247,7 @@
               (fresh-StmtHole)))
 (define (fresh-Let)
   (fresh-node 'Let
-              'a
+              (random-ref '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
               (random 10)
               (fresh-StmtHole)))
 (define (fresh-StmtHole)
