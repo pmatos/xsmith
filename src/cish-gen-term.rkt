@@ -60,7 +60,13 @@
   (make-choice-table '((Eval 1))))
 
 (define statement-choice-table
-  (make-choice-table '(())))
+  (make-choice-table '((Block 1) (Return 1) (Expression 1) (Null 1))))
+(define expression-choice-table
+  (make-choice-table '((AdditionExpression 1)
+                       (Number 1)
+                       ;(Assignment 1)
+                       ;(FunctionCall 1)
+                       )))
 
 (define page-width      80)
 (define nest-step       4)
@@ -76,45 +82,32 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (with-specification spec
-  (ast-rule 'Program->FunDeclList-FunctionDefinition)
-  (ast-rule 'FunDeclList->)
-  (ast-rule 'FunDeclListEmpty:FunDeclList->)
-  (ast-rule 'FunDeclListNode:FunDeclList->FunOrDecl-FunDeclList)
-  (ast-rule 'FunOrDecl->)
-  (ast-rule 'FunOrDeclDecl:FunOrDecl->Declaration)
-  (ast-rule 'FunOrDeclFun:FunOrDecl->FunctionDefinition)
+  (ast-rule 'Program->FunctionDefinition*-FunctionDefinition<main)
 
   ;; TODO - the block in a function definition should get some constraints from its parent - eg. it should have a return of the appropriate type in each branch
-  (ast-rule 'FunctionDefinition->Type-name-ParamList-Block)
-  (ast-rule 'ParamList->)
-  (ast-rule 'ParamListEmpty:ParamList->)
-  (ast-rule 'ParamListNode:ParamList->FormalParam-ParamList)
+  (ast-rule 'FunctionDefinition->Type-name-FormalParam*-Block)
   (ast-rule 'FormalParam->Type-name)
 
   (ast-rule 'Type->name)
 
-  (ast-rule 'StatementList->)
-  (ast-rule 'StatementListEmpty:StatementList->)
-  (ast-rule 'StatementListNode:StatementList->Statement-StatementList)
-  (ast-rule 'DeclarationList->)
-  (ast-rule 'DeclarationListEmpty:DeclarationList->)
-  (ast-rule 'DeclarationListNode:DeclarationList->Declaration-StatementList)
 
   (ast-rule 'Statement->)
   (ast-rule 'NullStatement:Statement->)
-  (ast-rule 'Block:Statement->DeclList-StatementList)
+  (ast-rule 'Block:Statement->Declaration*-Statement*)
   (ast-rule 'ExpressionStatement:Statement->Expression)
   (ast-rule 'ReturnStatement:Statement->)
   (ast-rule 'VoidReturnStatement:ReturnStatement->)
   (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
+  (ast-rule 'StatementHole:Statement->)
 
   (ast-rule 'Declaration->)
   (ast-rule 'VariableDeclaration:Declaration->Type-name)
 
   (ast-rule 'Expression->)
+  (ast-rule 'ExpressionHole:Expression->)
   ;; TODO LValues?
-  (ast-rule 'AssignmentExpression->name-Expression)
-  (ast-rule 'AdditionExpression->l<Expression-r<Expression)
+  (ast-rule 'AssignmentExpression:Expression->name-Expression)
+  (ast-rule 'AdditionExpression:Expression->Expression<l-Expression<r)
   (ast-rule 'Number:Expression->val)
   (ast-rule 'FunctionCall:Expression->name-ArgumentList)
 
@@ -122,37 +115,15 @@
   (ast-rule 'ArgumentListEmpty:ArgumentList->)
   (ast-rule 'ArgumentListNode:ArgumentList->Expression-ArgumentList)
 
-  ;; TODO - holes
-
   (compile-ast-specifications 'Program)
-
-  #|
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-  (ast-rule 'Prog->Stmt)
-  (ast-rule 'Stmt->)
-  (ast-rule 'Let:Stmt->name-val-Stmt<body)
-  (ast-rule 'Eval:Stmt->Term)
-  (ast-rule 'Block:Stmt->Stmt<first-Stmt<second)
-  (ast-rule 'StmtHole:Stmt->)
-  (ast-rule 'Term->)
-  (ast-rule 'Num:Term->val)
-  (ast-rule 'Ref:Term->name)
-  (ast-rule 'Sum:Term->Term<left-Term<right)
-  (ast-rule 'Subtraction:Term->Term<left-Term<right)
-  (ast-rule 'TermHole:Term->)
-
-  (compile-ast-specifications 'Prog)
-  |#
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
   (ag-rule ast-depth
            [Program (λ (n) 0)]
-           [Statement (λ (n) (add1 (ast-depth 'level (ast-parent n))))]
-           [Expression (λ (n) (add1 (ast-depth 'level (ast-parent n))))]
-           [FunctionDefinition (λ (n) (add1 (ast-depth 'level (ast-parent n))))])
-  (ag-rule choice-table
+           [Statement (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
+           [Expression (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
+           [FunctionDefinition (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))])
+  #;(ag-rule choice-table
            [StatementHole (lambda (n)
                             (let ([too-deep? (> (att-value 'ast-depth n)
                                                 (xsmith-option 'max-depth))]
@@ -162,6 +133,50 @@
                                 [no-names? term-choice-table/no-ref]
                                 [too-deep? term-atoms-choice-table]
                                 [else term-choice-table])))])
+  (ag-rule
+   pretty-print
+   [Program (λ (n)
+              #;(apply v-append
+                       (append (map (λ (cn) (att-value 'pretty-print cn))
+                                    (ast-children (ast-child 1 n)))
+                               (list (att-value 'pretty-print (ast-child 2 n)))))
+              (att-value 'pretty-print (ast-child 'main n)))]
+   [FunctionDefinition
+    (λ (n)
+      (v-append
+       (h-append
+        (att-value 'pretty-print (ast-child 'Type n))
+        (text " ")
+        (text (ast-child 'name n))
+        lparen
+        ;; TODO - params
+        rparen)
+       (att-value 'pretty-print (ast-child 'Block n))))]
+   [Block (λ (n)
+            (h-append
+             lbrace
+             (nest
+              nest-step
+              (apply v-append
+                     ;; add an extra text node so linebreaks are added...
+                     (text "")
+                     (map (λ (cn) (att-value 'pretty-print cn))
+                          (ast-children (ast-child 'Statement* n)))))
+             line
+             rbrace))]
+   [ValueReturnStatement
+    (λ (n) (h-append (text "return ")
+                     (att-value 'pretty-print (ast-child 1 n))
+                     (text ";")))]
+   [Type (λ (n) (text (ast-child 'name n)))]
+   [Number (λ (n) (text (number->string (ast-child 'val n))))]
+   [AdditionExpression
+    (λ (n) (h-append lparen
+                     (att-value 'pretty-print (ast-child 'l n))
+                     (text " + ")
+                     (att-value 'pretty-print (ast-child 'r n))
+                     rparen))]
+   )
 
   #|
   ;; interpreter
@@ -321,30 +336,30 @@
   (fresh-node 'TermHole))
 
 (define (replace-with-term n)
-  (let ((c (choose (att-value 'choice-table n))))
+  (let ((c (choose
+            #;(att-value 'choice-table n)
+            expression-choice-table
+                   )))
     (case c
-      ((Num)
+      [(Number)
        ;; Replace with a Num.
-       (rewrite-subtree n (fresh-Num)))
-      ((Sum)
-       ;; Replace with a Sum.
-       (rewrite-subtree n (fresh-Sum)))
-      ((Subtraction)
-       ;; Replace with a Subtraction.
-       (rewrite-subtree n (fresh-Subtraction)))
-      ((Ref)
-       ;; Replace with a Ref.
-       (rewrite-subtree n (fresh-Ref (random-ref (att-value 'names-available n)))))
-      (else
-       (error 'replace-with-term "invalid choice ~a" c))
+       (rewrite-subtree n (fresh-node 'Number 1))]
+      [(AdditionExpression)
+       (rewrite-subtree n (fresh-node 'AdditionExpression
+                                      (fresh-node 'ExpressionHole)
+                                      (fresh-node 'ExpressionHole)))]
+      [else
+       (error 'replace-with-term "invalid choice ~a" c)]
       )))
 
 (define (fresh-Eval)
   (fresh-node 'Eval (fresh-TermHole)))
 (define (fresh-Block)
   (fresh-node 'Block
-              (fresh-StmtHole)
-              (fresh-StmtHole)))
+              ;; declarations
+              (create-ast-list (list))
+              ;; statements
+              (create-ast-list (list (fresh-node 'StatementHole)))))
 (define (fresh-Let)
   (fresh-node 'Let
               (random-ref '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
@@ -353,7 +368,7 @@
 (define (fresh-StmtHole)
   (fresh-node 'StmtHole))
 
-(define (replace-with-stmt n)
+#;(define (replace-with-stmt n)
   (let ((c (choose (att-value 'choice-table n))))
     (case c
       ((Eval)
@@ -370,36 +385,43 @@
       )))
 
 (define (generate-random-prog n)
-  (let ((fill-in
-         (lambda (n)
-           (case (ast-node-type n)
-             ((TermHole)
-              (replace-with-term n)
-              #t)
-             ((StmtHole)
-              (replace-with-stmt n)
-              #t)
-             (else #f)))))
+  (let ([fill-in
+         (λ (n)
+           (if (ast-list-node? n)
+               #f
+               (case (ast-node-type n)
+                 ((ExpressionHole)
+                  (replace-with-term n)
+                  #t)
+                 #;((StatementHole)
+                    (replace-with-stmt n)
+                    #t)
+                 (else #f))))])
     (perform-rewrites n 'top-down fill-in))
   n)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (fresh-Prog)
-  (fresh-node 'Prog (fresh-StmtHole)))
+  (fresh-node 'Program
+              (create-ast-list '())
+              (fresh-node 'FunctionDefinition
+                          (fresh-node 'Type "int")
+                          "main"
+                          ;; parameters
+                          (create-ast-list '())
+                          (fresh-node 'Block
+                                      (create-ast-list (list))
+                                      (create-ast-list
+                                       (list
+                                        (fresh-node
+                                         'ValueReturnStatement
+                                         (fresh-node 'ExpressionHole))))))))
 
 (define (do-it)
-  #;(define (print name) (cons name (lambda (v) v)))
-  #;(define printer
-    (list (print 'value) (print 'ppdoc)))
   (let ((ast (generate-random-prog (fresh-Prog))))
+    (pretty-print (att-value 'pretty-print ast) (current-output-port) page-width)
     #;(if (dict-has-key? (xsmith-options) 'output-filename)
-        (call-with-output-file (xsmith-option 'output-filename)
-          #:exists 'replace
-          (lambda (out)
-            (print-ast ast printer out)))
-        (print-ast ast printer (current-output-port)))
-    (if (dict-has-key? (xsmith-options) 'output-filename)
         (call-with-output-file (xsmith-option 'output-filename)
           #:exists 'replace
           (lambda (out)
