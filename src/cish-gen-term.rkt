@@ -60,10 +60,10 @@
   (make-choice-table '((Eval 1))))
 
 (define statement-choice-table
-  (make-choice-table '((Null 1)
-                       ;(Block 1)
+  (make-choice-table '((NullStatement 1)
+                       (Block 1)
                        ;(Return 1)
-                       ;(Expression 1)
+                       (ExpressionStatement 1)
                        )))
 (define expression-choice-table
   (make-choice-table '((AdditionExpression 1)
@@ -168,6 +168,9 @@
                           (ast-children (ast-child 'Statement* n)))))
              line
              rbrace))]
+   [ExpressionStatement
+    (λ (n) (h-append (att-value 'pretty-print (ast-child 1 n))
+                     (text ";")))]
    [ValueReturnStatement
     (λ (n) (h-append (text "return ")
                      (att-value 'pretty-print (ast-child 1 n))
@@ -357,21 +360,13 @@
        (error 'replace-with-expression "invalid choice ~a" c)]
       )))
 
-(define (fresh-Eval)
-  (fresh-node 'Eval (fresh-TermHole)))
 (define (fresh-Block)
   (fresh-node 'Block
               ;; declarations
               (create-ast-list (list))
               ;; statements
-              (create-ast-list (list (fresh-node 'StatementHole)))))
-(define (fresh-Let)
-  (fresh-node 'Let
-              (random-ref '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
-              (random 10)
-              (fresh-StmtHole)))
-(define (fresh-StmtHole)
-  (fresh-node 'StmtHole))
+              (create-ast-list (map (λ (x) (fresh-node 'StatementHole))
+                                    (make-list (random 5) #f)))))
 
 (define (replace-with-statement n)
   (let ((c (choose
@@ -379,10 +374,13 @@
             statement-choice-table
             )))
     (case c
-      [(Null)
+      [(NullStatement)
        (rewrite-subtree n (fresh-node 'NullStatement))]
-      #;[(Block)
+      [(Block)
        (rewrite-subtree n (fresh-Block))]
+      [(ExpressionStatement)
+       (rewrite-subtree n (fresh-node 'ExpressionStatement
+                                      (fresh-node 'ExpressionHole)))]
       [else
        (error 'replace-with-statement "invalid choice ~a" c)]
       )))
