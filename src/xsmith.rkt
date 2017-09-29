@@ -32,7 +32,8 @@
 
 (require setup/getinfo)
 
-(require "gen-term.rkt")
+;(require "gen-term.rkt")
+(require "cish-gen-term.rkt")
 (require "xsmith-options.rkt")
 
 (define xsmith-info (get-info/full "."))

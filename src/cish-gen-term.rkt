@@ -343,7 +343,7 @@
     (case c
       [(Number)
        ;; Replace with a Num.
-       (rewrite-subtree n (fresh-node 'Number 1))]
+       (rewrite-subtree n (fresh-node 'Number (random 100)))]
       [(AdditionExpression)
        (rewrite-subtree n (fresh-node 'AdditionExpression
                                       (fresh-node 'ExpressionHole)
