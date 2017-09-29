@@ -60,7 +60,11 @@
   (make-choice-table '((Eval 1))))
 
 (define statement-choice-table
-  (make-choice-table '((Block 1) (Return 1) (Expression 1) (Null 1))))
+  (make-choice-table '((Null 1)
+                       ;(Block 1)
+                       ;(Return 1)
+                       ;(Expression 1)
+                       )))
 (define expression-choice-table
   (make-choice-table '((AdditionExpression 1)
                        (Number 1)
@@ -168,6 +172,7 @@
     (λ (n) (h-append (text "return ")
                      (att-value 'pretty-print (ast-child 1 n))
                      (text ";")))]
+   [NullStatement (λ (n) (text ";"))]
    [Type (λ (n) (text (ast-child 'name n)))]
    [Number (λ (n) (text (number->string (ast-child 'val n))))]
    [AdditionExpression
@@ -335,7 +340,7 @@
 (define (fresh-TermHole)
   (fresh-node 'TermHole))
 
-(define (replace-with-term n)
+(define (replace-with-expression n)
   (let ((c (choose
             #;(att-value 'choice-table n)
             expression-choice-table
@@ -349,7 +354,7 @@
                                       (fresh-node 'ExpressionHole)
                                       (fresh-node 'ExpressionHole)))]
       [else
-       (error 'replace-with-term "invalid choice ~a" c)]
+       (error 'replace-with-expression "invalid choice ~a" c)]
       )))
 
 (define (fresh-Eval)
@@ -368,20 +373,18 @@
 (define (fresh-StmtHole)
   (fresh-node 'StmtHole))
 
-#;(define (replace-with-stmt n)
-  (let ((c (choose (att-value 'choice-table n))))
+(define (replace-with-statement n)
+  (let ((c (choose
+            #;(att-value 'choice-table n)
+            statement-choice-table
+            )))
     (case c
-      ((Eval)
-       ;; Replace with an Eval.
-       (rewrite-subtree n (fresh-Eval)))
-      ((Block)
-       ;; Replace with a Block.
-       (rewrite-subtree n (fresh-Block)))
-      ((Let)
-       ;; Replace with a Let.
-       (rewrite-subtree n (fresh-Let)))
-      (else
-       (error 'replace-with-stmt "invalid choice ~a" c))
+      [(Null)
+       (rewrite-subtree n (fresh-node 'NullStatement))]
+      #;[(Block)
+       (rewrite-subtree n (fresh-Block))]
+      [else
+       (error 'replace-with-statement "invalid choice ~a" c)]
       )))
 
 (define (generate-random-prog n)
@@ -391,11 +394,11 @@
                #f
                (case (ast-node-type n)
                  ((ExpressionHole)
-                  (replace-with-term n)
+                  (replace-with-expression n)
                   #t)
-                 #;((StatementHole)
-                    (replace-with-stmt n)
-                    #t)
+                 ((StatementHole)
+                  (replace-with-statement n)
+                  #t)
                  (else #f))))])
     (perform-rewrites n 'top-down fill-in))
   n)
@@ -413,10 +416,13 @@
                           (fresh-node 'Block
                                       (create-ast-list (list))
                                       (create-ast-list
-                                       (list
-                                        (fresh-node
-                                         'ValueReturnStatement
-                                         (fresh-node 'ExpressionHole))))))))
+                                       (append
+                                        (map (λ (x) (fresh-node 'StatementHole))
+                                             (make-list (random 5) #f))
+                                        (list
+                                         (fresh-node
+                                          'ValueReturnStatement
+                                          (fresh-node 'ExpressionHole)))))))))
 
 (define (do-it)
   (let ((ast (generate-random-prog (fresh-Prog))))
