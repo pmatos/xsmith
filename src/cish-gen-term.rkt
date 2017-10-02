@@ -34,30 +34,12 @@
 (require racr/testing) ;; racr/testing is needed for print-ast
 (require pprint)
 (require "random.rkt")
+(require "choice.rkt")
 (require racket/random)
 (require "xsmith-options.rkt")
 (provide do-it)
 
 (define spec (create-specification))
-
-(define term-choice-table
-  ;; Choose any Term production.
-  (make-choice-table '((Num 1) (Sum 1) (Subtraction 1) (Ref 1))))
-(define term-choice-table/no-ref
-  ;; Choose any Term production.
-  (make-choice-table '((Num 1) (Sum 1) (Subtraction 1))))
-(define term-atoms-choice-table
-  ;; Choose an "atomic" Term production.
-  (make-choice-table '((Num 1) (Ref 1))))
-(define term-atoms-choice-table/no-ref
-  ;; Choose an "atomic" Term production.
-  (make-choice-table '((Num 1))))
-(define stmt-choice-table
-  ;; Choose any Stmt production.
-  (make-choice-table '((Eval 1) (Block 1) (Let 1))))
-(define stmt-atoms-choice-table
-  ;; Choose an "atomic" Stmt production.
-  (make-choice-table '((Eval 1))))
 
 (define statement-choice-table
   (make-choice-table '((NullStatement 1)
@@ -202,188 +184,80 @@
   (compile-ag-specifications)
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  #|
-  (ag-rule value
-           (Num (lambda (n) (ast-child 'val n)))
-           (Ref (lambda (n) (let ((def (att-value 'def n (ast-child 'name n))))
-                              (if def
-                                  (ast-child 'val def)
-                                  -1))))
-           (Sum (lambda (n) (+ (att-value 'value (ast-child 'left n))
-                               (att-value 'value (ast-child 'right n)))))
-           (Subtraction (lambda (n) (- (att-value 'value (ast-child 'left n))
-                                       (att-value 'value (ast-child 'right n)))))
-           )
-
-  (ag-rule def
-           (Prog (lambda (n name) #f)) ;; the not-defined error
-           (Stmt (lambda (n name) (att-value 'def (ast-parent n) name)))
-           (Let (lambda (n name) (if (eq? (ast-child 'name n) name)
-                                     n
-                                     (att-value 'def (ast-parent n) name))))
-           (Term (lambda (n name) (att-value 'def (ast-parent n) name)))
-           )
-
-  (ag-rule names-available
-           (Prog (λ (n) '()))
-           (Let (λ (n) (cons (ast-child 'name n)
-                             (att-value 'names-available (ast-parent n)))))
-           (Stmt (λ (n) (att-value 'names-available (ast-parent n))))
-           (Term (λ (n) (att-value 'names-available (ast-parent n))))
-           )
-
-  (ag-rule level
-           (Prog (lambda (n) 0))
-           (Stmt (lambda (n) (+ 1 (att-value 'level (ast-parent n)))))
-           (Term (lambda (n) (+ 1 (att-value 'level (ast-parent n))))))
-
-  (ag-rule choice-table
-           (TermHole (lambda (n)
-                       (let ([too-deep? (> (att-value 'level n)
-                                           (xsmith-option 'max-depth))]
-                             [no-names? (null? (att-value 'names-available n))])
-                         (cond
-                           [(and too-deep? no-names?) term-atoms-choice-table/no-ref]
-                           [no-names? term-choice-table/no-ref]
-                           [too-deep? term-atoms-choice-table]
-                           [else term-choice-table]))))
-           (StmtHole (lambda (n)
-                       (if (> (att-value 'level n) (xsmith-option 'max-depth))
-                           stmt-atoms-choice-table
-                           stmt-choice-table))))
-
-  (ag-rule pp
-           (Prog (lambda (n) (att-value 'pp (ast-child 1 n))))
-           (Let (lambda (n) (list 'let
-                                  (ast-child 'name n)
-                                  (ast-child 'val n)
-                                  (att-value 'pp (ast-child 'body n)))))
-           (Eval (lambda (n) (list 'eval (att-value 'pp (ast-child 1 n)))))
-           (Block (lambda (n) (list 'block
-                                    (att-value 'pp (ast-child 'first n))
-                                    (att-value 'pp (ast-child 'second n)))))
-           (Num (lambda (n) (ast-child 'val n)))
-           (Ref (lambda (n) (ast-child 'name n)))
-           (Sum (lambda (n) (list '+
-                                  (att-value 'pp (ast-child 'left n))
-                                  (att-value 'pp (ast-child 'right n)))))
-           (Subtraction (lambda (n) (list '-
-                                          (att-value 'pp (ast-child 'left n))
-                                          (att-value 'pp (ast-child 'right n))))))
-
-  (ag-rule ppdoc
-           (Prog (lambda (n) (att-value 'ppdoc (ast-child 1 n))))
-           (Let (lambda (n) (v-append
-                             (nest nest-step
-                                   (v-append
-                                    lbrace
-                                    (h-append
-                                     (hs-append
-                                      (text
-                                       (symbol->string (ast-child 'name n)))
-                                      eqsign
-                                      (text
-                                       (number->string (ast-child 'val n))))
-                                     semi)
-                                    (att-value 'ppdoc (ast-child 'body n))))
-                             rbrace)))
-           (Eval (lambda (n) (h-append
-                              (att-value 'ppdoc (ast-child 1 n))
-                              semi)))
-           (Block (lambda (n) (v-append
-                               (nest nest-step
-                                     (v-append
-                                      lbrace
-                                      (att-value 'ppdoc (ast-child 'first n))
-                                      (att-value 'ppdoc (ast-child 'second n))
-                                      ))
-                               rbrace)))
-           (Num (lambda (n) (text (number->string (ast-child 'val n)))))
-           (Ref (lambda (n) (text (symbol->string (ast-child 'name n)))))
-           (Sum (lambda (n) (h-append
-                             lparen
-                             (hs-append
-                              (vs-append
-                               (att-value 'ppdoc (ast-child 'left n))
-                               plus
-                               (att-value 'ppdoc (ast-child 'right n))))
-                             rparen
-                             )))
-           (Subtraction (lambda (n) (h-append
-                                     lparen
-                                     (hs-append
-                                      (vs-append
-                                       (att-value 'ppdoc (ast-child 'left n))
-                                       minus
-                                       (att-value 'ppdoc (ast-child 'right n))))
-                                     rparen
-                                     ))))
-
-  (compile-ag-specifications)
-  |#
   )
+
+(define StatementChoice
+  (class ast-choice%
+    (define/override (choice-weight) 1)
+    (super-new)))
+(define NullStatementChoice
+  (class StatementChoice
+    (define/override (fresh)
+      (fresh-node 'NullStatement))
+    (super-new)))
+(define ExpressionStatementChoice
+  (class StatementChoice
+    (define/override (fresh)
+      (fresh-node 'ExpressionStatement (fresh-node 'ExpressionHole)))
+    (super-new)))
+(define BlockChoice
+  (class StatementChoice
+    (define/override (fresh)
+      (fresh-node 'Block
+              ;; declarations
+              (create-ast-list (list))
+              ;; statements
+              (create-ast-list (map (λ (x) (fresh-node 'StatementHole))
+                                    (make-list (random 5) #f)))))
+    (super-new)))
+(define ReturnStatementChoice
+  (class StatementChoice
+    (super-new)))
+(define ValueReturnStatementChoice
+  (class ReturnStatementChoice
+    (define/override (fresh)
+      (fresh-node 'ValueReturnStatement (fresh-node 'ExpressionHole)))
+    (super-new)))
+
+(define ExpressionChoice
+  (class ast-choice%
+    (define/override (choice-weight) 1)
+    (super-new)))
+(define NumberChoice
+  (class ExpressionChoice
+    (define/override (fresh)
+      (fresh-node 'Number (random 100)))
+    (super-new)))
+(define AdditionExpressionChoice
+  (class ExpressionChoice
+    (define/override (fresh)
+      (fresh-node 'AdditionExpression
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'ExpressionHole)))
+    (super-new)))
+
+(define statement-choices
+  (list (new NullStatementChoice)
+        (new ExpressionStatementChoice)
+        (new BlockChoice)
+        (new ValueReturnStatementChoice)))
+
+(define expression-choices
+  (list (new NumberChoice)
+        (new AdditionExpressionChoice)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-syntax-rule (fresh-node type attr-val ...)
   (create-ast spec type (list attr-val ...)))
 
-(define (fresh-Num)
-  (fresh-node 'Num (random 10)))
-(define (fresh-Sum)
-  (fresh-node 'Sum
-              (fresh-TermHole)
-              (fresh-TermHole)))
-(define (fresh-Subtraction)
-  (fresh-node 'Subtraction
-              (fresh-TermHole)
-              (fresh-TermHole)))
-(define (fresh-Ref var)
-  (fresh-node 'Ref var))
-(define (fresh-TermHole)
-  (fresh-node 'TermHole))
-
 (define (replace-with-expression n)
-  (let ((c (choose
-            #;(att-value 'choice-table n)
-            expression-choice-table
-                   )))
-    (case c
-      [(Number)
-       ;; Replace with a Num.
-       (rewrite-subtree n (fresh-node 'Number (random 100)))]
-      [(AdditionExpression)
-       (rewrite-subtree n (fresh-node 'AdditionExpression
-                                      (fresh-node 'ExpressionHole)
-                                      (fresh-node 'ExpressionHole)))]
-      [else
-       (error 'replace-with-expression "invalid choice ~a" c)]
-      )))
-
-(define (fresh-Block)
-  (fresh-node 'Block
-              ;; declarations
-              (create-ast-list (list))
-              ;; statements
-              (create-ast-list (map (λ (x) (fresh-node 'StatementHole))
-                                    (make-list (random 5) #f)))))
+  (let ([o (choose-ast expression-choices)])
+    (rewrite-subtree n (send o fresh))))
 
 (define (replace-with-statement n)
-  (let ((c (choose
-            #;(att-value 'choice-table n)
-            statement-choice-table
-            )))
-    (case c
-      [(NullStatement)
-       (rewrite-subtree n (fresh-node 'NullStatement))]
-      [(Block)
-       (rewrite-subtree n (fresh-Block))]
-      [(ExpressionStatement)
-       (rewrite-subtree n (fresh-node 'ExpressionStatement
-                                      (fresh-node 'ExpressionHole)))]
-      [else
-       (error 'replace-with-statement "invalid choice ~a" c)]
-      )))
+  (let ([o (choose-ast statement-choices)])
+    (rewrite-subtree n (send o fresh))))
 
 (define (generate-random-prog n)
   (let ([fill-in
@@ -432,26 +306,5 @@
             (pretty-print (att-value 'ppdoc ast) out page-width)))
         (pretty-print (att-value 'ppdoc ast) (current-output-port) page-width))
     ))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; How to reflect on the grammar.  (But probably we do not need to do this.)
-;;
-;; (map symbol->name
-;;   (ast-rule->production (specification->find-ast-rule spec 'Block)))
-;; => '(Block Stmt Stmt)
-;; (map symbol->context-name
-;;   (ast-rule->production (specification->find-ast-rule spec 'Block)))
-;; => '(Block first second)
-;; (map symbol->non-terminal?
-;;   (ast-rule->production (specification->find-ast-rule spec 'Block)))
-;; => '(#t #<ast-rule> #<ast-rule>)
-;;
-;; The above, for 'Let:
-;; => '(Let name val Stmt)
-;; => '(Let name val body)
-;; => '(#t #f #f #<ast-rule>)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; End of file.
