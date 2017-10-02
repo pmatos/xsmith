@@ -186,19 +186,31 @@
 
   )
 
-(define StatementChoice
+(define cish-ast-choice%
   (class ast-choice%
+    (define/public (wont-over-deepen holenode)
+      (if (<= (att-value 'ast-depth holenode) (xsmith-option 'max-depth))
+          this
+          #f))
+    (super-new)))
+
+(define StatementChoice
+  (class cish-ast-choice%
     (define/override (choice-weight) 1)
     (super-new)))
 (define NullStatementChoice
   (class StatementChoice
     (define/override (fresh)
       (fresh-node 'NullStatement))
+    (define/override (wont-over-deepen holenode)
+      this)
     (super-new)))
 (define ExpressionStatementChoice
   (class StatementChoice
     (define/override (fresh)
       (fresh-node 'ExpressionStatement (fresh-node 'ExpressionHole)))
+    (define/override (wont-over-deepen holenode)
+      this)
     (super-new)))
 (define BlockChoice
   (class StatementChoice
@@ -212,6 +224,8 @@
     (super-new)))
 (define ReturnStatementChoice
   (class StatementChoice
+    (define/override (wont-over-deepen holenode)
+      this)
     (super-new)))
 (define ValueReturnStatementChoice
   (class ReturnStatementChoice
@@ -220,13 +234,15 @@
     (super-new)))
 
 (define ExpressionChoice
-  (class ast-choice%
+  (class cish-ast-choice%
     (define/override (choice-weight) 1)
     (super-new)))
 (define NumberChoice
   (class ExpressionChoice
     (define/override (fresh)
       (fresh-node 'Number (random 100)))
+    (define/override (wont-over-deepen holenode)
+      this)
     (super-new)))
 (define AdditionExpressionChoice
   (class ExpressionChoice
@@ -251,12 +267,16 @@
 (define-syntax-rule (fresh-node type attr-val ...)
   (create-ast spec type (list attr-val ...)))
 
+(define (apply-choice-filters choice-list hole-node)
+  (filter (λ (choice) (send choice wont-over-deepen hole-node))
+          choice-list))
+
 (define (replace-with-expression n)
-  (let ([o (choose-ast expression-choices)])
+  (let ([o (choose-ast (apply-choice-filters expression-choices n))])
     (rewrite-subtree n (send o fresh))))
 
 (define (replace-with-statement n)
-  (let ([o (choose-ast statement-choices)])
+  (let ([o (choose-ast (apply-choice-filters statement-choices n))])
     (rewrite-subtree n (send o fresh))))
 
 (define (generate-random-prog n)
