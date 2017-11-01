@@ -35,6 +35,7 @@
 (require pprint)
 (require "random.rkt")
 (require "choice.rkt")
+(require "scope-graph.rkt")
 (require racket/random)
 (require "xsmith-options.rkt")
 (provide do-it)
@@ -87,7 +88,8 @@
   (ast-rule 'StatementHole:Statement->)
 
   (ast-rule 'Declaration->)
-  (ast-rule 'VariableDeclaration:Declaration->Type-name)
+  (ast-rule 'VariableDeclaration:Declaration->Type-name-Expression)
+  (ast-rule 'DeclarationHole:Declaration->)
 
   (ast-rule 'Expression->)
   (ast-rule 'ExpressionHole:Expression->)
@@ -108,6 +110,7 @@
            [Program (λ (n) 0)]
            [Statement (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
            [Expression (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
+           [VariableDeclaration (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
            [FunctionDefinition (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))])
   #;(ag-rule choice-table
            [StatementHole (lambda (n)
@@ -143,11 +146,17 @@
              lbrace
              (nest
               nest-step
-              (apply v-append
-                     ;; add an extra text node so linebreaks are added...
-                     (text "")
-                     (map (λ (cn) (att-value 'pretty-print cn))
-                          (ast-children (ast-child 'Statement* n)))))
+              (v-append
+               (apply v-append
+                      ;; add an extra text node so linebreaks are added...
+                      (text "")
+                      (map (λ (cn) (att-value 'pretty-print cn))
+                           (ast-children (ast-child 'Declaration* n))))
+               (apply v-append
+                      ;; add an extra text node so linebreaks are added...
+                      (text "")
+                      (map (λ (cn) (att-value 'pretty-print cn))
+                           (ast-children (ast-child 'Statement* n))))))
              line
              rbrace))]
    [ExpressionStatement
@@ -158,6 +167,13 @@
                      (att-value 'pretty-print (ast-child 1 n))
                      (text ";")))]
    [NullStatement (λ (n) (text ";"))]
+   [VariableDeclaration
+    (λ (n) (h-append (att-value 'pretty-print (ast-child 'Type n))
+                     (text " ")
+                     (text (ast-child 'name n))
+                     (text " = ")
+                     (att-value 'pretty-print (ast-child 'Expression n))
+                     (text ";")))]
    [Type (λ (n) (text (ast-child 'name n)))]
    [Number (λ (n) (text (number->string (ast-child 'val n))))]
    [AdditionExpression
@@ -188,6 +204,7 @@
 
 (define cish-ast-choice%
   (class ast-choice%
+    (define/override (choice-weight) 10)
     (define/public (wont-over-deepen holenode)
       (if (<= (att-value 'ast-depth holenode) (xsmith-option 'max-depth))
           this
@@ -196,7 +213,6 @@
 
 (define StatementChoice
   (class cish-ast-choice%
-    (define/override (choice-weight) 1)
     (super-new)))
 (define NullStatementChoice
   (class StatementChoice
@@ -204,6 +220,7 @@
       (fresh-node 'NullStatement))
     (define/override (wont-over-deepen holenode)
       this)
+    (define/override (choice-weight) 2)
     (super-new)))
 (define ExpressionStatementChoice
   (class StatementChoice
@@ -214,10 +231,12 @@
     (super-new)))
 (define BlockChoice
   (class StatementChoice
+    (define/override (choice-weight) 15)
     (define/override (fresh)
       (fresh-node 'Block
               ;; declarations
-              (create-ast-list (list))
+              (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole))
+                                    (make-list (random 3) #f)))
               ;; statements
               (create-ast-list (map (λ (x) (fresh-node 'StatementHole))
                                     (make-list (random 5) #f)))))
@@ -235,7 +254,6 @@
 
 (define ExpressionChoice
   (class cish-ast-choice%
-    (define/override (choice-weight) 1)
     (super-new)))
 (define NumberChoice
   (class ExpressionChoice
@@ -252,6 +270,24 @@
                   (fresh-node 'ExpressionHole)))
     (super-new)))
 
+(define DeclarationChoice
+  (class cish-ast-choice%
+    (define/override (choice-weight) 1)
+    (super-new)))
+(define VariableDeclarationChoice
+  (class DeclarationChoice
+    (define/override (wont-over-deepen holenode)
+      this)
+    (define/override (fresh)
+      (fresh-node 'VariableDeclaration
+                  (fresh-node 'Type "int")
+                  (fresh-var-name)
+                  (fresh-node 'ExpressionHole)))
+    (super-new)))
+
+(define (fresh-var-name)
+  (symbol->string (gensym "var")))
+
 (define statement-choices
   (list (new NullStatementChoice)
         (new ExpressionStatementChoice)
@@ -261,6 +297,9 @@
 (define expression-choices
   (list (new NumberChoice)
         (new AdditionExpressionChoice)))
+
+(define declaration-choices
+  (list (new VariableDeclarationChoice)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -279,6 +318,10 @@
   (let ([o (choose-ast (apply-choice-filters statement-choices n))])
     (rewrite-subtree n (send o fresh))))
 
+(define (replace-with-declaration n)
+  (let ([o (choose-ast (apply-choice-filters declaration-choices n))])
+    (rewrite-subtree n (send o fresh))))
+
 (define (generate-random-prog n)
   (let ([fill-in
          (λ (n)
@@ -290,6 +333,9 @@
                   #t)
                  ((StatementHole)
                   (replace-with-statement n)
+                  #t)
+                 ((DeclarationHole)
+                  (replace-with-declaration n)
                   #t)
                  (else #f))))])
     (perform-rewrites n 'top-down fill-in))
