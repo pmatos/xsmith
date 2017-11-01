@@ -87,8 +87,8 @@
   (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
   (ast-rule 'StatementHole:Statement->)
 
-  (ast-rule 'Declaration->)
-  (ast-rule 'VariableDeclaration:Declaration->Type-name-Expression)
+  (ast-rule 'Declaration->name)
+  (ast-rule 'VariableDeclaration:Declaration->Type-Expression)
   (ast-rule 'DeclarationHole:Declaration->)
 
   (ast-rule 'Expression->)
@@ -97,6 +97,7 @@
   (ast-rule 'AssignmentExpression:Expression->name-Expression)
   (ast-rule 'AdditionExpression:Expression->Expression<l-Expression<r)
   (ast-rule 'Number:Expression->val)
+  (ast-rule 'VariableReference:Expression->name)
   (ast-rule 'FunctionCall:Expression->name-ArgumentList)
 
   (ast-rule 'ArgumentList->)
@@ -146,15 +147,12 @@
              lbrace
              (nest
               nest-step
-              (v-append
-               (apply v-append
-                      ;; add an extra text node so linebreaks are added...
-                      (text "")
+              (apply v-append
+                     ;; add an extra text node so linebreaks are added...
+                     (text "")
+                     (append
                       (map (λ (cn) (att-value 'pretty-print cn))
-                           (ast-children (ast-child 'Declaration* n))))
-               (apply v-append
-                      ;; add an extra text node so linebreaks are added...
-                      (text "")
+                           (ast-children (ast-child 'Declaration* n)))
                       (map (λ (cn) (att-value 'pretty-print cn))
                            (ast-children (ast-child 'Statement* n))))))
              line
@@ -176,6 +174,7 @@
                      (text ";")))]
    [Type (λ (n) (text (ast-child 'name n)))]
    [Number (λ (n) (text (number->string (ast-child 'val n))))]
+   [VariableReference (λ (n) (text (ast-child 'name n)))]
    [AdditionExpression
     (λ (n) (h-append lparen
                      (att-value 'pretty-print (ast-child 'l n))
@@ -183,6 +182,49 @@
                      (att-value 'pretty-print (ast-child 'r n))
                      rparen))]
    )
+
+  (ag-rule
+   scope-graph-binding
+   [VariableDeclaration
+    (λ (n) (binding (ast-child 'name n)
+                    ;; TODO - decide what should really go here
+                    (hash 'type (ast-child 'Type n))))]
+   [DeclarationHole
+    (λ (n) #f)])
+
+  (ag-rule
+   scope-graph-scope
+   [Program
+    ;; TODO - functions are bound here
+    (λ (n) (scope #f '() '()))]
+   [Block
+    ;; TODO - fix variable initialization so it can't initialize to itself
+    (λ (n) (scope (att-value 'scope-graph-scope (ast-parent n))
+                  (filter (λ(x)x)
+                          (map (λ (cn) (att-value 'scope-graph-binding cn))
+                               (ast-children (ast-child 'Declaration* n))))
+                  '()))]
+   [Declaration
+    (λ (n) (att-value 'scope-graph-scope (ast-parent n)))]
+   [Statement
+    (λ (n) (att-value 'scope-graph-scope (ast-parent n)))]
+   [Expression
+    (λ (n) (att-value 'scope-graph-scope (ast-parent n)))])
+
+  (ag-rule
+   visible-bindings
+   [Statement (λ (n) (visible-bindings (att-value 'scope-graph-scope n)))]
+   [Expression (λ (n) (visible-bindings (att-value 'scope-graph-scope n)))])
+  (ag-rule
+   illegal-variable-names
+   [Statement (λ (n) '())]
+   [Block (λ (n) (map (λ (cn) (ast-child 'name cn))
+                      (ast-children (ast-child 'Declaration* n))))]
+   [Declaration (λ (n) (att-value 'illegal-variable-names (ast-parent n)))]
+   [Expression (λ (n) (att-value 'illegal-variable-names (ast-parent n)))]
+   )
+
+
 
   #|
   ;; interpreter
@@ -209,6 +251,8 @@
       (if (<= (att-value 'ast-depth holenode) (xsmith-option 'max-depth))
           this
           #f))
+    (define/public (constrain-type holenode)
+      this)
     (super-new)))
 
 (define StatementChoice
@@ -235,7 +279,8 @@
     (define/override (fresh)
       (fresh-node 'Block
               ;; declarations
-              (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole))
+              (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
+                                                       "standin-name"))
                                     (make-list (random 3) #f)))
               ;; statements
               (create-ast-list (map (λ (x) (fresh-node 'StatementHole))
@@ -262,6 +307,25 @@
     (define/override (wont-over-deepen holenode)
       this)
     (super-new)))
+(define VariableReferenceChoice
+  (class ExpressionChoice
+    (define/override (choice-weight) 15)
+    (define ref-choices-filtered #f)
+    (define/override (fresh)
+      (fresh-node 'VariableReference (binding-name (random-ref ref-choices-filtered))))
+    (define/override (wont-over-deepen holenode)
+      this)
+    (define/override (constrain-type holenode)
+      (define visibles (att-value 'visible-bindings holenode))
+      ;; TODO filter to matching type... once I use more than one type
+      (define avail (filter (λ (b) #t) visibles))
+      (define legal
+        (filter (λ (b) (not (member (binding-name b)
+                                    (att-value 'illegal-variable-names holenode))))
+                avail))
+      (set! ref-choices-filtered legal)
+      (and (not (null? legal)) this))
+    (super-new)))
 (define AdditionExpressionChoice
   (class ExpressionChoice
     (define/override (fresh)
@@ -280,25 +344,26 @@
       this)
     (define/override (fresh)
       (fresh-node 'VariableDeclaration
-                  (fresh-node 'Type "int")
                   (fresh-var-name)
+                  (fresh-node 'Type "int")
                   (fresh-node 'ExpressionHole)))
     (super-new)))
 
 (define (fresh-var-name)
   (symbol->string (gensym "var")))
 
-(define statement-choices
+(define (statement-choices)
   (list (new NullStatementChoice)
         (new ExpressionStatementChoice)
         (new BlockChoice)
         (new ValueReturnStatementChoice)))
 
-(define expression-choices
+(define (expression-choices)
   (list (new NumberChoice)
-        (new AdditionExpressionChoice)))
+        (new AdditionExpressionChoice)
+        (new VariableReferenceChoice)))
 
-(define declaration-choices
+(define (declaration-choices)
   (list (new VariableDeclarationChoice)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -306,20 +371,29 @@
 (define-syntax-rule (fresh-node type attr-val ...)
   (create-ast spec type (list attr-val ...)))
 
+(define-syntax-rule (maybe-send obj method arg ...)
+  (and obj (send obj method arg ...)))
+(define-syntax-rule (maybe-send+ obj (method arg ...) ...)
+  (let* ([tmp obj]
+         [tmp (maybe-send tmp method arg ...)] ...)
+    tmp))
+
 (define (apply-choice-filters choice-list hole-node)
-  (filter (λ (choice) (send choice wont-over-deepen hole-node))
+  (filter (λ (choice) (maybe-send+ choice
+                                   (wont-over-deepen hole-node)
+                                   (constrain-type hole-node)))
           choice-list))
 
 (define (replace-with-expression n)
-  (let ([o (choose-ast (apply-choice-filters expression-choices n))])
+  (let ([o (choose-ast (apply-choice-filters (expression-choices) n))])
     (rewrite-subtree n (send o fresh))))
 
 (define (replace-with-statement n)
-  (let ([o (choose-ast (apply-choice-filters statement-choices n))])
+  (let ([o (choose-ast (apply-choice-filters (statement-choices) n))])
     (rewrite-subtree n (send o fresh))))
 
 (define (replace-with-declaration n)
-  (let ([o (choose-ast (apply-choice-filters declaration-choices n))])
+  (let ([o (choose-ast (apply-choice-filters (declaration-choices) n))])
     (rewrite-subtree n (send o fresh))))
 
 (define (generate-random-prog n)

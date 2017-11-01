@@ -80,13 +80,15 @@
     (if (not scope)
         (hash)
         (let* ([parent-rs (visible-names-hash
-                           (scope-parent scope (cons 'parent path-so-far)))]
+                           (scope-parent scope) (cons 'parent path-so-far))]
                [import-rss (for/list ([import (scope-imports scope)])
                              (visible-names-hash (module-scope
                                                   (resolve-reference import))
                                                  (cons 'import path-so-far)))]
-               [resolutions-here (map (λ (b) (resolution b (reverse path-so-far)))
-                                      (scope-bindings scope))]
+               [resolutions-here
+                (map (λ (b) (resolution b (reverse
+                                           (cons 'declaration path-so-far))))
+                     (scope-bindings scope))]
                [valid-resolutions-here (filter well-formed? resolutions-here)]
                [valid-here-hash (for/hash ([r valid-resolutions-here])
                                   (values (binding-name (resolution-binding r))
