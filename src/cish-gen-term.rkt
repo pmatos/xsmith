@@ -42,19 +42,6 @@
 
 (define spec (create-specification))
 
-(define statement-choice-table
-  (make-choice-table '((NullStatement 1)
-                       (Block 1)
-                       ;(Return 1)
-                       (ExpressionStatement 1)
-                       )))
-(define expression-choice-table
-  (make-choice-table '((AdditionExpression 1)
-                       (Number 1)
-                       ;(Assignment 1)
-                       ;(FunctionCall 1)
-                       )))
-
 (define page-width      80)
 (define nest-step       4)
 (define lbrace          (char #\{))
@@ -113,23 +100,9 @@
            [Expression (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
            [VariableDeclaration (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
            [FunctionDefinition (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))])
-  #;(ag-rule choice-table
-           [StatementHole (lambda (n)
-                            (let ([too-deep? (> (att-value 'ast-depth n)
-                                                (xsmith-option 'max-depth))]
-                                  [no-names? (null? (att-value 'names-available n))])
-                              (cond
-                                [(and too-deep? no-names?) term-atoms-choice-table/no-ref]
-                                [no-names? term-choice-table/no-ref]
-                                [too-deep? term-atoms-choice-table]
-                                [else term-choice-table])))])
   (ag-rule
    pretty-print
    [Program (λ (n)
-              #;(apply v-append
-                       (append (map (λ (cn) (att-value 'pretty-print cn))
-                                    (ast-children (ast-child 1 n)))
-                               (list (att-value 'pretty-print (ast-child 2 n)))))
               (att-value 'pretty-print (ast-child 'main n)))]
    [FunctionDefinition
     (λ (n)
@@ -172,7 +145,6 @@
                      (text " = ")
                      (att-value 'pretty-print (ast-child 'Expression n))
                      (text ";")))]
-   ;[Type (λ (n) (text (ast-child 'name n)))]
    [Number (λ (n) (text (number->string (ast-child 'val n))))]
    [VariableReference (λ (n) (text (ast-child 'name n)))]
    [AdditionExpression
@@ -248,19 +220,6 @@
                                 n))]
    )
 
-
-  #|
-  ;; interpreter
-  (ag-rule value)
-  ;; type abstract interpreter
-  (ag-rule type)
-
-  (ag-rule pretty-print)
-
-  (ag-rule bindings)
-  ;; scope-graphs scope
-  (ag-rule scope)
-  |#
 
   (compile-ag-specifications)
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
