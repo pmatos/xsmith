@@ -72,10 +72,10 @@
   (ast-rule 'Program->FunctionDefinition*-FunctionDefinition<main)
 
   ;; TODO - the block in a function definition should get some constraints from its parent - eg. it should have a return of the appropriate type in each branch
-  (ast-rule 'FunctionDefinition->Type-name-FormalParam*-Block)
-  (ast-rule 'FormalParam->Type-name)
+  (ast-rule 'FunctionDefinition->typename-name-FormalParam*-Block)
+  (ast-rule 'FormalParam->typename-name)
 
-  (ast-rule 'Type->name)
+  ;(ast-rule 'Type->name)
 
 
   (ast-rule 'Statement->)
@@ -88,7 +88,7 @@
   (ast-rule 'StatementHole:Statement->)
 
   (ast-rule 'Declaration->name)
-  (ast-rule 'VariableDeclaration:Declaration->Type-Expression)
+  (ast-rule 'VariableDeclaration:Declaration->typename-Expression)
   (ast-rule 'DeclarationHole:Declaration->)
 
   (ast-rule 'Expression->)
@@ -135,7 +135,7 @@
     (λ (n)
       (v-append
        (h-append
-        (att-value 'pretty-print (ast-child 'Type n))
+        (text (ast-child 'typename n))
         (text " ")
         (text (ast-child 'name n))
         lparen
@@ -166,13 +166,13 @@
                      (text ";")))]
    [NullStatement (λ (n) (text ";"))]
    [VariableDeclaration
-    (λ (n) (h-append (att-value 'pretty-print (ast-child 'Type n))
+    (λ (n) (h-append (text (ast-child 'typename n))
                      (text " ")
                      (text (ast-child 'name n))
                      (text " = ")
                      (att-value 'pretty-print (ast-child 'Expression n))
                      (text ";")))]
-   [Type (λ (n) (text (ast-child 'name n)))]
+   ;[Type (λ (n) (text (ast-child 'name n)))]
    [Number (λ (n) (text (number->string (ast-child 'val n))))]
    [VariableReference (λ (n) (text (ast-child 'name n)))]
    [AdditionExpression
@@ -188,7 +188,7 @@
    [VariableDeclaration
     (λ (n) (binding (ast-child 'name n)
                     ;; TODO - decide what should really go here
-                    (hash 'type (ast-child 'Type n))))]
+                    (hash 'type (ast-child 'typename n))))]
    [DeclarationHole
     (λ (n) #f)])
 
@@ -224,6 +224,29 @@
    [Expression (λ (n) (att-value 'illegal-variable-names (ast-parent n)))]
    )
 
+  (ag-rule
+   current-function-return-type
+   [Statement (λ (n) (att-value 'current-function-return-type (ast-parent n)))]
+   [FunctionDefinition (λ (n) (ast-child 'typename n))])
+
+  (ag-rule
+   children-type-dict
+   ;; For eg. functions to associate a child node with the type it must be
+   [ExpressionStatement (λ (n) (hasheq (ast-child 'Expression n) #f))]
+   [ValueReturnStatement (λ (n) (hasheq (ast-child 'Expression n)
+                                        (att-value 'current-function-return-type n)))]
+   [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
+                                       (ast-child 'typename n)))]
+   [AdditionExpression (λ (n) (let ([t (att-value 'type-context n)])
+                                (hasheq (ast-child 'l n) t
+                                        (ast-child 'r n) t)))]
+   ;; TODO - function call, anything with child expressions...
+   )
+  (ag-rule
+   type-context
+   [Expression (λ (n) (dict-ref (att-value 'children-type-dict (ast-parent n))
+                                n))]
+   )
 
 
   #|
@@ -306,6 +329,11 @@
       (fresh-node 'Number (random 100)))
     (define/override (wont-over-deepen holenode)
       this)
+    (define/override (constrain-type holenode)
+      (let ([t (att-value 'type-context holenode)])
+        (cond [(and t (equal? t "int")) this]
+              [(not t) this]
+              [else #f])))
     (super-new)))
 (define VariableReferenceChoice
   (class ExpressionChoice
@@ -319,12 +347,19 @@
       (define visibles (att-value 'visible-bindings holenode))
       ;; TODO filter to matching type... once I use more than one type
       (define avail (filter (λ (b) #t) visibles))
-      (define legal
+      (define legal-refs
         (filter (λ (b) (not (member (binding-name b)
                                     (att-value 'illegal-variable-names holenode))))
                 avail))
-      (set! ref-choices-filtered legal)
-      (and (not (null? legal)) this))
+      (define type-needed (att-value 'type-context holenode))
+      (define legal-with-type
+        (if type-needed
+            (filter (λ (b) (equal? type-needed
+                                   (dict-ref (binding-bound b) 'type)))
+                    legal-refs)
+            legal-refs))
+      (set! ref-choices-filtered legal-with-type)
+      (and (not (null? legal-with-type)) this))
     (super-new)))
 (define AdditionExpressionChoice
   (class ExpressionChoice
@@ -332,6 +367,11 @@
       (fresh-node 'AdditionExpression
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'ExpressionHole)))
+    (define/override (constrain-type holenode)
+      (let ([t (att-value 'type-context holenode)])
+        (cond [(and t (equal? t "int")) this]
+              [(not t) this]
+              [else #f])))
     (super-new)))
 
 (define DeclarationChoice
@@ -345,7 +385,7 @@
     (define/override (fresh)
       (fresh-node 'VariableDeclaration
                   (fresh-var-name)
-                  (fresh-node 'Type "int")
+                  "int"
                   (fresh-node 'ExpressionHole)))
     (super-new)))
 
@@ -421,7 +461,7 @@
   (fresh-node 'Program
               (create-ast-list '())
               (fresh-node 'FunctionDefinition
-                          (fresh-node 'Type "int")
+                          "int"
                           "main"
                           ;; parameters
                           (create-ast-list '())

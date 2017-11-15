@@ -32,6 +32,8 @@ Choices for AST growth should be some sort of object.
   ;; A random number should be generated between 0 and the sum of the weights.
   ;; Make a list of lists where sublists have the low-value for the bucket
   ;; and the value when the random number falls in that bucket.
+  (when (null? ast-choice-list)
+    (error 'choose-ast "given empty ast choice list"))
   (define-values (total-weight choice-list)
     (for/fold ([sum 0]
                [clist '()])
