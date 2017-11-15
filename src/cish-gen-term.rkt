@@ -83,7 +83,8 @@
   ;; TODO LValues?
   (ast-rule 'AssignmentExpression:Expression->name-Expression)
   (ast-rule 'AdditionExpression:Expression->Expression<l-Expression<r)
-  (ast-rule 'Number:Expression->val)
+  (ast-rule 'LiteralInt:Expression->val)
+  (ast-rule 'LiteralFloat:Expression->val)
   (ast-rule 'VariableReference:Expression->name)
   (ast-rule 'FunctionCall:Expression->name-ArgumentList)
 
@@ -145,7 +146,8 @@
                      (text " = ")
                      (att-value 'pretty-print (ast-child 'Expression n))
                      (text ";")))]
-   [Number (λ (n) (text (number->string (ast-child 'val n))))]
+   [LiteralInt (λ (n) (text (number->string (ast-child 'val n))))]
+   [LiteralFloat (λ (n) (text (number->string (ast-child 'val n))))]
    [VariableReference (λ (n) (text (ast-child 'name n)))]
    [AdditionExpression
     (λ (n) (h-append lparen
@@ -282,15 +284,27 @@
 (define ExpressionChoice
   (class cish-ast-choice%
     (super-new)))
-(define NumberChoice
+(define LiteralIntChoice
   (class ExpressionChoice
     (define/override (fresh)
-      (fresh-node 'Number (random 100)))
+      (fresh-node 'LiteralInt (random 100)))
     (define/override (wont-over-deepen holenode)
       this)
     (define/override (constrain-type holenode)
       (let ([t (att-value 'type-context holenode)])
         (cond [(and t (equal? t "int")) this]
+              [(not t) this]
+              [else #f])))
+    (super-new)))
+(define LiteralFloatChoice
+  (class ExpressionChoice
+    (define/override (fresh)
+      (fresh-node 'LiteralFloat (* (random) (random 10))))
+    (define/override (wont-over-deepen holenode)
+      this)
+    (define/override (constrain-type holenode)
+      (let ([t (att-value 'type-context holenode)])
+        (cond [(and t (equal? t "float")) this]
               [(not t) this]
               [else #f])))
     (super-new)))
@@ -328,7 +342,7 @@
                   (fresh-node 'ExpressionHole)))
     (define/override (constrain-type holenode)
       (let ([t (att-value 'type-context holenode)])
-        (cond [(and t (equal? t "int")) this]
+        (cond [(and t (member t '("int" "float"))) this]
               [(not t) this]
               [else #f])))
     (super-new)))
@@ -344,7 +358,7 @@
     (define/override (fresh)
       (fresh-node 'VariableDeclaration
                   (fresh-var-name)
-                  "int"
+                  (random-ref '("int" "float"))
                   (fresh-node 'ExpressionHole)))
     (super-new)))
 
@@ -358,7 +372,8 @@
         (new ValueReturnStatementChoice)))
 
 (define (expression-choices)
-  (list (new NumberChoice)
+  (list (new LiteralIntChoice)
+        (new LiteralFloatChoice)
         (new AdditionExpressionChoice)
         (new VariableReferenceChoice)))
 
