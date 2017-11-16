@@ -410,8 +410,11 @@
                   (fresh-node 'ExpressionHole)))
     (super-new)))
 
+(define fresh-var-name-counter 0)
 (define (fresh-var-name)
-  (symbol->string (gensym "var")))
+  (set! fresh-var-name-counter
+        (add1 fresh-var-name-counter))
+  (format "var~a" fresh-var-name-counter))
 
 (define (statement-choices)
   (list (new NullStatementChoice)
