@@ -38,6 +38,7 @@
 (require "scope-graph.rkt")
 (require racket/random)
 (require "xsmith-options.rkt")
+(require "xsmith-version.rkt")
 (provide do-it)
 
 (define spec (create-specification))
@@ -52,20 +53,30 @@
 (define plus            (char #\+))
 (define minus           (char #\-))
 (define eqsign          (char #\=))
+(define comment-start   (text "/*"))
+(define comment-end     (text "*/"))
+
+(define return          (text "return"))
+
+(define (comment d)
+  (if (eq? d empty)
+      empty
+      (hs-append comment-start d comment-end)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (with-specification spec
-  (ast-rule 'Program->FunctionDefinition*-FunctionDefinition<main)
+  (ast-rule 'Node->precomment-postcomment)
+  (ast-rule 'Program:Node->FunctionDefinition*-FunctionDefinition<main)
 
   ;; TODO - the block in a function definition should get some constraints from its parent - eg. it should have a return of the appropriate type in each branch
-  (ast-rule 'FunctionDefinition->typename-name-FormalParam*-Block)
-  (ast-rule 'FormalParam->typename-name)
+  (ast-rule 'FunctionDefinition:Node->typename-name-FormalParam*-Block)
+  (ast-rule 'FormalParam:Node->typename-name)
 
   ;(ast-rule 'Type->name)
 
 
-  (ast-rule 'Statement->)
+  (ast-rule 'Statement:Node->)
   (ast-rule 'NullStatement:Statement->)
   (ast-rule 'Block:Statement->Declaration*-Statement*)
   (ast-rule 'ExpressionStatement:Statement->Expression)
@@ -74,11 +85,11 @@
   (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
   (ast-rule 'StatementHole:Statement->)
 
-  (ast-rule 'Declaration->name)
+  (ast-rule 'Declaration:Node->name)
   (ast-rule 'VariableDeclaration:Declaration->typename-Expression)
   (ast-rule 'DeclarationHole:Declaration->)
 
-  (ast-rule 'Expression->)
+  (ast-rule 'Expression:Node->)
   (ast-rule 'ExpressionHole:Expression->)
   ;; TODO LValues?
   (ast-rule 'AssignmentExpression:Expression->name-Expression)
@@ -88,11 +99,11 @@
   (ast-rule 'VariableReference:Expression->name)
   (ast-rule 'FunctionCall:Expression->name-ArgumentList)
 
-  (ast-rule 'ArgumentList->)
+  (ast-rule 'ArgumentList:Node->)
   (ast-rule 'ArgumentListEmpty:ArgumentList->)
   (ast-rule 'ArgumentListNode:ArgumentList->Expression-ArgumentList)
 
-  (compile-ast-specifications 'Program)
+  (compile-ast-specifications 'Node) ; Program
 
 
   (ag-rule ast-depth
@@ -101,60 +112,91 @@
            [Expression (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
            [VariableDeclaration (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
            [FunctionDefinition (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))])
+
   (ag-rule
    pretty-print
    [Program (λ (n)
-              (att-value 'pretty-print (ast-child 'main n)))]
+              (vb-append
+               (comment (ast-child 'precomment n))
+               (att-value 'pretty-print (ast-child 'main n))
+               (comment (ast-child 'postcomment n))))]
    [FunctionDefinition
     (λ (n)
-      (v-append
-       (h-append
-        (text (ast-child 'typename n))
-        (text " ")
-        (text (ast-child 'name n))
-        lparen
-        ;; TODO - params
-        rparen)
-       (att-value 'pretty-print (ast-child 'Block n))))]
+      (vsb-append
+       (comment (ast-child 'precomment n))
+       (group (h-append
+               (text (ast-child 'typename n))
+               line
+               (text (ast-child 'name n))
+               lparen
+               ;; TODO - params
+               rparen))
+       line
+       (att-value 'pretty-print (ast-child 'Block n))
+       (comment (ast-child 'postcomment n))))]
    [Block (λ (n)
-            (h-append
-             lbrace
-             (nest
-              nest-step
-              (apply v-append
-                     ;; add an extra text node so linebreaks are added...
-                     (text "")
-                     (append
-                      (map (λ (cn) (att-value 'pretty-print cn))
-                           (ast-children (ast-child 'Declaration* n)))
-                      (map (λ (cn) (att-value 'pretty-print cn))
-                           (ast-children (ast-child 'Statement* n))))))
-             line
-             rbrace))]
+            (vsb-append
+             (comment (ast-child 'precomment n))
+             (h-append
+              lbrace
+              (nest
+               nest-step
+               (apply v-append
+                      ;; add an extra text node so linebreaks are added...
+                      (text "")
+                      (append
+                       (map (λ (cn) (att-value 'pretty-print cn))
+                            (ast-children (ast-child 'Declaration* n)))
+                       (map (λ (cn) (att-value 'pretty-print cn))
+                            (ast-children (ast-child 'Statement* n))))))
+              line
+              rbrace)
+             (comment (ast-child 'postcomment n))))]
    [ExpressionStatement
-    (λ (n) (h-append (att-value 'pretty-print (ast-child 1 n))
-                     (text ";")))]
+    (λ (n) (h-append (comment (ast-child 'precomment n))
+                     (att-value 'pretty-print (ast-child 3 n))
+                     semi
+                     (comment (ast-child 'postcomment n))))]
    [ValueReturnStatement
-    (λ (n) (h-append (text "return ")
-                     (att-value 'pretty-print (ast-child 1 n))
-                     (text ";")))]
-   [NullStatement (λ (n) (text ";"))]
+    (λ (n) (h-append (comment (ast-child 'precomment n))
+                     return
+                     space
+                     (att-value 'pretty-print (ast-child 3 n))
+                     semi
+                     (comment (ast-child 'postcomment n))))]
+   [NullStatement (λ (n)
+                    (h-append (comment (ast-child 'precomment n))
+                              semi
+                              (comment (ast-child 'postcomment n))))]
    [VariableDeclaration
-    (λ (n) (h-append (text (ast-child 'typename n))
-                     (text " ")
-                     (text (ast-child 'name n))
-                     (text " = ")
-                     (att-value 'pretty-print (ast-child 'Expression n))
-                     (text ";")))]
-   [LiteralInt (λ (n) (text (number->string (ast-child 'val n))))]
-   [LiteralFloat (λ (n) (text (number->string (ast-child 'val n))))]
-   [VariableReference (λ (n) (text (ast-child 'name n)))]
+    (λ (n) (h-append (comment (ast-child 'precomment n))
+                     (hs-append
+                      (text (ast-child 'typename n))
+                      (text (ast-child 'name n))
+                      eqsign
+                      (att-value 'pretty-print (ast-child 'Expression n)))
+                     semi
+                     (comment (ast-child 'postcomment n))))]
+   [LiteralInt (λ (n) (h-append
+                       (comment (ast-child 'precomment n))
+                       (text (number->string (ast-child 'val n)))
+                       (comment (ast-child 'postcomment n))))]
+   [LiteralFloat (λ (n) (h-append
+                         (comment (ast-child 'precomment n))
+                         (text (number->string (ast-child 'val n)))
+                         (comment (ast-child 'postcomment n))))]
+   [VariableReference (λ (n) (h-append
+                              (comment (ast-child 'precomment n))
+                              (text (ast-child 'name n))
+                              (comment (ast-child 'postcomment n))))]
    [AdditionExpression
-    (λ (n) (h-append lparen
-                     (att-value 'pretty-print (ast-child 'l n))
-                     (text " + ")
-                     (att-value 'pretty-print (ast-child 'r n))
-                     rparen))]
+    (λ (n) (h-append (comment (ast-child 'precomment n))
+                     lparen
+                     (hs-append (att-value 'pretty-print (ast-child 'l n))
+                                plus
+                                (att-value 'pretty-print (ast-child 'r n)))
+                     rparen
+                     (comment (ast-child 'postcomment n))))]
    )
 
   (ag-rule
@@ -383,7 +425,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-syntax-rule (fresh-node type attr-val ...)
-  (create-ast spec type (list attr-val ...)))
+  (create-ast spec type (list empty empty attr-val ...)))
+; (create-ast spec type (list (text "/*foo*/") (text "/*bar*/") attr-val ...)))
 
 (define-syntax-rule (maybe-send obj method arg ...)
   (and obj (send obj method arg ...)))
@@ -432,23 +475,30 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (fresh-Prog)
-  (fresh-node 'Program
-              (create-ast-list '())
-              (fresh-node 'FunctionDefinition
-                          "int"
-                          "main"
-                          ;; parameters
-                          (create-ast-list '())
-                          (fresh-node 'Block
-                                      (create-ast-list (list))
-                                      (create-ast-list
-                                       (append
-                                        (map (λ (x) (fresh-node 'StatementHole))
-                                             (make-list (random 5) #f))
-                                        (list
-                                         (fresh-node
-                                          'ValueReturnStatement
-                                          (fresh-node 'ExpressionHole)))))))))
+  (define p
+    (fresh-node 'Program
+                (create-ast-list '())
+                (fresh-node 'FunctionDefinition
+                            "int"
+                            "main"
+                            ;; parameters
+                            (create-ast-list '())
+                            (fresh-node 'Block
+                                        (create-ast-list (list))
+                                        (create-ast-list
+                                         (append
+                                          (map (λ (x) (fresh-node 'StatementHole))
+                                               (make-list (random 5) #f))
+                                          (list
+                                           (fresh-node
+                                            'ValueReturnStatement
+                                            (fresh-node 'ExpressionHole)))))))))
+  (rewrite-terminal 'precomment p
+                    (h-append
+                     (text xsmith-version-string)
+                     (text "; seed: ")
+                     (text (number->string (xsmith-option 'random-seed)))))
+  p)
 
 (define (do-it)
   (let ((ast (generate-random-prog (fresh-Prog))))
