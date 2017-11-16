@@ -93,7 +93,8 @@
   (ast-rule 'ExpressionHole:Expression->)
   ;; TODO LValues?
   (ast-rule 'AssignmentExpression:Expression->name-Expression)
-  (ast-rule 'AdditionExpression:Expression->Expression<l-Expression<r)
+  (ast-rule 'BinaryExpression:Expression->Expression<l-Expression<r)
+  (ast-rule 'AdditionExpression:BinaryExpression->)
   (ast-rule 'LiteralInt:Expression->val)
   (ast-rule 'LiteralFloat:Expression->val)
   (ast-rule 'VariableReference:Expression->name)
@@ -189,14 +190,19 @@
                               (comment (ast-child 'precomment n))
                               (text (ast-child 'name n))
                               (comment (ast-child 'postcomment n))))]
-   [AdditionExpression
+   [BinaryExpression
     (λ (n) (h-append (comment (ast-child 'precomment n))
                      lparen
                      (hs-append (att-value 'pretty-print (ast-child 'l n))
-                                plus
+                                (att-value 'pretty-print-op n)
                                 (att-value 'pretty-print (ast-child 'r n)))
                      rparen
                      (comment (ast-child 'postcomment n))))]
+   )
+
+  (ag-rule
+   pretty-print-op
+   [AdditionExpression (λ (n) plus)]
    )
 
   (ag-rule
@@ -253,9 +259,9 @@
                                         (att-value 'current-function-return-type n)))]
    [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
                                        (ast-child 'typename n)))]
-   [AdditionExpression (λ (n) (let ([t (att-value 'type-context n)])
-                                (hasheq (ast-child 'l n) t
-                                        (ast-child 'r n) t)))]
+   [BinaryExpression (λ (n) (let ([t (att-value 'type-context n)])
+                              (hasheq (ast-child 'l n) t
+                                      (ast-child 'r n) t)))]
    ;; TODO - function call, anything with child expressions...
    )
   (ag-rule
@@ -523,5 +529,7 @@
             (pretty-print (att-value 'ppdoc ast) out page-width)))
         (pretty-print (att-value 'ppdoc ast) (current-output-port) page-width))
     ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; End of file.
