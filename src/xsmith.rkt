@@ -72,8 +72,14 @@
     (exit 0)]
    )
 
+  ;; Save the command-line options so that we can output them into the
+  ;; generated program.
+  (dict-set! options 'command-line (current-command-line-arguments))
+
+  ;; Use an explicit random seed --- again, so that we can output it into the
+  ;; generated program.
   (unless (dict-has-key? options 'random-seed)
-    (dict-set! options 'random-seed (random 2147483648)))
+    (dict-set! options 'random-seed (random (expt 2 31))))
 
   (parameterize ((xsmith-options options))
     (random-seed (xsmith-option 'random-seed))

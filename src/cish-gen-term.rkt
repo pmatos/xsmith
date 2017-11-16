@@ -495,9 +495,22 @@
                                             (fresh-node 'ExpressionHole)))))))))
   (rewrite-terminal 'precomment p
                     (h-append
-                     (text xsmith-version-string)
-                     (text "; seed: ")
-                     (text (number->string (xsmith-option 'random-seed)))))
+                     line
+                     (vb-append
+                      (text "This is a RANDOMLY GENERATED PROGRAM.")
+                      (hs-append
+                       (fill 10 (text "Generator:"))
+                       (text xsmith-version-string))
+                      (hs-append
+                       (fill 10 (text "Options:"))
+                       (apply hs-append
+                              (map text
+                                   (vector->list
+                                    (xsmith-option 'command-line)))))
+                      (hs-append
+                       (fill 10 (text "Seed:"))
+                       (text (number->string (xsmith-option 'random-seed))))
+                      soft-break)))
   p)
 
 (define (do-it)
