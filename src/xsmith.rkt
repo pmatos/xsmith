@@ -72,9 +72,11 @@
     (exit 0)]
    )
 
+  (unless (dict-has-key? options 'random-seed)
+    (dict-set! options 'random-seed (random 2147483648)))
+
   (parameterize ((xsmith-options options))
-    (when (dict-has-key? (xsmith-options) 'random-seed)
-      (random-seed (xsmith-option 'random-seed)))
+    (random-seed (xsmith-option 'random-seed))
     (do-it))
   )
 
