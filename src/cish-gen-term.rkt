@@ -65,6 +65,23 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; The mutable state of the code generator.
+;; XXX --- should encapsulaye the RNG?  Currently, the RNG is a separate
+;;   parameter, automatically manged by Racket.
+;; XXX --- should this reference the options, too?  Right now, the options are
+;;   are separate parameter.
+
+(define xsmith-state (make-parameter #f))
+
+(struct generator-state
+  ((fresh-name-counter #:mutable))
+  )
+
+(define (make-generator-state)
+  (generator-state 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (with-specification spec
   (ast-rule 'Node->precomment-postcomment)
   (ast-rule 'Program:Node->FunctionDefinition*-FunctionDefinition<main)
@@ -410,11 +427,10 @@
                   (fresh-node 'ExpressionHole)))
     (super-new)))
 
-(define fresh-var-name-counter 0)
 (define (fresh-var-name)
-  (set! fresh-var-name-counter
-        (add1 fresh-var-name-counter))
-  (format "var~a" fresh-var-name-counter))
+  (let ((n (generator-state-fresh-name-counter (xsmith-state))))
+    (set-generator-state-fresh-name-counter! (xsmith-state) (add1 n))
+    (format "var~a" n)))
 
 (define (statement-choices)
   (list (new NullStatementChoice)
@@ -522,16 +538,30 @@
                       soft-break)))
   p)
 
-(define (do-it)
-  (let ((ast (generate-random-prog (fresh-Prog))))
-    (pretty-print (att-value 'pretty-print ast) (current-output-port) page-width)
-    #;(if (dict-has-key? (xsmith-options) 'output-filename)
-        (call-with-output-file (xsmith-option 'output-filename)
-          #:exists 'replace
-          (lambda (out)
-            (pretty-print (att-value 'ppdoc ast) out page-width)))
-        (pretty-print (att-value 'ppdoc ast) (current-output-port) page-width))
-    ))
+(define (do-it options)
+  (let ((state (make-generator-state)))
+    ;; Initialize the state from the options.
+    ;; Pretty lame to use `parameterize` just for this.  XXX Fix options API.
+    (parameterize ((xsmith-options options))
+      (random-seed (xsmith-option 'random-seed)))
+    (do-one state options)))
+
+(define (do-one state options)
+  (parameterize ((xsmith-state state)
+                 (xsmith-options options))
+    (let ((ast (generate-random-prog (fresh-Prog))))
+      (pretty-print (att-value 'pretty-print ast)
+                    (current-output-port)
+                    page-width)
+      #;(if (dict-has-key? (xsmith-options) 'output-filename)
+            (call-with-output-file (xsmith-option 'output-filename)
+              #:exists 'replace
+              (lambda (out)
+                (pretty-print (att-value 'ppdoc ast) out page-width)))
+            (pretty-print (att-value 'ppdoc ast)
+                          (current-output-port)
+                          page-width))
+    )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

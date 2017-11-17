@@ -81,10 +81,7 @@
   (unless (dict-has-key? options 'random-seed)
     (dict-set! options 'random-seed (random (expt 2 31))))
 
-  (parameterize ((xsmith-options options))
-    (random-seed (xsmith-option 'random-seed))
-    (do-it))
-  )
+  (do-it options))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
