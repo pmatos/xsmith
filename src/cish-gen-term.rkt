@@ -550,18 +550,17 @@
   (parameterize ((xsmith-state state)
                  (xsmith-options options))
     (let ((ast (generate-random-prog (fresh-Prog))))
-      (pretty-print (att-value 'pretty-print ast)
-                    (current-output-port)
-                    page-width)
-      #;(if (dict-has-key? (xsmith-options) 'output-filename)
-            (call-with-output-file (xsmith-option 'output-filename)
-              #:exists 'replace
-              (lambda (out)
-                (pretty-print (att-value 'ppdoc ast) out page-width)))
-            (pretty-print (att-value 'ppdoc ast)
-                          (current-output-port)
-                          page-width))
-    )))
+      (if (dict-has-key? (xsmith-options) 'output-filename)
+          (call-with-output-file (xsmith-option 'output-filename)
+            #:exists 'replace
+            (lambda (out)
+              (pretty-print (att-value 'pretty-print ast)
+                            out
+                            page-width)))
+          (pretty-print (att-value 'pretty-print ast)
+                        (current-output-port)
+                        page-width))
+      )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
