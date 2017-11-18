@@ -42,6 +42,8 @@
 (module+ main
   (require racket/cmdline)
 
+  (define features-disabled (dict-ref options 'features-disabled))
+
   (command-line
    #:help-labels
    "[[GENERAL OPTIONS]]"
@@ -62,6 +64,16 @@
     n
     "Set maximum tree depth"
     (dict-set! options 'max-depth (string->number n))]
+   #:multi
+   ["--with"
+    feature-name
+    "Enable language <feature-name>"
+    ;; Or, one could just remove the key from the dict...
+    (dict-set! features-disabled (string->symbol feature-name) #f)]
+   ["--without"
+    feature-name
+    "Disable language <feature-name>"
+    (dict-set! features-disabled (string->symbol feature-name) #t)]
 
    #:help-labels
    "[[INFORMATION OPTIONS]]"

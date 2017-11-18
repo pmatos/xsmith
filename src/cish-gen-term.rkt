@@ -296,6 +296,12 @@
 (define cish-ast-choice%
   (class ast-choice%
     (define/override (choice-weight) 10)
+    (define/public (features-enabled)
+      (let ((disabled (xsmith-option 'features-disabled)))
+        (if (ormap (λ (f) (dict-ref disabled f #f))
+                   (send this features))
+            #f
+            this)))
     (define/public (wont-over-deepen holenode)
       (if (<= (att-value 'ast-depth holenode) (xsmith-option 'max-depth))
           this
@@ -311,6 +317,7 @@
   (class StatementChoice
     (define/override (fresh)
       (fresh-node 'NullStatement))
+    (define/override (features) '(null))
     (define/override (wont-over-deepen holenode)
       this)
     (define/override (choice-weight) 2)
@@ -353,6 +360,7 @@
   (class ExpressionChoice
     (define/override (fresh)
       (fresh-node 'LiteralInt (random 100)))
+    (define/override (features) '(int))
     (define/override (wont-over-deepen holenode)
       this)
     (define/override (constrain-type holenode)
@@ -365,6 +373,7 @@
   (class ExpressionChoice
     (define/override (fresh)
       (fresh-node 'LiteralFloat (* (random) (random 10))))
+    (define/override (features) '(float))
     (define/override (wont-over-deepen holenode)
       this)
     (define/override (constrain-type holenode)
@@ -405,6 +414,7 @@
       (fresh-node 'AdditionExpression
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'ExpressionHole)))
+    (define/override (features) '(addition))
     (define/override (constrain-type holenode)
       (let ([t (att-value 'type-context holenode)])
         (cond [(and t (member t '("int" "float"))) this]
@@ -423,7 +433,15 @@
     (define/override (fresh)
       (fresh-node 'VariableDeclaration
                   (fresh-var-name)
-                  (random-ref '("int" "float"))
+                  (let ((disabled (xsmith-option 'features-disabled)))
+                    ;; XXX Obviously, the code below is not quite right.
+                    ;; What is both float and int are disabled?
+                    (cond [(dict-ref disabled 'float #f)
+                           "int"]
+                          [(dict-ref disabled 'int #f)
+                           "float"]
+                          [else
+                           (random-ref '("int" "float"))]))
                   (fresh-node 'ExpressionHole)))
     (super-new)))
 
@@ -462,6 +480,7 @@
 
 (define (apply-choice-filters choice-list hole-node)
   (filter (λ (choice) (maybe-send+ choice
+                                   (features-enabled)
                                    (wont-over-deepen hole-node)
                                    (constrain-type hole-node)))
           choice-list))
