@@ -258,6 +258,9 @@
     (λ (n) (binding (ast-child 'name n)
                     ;; TODO - decide what should really go here
                     (hash 'type (ast-child 'typename n))))]
+   [FormalParam
+    (λ (n) (binding (ast-child 'name n)
+                    (hash 'type (ast-child 'typename n))))]
    [DeclarationHole
     (λ (n) #f)])
 
@@ -268,6 +271,12 @@
                   (filter (λ(x)x)
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
                                (ast-children (ast-child 'Declaration* n))))
+                  '()))]
+   [FunctionDefinition
+    (λ (n) (scope (att-value 'scope-graph-scope (ast-parent n))
+                  (filter (λ(x)x)
+                          (map (λ (cn) (att-value 'scope-graph-binding cn))
+                               (ast-children (ast-child 'FormalParam* n))))
                   '()))]
    [Block
     (λ (n) (scope (att-value 'scope-graph-scope (ast-parent n))
