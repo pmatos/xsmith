@@ -52,6 +52,9 @@
 (define semi            (char #\;))
 (define plus            (char #\+))
 (define minus           (char #\-))
+(define star            (char #\*))
+(define slash           (char #\/))
+(define percent         (char #\%))
 (define eqsign          (char #\=))
 (define comment-start   (text "/*"))
 (define comment-end     (text "*/"))
@@ -112,6 +115,10 @@
   (ast-rule 'AssignmentExpression:Expression->name-Expression)
   (ast-rule 'BinaryExpression:Expression->Expression<l-Expression<r)
   (ast-rule 'AdditionExpression:BinaryExpression->)
+  (ast-rule 'SubtractionExpression:BinaryExpression->)
+  (ast-rule 'MultiplicationExpression:BinaryExpression->)
+  (ast-rule 'DivisionExpression:BinaryExpression->)
+  (ast-rule 'ModulusExpression:BinaryExpression->)
   (ast-rule 'LiteralInt:Expression->val)
   (ast-rule 'LiteralFloat:Expression->val)
   (ast-rule 'VariableReference:Expression->name)
@@ -220,6 +227,10 @@
   (ag-rule
    pretty-print-op
    [AdditionExpression (λ (n) plus)]
+   [SubtractionExpression (λ (n) minus)]
+   [MultiplicationExpression (λ (n) star)]
+   [DivisionExpression (λ (n) slash)]
+   [ModulusExpression (λ (n) percent)]
    )
 
   (ag-rule
@@ -421,6 +432,58 @@
               [(not t) this]
               [else #f])))
     (super-new)))
+(define SubtractionExpressionChoice
+  (class ExpressionChoice
+    (define/override (fresh)
+      (fresh-node 'SubtractionExpression
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'ExpressionHole)))
+    (define/override (features) '(subtraction))
+    (define/override (constrain-type holenode)
+      (let ([t (att-value 'type-context holenode)])
+        (cond [(and t (member t '("int" "float"))) this]
+              [(not t) this]
+              [else #f])))
+    (super-new)))
+(define MultiplicationExpressionChoice
+  (class ExpressionChoice
+    (define/override (fresh)
+      (fresh-node 'MultiplicationExpression
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'ExpressionHole)))
+    (define/override (features) '(multiplication))
+    (define/override (constrain-type holenode)
+      (let ([t (att-value 'type-context holenode)])
+        (cond [(and t (member t '("int" "float"))) this]
+              [(not t) this]
+              [else #f])))
+    (super-new)))
+(define DivisionExpressionChoice
+  (class ExpressionChoice
+    (define/override (fresh)
+      (fresh-node 'DivisionExpression
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'ExpressionHole)))
+    (define/override (features) '(division))
+    (define/override (constrain-type holenode)
+      (let ([t (att-value 'type-context holenode)])
+        (cond [(and t (member t '("int" "float"))) this]
+              [(not t) this]
+              [else #f])))
+    (super-new)))
+(define ModulusExpressionChoice
+  (class ExpressionChoice
+    (define/override (fresh)
+      (fresh-node 'ModulusExpression
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'ExpressionHole)))
+    (define/override (features) '(modulus))
+    (define/override (constrain-type holenode)
+      (let ([t (att-value 'type-context holenode)])
+        (cond [(and t (member t '("int" "float"))) this]
+              [(not t) this]
+              [else #f])))
+    (super-new)))
 
 (define DeclarationChoice
   (class cish-ast-choice%
@@ -460,6 +523,10 @@
   (list (new LiteralIntChoice)
         (new LiteralFloatChoice)
         (new AdditionExpressionChoice)
+        (new SubtractionExpressionChoice)
+        (new MultiplicationExpressionChoice)
+        (new DivisionExpressionChoice)
+        (new ModulusExpressionChoice)
         (new VariableReferenceChoice)))
 
 (define (declaration-choices)
