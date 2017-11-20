@@ -70,29 +70,34 @@
 ;; reference -> binding
 (define (resolve-reference reference)
   (define (resolve* name scope path-so-far)
-    (define decl (findf (λ (b) (equal? (binding-name b) name))))
-    (define parent-decls
-      (resolve* name (scope-parent scope) (cons 'parent path-so-far)))
-    (define import-decls
-      (flatten
-       (for/list ([import (scope-imports scope)])
-         (resolve* name
-                   (module-scope (resolve-reference import))
-                   (cons 'import path-so-far)))))
-    (let ([bindings (append parent-decls import-decls)])
-      (if decl
-          (cons (resolution decl (cons 'declaration path-so-far))
-                bindings)
-          bindings)))
+    (if (not scope)
+        '()
+        (let* ([decl (findf (λ (b) (equal? (binding-name b) name))
+                            (scope-bindings scope))]
+               [parent-decls (resolve* name
+                                       (scope-parent scope)
+                                       (cons 'parent path-so-far))]
+               [import-decls (flatten
+                              (for/list ([import (scope-imports scope)])
+                                (resolve* name
+                                          (module-scope (resolve-reference import))
+                                          (cons 'import path-so-far))))]
+               [bindings (append parent-decls import-decls)])
+          (if decl
+              (cons (resolution decl (reverse (cons 'declaration path-so-far)))
+                    bindings)
+              bindings))))
 
-  (let* ([bindings-with-path (resolve* (reference-name reference)
-                                       (reference-parent-scope reference)
-                                       (list 'reference))]
-         [well-formed-bwp (filter (λ (b) (well-formed? (cdr b)))
-                                  bindings-with-path)]
-         [best-bwp (apply generic-max #:gt-comparator greater-visibility
-                          well-formed-bwp)])
-    (car best-bwp)))
+  (let* ([resolutions (resolve* (reference-name reference)
+                                (reference-parent-scope reference)
+                                (list 'reference))]
+         [well-formed-rs (filter well-formed?
+                                 resolutions)]
+         [err (when (null? well-formed-rs)
+                (error 'resolve-reference "Unbound reference"))]
+         [best-r (apply generic-max #:gt-comparator greater-visibility
+                        well-formed-rs)])
+    (resolution-binding best-r)))
 
 ;; scope -> (listof binding)
 (define (visible-bindings scope)

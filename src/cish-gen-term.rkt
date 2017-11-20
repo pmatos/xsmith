@@ -110,6 +110,7 @@
   (ast-rule 'ExpressionHole:Expression->)
   ;; TODO LValues?
   (ast-rule 'AssignmentExpression:Expression->name-Expression)
+  (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
   (ast-rule 'BinaryExpression:Expression->Expression<l-Expression<r)
   (ast-rule 'AdditionExpression:BinaryExpression->)
   (ast-rule 'SubtractionExpression:BinaryExpression->)
@@ -226,6 +227,14 @@
                               (comment (ast-child 'precomment n))
                               (text (ast-child 'name n))
                               (comment (ast-child 'postcomment n))))]
+   [FunctionApplicationExpression
+    (λ (n) (h-append (text (ast-child 'name n))
+                     lparen
+                     (apply h-append
+                            (add-between (map (λ (a) (att-value 'pretty-print a))
+                                              (ast-children (ast-child 'Expression* n)))
+                                         (text ", ")))
+                     rparen))]
    [BinaryExpression
     (λ (n) (h-append (comment (ast-child 'precomment n))
                      lparen
@@ -247,6 +256,7 @@
 
   (ag-rule
    scope-graph-binding
+   [Node (λ (n) (error 'scope-graph-binding "no default ag-rule"))]
    [FunctionDefinition
     (λ (n) (binding (ast-child 'name n)
                     ;; TODO - decide what should really go here
@@ -303,17 +313,28 @@
 
   (ag-rule
    current-function-return-type
+   [Node (λ (n) (error 'current-function-return-type "no default ag-rule"))]
    [Statement (λ (n) (att-value 'current-function-return-type (ast-parent n)))]
    [FunctionDefinition (λ (n) (ast-child 'typename n))])
 
   (ag-rule
    children-type-dict
    ;; For eg. functions to associate a child node with the type it must be
+   [Node (λ (n) (error 'children-type-dict "no default ag-rule"))]
    [ExpressionStatement (λ (n) (hasheq (ast-child 'Expression n) #f))]
    [ValueReturnStatement (λ (n) (hasheq (ast-child 'Expression n)
                                         (att-value 'current-function-return-type n)))]
    [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
                                        (ast-child 'typename n)))]
+   [FunctionApplicationExpression
+    (λ (n)
+      (let ([f-bind (resolve-reference (reference (ast-child 'name n)
+                                                  (att-value 'scope-graph-scope n)))])
+        (for/fold ([h (hasheq)])
+                  ([cn (ast-children (ast-child 'Expression* n))]
+                   [t (reverse (cdr (reverse (cdr (hash-ref (binding-bound f-bind)
+                                                            'type)))))])
+          (hash-set h cn t))))]
    [BinaryExpression (λ (n) (let ([t (att-value 'type-context n)])
                               (hasheq (ast-child 'l n) t
                                       (ast-child 'r n) t)))]
@@ -321,7 +342,9 @@
    )
   (ag-rule
    type-context
-   [Expression (λ (n) (dict-ref (att-value 'children-type-dict (ast-parent n))
+   [Node (λ (n) (error 'type-context "no default ag-rule"))]
+   [Expression (λ (n)
+                 (dict-ref (att-value 'children-type-dict (ast-parent n))
                                 n))]
    [BinaryExpression
     (λ (n) (let ([parent-context (dict-ref
@@ -439,17 +462,46 @@
       this)
     (define/override (constrain-type holenode)
       (define visibles (att-value 'visible-bindings holenode))
-      ;; TODO filter to matching type... once I use more than one type
-      (define avail (filter (λ (b) #t) visibles))
       (define legal-refs
         (filter (λ (b) (not (member (binding-name b)
                                     (att-value 'illegal-variable-names holenode))))
-                avail))
+                visibles))
       (define type-needed (att-value 'type-context holenode))
       (define legal-with-type
         (if type-needed
             (filter (λ (b) (equal? type-needed
                                    (dict-ref (binding-bound b) 'type)))
+                    legal-refs)
+            legal-refs))
+      (set! ref-choices-filtered legal-with-type)
+      (and (not (null? legal-with-type)) this))
+    (super-new)))
+(define FunctionApplicationExpressionChoice
+  (class ExpressionChoice
+    (define ref-choices-filtered #f)
+    (define/override (fresh)
+      (define chosen-func (random-ref ref-choices-filtered))
+      (fresh-node 'FunctionApplicationExpression
+                  (binding-name chosen-func)
+                  (create-ast-list
+                   (map (λ (x) (fresh-node 'ExpressionHole))
+                        (make-list (- (length (dict-ref (binding-bound chosen-func)
+                                                        'type))
+                                      2)
+                                   #f)))))
+    (define/override (constrain-type holenode)
+      (define visibles (filter (λ (b) (function-type?
+                                       (dict-ref (binding-bound b) 'type)))
+                               (att-value 'visible-bindings holenode)))
+      (define legal-refs
+        (filter (λ (b) (not (member (binding-name b)
+                                    (att-value 'illegal-variable-names holenode))))
+                visibles))
+      (define type-needed (att-value 'type-context holenode))
+      (define legal-with-type
+        (if type-needed
+            (filter (λ (b) (equal? type-needed
+                                   (car (reverse (dict-ref (binding-bound b) 'type)))))
                     legal-refs)
             legal-refs))
       (set! ref-choices-filtered legal-with-type)
@@ -579,6 +631,10 @@
            "float"]
           [else
            (random-ref '("int" "float"))])))
+(define (function-type? t)
+  (and (list? t)
+       (not (null? t))
+       (eq? (car t) '->)))
 
 (define (statement-choices)
   (list (new NullStatementChoice)
@@ -589,6 +645,7 @@
 (define (expression-choices)
   (list (new LiteralIntChoice)
         (new LiteralFloatChoice)
+        (new FunctionApplicationExpressionChoice)
         (new AdditionExpressionChoice)
         (new SubtractionExpressionChoice)
         (new MultiplicationExpressionChoice)
