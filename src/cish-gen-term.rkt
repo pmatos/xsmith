@@ -161,7 +161,7 @@
        (comment (ast-child 'precomment n))
        (group (h-append
                (text (ast-child 'typename n))
-               (text " ")
+               space
                (text (ast-child 'name n))
                lparen
                (text (string-join (map (λ (fp) (string-append (ast-child 'typename fp)
