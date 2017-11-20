@@ -87,13 +87,14 @@
 
 (with-specification spec
   (ast-rule 'Node->precomment-postcomment)
-  (ast-rule 'Program:Node->FunctionDefinition*-FunctionDefinition<main)
+  (ast-rule 'Program:Node->Declaration*-FunctionDefinition<main)
 
+  (ast-rule 'Declaration:Node->name)
+  (ast-rule 'DeclarationHole:Declaration->)
+  (ast-rule 'VariableDeclaration:Declaration->typename-Expression)
   ;; TODO - the block in a function definition should get some constraints from its parent - eg. it should have a return of the appropriate type in each branch
-  (ast-rule 'FunctionDefinition:Node->typename-name-FormalParam*-Block)
+  (ast-rule 'FunctionDefinition:Declaration->typename-FormalParam*-Block)
   (ast-rule 'FormalParam:Node->typename-name)
-
-  ;(ast-rule 'Type->name)
 
 
   (ast-rule 'Statement:Node->)
@@ -104,10 +105,6 @@
   (ast-rule 'VoidReturnStatement:ReturnStatement->)
   (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
   (ast-rule 'StatementHole:Statement->)
-
-  (ast-rule 'Declaration:Node->name)
-  (ast-rule 'VariableDeclaration:Declaration->typename-Expression)
-  (ast-rule 'DeclarationHole:Declaration->)
 
   (ast-rule 'Expression:Node->)
   (ast-rule 'ExpressionHole:Expression->)
@@ -133,16 +130,28 @@
 
   (ag-rule ast-depth
            [Program (λ (n) 0)]
-           [Statement (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
-           [Expression (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
-           [VariableDeclaration (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))]
-           [FunctionDefinition (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))])
+           [Node (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))])
+
+  ;; This is probably not necessary, but I'm not sure offhand right now how to test
+  ;; the type of a node.
+  (ag-rule is-program?
+           [Program (λ (n) #t)]
+           [Node (λ (n) #f)])
+  ;; IE are declarations here global?
+  (ag-rule at-top-level?
+           [Program (λ (n) #t)]
+           [Node (λ (n) (let ([p (ast-parent n)])
+                          (or (att-value 'is-program? (ast-parent n))
+                              (and (ast-list-node? p)
+                                   (att-value 'is-program? (ast-parent p))))))])
 
   (ag-rule
    pretty-print
    [Program (λ (n)
               (vb-append
                (comment (ast-child 'precomment n))
+               (apply v-append (map (λ (cn) (att-value 'pretty-print cn))
+                                    (ast-children (ast-child 'Declaration* n))))
                (att-value 'pretty-print (ast-child 'main n))
                (comment (ast-child 'postcomment n))))]
    [FunctionDefinition
@@ -254,11 +263,7 @@
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
                                (ast-children (ast-child 'Declaration* n))))
                   '()))]
-   [Declaration
-    (λ (n) (att-value 'scope-graph-scope (ast-parent n)))]
-   [Statement
-    (λ (n) (att-value 'scope-graph-scope (ast-parent n)))]
-   [Expression
+   [Node
     (λ (n) (att-value 'scope-graph-scope (ast-parent n)))])
 
   (ag-rule
@@ -318,6 +323,8 @@
           this
           #f))
     (define/public (constrain-type holenode)
+      this)
+    (define/public (top-level-declaration-at-top-level holenode)
       this)
     (super-new)))
 
@@ -496,22 +503,53 @@
     (define/override (fresh)
       (fresh-node 'VariableDeclaration
                   (fresh-var-name)
-                  (let ((disabled (xsmith-option 'features-disabled)))
-                    ;; XXX Obviously, the code below is not quite right.
-                    ;; What is both float and int are disabled?
-                    (cond [(dict-ref disabled 'float #f)
-                           "int"]
-                          [(dict-ref disabled 'int #f)
-                           "float"]
-                          [else
-                           (random-ref '("int" "float"))]))
+                  (fresh-var-type)
                   (fresh-node 'ExpressionHole)))
     (super-new)))
+(define FunctionDefinitionChoice
+  (class DeclarationChoice
+    (define/override (top-level-declaration-at-top-level holenode)
+      (if (att-value 'at-top-level? holenode)
+          this
+          #f))
+    (define/override (fresh)
+      (fresh-node 'FunctionDefinition
+                  (fresh-var-name "func")
+                  (fresh-var-type)
+                  ;; parameters
+                  (create-ast-list (map (λ (x) (fresh-node 'FormalParam
+                                                           (fresh-var-type)
+                                                           (fresh-var-name)))
+                                        (make-list (random 5) #f)))
+                  ;; TODO -- it would be better to just have a hole and make sure
+                  ;;         the generator code picks up all the requirements from
+                  ;;         the hole node's place in the tree.
+                  (fresh-node 'Block
+                              (create-ast-list (list))
+                              (create-ast-list
+                               (append
+                                (map (λ (x) (fresh-node 'StatementHole))
+                                     (make-list (random 5) #f))
+                                (list
+                                 (fresh-node
+                                  'ValueReturnStatement
+                                  (fresh-node 'ExpressionHole))))))))
+    (super-new)))
 
-(define (fresh-var-name)
+(define (fresh-var-name [base "var"])
   (let ((n (generator-state-fresh-name-counter (xsmith-state))))
     (set-generator-state-fresh-name-counter! (xsmith-state) (add1 n))
-    (format "var~a" n)))
+    (format "~a~a" base n)))
+(define (fresh-var-type)
+  (let ((disabled (xsmith-option 'features-disabled)))
+    ;; XXX Obviously, the code below is not quite right.
+    ;; What is both float and int are disabled?
+    (cond [(dict-ref disabled 'float #f)
+           "int"]
+          [(dict-ref disabled 'int #f)
+           "float"]
+          [else
+           (random-ref '("int" "float"))])))
 
 (define (statement-choices)
   (list (new NullStatementChoice)
@@ -530,7 +568,8 @@
         (new VariableReferenceChoice)))
 
 (define (declaration-choices)
-  (list (new VariableDeclarationChoice)))
+  (list (new VariableDeclarationChoice)
+        (new FunctionDefinitionChoice)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -548,6 +587,7 @@
 (define (apply-choice-filters choice-list hole-node)
   (filter (λ (choice) (maybe-send+ choice
                                    (features-enabled)
+                                   (top-level-declaration-at-top-level hole-node)
                                    (wont-over-deepen hole-node)
                                    (constrain-type hole-node)))
           choice-list))
@@ -588,10 +628,12 @@
 (define (fresh-Prog)
   (define p
     (fresh-node 'Program
-                (create-ast-list '())
+                (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
+                                                         "standin-name"))
+                                      (make-list (random 5) #f)))
                 (fresh-node 'FunctionDefinition
-                            "int"
                             "main"
+                            "int"
                             ;; parameters
                             (create-ast-list '())
                             (fresh-node 'Block
