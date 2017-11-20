@@ -251,7 +251,7 @@
     (λ (n) (binding (ast-child 'name n)
                     ;; TODO - decide what should really go here
                     (hash 'type (append (list '->)
-                                        (map (λ (fp) (ast-child 'name fp))
+                                        (map (λ (fp) (ast-child 'typename fp))
                                              (ast-children (ast-child 'FormalParam* n)))
                                         (list (ast-child 'typename n))))))]
    [VariableDeclaration
