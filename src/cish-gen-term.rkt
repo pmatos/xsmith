@@ -150,22 +150,25 @@
    [Program (λ (n)
               (vb-append
                (comment (ast-child 'precomment n))
-               (apply v-append (map (λ (cn) (att-value 'pretty-print cn))
-                                    (ast-children (ast-child 'Declaration* n))))
-               (att-value 'pretty-print (ast-child 'main n))
+               (apply vb-append (map (λ (cn) (att-value 'pretty-print cn))
+                                      (append (ast-children (ast-child 'Declaration* n))
+                                              (list (ast-child 'main n)))))
                (comment (ast-child 'postcomment n))))]
    [FunctionDefinition
     (λ (n)
-      (vsb-append
+      (vb-append
        (comment (ast-child 'precomment n))
        (group (h-append
                (text (ast-child 'typename n))
-               line
+               (text " ")
                (text (ast-child 'name n))
                lparen
-               ;; TODO - params
+               (text (string-join (map (λ (fp) (string-append (ast-child 'typename fp)
+                                                              " "
+                                                              (ast-child 'name fp)))
+                                       (ast-children (ast-child 'FormalParam* n)))
+                                  ", "))
                rparen))
-       line
        (att-value 'pretty-print (ast-child 'Block n))
        (comment (ast-child 'postcomment n))))]
    [Block (λ (n)
@@ -244,6 +247,13 @@
 
   (ag-rule
    scope-graph-binding
+   [FunctionDefinition
+    (λ (n) (binding (ast-child 'name n)
+                    ;; TODO - decide what should really go here
+                    (hash 'type (append (list '->)
+                                        (map (λ (fp) (ast-child 'name fp))
+                                             (ast-children (ast-child 'FormalParam* n)))
+                                        (list (ast-child 'typename n))))))]
    [VariableDeclaration
     (λ (n) (binding (ast-child 'name n)
                     ;; TODO - decide what should really go here
@@ -254,10 +264,12 @@
   (ag-rule
    scope-graph-scope
    [Program
-    ;; TODO - functions are bound here
-    (λ (n) (scope #f '() '()))]
+    (λ (n) (scope #f
+                  (filter (λ(x)x)
+                          (map (λ (cn) (att-value 'scope-graph-binding cn))
+                               (ast-children (ast-child 'Declaration* n))))
+                  '()))]
    [Block
-    ;; TODO - fix variable initialization so it can't initialize to itself
     (λ (n) (scope (att-value 'scope-graph-scope (ast-parent n))
                   (filter (λ(x)x)
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
@@ -268,11 +280,12 @@
 
   (ag-rule
    visible-bindings
-   [Statement (λ (n) (visible-bindings (att-value 'scope-graph-scope n)))]
-   [Expression (λ (n) (visible-bindings (att-value 'scope-graph-scope n)))])
+   [Node (λ (n) (visible-bindings (att-value 'scope-graph-scope n)))])
   (ag-rule
    illegal-variable-names
-   [Statement (λ (n) '())]
+   [Node (λ (n) '())]
+   [Program (λ (n) (map (λ (cn) (ast-child 'name cn))
+                        (ast-children (ast-child 'Declaration* n))))]
    [Block (λ (n) (map (λ (cn) (ast-child 'name cn))
                       (ast-children (ast-child 'Declaration* n))))]
    [Declaration (λ (n) (att-value 'illegal-variable-names (ast-parent n)))]
@@ -301,6 +314,13 @@
    type-context
    [Expression (λ (n) (dict-ref (att-value 'children-type-dict (ast-parent n))
                                 n))]
+   [BinaryExpression
+    (λ (n) (let ([parent-context (dict-ref
+                                  (att-value 'children-type-dict (ast-parent n))
+                                  n)])
+             ;; #f is not a valid type context -- if there is no type
+             ;; dictated by the parent, choose one of the number types.
+             (or parent-context (fresh-var-type))))]
    )
 
 
