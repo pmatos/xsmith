@@ -172,7 +172,7 @@
        (att-value 'pretty-print (ast-child 'Block n))
        (comment (ast-child 'postcomment n))))]
    [Block (λ (n)
-            (vsb-append
+            (v-append
              (comment (ast-child 'precomment n))
              (h-append
               lbrace
