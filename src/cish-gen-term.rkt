@@ -157,15 +157,15 @@
 
   (ag-rule ast-depth
            [Program (λ (n) 0)]
-           [Node (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))])
+           [Node (λ (n) (add1 (att-value 'ast-depth (parent-node n))))])
 
   ;; IE are declarations here global?
   (ag-rule at-top-level?
            [Program (λ (n) #t)]
-           [Node (λ (n) (let ([p (ast-parent n)])
+           [Node (λ (n) (let ([p (parent-node n)])
                           (or (equal? (node-type p) 'Program)
                               (and (ast-list-node? p)
-                                   (equal? (node-type (ast-parent p)) 'Program)))))])
+                                   (equal? (node-type (parent-node p)) 'Program)))))])
 
   (ag-rule
    pretty-print
@@ -333,19 +333,19 @@
                                (ast-children (ast-child 'Declaration* n))))
                   '()))]
    [FunctionDefinition
-    (λ (n) (scope (att-value 'scope-graph-scope (ast-parent n))
+    (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
                   (filter (λ(x)x)
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
                                (ast-children (ast-child 'FormalParam* n))))
                   '()))]
    [Block
-    (λ (n) (scope (att-value 'scope-graph-scope (ast-parent n))
+    (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
                   (filter (λ(x)x)
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
                                (ast-children (ast-child 'Declaration* n))))
                   '()))]
    [Node
-    (λ (n) (att-value 'scope-graph-scope (ast-parent n)))])
+    (λ (n) (att-value 'scope-graph-scope (parent-node n)))])
 
   (ag-rule
    visible-bindings
@@ -357,14 +357,14 @@
                         (ast-children (ast-child 'Declaration* n))))]
    [Block (λ (n) (map (λ (cn) (ast-child 'name cn))
                       (ast-children (ast-child 'Declaration* n))))]
-   [Declaration (λ (n) (att-value 'illegal-variable-names (ast-parent n)))]
-   [Expression (λ (n) (att-value 'illegal-variable-names (ast-parent n)))]
+   [Declaration (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
+   [Expression (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
    )
 
   (ag-rule
    current-function-return-type
    [Node (λ (n) (error 'current-function-return-type "no default ag-rule"))]
-   [Statement (λ (n) (att-value 'current-function-return-type (ast-parent n)))]
+   [Statement (λ (n) (att-value 'current-function-return-type (parent-node n)))]
    [FunctionDefinition (λ (n) (ast-child 'typename n))])
 
   (ag-rule
@@ -401,7 +401,7 @@
   (ag-rule
    type-context
    [Node (λ (n) (error 'type-context "no default ag-rule"))]
-   [Expression (λ (n) (dict-ref (att-value 'children-type-dict (ast-parent n))
+   [Expression (λ (n) (dict-ref (att-value 'children-type-dict (parent-node n))
                                 n))]
    )
 
@@ -457,7 +457,7 @@
     (define/public (respect-return-position holenode)
       this)
     (define/public (block-in-function holenode)
-      (and (not (eq? (node-type (ast-parent holenode)) 'FunctionDefinition))
+      (and (not (eq? (node-type (parent-node holenode)) 'FunctionDefinition))
            this))
     (super-new)))
 
@@ -686,7 +686,7 @@
           this
           #f))
     (define/override (fresh hole-node)
-      (define p (ast-parent hole-node))
+      (define p (parent-node hole-node))
       (define main? (and (eq? (node-type p) 'Program)
                          (eq? (ast-child 'main p) hole-node)))
       (fresh-node 'FunctionDefinition
@@ -759,6 +759,9 @@
 (define (node-type n)
   (and (not (ast-list-node? n)) (not (ast-bud-node? n)) (ast-node-type n)))
 (define (parent-node n)
+  ;; I've had several bugs where I used a parent node that was a list-node
+  ;; thinking it was the grandparent node.  The list nodes are generally
+  ;; useless, so this function gets the non-list parent node.
   (let ([p (ast-parent n)])
     (if (ast-list-node? p)
         (ast-parent p)
