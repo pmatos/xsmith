@@ -496,8 +496,8 @@
     (define/override (fresh hole-node)
       (fresh-node 'IfElseStatement
                   (fresh-node 'ExpressionHole)
-                  (fresh-node 'StatementHole)
-                  (fresh-node 'StatementHole)))
+                  (fresh-block-hole)
+                  (fresh-block-hole)))
     (define/override (respect-return-position holenode)
       this)
     (super-new)))
@@ -699,7 +699,7 @@
                                                                (fresh-var-type)
                                                                (fresh-var-name)))
                                             (make-list (random 5) #f))))
-                  (fresh-node 'BlockHole (create-ast-list '()) (create-ast-list '()))))
+                  (fresh-block-hole)))
     (super-new)))
 
 (define (fresh-var-name [base "var"])
@@ -792,9 +792,6 @@
   (let ([o (choose-ast (apply-choice-filters (statement-choices) n))])
     (rewrite-subtree n (send o fresh n))))
 
-(define (replace-with-function n)
-  (rewrite-subtree n (send (new FunctionDefinitionChoice) fresh n)))
-
 (define (replace-with-declaration n)
   (let ([o (choose-ast (apply-choice-filters (declaration-choices) n))])
     (rewrite-subtree n (send o fresh n))))
@@ -811,20 +808,25 @@
                  ((StatementHole)
                   (replace-with-statement n)
                   #t)
-                 ((BlockHole)
-                  (replace-with-statement n)
-                  #t)
-                 ((FunctionDefinitionHole)
-                  (replace-with-function n)
-                  #t)
                  ((DeclarationHole)
                   (replace-with-declaration n)
+                  #t)
+                 ((BlockHole)
+                  (rewrite-subtree n (send (new BlockChoice) fresh n))
+                  #t)
+                 ((FunctionDefinitionHole)
+                  (rewrite-subtree n (send (new FunctionDefinitionChoice) fresh n))
                   #t)
                  (else #f))))])
     (perform-rewrites n 'top-down fill-in))
   n)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (fresh-block-hole)
+  (fresh-node 'BlockHole
+              (create-ast-list '())
+              (create-ast-list '())))
 
 (define (fresh-Prog)
   (define p
@@ -836,9 +838,7 @@
                             "standin-name"
                             "standin-type"
                             (create-ast-list '())
-                            (fresh-node 'BlockHole
-                                        (create-ast-list '())
-                                        (create-ast-list '())))))
+                            (fresh-block-hole))))
   (rewrite-terminal 'precomment p
                     (h-append
                      line
