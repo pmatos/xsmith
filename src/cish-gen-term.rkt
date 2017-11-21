@@ -67,6 +67,8 @@
 (define slash           (char #\/))
 (define percent         (char #\%))
 (define eqsign          (char #\=))
+(define greater         (char #\>))
+(define less            (char #\<))
 (define comment-start   (text "/*"))
 (define comment-end     (text "*/"))
 
@@ -130,6 +132,14 @@
   (ast-rule 'MultiplicationExpression:BinaryExpression->)
   (ast-rule 'DivisionExpression:BinaryExpression->)
   (ast-rule 'ModulusExpression:BinaryExpression->)
+
+  (ast-rule 'ComparisonExpression:BinaryExpression->)
+  (ast-rule 'EqualityExpression:ComparisonExpression->)
+  (ast-rule 'GreaterThanExpression:ComparisonExpression->)
+  (ast-rule 'LessThanExpression:ComparisonExpression->)
+  (ast-rule 'LessOrEqualExpression:ComparisonExpression->)
+  (ast-rule 'GreaterOrEqualExpression:ComparisonExpression->)
+
   (ast-rule 'LiteralInt:Expression->val)
   (ast-rule 'LiteralFloat:Expression->val)
   (ast-rule 'VariableReference:Expression->name)
@@ -260,6 +270,11 @@
    [MultiplicationExpression (λ (n) star)]
    [DivisionExpression (λ (n) slash)]
    [ModulusExpression (λ (n) percent)]
+   [EqualityExpression (λ (n) (h-append eqsign eqsign))]
+   [GreaterThanExpression (λ (n) greater)]
+   [LessThanExpression (λ (n) less)]
+   [GreaterOrEqualExpression (λ (n) (h-append greater eqsign))]
+   [LessOrEqualExpression (λ (n) (h-append less eqsign))]
    )
 
   (ag-rule
@@ -346,6 +361,9 @@
    [BinaryExpression (λ (n) (let ([t (att-value 'type-context n)])
                               (hasheq (ast-child 'l n) t
                                       (ast-child 'r n) t)))]
+   [ComparisonExpression (λ (n) (let ([t (fresh-var-type)])
+                                  (hasheq (ast-child 'l n) t
+                                          (ast-child 'r n) t)))]
    ;; TODO - function call, anything with child expressions...
    )
   (ag-rule
@@ -557,7 +575,10 @@
     (super-new)))
 (define-syntax (define-binary-op-choice stx)
   (syntax-parse stx
-    [(_ nodename feature typelist)
+    [(_ nodename ;; Name of grammar node, also generates choice name
+        feature
+        input-typelist ;; types the operator accepts
+        output-type) ;; type the operator returns, or #f if it returns its input type
      #:with choicename (format-id #'nodename "~aChoice" #'nodename)
      #'(define choicename
          (class ExpressionChoice
@@ -568,15 +589,24 @@
            (define/override (features) '(feature))
            (define/override (constrain-type holenode)
              (let ([t (att-value 'type-context holenode)])
-               (cond [(and t (member t typelist)) this]
+               (cond [(and t
+                           (member t input-typelist)
+                           (or (not output-type) (equal? t output-type)))
+                      this]
                      [(not t) this]
                      [else #f])))
            (super-new)))]))
-(define-binary-op-choice AdditionExpression addition '("int" "float"))
-(define-binary-op-choice MultiplicationExpression multiplication '("int" "float"))
-(define-binary-op-choice SubtractionExpression subtraction '("int" "float"))
-(define-binary-op-choice DivisionExpression division '("int" "float"))
-(define-binary-op-choice ModulusExpression modulus '("int"))
+(define-binary-op-choice AdditionExpression addition '("int" "float") #f)
+(define-binary-op-choice MultiplicationExpression multiplication '("int" "float") #f)
+(define-binary-op-choice SubtractionExpression subtraction '("int" "float") #f)
+(define-binary-op-choice DivisionExpression division '("int" "float") #f)
+(define-binary-op-choice ModulusExpression modulus '("int") #f)
+
+(define-binary-op-choice EqualityExpression modulus '("int" "float") "int")
+(define-binary-op-choice LessThanExpression modulus '("int" "float") "int")
+(define-binary-op-choice GreaterThanExpression modulus '("int" "float") "int")
+(define-binary-op-choice LessOrEqualExpression modulus '("int" "float") "int")
+(define-binary-op-choice GreaterOrEqualExpression modulus '("int" "float") "int")
 
 (define DeclarationChoice
   (class cish-ast-choice%
@@ -648,7 +678,13 @@
         (new MultiplicationExpressionChoice)
         (new DivisionExpressionChoice)
         (new ModulusExpressionChoice)
-        (new VariableReferenceChoice)))
+        (new VariableReferenceChoice)
+        (new EqualityExpressionChoice)
+        (new LessThanExpressionChoice)
+        (new GreaterThanExpressionChoice)
+        (new LessOrEqualExpressionChoice)
+        (new GreaterOrEqualExpressionChoice)
+        ))
 
 (define (declaration-choices)
   (list (new VariableDeclarationChoice)
