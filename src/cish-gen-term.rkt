@@ -140,6 +140,7 @@
   (ast-rule 'LessOrEqualExpression:ComparisonExpression->)
   (ast-rule 'GreaterOrEqualExpression:ComparisonExpression->)
 
+  (ast-rule 'IfExpression:Expression->Expression<test-Expression<then-Expression<else)
   (ast-rule 'LiteralInt:Expression->val)
   (ast-rule 'LiteralFloat:Expression->val)
   (ast-rule 'VariableReference:Expression->name)
@@ -253,6 +254,14 @@
                                               (ast-children (ast-child 'Expression* n)))
                                          (text ", ")))
                      rparen))]
+   [IfExpression
+    (λ (n) (h-append lparen
+                     (att-value 'pretty-print (ast-child 'test n))
+                     (text " ? ")
+                     (att-value 'pretty-print (ast-child 'then n))
+                     (text " : ")
+                     (att-value 'pretty-print (ast-child 'else n))
+                     rparen))]
    [BinaryExpression
     (λ (n) (h-append (comment (ast-child 'precomment n))
                      lparen
@@ -358,27 +367,23 @@
                    [t (reverse (cdr (reverse (cdr (hash-ref (binding-bound f-bind)
                                                             'type)))))])
           (hash-set h cn t))))]
-   [BinaryExpression (λ (n) (let ([t (att-value 'type-context n)])
+   [BinaryExpression (λ (n) (let ([t (or (att-value 'type-context n) (fresh-var-type))])
                               (hasheq (ast-child 'l n) t
                                       (ast-child 'r n) t)))]
    [ComparisonExpression (λ (n) (let ([t (fresh-var-type)])
                                   (hasheq (ast-child 'l n) t
                                           (ast-child 'r n) t)))]
+   [IfExpression (λ (n) (let ([t (or (att-value 'type-context n) (fresh-var-type))])
+                          (hasheq (ast-child 'test n) "int"
+                                  (ast-child 'then n) t
+                                  (ast-child 'else n) t)))]
    ;; TODO - function call, anything with child expressions...
    )
   (ag-rule
    type-context
    [Node (λ (n) (error 'type-context "no default ag-rule"))]
-   [Expression (λ (n)
-                 (dict-ref (att-value 'children-type-dict (ast-parent n))
+   [Expression (λ (n) (dict-ref (att-value 'children-type-dict (ast-parent n))
                                 n))]
-   [BinaryExpression
-    (λ (n) (let ([parent-context (dict-ref
-                                  (att-value 'children-type-dict (ast-parent n))
-                                  n)])
-             ;; #f is not a valid type context -- if there is no type
-             ;; dictated by the parent, choose one of the number types.
-             (or parent-context (fresh-var-type))))]
    )
 
   (ag-rule
@@ -573,6 +578,15 @@
       (set! ref-choices-filtered legal-with-type)
       (and (not (null? legal-with-type)) this))
     (super-new)))
+(define IfExpressionChoice
+  (class ExpressionChoice
+    (define/override (fresh hole-node)
+      (fresh-node 'IfExpression
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'ExpressionHole)))
+    (define/override (features) '(if-expression))
+    (super-new)))
 (define-syntax (define-binary-op-choice stx)
   (syntax-parse stx
     [(_ nodename ;; Name of grammar node, also generates choice name
@@ -684,6 +698,7 @@
         (new GreaterThanExpressionChoice)
         (new LessOrEqualExpressionChoice)
         (new GreaterOrEqualExpressionChoice)
+        (new IfExpressionChoice)
         ))
 
 (define (declaration-choices)
