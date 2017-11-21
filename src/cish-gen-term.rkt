@@ -115,6 +115,8 @@
   (ast-rule 'NullStatement:Statement->)
   (ast-rule 'Block:Statement->Declaration*-Statement*)
   (ast-rule 'ExpressionStatement:Statement->Expression)
+  (ast-rule 'IfStatement:Statement->Expression<test-Statement<then)
+  (ast-rule 'IfElseStatement:IfStatement->Statement<else)
   (ast-rule 'ReturnStatement:Statement->)
   (ast-rule 'VoidReturnStatement:ReturnStatement->)
   (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
@@ -191,6 +193,22 @@
                rparen))
        (att-value 'pretty-print (ast-child 'Block n))
        (comment (ast-child 'postcomment n))))]
+   [IfStatement
+    (λ (n) (v-append
+            (h-append (text "if ")
+                      lparen
+                      (att-value 'pretty-print (ast-child 'test n))
+                      rparen)
+            (att-value 'pretty-print (ast-child 'then n))))]
+   [IfElseStatement
+    (λ (n) (v-append
+            (h-append (text "if ")
+                      lparen
+                      (att-value 'pretty-print (ast-child 'test n))
+                      rparen)
+            (att-value 'pretty-print (ast-child 'then n))
+            (text "else")
+            (att-value 'pretty-print (ast-child 'else n))))]
    [Block (λ (n)
             (v-append
              (comment (ast-child 'precomment n))
@@ -356,6 +374,7 @@
    [ExpressionStatement (λ (n) (hasheq (ast-child 'Expression n) #f))]
    [ValueReturnStatement (λ (n) (hasheq (ast-child 'Expression n)
                                         (att-value 'current-function-return-type n)))]
+   [IfStatement (λ (n) (hasheq (ast-child 'test n) "int"))]
    [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
                                        (ast-child 'typename n)))]
    [FunctionApplicationExpression
@@ -392,17 +411,24 @@
                    (and (not (null? ns)) (car (reverse ns)))))]
    [Node (λ (n) (error 'block-last-statement "no default ag-rule"))])
   (ag-rule
+   children-return-position-dict
+   ;; Dictionary that will contain true for children that are in return position.
+   ;; Else nothing or #f -- IE check with #f as default.
+   [Block (λ (n) (if (att-value 'in-return-position? n)
+                     (hash (att-value 'block-last-statement n) #t)
+                     (hash)))]
+   [IfElseStatement (λ (n) (if (att-value 'in-return-position? n)
+                               (hash (ast-child 'then n) #t
+                                     (ast-child 'else n) #t)
+                               (hash)))]
+   [Statement (λ (n) (hash))]
+   [FunctionDefinition (λ (n) (hash (ast-child 'Block n) #t))]
+   [Node (λ (n) (error 'children-return-position-dict "no default ag-rule"))])
+  (ag-rule
    in-return-position?
-   [Statement (λ (n)
-                (let* ([p (ast-parent n)]
-                       [p-type (node-type p)]
-                       [p2 (ast-parent p)]
-                       [p2-type (node-type p2)])
-                  (and (att-value 'in-return-position? p)
-                       (or (and (eq? p2-type 'Block)
-                                (eq? n (att-value 'block-last-statement p)))
-                           (not (eq? p2-type 'Block))))))]
-   [FunctionDefinition (λ (n) #t)]
+   [Statement (λ (n) (let ([rp-dict (att-value 'children-return-position-dict
+                                               (parent-node n))])
+                       (dict-ref rp-dict n #f)))]
    [Node (λ (n) #f)])
 
 
@@ -455,6 +481,24 @@
     (define/override (fresh hole-node)
       (fresh-node 'ExpressionStatement (fresh-node 'ExpressionHole)))
     (define/override (wont-over-deepen holenode)
+      this)
+    (super-new)))
+(define IfStatementChoice
+  (class StatementChoice
+    (define/override (features) '(if-statement))
+    (define/override (fresh hole-node)
+      (fresh-node 'IfStatement
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'StatementHole)))
+    (super-new)))
+(define IfElseStatementChoice
+  (class IfStatementChoice
+    (define/override (fresh hole-node)
+      (fresh-node 'IfElseStatement
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'StatementHole)
+                  (fresh-node 'StatementHole)))
+    (define/override (respect-return-position holenode)
       this)
     (super-new)))
 (define BlockChoice
@@ -681,6 +725,8 @@
   (list (new NullStatementChoice)
         (new ExpressionStatementChoice)
         (new BlockChoice)
+        (new IfStatementChoice)
+        (new IfElseStatementChoice)
         (new ValueReturnStatementChoice)))
 
 (define (expression-choices)
@@ -712,6 +758,11 @@
 
 (define (node-type n)
   (and (not (ast-list-node? n)) (not (ast-bud-node? n)) (ast-node-type n)))
+(define (parent-node n)
+  (let ([p (ast-parent n)])
+    (if (ast-list-node? p)
+        (ast-parent p)
+        p)))
 
 (define-syntax-rule (maybe-send obj method arg ...)
   (and obj (send obj method arg ...)))
