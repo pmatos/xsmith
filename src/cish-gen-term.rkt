@@ -605,7 +605,7 @@
     (define/override (features) '(modulus))
     (define/override (constrain-type holenode)
       (let ([t (att-value 'type-context holenode)])
-        (cond [(and t (member t '("int" "float"))) this]
+        (cond [(and t (member t '("int"))) this]
               [(not t) this]
               [else #f])))
     (super-new)))
