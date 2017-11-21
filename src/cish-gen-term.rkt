@@ -456,9 +456,6 @@
       this)
     (define/public (respect-return-position holenode)
       this)
-    (define/public (block-in-function holenode)
-      (and (not (eq? (node-type (parent-node holenode)) 'FunctionDefinition))
-           this))
     (super-new)))
 
 (define StatementChoice
@@ -503,7 +500,6 @@
     (super-new)))
 (define BlockChoice
   (class StatementChoice
-    (define/override (block-in-function holenode) this)
     (define/override (fresh hole-node)
       (fresh-node 'Block
                   ;; declarations
@@ -780,7 +776,6 @@
                                    (top-level-declaration-at-top-level hole-node)
                                    (wont-over-deepen hole-node)
                                    (respect-return-position hole-node)
-                                   (block-in-function hole-node)
                                    (constrain-type hole-node)))
           choice-list))
 
