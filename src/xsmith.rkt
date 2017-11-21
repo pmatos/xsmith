@@ -1,4 +1,4 @@
-#lang racket
+#lang racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017 The University of Utah
@@ -31,9 +31,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;(require "gen-term.rkt")
-(require "cish-gen-term.rkt")
-(require "xsmith-options.rkt")
-(require "xsmith-version.rkt")
+(require
+ racket/dict
+ "cish-gen-term.rkt"
+ "xsmith-options.rkt"
+ "xsmith-version.rkt"
+ )
 
 (define options (xsmith-options-defaults))
 

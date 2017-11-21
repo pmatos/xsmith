@@ -1,4 +1,4 @@
-#lang racket
+#lang racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017 The University of Utah
@@ -34,6 +34,8 @@
  xsmith-options
  xsmith-options-defaults
  xsmith-option)
+(require
+ racket/dict)
 
 (define xsmith-options (make-parameter #f))
 

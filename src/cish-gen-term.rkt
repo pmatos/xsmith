@@ -1,4 +1,4 @@
-#lang racket
+#lang racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2016, 2017 The University of Utah
@@ -30,15 +30,26 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require racr)
-(require racr/testing) ;; racr/testing is needed for print-ast
-(require pprint)
-(require "random.rkt")
-(require "choice.rkt")
-(require "scope-graph.rkt")
-(require racket/random)
-(require "xsmith-options.rkt")
-(require "xsmith-version.rkt")
+(require
+ racr
+ racr/testing ;; racr/testing is needed for print-ast
+ pprint
+ racket/random
+ racket/string
+ racket/dict
+ racket/class
+ (except-in racket/list empty)
+ "random.rkt"
+ "choice.rkt"
+ "scope-graph.rkt"
+ "xsmith-options.rkt"
+ "xsmith-version.rkt"
+ (for-syntax
+  racket/base
+  syntax/parse
+  racket/syntax
+  ))
+
 (provide do-it)
 
 (define spec (create-specification))
@@ -544,71 +555,28 @@
       (set! ref-choices-filtered legal-with-type)
       (and (not (null? legal-with-type)) this))
     (super-new)))
-(define AdditionExpressionChoice
-  (class ExpressionChoice
-    (define/override (fresh hole-node)
-      (fresh-node 'AdditionExpression
-                  (fresh-node 'ExpressionHole)
-                  (fresh-node 'ExpressionHole)))
-    (define/override (features) '(addition))
-    (define/override (constrain-type holenode)
-      (let ([t (att-value 'type-context holenode)])
-        (cond [(and t (member t '("int" "float"))) this]
-              [(not t) this]
-              [else #f])))
-    (super-new)))
-(define SubtractionExpressionChoice
-  (class ExpressionChoice
-    (define/override (fresh hole-node)
-      (fresh-node 'SubtractionExpression
-                  (fresh-node 'ExpressionHole)
-                  (fresh-node 'ExpressionHole)))
-    (define/override (features) '(subtraction))
-    (define/override (constrain-type holenode)
-      (let ([t (att-value 'type-context holenode)])
-        (cond [(and t (member t '("int" "float"))) this]
-              [(not t) this]
-              [else #f])))
-    (super-new)))
-(define MultiplicationExpressionChoice
-  (class ExpressionChoice
-    (define/override (fresh hole-node)
-      (fresh-node 'MultiplicationExpression
-                  (fresh-node 'ExpressionHole)
-                  (fresh-node 'ExpressionHole)))
-    (define/override (features) '(multiplication))
-    (define/override (constrain-type holenode)
-      (let ([t (att-value 'type-context holenode)])
-        (cond [(and t (member t '("int" "float"))) this]
-              [(not t) this]
-              [else #f])))
-    (super-new)))
-(define DivisionExpressionChoice
-  (class ExpressionChoice
-    (define/override (fresh hole-node)
-      (fresh-node 'DivisionExpression
-                  (fresh-node 'ExpressionHole)
-                  (fresh-node 'ExpressionHole)))
-    (define/override (features) '(division))
-    (define/override (constrain-type holenode)
-      (let ([t (att-value 'type-context holenode)])
-        (cond [(and t (member t '("int" "float"))) this]
-              [(not t) this]
-              [else #f])))
-    (super-new)))
-(define ModulusExpressionChoice
-  (class ExpressionChoice
-    (define/override (fresh hole-node)
-      (fresh-node 'ModulusExpression
-                  (fresh-node 'ExpressionHole)
-                  (fresh-node 'ExpressionHole)))
-    (define/override (features) '(modulus))
-    (define/override (constrain-type holenode)
-      (let ([t (att-value 'type-context holenode)])
-        (cond [(and t (member t '("int"))) this]
-              [(not t) this]
-              [else #f])))
-    (super-new)))
+(define-syntax (define-binary-op-choice stx)
+  (syntax-parse stx
+    [(_ nodename feature typelist)
+     #:with choicename (format-id #'nodename "~aChoice" #'nodename)
+     #'(define choicename
+         (class ExpressionChoice
+           (define/override (fresh hole-node)
+             (fresh-node 'nodename
+                         (fresh-node 'ExpressionHole)
+                         (fresh-node 'ExpressionHole)))
+           (define/override (features) '(feature))
+           (define/override (constrain-type holenode)
+             (let ([t (att-value 'type-context holenode)])
+               (cond [(and t (member t typelist)) this]
+                     [(not t) this]
+                     [else #f])))
+           (super-new)))]))
+(define-binary-op-choice AdditionExpression addition '("int" "float"))
+(define-binary-op-choice MultiplicationExpression multiplication '("int" "float"))
+(define-binary-op-choice SubtractionExpression subtraction '("int" "float"))
+(define-binary-op-choice DivisionExpression division '("int" "float"))
+(define-binary-op-choice ModulusExpression modulus '("int"))
 
 (define DeclarationChoice
   (class cish-ast-choice%
