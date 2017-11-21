@@ -173,8 +173,8 @@
               (vb-append
                (comment (ast-child 'precomment n))
                (apply vb-append (map (λ (cn) (att-value 'pretty-print cn))
-                                      (append (ast-children (ast-child 'Declaration* n))
-                                              (list (ast-child 'main n)))))
+                                     (append (ast-children (ast-child 'Declaration* n))
+                                             (list (ast-child 'main n)))))
                (comment (ast-child 'postcomment n))))]
    [FunctionDefinition
     (λ (n)
@@ -506,18 +506,18 @@
     (define/override (block-in-function holenode) this)
     (define/override (fresh hole-node)
       (fresh-node 'Block
-              ;; declarations
-              (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
-                                                       "standin-name"))
-                                    (make-list (random 3) #f)))
-              ;; statements
-              (create-ast-list
-               (map (λ (x) (fresh-node 'StatementHole))
-                    (let ([l (make-list (random 5) #f)])
-                      (if (att-value 'in-return-position? hole-node)
-                          ;; don't allow an empty block in return position
-                          (cons #f l)
-                          l))))))
+                  ;; declarations
+                  (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
+                                                           "standin-name"))
+                                        (make-list (random 3) #f)))
+                  ;; statements
+                  (create-ast-list
+                   (map (λ (x) (fresh-node 'StatementHole))
+                        (let ([l (make-list (random 5) #f)])
+                          (if (att-value 'in-return-position? hole-node)
+                              ;; don't allow an empty block in return position
+                              (cons #f l)
+                              l))))))
     (define/override (respect-return-position holenode)
       this)
     (super-new)))
