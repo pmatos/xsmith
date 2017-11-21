@@ -50,7 +50,7 @@
   racket/syntax
   ))
 
-(provide do-it)
+(provide do-it make-do-it)
 
 (define spec (create-specification))
 
@@ -761,6 +761,19 @@
     (parameterize ((xsmith-options options))
       (random-seed (xsmith-option 'random-seed)))
     (do-one state options)))
+
+(define (make-do-it options)
+  (let ((state (make-generator-state)))
+    ;; Initialize the state from the options.
+    ;; Pretty lame to use `parameterize` just for this.  XXX Fix options API.
+    (parameterize ((xsmith-options options))
+      (random-seed (xsmith-option 'random-seed)))
+    (λ ()
+      (parameterize ((xsmith-options options))
+        ;; XXX also need to reset the seed, or increase a generation counter,
+        ;; or something.  Right now, the seed printed in output program is
+        ;; wrong!
+        (do-one state options)))))
 
 (define (do-one state options)
   (parameterize ((xsmith-state state)
