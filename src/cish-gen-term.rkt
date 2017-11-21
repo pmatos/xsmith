@@ -94,6 +94,7 @@
   (ast-rule 'VariableDeclaration:Declaration->typename-Expression)
   ;; TODO - the block in a function definition should get some constraints from its parent - eg. it should have a return of the appropriate type in each branch
   (ast-rule 'FunctionDefinition:Declaration->typename-FormalParam*-Block)
+  (ast-rule 'FunctionDefinitionHole:FunctionDefinition->)
   (ast-rule 'FormalParam:Node->typename-name)
 
 
@@ -105,6 +106,7 @@
   (ast-rule 'VoidReturnStatement:ReturnStatement->)
   (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
   (ast-rule 'StatementHole:Statement->)
+  (ast-rule 'BlockHole:Block->)
 
   (ast-rule 'Expression:Node->)
   (ast-rule 'ExpressionHole:Expression->)
@@ -133,18 +135,13 @@
            [Program (λ (n) 0)]
            [Node (λ (n) (add1 (att-value 'ast-depth (ast-parent n))))])
 
-  ;; This is probably not necessary, but I'm not sure offhand right now how to test
-  ;; the type of a node.
-  (ag-rule is-program?
-           [Program (λ (n) #t)]
-           [Node (λ (n) #f)])
   ;; IE are declarations here global?
   (ag-rule at-top-level?
            [Program (λ (n) #t)]
            [Node (λ (n) (let ([p (ast-parent n)])
-                          (or (att-value 'is-program? (ast-parent n))
+                          (or (equal? (node-type p) 'Program)
                               (and (ast-list-node? p)
-                                   (att-value 'is-program? (ast-parent p))))))])
+                                   (equal? (node-type (ast-parent p)) 'Program)))))])
 
   (ag-rule
    pretty-print
@@ -355,6 +352,25 @@
              (or parent-context (fresh-var-type))))]
    )
 
+  (ag-rule
+   block-last-statement
+   [Block (λ (n) (let ([ns (ast-children (ast-child 'Statement* n))])
+                   (and (not (null? ns)) (car (reverse ns)))))]
+   [Node (λ (n) (error 'block-last-statement "no default ag-rule"))])
+  (ag-rule
+   in-return-position?
+   [Statement (λ (n)
+                (let* ([p (ast-parent n)]
+                       [p-type (node-type p)]
+                       [p2 (ast-parent p)]
+                       [p2-type (node-type p2)])
+                  (and (att-value 'in-return-position? p)
+                       (or (and (eq? p2-type 'Block)
+                                (eq? n (att-value 'block-last-statement p)))
+                           (not (eq? p2-type 'Block))))))]
+   [FunctionDefinition (λ (n) #t)]
+   [Node (λ (n) #f)])
+
 
   (compile-ag-specifications)
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -378,14 +394,22 @@
       this)
     (define/public (top-level-declaration-at-top-level holenode)
       this)
+    (define/public (respect-return-position holenode)
+      this)
+    (define/public (block-in-function holenode)
+      (and (not (eq? (node-type (ast-parent holenode)) 'FunctionDefinition))
+           this))
     (super-new)))
 
 (define StatementChoice
   (class cish-ast-choice%
+    (define/override (respect-return-position holenode)
+      (and (not (att-value 'in-return-position? holenode))
+           this))
     (super-new)))
 (define NullStatementChoice
   (class StatementChoice
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'NullStatement))
     (define/override (features) '(null))
     (define/override (wont-over-deepen holenode)
@@ -394,33 +418,46 @@
     (super-new)))
 (define ExpressionStatementChoice
   (class StatementChoice
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'ExpressionStatement (fresh-node 'ExpressionHole)))
     (define/override (wont-over-deepen holenode)
       this)
     (super-new)))
 (define BlockChoice
   (class StatementChoice
-    (define/override (choice-weight) 15)
-    (define/override (fresh)
+    (define/override (block-in-function holenode) this)
+    (define/override (fresh hole-node)
       (fresh-node 'Block
               ;; declarations
               (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
                                                        "standin-name"))
                                     (make-list (random 3) #f)))
               ;; statements
-              (create-ast-list (map (λ (x) (fresh-node 'StatementHole))
-                                    (make-list (random 5) #f)))))
+              (create-ast-list
+               (map (λ (x) (fresh-node 'StatementHole))
+                    (let ([l (make-list (random 5) #f)])
+                      (if (att-value 'in-return-position? hole-node)
+                          ;; don't allow an empty block in return position
+                          (cons #f l)
+                          l))))))
+    (define/override (respect-return-position holenode)
+      this)
     (super-new)))
 (define ReturnStatementChoice
   (class StatementChoice
+    (define/override (choice-weight) 2)
     (define/override (wont-over-deepen holenode)
+      this)
+    (define/override (respect-return-position holenode)
       this)
     (super-new)))
 (define ValueReturnStatementChoice
   (class ReturnStatementChoice
-    (define/override (fresh)
+    (define/override (choice-weight) 2)
+    (define/override (fresh hole-node)
       (fresh-node 'ValueReturnStatement (fresh-node 'ExpressionHole)))
+    (define/override (respect-return-position holenode)
+      this)
     (super-new)))
 
 (define ExpressionChoice
@@ -428,7 +465,7 @@
     (super-new)))
 (define LiteralIntChoice
   (class ExpressionChoice
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'LiteralInt (random 100)))
     (define/override (features) '(int))
     (define/override (wont-over-deepen holenode)
@@ -441,7 +478,7 @@
     (super-new)))
 (define LiteralFloatChoice
   (class ExpressionChoice
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'LiteralFloat (* (random) (random 10))))
     (define/override (features) '(float))
     (define/override (wont-over-deepen holenode)
@@ -454,9 +491,9 @@
     (super-new)))
 (define VariableReferenceChoice
   (class ExpressionChoice
-    (define/override (choice-weight) 15)
     (define ref-choices-filtered #f)
-    (define/override (fresh)
+    (define (choice-weight) 15)
+    (define/override (fresh hole-node)
       (fresh-node 'VariableReference (binding-name (random-ref ref-choices-filtered))))
     (define/override (wont-over-deepen holenode)
       this)
@@ -479,7 +516,7 @@
 (define FunctionApplicationExpressionChoice
   (class ExpressionChoice
     (define ref-choices-filtered #f)
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (define chosen-func (random-ref ref-choices-filtered))
       (fresh-node 'FunctionApplicationExpression
                   (binding-name chosen-func)
@@ -509,7 +546,7 @@
     (super-new)))
 (define AdditionExpressionChoice
   (class ExpressionChoice
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'AdditionExpression
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'ExpressionHole)))
@@ -522,7 +559,7 @@
     (super-new)))
 (define SubtractionExpressionChoice
   (class ExpressionChoice
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'SubtractionExpression
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'ExpressionHole)))
@@ -535,7 +572,7 @@
     (super-new)))
 (define MultiplicationExpressionChoice
   (class ExpressionChoice
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'MultiplicationExpression
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'ExpressionHole)))
@@ -548,7 +585,7 @@
     (super-new)))
 (define DivisionExpressionChoice
   (class ExpressionChoice
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'DivisionExpression
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'ExpressionHole)))
@@ -561,7 +598,7 @@
     (super-new)))
 (define ModulusExpressionChoice
   (class ExpressionChoice
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'ModulusExpression
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'ExpressionHole)))
@@ -575,13 +612,12 @@
 
 (define DeclarationChoice
   (class cish-ast-choice%
-    (define/override (choice-weight) 1)
     (super-new)))
 (define VariableDeclarationChoice
   (class DeclarationChoice
     (define/override (wont-over-deepen holenode)
       this)
-    (define/override (fresh)
+    (define/override (fresh hole-node)
       (fresh-node 'VariableDeclaration
                   (fresh-var-name)
                   (fresh-var-type)
@@ -593,28 +629,21 @@
       (if (att-value 'at-top-level? holenode)
           this
           #f))
-    (define/override (fresh)
+    (define/override (fresh hole-node)
+      (define p (ast-parent hole-node))
+      (define main? (and (eq? (node-type p) 'Program)
+                         (eq? (ast-child 'main p) hole-node)))
       (fresh-node 'FunctionDefinition
-                  (fresh-var-name "func")
-                  (fresh-var-type)
+                  (if main? "main" (fresh-var-name "func"))
+                  (if main? "int" (fresh-var-type))
                   ;; parameters
-                  (create-ast-list (map (λ (x) (fresh-node 'FormalParam
-                                                           (fresh-var-type)
-                                                           (fresh-var-name)))
-                                        (make-list (random 5) #f)))
-                  ;; TODO -- it would be better to just have a hole and make sure
-                  ;;         the generator code picks up all the requirements from
-                  ;;         the hole node's place in the tree.
-                  (fresh-node 'Block
-                              (create-ast-list (list))
-                              (create-ast-list
-                               (append
-                                (map (λ (x) (fresh-node 'StatementHole))
-                                     (make-list (random 5) #f))
-                                (list
-                                 (fresh-node
-                                  'ValueReturnStatement
-                                  (fresh-node 'ExpressionHole))))))))
+                  (if main?
+                      (create-ast-list '())
+                      (create-ast-list (map (λ (x) (fresh-node 'FormalParam
+                                                               (fresh-var-type)
+                                                               (fresh-var-name)))
+                                            (make-list (random 5) #f))))
+                  (fresh-node 'BlockHole (create-ast-list '()) (create-ast-list '()))))
     (super-new)))
 
 (define (fresh-var-name [base "var"])
@@ -661,7 +690,9 @@
 
 (define-syntax-rule (fresh-node type attr-val ...)
   (create-ast spec type (list empty empty attr-val ...)))
-; (create-ast spec type (list (text "/*foo*/") (text "/*bar*/") attr-val ...)))
+
+(define (node-type n)
+  (and (not (ast-list-node? n)) (not (ast-bud-node? n)) (ast-node-type n)))
 
 (define-syntax-rule (maybe-send obj method arg ...)
   (and obj (send obj method arg ...)))
@@ -675,32 +706,43 @@
                                    (features-enabled)
                                    (top-level-declaration-at-top-level hole-node)
                                    (wont-over-deepen hole-node)
+                                   (respect-return-position hole-node)
+                                   (block-in-function hole-node)
                                    (constrain-type hole-node)))
           choice-list))
 
 (define (replace-with-expression n)
   (let ([o (choose-ast (apply-choice-filters (expression-choices) n))])
-    (rewrite-subtree n (send o fresh))))
+    (rewrite-subtree n (send o fresh n))))
 
 (define (replace-with-statement n)
   (let ([o (choose-ast (apply-choice-filters (statement-choices) n))])
-    (rewrite-subtree n (send o fresh))))
+    (rewrite-subtree n (send o fresh n))))
+
+(define (replace-with-function n)
+  (rewrite-subtree n (send (new FunctionDefinitionChoice) fresh n)))
 
 (define (replace-with-declaration n)
   (let ([o (choose-ast (apply-choice-filters (declaration-choices) n))])
-    (rewrite-subtree n (send o fresh))))
+    (rewrite-subtree n (send o fresh n))))
 
 (define (generate-random-prog n)
   (let ([fill-in
          (λ (n)
            (if (ast-list-node? n)
                #f
-               (case (ast-node-type n)
+               (case (node-type n)
                  ((ExpressionHole)
                   (replace-with-expression n)
                   #t)
                  ((StatementHole)
                   (replace-with-statement n)
+                  #t)
+                 ((BlockHole)
+                  (replace-with-statement n)
+                  #t)
+                 ((FunctionDefinitionHole)
+                  (replace-with-function n)
                   #t)
                  ((DeclarationHole)
                   (replace-with-declaration n)
@@ -717,21 +759,13 @@
                 (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
                                                          "standin-name"))
                                       (make-list (random 5) #f)))
-                (fresh-node 'FunctionDefinition
-                            "main"
-                            "int"
-                            ;; parameters
+                (fresh-node 'FunctionDefinitionHole
+                            "standin-name"
+                            "standin-type"
                             (create-ast-list '())
-                            (fresh-node 'Block
-                                        (create-ast-list (list))
-                                        (create-ast-list
-                                         (append
-                                          (map (λ (x) (fresh-node 'StatementHole))
-                                               (make-list (random 5) #f))
-                                          (list
-                                           (fresh-node
-                                            'ValueReturnStatement
-                                            (fresh-node 'ExpressionHole)))))))))
+                            (fresh-node 'BlockHole
+                                        (create-ast-list '())
+                                        (create-ast-list '())))))
   (rewrite-terminal 'precomment p
                     (h-append
                      line

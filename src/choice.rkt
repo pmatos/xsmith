@@ -54,7 +54,7 @@ Choices for AST growth should be some sort of object.
 
 (define ast-choice%
   (class object%
-    (define/public (fresh) (error 'fresh-node "no default implementation"))
+    (define/public (fresh hole-node) (error 'fresh-node "no default implementation"))
     (define/public (choice-weight) (error 'choice-weight "no default implementation"))
     (define/public (features) '())
     (super-new)
