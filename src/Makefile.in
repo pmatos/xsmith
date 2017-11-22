@@ -38,10 +38,14 @@ RACO := @RACO@
 COMPILED_DIR := compiled
 
 SRCS := \
+	choice.rkt \
+	cish-gen-term.rkt \
 	gen-term.rkt \
 	info.rkt \
 	random.rkt \
+	scope-graph.rkt \
 	xsmith-options.rkt \
+	xsmith-version.rkt \
 	xsmith.rkt
 # SRCS := $(wildcard *.rkt)
 
