@@ -34,7 +34,8 @@
 (require racr/testing) ;; racr/testing is needed for print-ast
 (require pprint)
 (require "random.rkt")
-(require racket/random)
+(require racket/random
+         racket/dict)
 (require "xsmith-options.rkt")
 (provide do-it)
 
