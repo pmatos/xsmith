@@ -45,6 +45,7 @@ SRCS := \
 	random.rkt \
 	scope-graph.rkt \
 	xsmith-options.rkt \
+	xsmith-web-server.rkt \
 	xsmith-version.rkt \
 	xsmith.rkt
 # SRCS := $(wildcard *.rkt)
