@@ -30,17 +30,28 @@
 
 (require web-server/servlet
          web-server/servlet-env)
+(require racket/cmdline)
 (require "cish-gen-term.rkt")
 (require "xsmith-options.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define port 8080)
+(define given-seed #f)
+
+(command-line
+ #:program "xsmith-web-server"
+ #:once-each
+ [("--port") n "Use port n instead of 8080." (set! port (string->number n))]
+ [("--seed" "-s") seed "Set the random seed." (set! given-seed (string->number seed))]
+ )
 
 (define options (xsmith-options-defaults))
 
 (dict-set! options 'command-line (make-vector 0))
 ;; Use an explicit random seed.
 (unless (dict-has-key? options 'random-seed)
-  (dict-set! options 'random-seed (random (expt 2 31))))
+  (dict-set! options 'random-seed (or given-seed (random (expt 2 31)))))
 
 (define do-it-once (make-do-it options))
 
@@ -52,7 +63,7 @@
      `(html (head (title "Random C Program"))
             (body (pre ,(get-output-string out)))))))
 
-(serve/servlet start #:port 8080 #:command-line? #t)
+(serve/servlet start #:port port #:command-line? #t)
 
 ;; Visit: <http://localhost:8080/servlets/standalone.rkt>
 
