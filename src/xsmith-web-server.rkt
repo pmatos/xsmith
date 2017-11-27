@@ -54,6 +54,8 @@
 
 (serve/servlet start #:port 8080 #:command-line? #t)
 
+;; Visit: <http://localhost:8080/servlets/standalone.rkt>
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; End of file.
