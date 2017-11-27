@@ -123,6 +123,11 @@
   (ast-rule 'StatementHole:Statement->)
   (ast-rule 'BlockHole:Block->)
 
+  (ast-rule 'LoopStatement:Statement->Expression<test-Statement<body)
+  (ast-rule 'WhileStatement:LoopStatement->)
+  (ast-rule 'DoWhileStatement:LoopStatement->)
+  (ast-rule 'ForStatement:LoopStatement->Expression<init-Expression<update)
+
   (ast-rule 'Expression:Node->)
   (ast-rule 'ExpressionHole:Expression->)
   ;; TODO LValues?
@@ -209,6 +214,29 @@
             (att-value 'pretty-print (ast-child 'then n))
             (text "else")
             (att-value 'pretty-print (ast-child 'else n))))]
+   [WhileStatement
+    (λ (n) (v-append
+            (h-append (text "while(")
+                      (att-value 'pretty-print (ast-child 'test n))
+                      (text ")")
+                      (att-value 'pretty-print (ast-child 'body n)))))]
+   [DoWhileStatement
+    (λ (n) (v-append
+            (text "do")
+            (att-value 'pretty-print (ast-child 'body n))
+            (text "while(")
+            (att-value 'pretty-print (ast-child 'test n))
+            (text ");")))]
+   [ForStatement
+    (λ (n) (v-append
+            (h-append (text "for(")
+                      (att-value 'pretty-print (ast-child 'init n))
+                      semi
+                      (att-value 'pretty-print (ast-child 'test n))
+                      semi
+                      (att-value 'pretty-print (ast-child 'update n))
+                      (text ")"))
+            (att-value 'pretty-print (ast-child 'body n))))]
    [Block (λ (n)
             (v-append
              (comment (ast-child 'precomment n))
@@ -375,6 +403,10 @@
    [ValueReturnStatement (λ (n) (hasheq (ast-child 'Expression n)
                                         (att-value 'current-function-return-type n)))]
    [IfStatement (λ (n) (hasheq (ast-child 'test n) "int"))]
+   [LoopStatement (λ (n) (hasheq (ast-child 'test n) "int"))]
+   [ForStatement (λ (n) (hasheq (ast-child 'test n) "int"
+                                (ast-child 'init n) "int"
+                                (ast-child 'update n) "int"))]
    [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
                                        (ast-child 'typename n)))]
    [FunctionApplicationExpression
@@ -497,6 +529,34 @@
                   (fresh-block-hole)))
     (define/override (respect-return-position holenode)
       this)
+    (super-new)))
+(define LoopStatementChoice
+  (class StatementChoice
+    (define/override (features) '(loop))
+    (super-new)))
+(define WhileStatementChoice
+  (class LoopStatementChoice
+    (define/override (fresh hole-node)
+      (fresh-node 'WhileStatement
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'StatementHole)))
+    (super-new)))
+(define DoWhileStatementChoice
+  (class LoopStatementChoice
+    (define/override (fresh hole-node)
+      (fresh-node 'DoWhileStatement
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'StatementHole)))
+    (super-new)))
+(define ForStatementChoice
+  (class LoopStatementChoice
+    (define/override (fresh hole-node)
+      (fresh-node 'ForStatement
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'StatementHole)
+                  ;; init, update
+                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'ExpressionHole)))
     (super-new)))
 (define BlockChoice
   (class StatementChoice
@@ -723,6 +783,10 @@
         (new BlockChoice)
         (new IfStatementChoice)
         (new IfElseStatementChoice)
+        ;; TODO - loop statements need to have some analysis so they at least sometimes terminate...
+        (new WhileStatementChoice)
+        (new DoWhileStatementChoice)
+        (new ForStatementChoice)
         (new ValueReturnStatementChoice)))
 
 (define (expression-choices)
