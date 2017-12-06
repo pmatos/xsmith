@@ -170,6 +170,9 @@ Types can be:
 (define float-type (specify-type empty-basic-type "float"))
 (define bool-type (hint-type empty-basic-type 'bool))
 (define bool-int-type (hint-type int-type 'bool))
+(define nonzero-type (constrain-type empty-basic-type 'nonzero))
+(define nonzero-int-type (constrain-type int-type 'nonzero))
+(define nonzero-float-type (constrain-type float-type 'nonzero))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -682,28 +685,43 @@ Types can be:
 (define ExpressionChoice
   (class cish-ast-choice%
     (super-new)))
-(define LiteralIntChoice
-  (class ExpressionChoice
-    (define/override (fresh hole-node)
-      (fresh-node 'LiteralInt (random 100)))
-    (define/override (features) '(int))
-    (define/override (wont-over-deepen holenode)
-      this)
-    (define/override (constrain-type holenode)
-      (let ([t (att-value 'type-context holenode)])
-        (and (type-satisfies? int-type t) this)))
-    (super-new)))
-(define LiteralFloatChoice
-  (class ExpressionChoice
-    (define/override (fresh hole-node)
-      (fresh-node 'LiteralFloat (* (random) (random 10))))
-    (define/override (features) '(float))
-    (define/override (wont-over-deepen holenode)
-      this)
-    (define/override (constrain-type holenode)
-      (let ([t (att-value 'type-context holenode)])
-        (and (type-satisfies? float-type t) this)))
-    (super-new)))
+
+(define-syntax (define-basic-literal-choice stx)
+  (syntax-parse stx
+    ;; btype is the basic type that it satisfies
+    ;; generator-e is the expression to generate a value
+    ;; if-zero-generator-e is used if nonzero is required and the first generator gives 0
+    [(_ nodename btype feature generator-e if-zero-generator-e)
+     #:with choicename (format-id #'nodename "~aChoice" #'nodename)
+     #'(define choicename
+         (class ExpressionChoice
+           (define/override (fresh holenode)
+             (let* ([t (att-value 'type-context holenode)]
+                    [v1 generator-e]
+                    [constraints (if (basic-type? t) (basic-type-constraints t) '())]
+                    [v (if (and (member 'nonzero constraints)
+                                (equal? 0 v1))
+                           if-zero-generator-e
+                           v1)])
+               (fresh-node 'nodename v)))
+           (define/override (features) '(feature))
+           (define/override (wont-over-deepen holenode)
+             this)
+           (define/override (constrain-type holenode)
+             (let ([t (att-value 'type-context holenode)])
+               ;; This isn't necessarily nonzero, but it will be if needed.
+               (and (type-satisfies? btype t) this)))
+           (super-new)))]))
+(define-basic-literal-choice LiteralInt nonzero-int-type int
+  (* (random 100)
+     (if (equal? 0 (random 1))
+         1
+         -1))
+  (+ 1 (random 10)))
+(define-basic-literal-choice LiteralFloat nonzero-float-type float
+  (* (random) (random 10))
+  (+ .1 (random)))
+
 (define VariableReferenceChoice
   (class ExpressionChoice
     (define ref-choices-filtered #f)
