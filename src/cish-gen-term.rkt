@@ -37,6 +37,7 @@
  racket/random
  racket/string
  racket/dict
+ racket/match
  racket/class
  (except-in racket/list empty)
  "random.rkt"
@@ -96,6 +97,80 @@
 (define (make-generator-state)
   (generator-state 1))
 
+#|
+TYPES
+-----
+
+Types can be:
+* #f for completely unconstrained
+* (list '-> arg ... result) for function types
+* basic-type for normal types
+|#
+
+(struct basic-type
+  ;; Type name can be false or a type (eg int, float, ...),
+  ;; constraints and hints fields are lists.
+  ;; Constraints and hints are things like bool-like, constant, etc that are generally part of the idiom of how types are used rather than the actual type emitted.
+  ;; Constraints are enforced, whereas hints affect probabilies of occurence.
+  ;; The constrain-type method should always account for every attribute in the list -- if something can't satisfy every attribute it should be out of the running (or lowered in probability in case of hints).
+  (name constraints hints)
+  #:transparent)
+
+(define (type-satisfies? given-t constraint-t)
+  (match constraint-t
+    ;; TODO - arrow types
+    ;;        But I don't think I'm every comparing two arrow types directly,
+    ;;        just comparing return values and argument types...
+    [(basic-type cname cconst chints)
+     (match given-t
+       [(basic-type gname gconst ghints)
+        (and (or (not cname) (equal? gname cname))
+             (andmap (λ (c) (member c gconst)) cconst))]
+       [else #f])]
+    ;; if there is no constraint, anything goes
+    [#f #t]))
+
+;; give a >1 multiplier for choices that satisfy type hints, otherwise 1
+(define (type-hint-modifier given-t constraint-t)
+  (match constraint-t
+    [(basic-type cname cconst chints)
+     (match given-t
+       [(basic-type gname gconst ghints)
+        (if (andmap (λ (h) (member h ghints)) chints)
+            3
+            1)]
+       [else 1])]
+    [else 1]))
+
+(define (function-type? t)
+  (and (list? t)
+       (not (null? t))
+       (eq? (car t) '->)))
+
+(define empty-basic-type (basic-type #f (list) (list)))
+(define (specify-type t name)
+  (cond [(not t) (basic-type name (list) (list))]
+        [(basic-type? t) (struct-copy basic-type t
+                                      [name name])]
+        [else (error 'specify-type "bad case")]))
+(define (constrain-type t constraint)
+  (cond [(not t) (basic-type #f (list constraint) (list))]
+        [(basic-type? t)
+         (struct-copy basic-type t
+                      [constraints (cons constraint (basic-type-constraints t))])]
+        [else (error 'constrain-type "bad case")]))
+(define (hint-type t h)
+  (cond [(not t) (basic-type #f (list) (list h))]
+        [(basic-type? t)
+         (struct-copy basic-type t
+                      [hints (cons h (basic-type-hints t))])]
+        [else (error 'constrain-type "bad case")]))
+
+(define int-type (specify-type empty-basic-type "int"))
+(define float-type (specify-type empty-basic-type "float"))
+(define bool-type (hint-type empty-basic-type 'bool))
+(define bool-int-type (hint-type int-type 'bool))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (with-specification spec
@@ -138,7 +213,9 @@
   (ast-rule 'SubtractionExpression:BinaryExpression->)
   (ast-rule 'MultiplicationExpression:BinaryExpression->)
   (ast-rule 'DivisionExpression:BinaryExpression->)
-  (ast-rule 'ModulusExpression:BinaryExpression->)
+
+  (ast-rule 'IntOnlyBinaryExpression:BinaryExpression->)
+  (ast-rule 'ModulusExpression:IntOnlyBinaryExpression->)
 
   (ast-rule 'ComparisonExpression:BinaryExpression->)
   (ast-rule 'EqualityExpression:ComparisonExpression->)
@@ -186,11 +263,12 @@
       (vb-append
        (comment (ast-child 'precomment n))
        (group (h-append
-               (text (ast-child 'typename n))
+               (text (basic-type-name (ast-child 'typename n)))
                space
                (text (ast-child 'name n))
                lparen
-               (text (string-join (map (λ (fp) (string-append (ast-child 'typename fp)
+               (text (string-join (map (λ (fp) (string-append (basic-type-name
+                                                               (ast-child 'typename fp))
                                                               " "
                                                               (ast-child 'name fp)))
                                        (ast-children (ast-child 'FormalParam* n)))
@@ -224,16 +302,17 @@
     (λ (n) (v-append
             (text "do")
             (att-value 'pretty-print (ast-child 'body n))
-            (text "while(")
-            (att-value 'pretty-print (ast-child 'test n))
-            (text ");")))]
+            (h-append
+             (text "while(")
+             (att-value 'pretty-print (ast-child 'test n))
+             (text ");"))))]
    [ForStatement
     (λ (n) (v-append
             (h-append (text "for(")
                       (att-value 'pretty-print (ast-child 'init n))
-                      semi
+                      space semi space
                       (att-value 'pretty-print (ast-child 'test n))
-                      semi
+                      space semi space
                       (att-value 'pretty-print (ast-child 'update n))
                       (text ")"))
             (att-value 'pretty-print (ast-child 'body n))))]
@@ -274,7 +353,7 @@
    [VariableDeclaration
     (λ (n) (h-append (comment (ast-child 'precomment n))
                      (hs-append
-                      (text (ast-child 'typename n))
+                      (text (basic-type-name (ast-child 'typename n)))
                       (text (ast-child 'name n))
                       eqsign
                       (att-value 'pretty-print (ast-child 'Expression n)))
@@ -402,11 +481,11 @@
    [ExpressionStatement (λ (n) (hasheq (ast-child 'Expression n) #f))]
    [ValueReturnStatement (λ (n) (hasheq (ast-child 'Expression n)
                                         (att-value 'current-function-return-type n)))]
-   [IfStatement (λ (n) (hasheq (ast-child 'test n) "int"))]
-   [LoopStatement (λ (n) (hasheq (ast-child 'test n) "int"))]
-   [ForStatement (λ (n) (hasheq (ast-child 'test n) "int"
-                                (ast-child 'init n) "int"
-                                (ast-child 'update n) "int"))]
+   [IfStatement (λ (n) (hasheq (ast-child 'test n) bool-type))]
+   [LoopStatement (λ (n) (hasheq (ast-child 'test n) bool-type))]
+   [ForStatement (λ (n) (hasheq (ast-child 'test n) bool-type
+                                (ast-child 'init n) int-type
+                                (ast-child 'update n) int-type))]
    [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
                                        (ast-child 'typename n)))]
    [FunctionApplicationExpression
@@ -421,11 +500,17 @@
    [BinaryExpression (λ (n) (let ([t (or (att-value 'type-context n) (fresh-var-type))])
                               (hasheq (ast-child 'l n) t
                                       (ast-child 'r n) t)))]
+   [IntOnlyBinaryExpression (λ (n) (let* ([t (att-value 'type-context n)]
+                                          [t (cond [(not t) int-type]
+                                                   [(basic-type? t)
+                                                    (specify-type t "int")])])
+                              (hasheq (ast-child 'l n) t
+                                      (ast-child 'r n) t)))]
    [ComparisonExpression (λ (n) (let ([t (fresh-var-type)])
                                   (hasheq (ast-child 'l n) t
                                           (ast-child 'r n) t)))]
    [IfExpression (λ (n) (let ([t (or (att-value 'type-context n) (fresh-var-type))])
-                          (hasheq (ast-child 'test n) "int"
+                          (hasheq (ast-child 'test n) bool-type
                                   (ast-child 'then n) t
                                   (ast-child 'else n) t)))]
    ;; TODO - function call, anything with child expressions...
@@ -606,9 +691,7 @@
       this)
     (define/override (constrain-type holenode)
       (let ([t (att-value 'type-context holenode)])
-        (cond [(and t (equal? t "int")) this]
-              [(not t) this]
-              [else #f])))
+        (and (type-satisfies? int-type t) this)))
     (super-new)))
 (define LiteralFloatChoice
   (class ExpressionChoice
@@ -619,9 +702,7 @@
       this)
     (define/override (constrain-type holenode)
       (let ([t (att-value 'type-context holenode)])
-        (cond [(and t (equal? t "float")) this]
-              [(not t) this]
-              [else #f])))
+        (and (type-satisfies? float-type t) this)))
     (super-new)))
 (define VariableReferenceChoice
   (class ExpressionChoice
@@ -640,8 +721,8 @@
       (define type-needed (att-value 'type-context holenode))
       (define legal-with-type
         (if type-needed
-            (filter (λ (b) (equal? type-needed
-                                   (dict-ref (binding-bound b) 'type)))
+            (filter (λ (b) (type-satisfies? (dict-ref (binding-bound b) 'type)
+                                            type-needed))
                     legal-refs)
             legal-refs))
       (set! ref-choices-filtered legal-with-type)
@@ -671,8 +752,9 @@
       (define type-needed (att-value 'type-context holenode))
       (define legal-with-type
         (if type-needed
-            (filter (λ (b) (equal? type-needed
-                                   (car (reverse (dict-ref (binding-bound b) 'type)))))
+            (filter (λ (b) (type-satisfies?
+                            (car (reverse (dict-ref (binding-bound b) 'type)))
+                            type-needed))
                     legal-refs)
             legal-refs))
       (set! ref-choices-filtered legal-with-type)
@@ -701,26 +783,43 @@
                          (fresh-node 'ExpressionHole)
                          (fresh-node 'ExpressionHole)))
            (define/override (features) '(feature))
+           (define weight-mod 1)
+           (define/override (choice-weight) (* weight-mod (super choice-weight)))
            (define/override (constrain-type holenode)
              (let ([t (att-value 'type-context holenode)])
-               (cond [(and t
-                           (member t input-typelist)
-                           (or (not output-type) (equal? t output-type)))
-                      this]
-                     [(not t) this]
+               (cond [(if output-type
+                          (type-satisfies? output-type t)
+                          (ormap (λ (avail-type)
+                                   (type-satisfies? avail-type t))
+                                 input-typelist))
+                      (begin
+                        (when output-type
+                          (set! weight-mod (type-hint-modifier output-type t)))
+                        this)]
                      [else #f])))
            (super-new)))]))
-(define-binary-op-choice AdditionExpression addition '("int" "float") #f)
-(define-binary-op-choice MultiplicationExpression multiplication '("int" "float") #f)
-(define-binary-op-choice SubtractionExpression subtraction '("int" "float") #f)
-(define-binary-op-choice DivisionExpression division '("int" "float") #f)
-(define-binary-op-choice ModulusExpression modulus '("int") #f)
+(define-binary-op-choice AdditionExpression addition
+  (list int-type float-type) #f)
+(define-binary-op-choice MultiplicationExpression multiplication
+  (list int-type float-type) #f)
+(define-binary-op-choice SubtractionExpression subtraction
+  (list int-type float-type) #f)
+(define-binary-op-choice DivisionExpression division
+  (list int-type float-type) #f)
 
-(define-binary-op-choice EqualityExpression modulus '("int" "float") "int")
-(define-binary-op-choice LessThanExpression modulus '("int" "float") "int")
-(define-binary-op-choice GreaterThanExpression modulus '("int" "float") "int")
-(define-binary-op-choice LessOrEqualExpression modulus '("int" "float") "int")
-(define-binary-op-choice GreaterOrEqualExpression modulus '("int" "float") "int")
+(define-binary-op-choice ModulusExpression modulus
+  (list int-type) #f)
+
+(define-binary-op-choice EqualityExpression comparisons
+  (list int-type float-type) bool-int-type)
+(define-binary-op-choice LessThanExpression comparisons
+  (list int-type float-type) bool-int-type)
+(define-binary-op-choice GreaterThanExpression comparisons
+  (list int-type float-type) bool-int-type)
+(define-binary-op-choice LessOrEqualExpression comparisons
+  (list int-type float-type) bool-int-type)
+(define-binary-op-choice GreaterOrEqualExpression comparisons
+  (list int-type float-type) bool-int-type)
 
 (define DeclarationChoice
   (class cish-ast-choice%
@@ -747,7 +846,7 @@
                          (eq? (ast-child 'main p) hole-node)))
       (fresh-node 'FunctionDefinition
                   (if main? "main" (fresh-var-name "func"))
-                  (if main? "int" (fresh-var-type))
+                  (if main? int-type (fresh-var-type))
                   ;; parameters
                   (if main?
                       (create-ast-list '())
@@ -767,15 +866,11 @@
     ;; XXX Obviously, the code below is not quite right.
     ;; What is both float and int are disabled?
     (cond [(dict-ref disabled 'float #f)
-           "int"]
+           int-type]
           [(dict-ref disabled 'int #f)
-           "float"]
+           float-type]
           [else
-           (random-ref '("int" "float"))])))
-(define (function-type? t)
-  (and (list? t)
-       (not (null? t))
-       (eq? (car t) '->)))
+           (random-ref (list int-type float-type))])))
 
 (define (statement-choices)
   (list (new NullStatementChoice)
