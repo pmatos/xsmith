@@ -57,6 +57,7 @@
 
 (define page-width      80)
 (define nest-step       4)
+(define nest-step-string (text (make-string nest-step #\space)))
 (define lbrace          (char #\{))
 (define rbrace          (char #\}))
 (define lparen          (char #\())
@@ -80,6 +81,12 @@
       empty
       (hs-append comment-start d comment-end)))
 
+(define (nest-if-not-block n)
+  (if (equal? (node-type n) 'Block)
+      (att-value 'pretty-print n)
+      (nest nest-step (h-append nest-step-string
+                                (att-value 'pretty-print n)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; The mutable state of the code generator.
@@ -101,8 +108,8 @@
   (weight-multiplier)
   #:transparent)
 
-(define bool-hint (hint 3))
-(define block-hint (hint 4))
+(define bool-hint (hint 8))
+(define block-hint (hint 10))
 
 #|
 TYPES
@@ -271,26 +278,26 @@ Types can be:
                       lparen
                       (att-value 'pretty-print (ast-child 'test n))
                       rparen)
-            (att-value 'pretty-print (ast-child 'then n))))]
+            (nest-if-not-block (ast-child 'then n))))]
    [IfElseStatement
     (λ (n) (v-append
             (h-append (text "if ")
                       lparen
                       (att-value 'pretty-print (ast-child 'test n))
                       rparen)
-            (att-value 'pretty-print (ast-child 'then n))
+            (nest-if-not-block (ast-child 'then n))
             (text "else")
-            (att-value 'pretty-print (ast-child 'else n))))]
+            (nest-if-not-block (ast-child 'else n))))]
    [WhileStatement
     (λ (n) (v-append
             (h-append (text "while(")
                       (att-value 'pretty-print (ast-child 'test n))
-                      (text ")")
-                      (att-value 'pretty-print (ast-child 'body n)))))]
+                      (text ")"))
+            (nest-if-not-block (ast-child 'body n))))]
    [DoWhileStatement
     (λ (n) (v-append
             (text "do")
-            (att-value 'pretty-print (ast-child 'body n))
+            (nest-if-not-block (ast-child 'body n))
             (h-append
              (text "while(")
              (att-value 'pretty-print (ast-child 'test n))
@@ -304,7 +311,7 @@ Types can be:
                       space semi space
                       (att-value 'pretty-print (ast-child 'update n))
                       (text ")"))
-            (att-value 'pretty-print (ast-child 'body n))))]
+            (nest-if-not-block (ast-child 'body n))))]
    [Block (λ (n)
             (v-append
              (comment (ast-child 'precomment n))
@@ -540,10 +547,11 @@ Types can be:
   (ag-rule
    children-hint-dict
    ;; dictionary will contain a list of hints (or nothing) for each child
-   [IfStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)))]
-   [LoopStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)))]
-   [ForStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)))]
    [IfExpression (λ (n) (hasheq (ast-child 'test n) (list bool-hint)))]
+   [IfStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)
+                               (ast-child 'then n) (list block-hint)))]
+   [LoopStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)
+                                 (ast-child 'body n) (list block-hint)))]
    [Node (λ (n) (hash))])
 
   (ag-rule hints
@@ -648,6 +656,11 @@ Types can be:
     (super-new)))
 (define BlockChoice
   (class StatementChoice
+    (define/override (choice-weight)
+      (if (member block-hint (att-value 'hints current-hole))
+          (* (hint-weight-multiplier block-hint)
+             (super choice-weight))
+          (super choice-weight)))
     (define/override (fresh)
       (fresh-node 'Block
                   ;; declarations
@@ -804,10 +817,10 @@ Types can be:
                          (fresh-node 'ExpressionHole)))
            (define/override (features) '(feature))
            (define/override (choice-weight)
-             (* (super choice-weight)
-                (if (and bool-like (member bool-hint (att-value 'hints current-hole)))
-                    (hint-weight-multiplier bool-hint)
-                    1)))
+             (if (and bool-like (member bool-hint (att-value 'hints current-hole)))
+                 (* (hint-weight-multiplier bool-hint)
+                    (super choice-weight))
+                 (super choice-weight)))
            (define/override (constrain-type)
              (let ([t (att-value 'type-context current-hole)])
                (cond [(if output-type
