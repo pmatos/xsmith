@@ -33,12 +33,15 @@
 (provide
  ast-choice%
  choose-ast
+ current-hole
  )
 
 (require
  racket/class
  racket/list
- )
+ (for-syntax
+  racket/base
+  ))
 
 #|
 Choices for AST growth should be some sort of object.
@@ -52,8 +55,14 @@ Choices for AST growth should be some sort of object.
 
 |#
 
+(define-syntax (current-hole stx)
+  ;; identifier macro to make it slightly easier to access the hole node.
+  (syntax-case stx ()
+    [current-hole #'(get-field hole this)]))
+
 (define ast-choice%
   (class object%
+    (init-field hole)
     (define/public (fresh hole-node) (error 'fresh-node "no default implementation"))
     (define/public (choice-weight) (error 'choice-weight "no default implementation"))
     (define/public (features) '())

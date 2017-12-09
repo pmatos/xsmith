@@ -97,6 +97,13 @@
 (define (make-generator-state)
   (generator-state 1))
 
+(struct hint
+  (weight-multiplier)
+  #:transparent)
+
+(define bool-hint (hint 3))
+(define block-hint (hint 4))
+
 #|
 TYPES
 -----
@@ -109,11 +116,10 @@ Types can be:
 
 (struct basic-type
   ;; Type name can be false or a type (eg int, float, ...),
-  ;; constraints and hints fields are lists.
-  ;; Constraints and hints are things like bool-like, constant, etc that are generally part of the idiom of how types are used rather than the actual type emitted.
-  ;; Constraints are enforced, whereas hints affect probabilies of occurence.
-  ;; The constrain-type method should always account for every attribute in the list -- if something can't satisfy every attribute it should be out of the running (or lowered in probability in case of hints).
-  (name constraints hints)
+  ;; constraints fields are lists.
+  ;; Constraints are things like nonzero, constant, etc -- things that aren't part of the type, but that affect things like undefined behavior.
+  ;; The constrain-type method should always account for every attribute in the list -- if something can't satisfy every attribute it should be out of the running.
+  (name constraints)
   #:transparent)
 
 (define (type-satisfies? given-t constraint-t)
@@ -121,55 +127,35 @@ Types can be:
     ;; TODO - arrow types
     ;;        But I don't think I'm every comparing two arrow types directly,
     ;;        just comparing return values and argument types...
-    [(basic-type cname cconst chints)
+    [(basic-type cname cconst)
      (match given-t
-       [(basic-type gname gconst ghints)
+       [(basic-type gname gconst)
         (and (or (not cname) (equal? gname cname))
              (andmap (λ (c) (member c gconst)) cconst))]
        [else #f])]
     ;; if there is no constraint, anything goes
     [#f #t]))
 
-;; give a >1 multiplier for choices that satisfy type hints, otherwise 1
-(define (type-hint-modifier given-t constraint-t)
-  (match constraint-t
-    [(basic-type cname cconst chints)
-     (match given-t
-       [(basic-type gname gconst ghints)
-        (if (andmap (λ (h) (member h ghints)) chints)
-            3
-            1)]
-       [else 1])]
-    [else 1]))
-
 (define (function-type? t)
   (and (list? t)
        (not (null? t))
        (eq? (car t) '->)))
 
-(define empty-basic-type (basic-type #f (list) (list)))
+(define empty-basic-type (basic-type #f (list)))
 (define (specify-type t name)
-  (cond [(not t) (basic-type name (list) (list))]
+  (cond [(not t) (basic-type name (list))]
         [(basic-type? t) (struct-copy basic-type t
                                       [name name])]
         [else (error 'specify-type "bad case")]))
 (define (constrain-type t constraint)
-  (cond [(not t) (basic-type #f (list constraint) (list))]
+  (cond [(not t) (basic-type #f (list constraint))]
         [(basic-type? t)
          (struct-copy basic-type t
                       [constraints (cons constraint (basic-type-constraints t))])]
         [else (error 'constrain-type "bad case")]))
-(define (hint-type t h)
-  (cond [(not t) (basic-type #f (list) (list h))]
-        [(basic-type? t)
-         (struct-copy basic-type t
-                      [hints (cons h (basic-type-hints t))])]
-        [else (error 'constrain-type "bad case")]))
 
 (define int-type (specify-type empty-basic-type "int"))
 (define float-type (specify-type empty-basic-type "float"))
-(define bool-type (hint-type empty-basic-type 'bool))
-(define bool-int-type (hint-type int-type 'bool))
 (define nonzero-type (constrain-type empty-basic-type 'nonzero))
 (define nonzero-int-type (constrain-type int-type 'nonzero))
 (define nonzero-float-type (constrain-type float-type 'nonzero))
@@ -484,11 +470,11 @@ Types can be:
    [ExpressionStatement (λ (n) (hasheq (ast-child 'Expression n) #f))]
    [ValueReturnStatement (λ (n) (hasheq (ast-child 'Expression n)
                                         (att-value 'current-function-return-type n)))]
-   [IfStatement (λ (n) (hasheq (ast-child 'test n) bool-type))]
-   [LoopStatement (λ (n) (hasheq (ast-child 'test n) bool-type))]
-   [ForStatement (λ (n) (hasheq (ast-child 'test n) bool-type
-                                (ast-child 'init n) int-type
-                                (ast-child 'update n) int-type))]
+   [IfStatement (λ (n) (hasheq (ast-child 'test n) #f))]
+   [LoopStatement (λ (n) (hasheq (ast-child 'test n) #f))]
+   [ForStatement (λ (n) (hasheq (ast-child 'test n) #f
+                                (ast-child 'init n) #f
+                                (ast-child 'update n) #f))]
    [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
                                        (ast-child 'typename n)))]
    [FunctionApplicationExpression
@@ -513,7 +499,7 @@ Types can be:
                                   (hasheq (ast-child 'l n) t
                                           (ast-child 'r n) t)))]
    [IfExpression (λ (n) (let ([t (or (att-value 'type-context n) (fresh-var-type))])
-                          (hasheq (ast-child 'test n) bool-type
+                          (hasheq (ast-child 'test n) #f
                                   (ast-child 'then n) t
                                   (ast-child 'else n) t)))]
    ;; TODO - function call, anything with child expressions...
@@ -551,6 +537,20 @@ Types can be:
                        (dict-ref rp-dict n #f)))]
    [Node (λ (n) #f)])
 
+  (ag-rule
+   children-hint-dict
+   ;; dictionary will contain a list of hints (or nothing) for each child
+   [IfStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)))]
+   [LoopStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)))]
+   [ForStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)))]
+   [IfExpression (λ (n) (hasheq (ast-child 'test n) (list bool-hint)))]
+   [Node (λ (n) (hash))])
+
+  (ag-rule hints
+           [Node (λ (n) (dict-ref (att-value 'children-hint-dict (ast-parent n))
+                                  n
+                                  '()))])
+
 
   (compile-ag-specifications)
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -566,56 +566,56 @@ Types can be:
                    (send this features))
             #f
             this)))
-    (define/public (wont-over-deepen holenode)
-      (if (<= (att-value 'ast-depth holenode) (xsmith-option 'max-depth))
+    (define/public (wont-over-deepen)
+      (if (<= (att-value 'ast-depth current-hole) (xsmith-option 'max-depth))
           this
           #f))
-    (define/public (constrain-type holenode)
+    (define/public (constrain-type)
       this)
-    (define/public (top-level-declaration-at-top-level holenode)
+    (define/public (top-level-declaration-at-top-level)
       this)
-    (define/public (respect-return-position holenode)
+    (define/public (respect-return-position)
       this)
     (super-new)))
 
 (define StatementChoice
   (class cish-ast-choice%
-    (define/override (respect-return-position holenode)
-      (and (not (att-value 'in-return-position? holenode))
+    (define/override (respect-return-position)
+      (and (not (att-value 'in-return-position? current-hole))
            this))
     (super-new)))
 (define NullStatementChoice
   (class StatementChoice
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'NullStatement))
     (define/override (features) '(null))
-    (define/override (wont-over-deepen holenode)
+    (define/override (wont-over-deepen)
       this)
     (define/override (choice-weight) 2)
     (super-new)))
 (define ExpressionStatementChoice
   (class StatementChoice
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'ExpressionStatement (fresh-node 'ExpressionHole)))
-    (define/override (wont-over-deepen holenode)
+    (define/override (wont-over-deepen)
       this)
     (super-new)))
 (define IfStatementChoice
   (class StatementChoice
     (define/override (features) '(if-statement))
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'IfStatement
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'StatementHole)))
     (super-new)))
 (define IfElseStatementChoice
   (class IfStatementChoice
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'IfElseStatement
                   (fresh-node 'ExpressionHole)
                   (fresh-block-hole)
                   (fresh-block-hole)))
-    (define/override (respect-return-position holenode)
+    (define/override (respect-return-position)
       this)
     (super-new)))
 (define LoopStatementChoice
@@ -624,21 +624,21 @@ Types can be:
     (super-new)))
 (define WhileStatementChoice
   (class LoopStatementChoice
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'WhileStatement
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'StatementHole)))
     (super-new)))
 (define DoWhileStatementChoice
   (class LoopStatementChoice
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'DoWhileStatement
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'StatementHole)))
     (super-new)))
 (define ForStatementChoice
   (class LoopStatementChoice
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'ForStatement
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'StatementHole)
@@ -648,7 +648,7 @@ Types can be:
     (super-new)))
 (define BlockChoice
   (class StatementChoice
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'Block
                   ;; declarations
                   (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
@@ -658,27 +658,27 @@ Types can be:
                   (create-ast-list
                    (map (λ (x) (fresh-node 'StatementHole))
                         (let ([l (make-list (random 5) #f)])
-                          (if (att-value 'in-return-position? hole-node)
+                          (if (att-value 'in-return-position? current-hole)
                               ;; don't allow an empty block in return position
                               (cons #f l)
                               l))))))
-    (define/override (respect-return-position holenode)
+    (define/override (respect-return-position)
       this)
     (super-new)))
 (define ReturnStatementChoice
   (class StatementChoice
     (define/override (choice-weight) 2)
-    (define/override (wont-over-deepen holenode)
+    (define/override (wont-over-deepen)
       this)
-    (define/override (respect-return-position holenode)
+    (define/override (respect-return-position)
       this)
     (super-new)))
 (define ValueReturnStatementChoice
   (class ReturnStatementChoice
     (define/override (choice-weight) 2)
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'ValueReturnStatement (fresh-node 'ExpressionHole)))
-    (define/override (respect-return-position holenode)
+    (define/override (respect-return-position)
       this)
     (super-new)))
 
@@ -695,8 +695,8 @@ Types can be:
      #:with choicename (format-id #'nodename "~aChoice" #'nodename)
      #'(define choicename
          (class ExpressionChoice
-           (define/override (fresh holenode)
-             (let* ([t (att-value 'type-context holenode)]
+           (define/override (fresh)
+             (let* ([t (att-value 'type-context current-hole)]
                     [v1 generator-e]
                     [constraints (if (basic-type? t) (basic-type-constraints t) '())]
                     [v (if (and (member 'nonzero constraints)
@@ -705,10 +705,10 @@ Types can be:
                            v1)])
                (fresh-node 'nodename v)))
            (define/override (features) '(feature))
-           (define/override (wont-over-deepen holenode)
+           (define/override (wont-over-deepen)
              this)
-           (define/override (constrain-type holenode)
-             (let ([t (att-value 'type-context holenode)])
+           (define/override (constrain-type)
+             (let ([t (att-value 'type-context current-hole)])
                ;; This isn't necessarily nonzero, but it will be if needed.
                (and (type-satisfies? btype t) this)))
            (super-new)))]))
@@ -726,17 +726,17 @@ Types can be:
   (class ExpressionChoice
     (define ref-choices-filtered #f)
     (define (choice-weight) 15)
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'VariableReference (binding-name (random-ref ref-choices-filtered))))
-    (define/override (wont-over-deepen holenode)
+    (define/override (wont-over-deepen)
       this)
-    (define/override (constrain-type holenode)
-      (define visibles (att-value 'visible-bindings holenode))
+    (define/override (constrain-type)
+      (define visibles (att-value 'visible-bindings current-hole))
       (define legal-refs
         (filter (λ (b) (not (member (binding-name b)
-                                    (att-value 'illegal-variable-names holenode))))
+                                    (att-value 'illegal-variable-names current-hole))))
                 visibles))
-      (define type-needed (att-value 'type-context holenode))
+      (define type-needed (att-value 'type-context current-hole))
       (define legal-with-type
         (if type-needed
             (filter (λ (b) (type-satisfies? (dict-ref (binding-bound b) 'type)
@@ -749,7 +749,7 @@ Types can be:
 (define FunctionApplicationExpressionChoice
   (class ExpressionChoice
     (define ref-choices-filtered #f)
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (define chosen-func (random-ref ref-choices-filtered))
       (fresh-node 'FunctionApplicationExpression
                   (binding-name chosen-func)
@@ -759,15 +759,15 @@ Types can be:
                                                         'type))
                                       2)
                                    #f)))))
-    (define/override (constrain-type holenode)
+    (define/override (constrain-type)
       (define visibles (filter (λ (b) (function-type?
                                        (dict-ref (binding-bound b) 'type)))
-                               (att-value 'visible-bindings holenode)))
+                               (att-value 'visible-bindings current-hole)))
       (define legal-refs
         (filter (λ (b) (not (member (binding-name b)
-                                    (att-value 'illegal-variable-names holenode))))
+                                    (att-value 'illegal-variable-names current-hole))))
                 visibles))
-      (define type-needed (att-value 'type-context holenode))
+      (define type-needed (att-value 'type-context current-hole))
       (define legal-with-type
         (if type-needed
             (filter (λ (b) (type-satisfies?
@@ -780,7 +780,7 @@ Types can be:
     (super-new)))
 (define IfExpressionChoice
   (class ExpressionChoice
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'IfExpression
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'ExpressionHole)
@@ -792,61 +792,63 @@ Types can be:
     [(_ nodename ;; Name of grammar node, also generates choice name
         feature
         input-typelist ;; types the operator accepts
-        output-type) ;; type the operator returns, or #f if it returns its input type
+        output-type ;; type the operator returns, or #f if it returns its input type
+        bool-like ;; #t if the operator returns something bool-y, otherwise #f
+        )
      #:with choicename (format-id #'nodename "~aChoice" #'nodename)
      #'(define choicename
          (class ExpressionChoice
-           (define/override (fresh hole-node)
+           (define/override (fresh)
              (fresh-node 'nodename
                          (fresh-node 'ExpressionHole)
                          (fresh-node 'ExpressionHole)))
            (define/override (features) '(feature))
-           (define weight-mod 1)
-           (define/override (choice-weight) (* weight-mod (super choice-weight)))
-           (define/override (constrain-type holenode)
-             (let ([t (att-value 'type-context holenode)])
+           (define/override (choice-weight)
+             (* (super choice-weight)
+                (if (and bool-like (member bool-hint (att-value 'hints current-hole)))
+                    (hint-weight-multiplier bool-hint)
+                    1)))
+           (define/override (constrain-type)
+             (let ([t (att-value 'type-context current-hole)])
                (cond [(if output-type
                           (type-satisfies? output-type t)
                           (ormap (λ (avail-type)
                                    (type-satisfies? avail-type t))
                                  input-typelist))
-                      (begin
-                        (when output-type
-                          (set! weight-mod (type-hint-modifier output-type t)))
-                        this)]
+                      this]
                      [else #f])))
            (super-new)))]))
 (define-binary-op-choice AdditionExpression addition
-  (list int-type float-type) #f)
+  (list int-type float-type) #f #f)
 (define-binary-op-choice MultiplicationExpression multiplication
-  (list int-type float-type) #f)
+  (list int-type float-type) #f #f)
 (define-binary-op-choice SubtractionExpression subtraction
-  (list int-type float-type) #f)
+  (list int-type float-type) #f #f)
 (define-binary-op-choice DivisionExpression division
-  (list int-type float-type) #f)
+  (list int-type float-type) #f #f)
 
 (define-binary-op-choice ModulusExpression modulus
-  (list int-type) #f)
+  (list int-type) #f #f)
 
 (define-binary-op-choice EqualityExpression comparisons
-  (list int-type float-type) bool-int-type)
+  (list int-type float-type) int-type #t)
 (define-binary-op-choice LessThanExpression comparisons
-  (list int-type float-type) bool-int-type)
+  (list int-type float-type) int-type #t)
 (define-binary-op-choice GreaterThanExpression comparisons
-  (list int-type float-type) bool-int-type)
+  (list int-type float-type) int-type #t)
 (define-binary-op-choice LessOrEqualExpression comparisons
-  (list int-type float-type) bool-int-type)
+  (list int-type float-type) int-type #t)
 (define-binary-op-choice GreaterOrEqualExpression comparisons
-  (list int-type float-type) bool-int-type)
+  (list int-type float-type) int-type #t)
 
 (define DeclarationChoice
   (class cish-ast-choice%
     (super-new)))
 (define VariableDeclarationChoice
   (class DeclarationChoice
-    (define/override (wont-over-deepen holenode)
+    (define/override (wont-over-deepen)
       this)
-    (define/override (fresh hole-node)
+    (define/override (fresh)
       (fresh-node 'VariableDeclaration
                   (fresh-var-name)
                   (fresh-var-type)
@@ -854,14 +856,14 @@ Types can be:
     (super-new)))
 (define FunctionDefinitionChoice
   (class DeclarationChoice
-    (define/override (top-level-declaration-at-top-level holenode)
-      (if (att-value 'at-top-level? holenode)
+    (define/override (top-level-declaration-at-top-level)
+      (if (att-value 'at-top-level? current-hole)
           this
           #f))
-    (define/override (fresh hole-node)
-      (define p (parent-node hole-node))
+    (define/override (fresh)
+      (define p (parent-node current-hole))
       (define main? (and (eq? (node-type p) 'Program)
-                         (eq? (ast-child 'main p) hole-node)))
+                         (eq? (ast-child 'main p) current-hole)))
       (fresh-node 'FunctionDefinition
                   (if main? "main" (fresh-var-name "func"))
                   (if main? int-type (fresh-var-type))
@@ -890,39 +892,39 @@ Types can be:
           [else
            (random-ref (list int-type float-type))])))
 
-(define (statement-choices)
-  (list (new NullStatementChoice)
-        (new ExpressionStatementChoice)
-        (new BlockChoice)
-        (new IfStatementChoice)
-        (new IfElseStatementChoice)
+(define (statement-choices hole)
+  (list (new NullStatementChoice [hole hole])
+        (new ExpressionStatementChoice [hole hole])
+        (new BlockChoice [hole hole])
+        (new IfStatementChoice [hole hole])
+        (new IfElseStatementChoice [hole hole])
         ;; TODO - loop statements need to have some analysis so they at least sometimes terminate...
-        (new WhileStatementChoice)
-        (new DoWhileStatementChoice)
-        (new ForStatementChoice)
-        (new ValueReturnStatementChoice)))
+        (new WhileStatementChoice [hole hole])
+        (new DoWhileStatementChoice [hole hole])
+        (new ForStatementChoice [hole hole])
+        (new ValueReturnStatementChoice [hole hole])))
 
-(define (expression-choices)
-  (list (new LiteralIntChoice)
-        (new LiteralFloatChoice)
-        (new FunctionApplicationExpressionChoice)
-        (new AdditionExpressionChoice)
-        (new SubtractionExpressionChoice)
-        (new MultiplicationExpressionChoice)
-        (new DivisionExpressionChoice)
-        (new ModulusExpressionChoice)
-        (new VariableReferenceChoice)
-        (new EqualityExpressionChoice)
-        (new LessThanExpressionChoice)
-        (new GreaterThanExpressionChoice)
-        (new LessOrEqualExpressionChoice)
-        (new GreaterOrEqualExpressionChoice)
-        (new IfExpressionChoice)
+(define (expression-choices hole)
+  (list (new LiteralIntChoice [hole hole])
+        (new LiteralFloatChoice [hole hole])
+        (new FunctionApplicationExpressionChoice [hole hole])
+        (new AdditionExpressionChoice [hole hole])
+        (new SubtractionExpressionChoice [hole hole])
+        (new MultiplicationExpressionChoice [hole hole])
+        (new DivisionExpressionChoice [hole hole])
+        (new ModulusExpressionChoice [hole hole])
+        (new VariableReferenceChoice [hole hole])
+        (new EqualityExpressionChoice [hole hole])
+        (new LessThanExpressionChoice [hole hole])
+        (new GreaterThanExpressionChoice [hole hole])
+        (new LessOrEqualExpressionChoice [hole hole])
+        (new GreaterOrEqualExpressionChoice [hole hole])
+        (new IfExpressionChoice [hole hole])
         ))
 
-(define (declaration-choices)
-  (list (new VariableDeclarationChoice)
-        (new FunctionDefinitionChoice)))
+(define (declaration-choices hole)
+  (list (new VariableDeclarationChoice [hole hole])
+        (new FunctionDefinitionChoice [hole hole])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -947,26 +949,26 @@ Types can be:
          [tmp (maybe-send tmp method arg ...)] ...)
     tmp))
 
-(define (apply-choice-filters choice-list hole-node)
+(define (apply-choice-filters choice-list)
   (filter (λ (choice) (maybe-send+ choice
                                    (features-enabled)
-                                   (top-level-declaration-at-top-level hole-node)
-                                   (wont-over-deepen hole-node)
-                                   (respect-return-position hole-node)
-                                   (constrain-type hole-node)))
+                                   (top-level-declaration-at-top-level)
+                                   (wont-over-deepen)
+                                   (respect-return-position)
+                                   (constrain-type)))
           choice-list))
 
 (define (replace-with-expression n)
-  (let ([o (choose-ast (apply-choice-filters (expression-choices) n))])
-    (rewrite-subtree n (send o fresh n))))
+  (let ([o (choose-ast (apply-choice-filters (expression-choices n)))])
+    (rewrite-subtree n (send o fresh))))
 
 (define (replace-with-statement n)
-  (let ([o (choose-ast (apply-choice-filters (statement-choices) n))])
-    (rewrite-subtree n (send o fresh n))))
+  (let ([o (choose-ast (apply-choice-filters (statement-choices n)))])
+    (rewrite-subtree n (send o fresh))))
 
 (define (replace-with-declaration n)
-  (let ([o (choose-ast (apply-choice-filters (declaration-choices) n))])
-    (rewrite-subtree n (send o fresh n))))
+  (let ([o (choose-ast (apply-choice-filters (declaration-choices n)))])
+    (rewrite-subtree n (send o fresh))))
 
 (define (generate-random-prog n)
   (let ([fill-in
@@ -984,10 +986,11 @@ Types can be:
                   (replace-with-declaration n)
                   #t)
                  ((BlockHole)
-                  (rewrite-subtree n (send (new BlockChoice) fresh n))
+                  (rewrite-subtree n (send (new BlockChoice [hole n]) fresh))
                   #t)
                  ((FunctionDefinitionHole)
-                  (rewrite-subtree n (send (new FunctionDefinitionChoice) fresh n))
+                  (rewrite-subtree n (send (new FunctionDefinitionChoice [hole n])
+                                           fresh))
                   #t)
                  (else #f))))])
     (perform-rewrites n 'top-down fill-in))
