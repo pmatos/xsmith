@@ -528,14 +528,14 @@ Types can be:
    ;; Dictionary that will contain true for children that are in return position.
    ;; Else nothing or #f -- IE check with #f as default.
    [Block (λ (n) (if (att-value 'in-return-position? n)
-                     (hash (att-value 'block-last-statement n) #t)
-                     (hash)))]
+                     (hasheq (att-value 'block-last-statement n) #t)
+                     (hasheq)))]
    [IfElseStatement (λ (n) (if (att-value 'in-return-position? n)
-                               (hash (ast-child 'then n) #t
-                                     (ast-child 'else n) #t)
-                               (hash)))]
-   [Statement (λ (n) (hash))]
-   [FunctionDefinition (λ (n) (hash (ast-child 'Block n) #t))]
+                               (hasheq (ast-child 'then n) #t
+                                       (ast-child 'else n) #t)
+                               (hasheq)))]
+   [Statement (λ (n) (hasheq))]
+   [FunctionDefinition (λ (n) (hasheq (ast-child 'Block n) #t))]
    [Node (λ (n) (error 'children-return-position-dict "no default ag-rule"))])
   (ag-rule
    in-return-position?
@@ -552,12 +552,27 @@ Types can be:
                                (ast-child 'then n) (list block-hint)))]
    [LoopStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)
                                  (ast-child 'body n) (list block-hint)))]
-   [Node (λ (n) (hash))])
+   [Node (λ (n) (hasheq))])
 
   (ag-rule hints
            [Node (λ (n) (dict-ref (att-value 'children-hint-dict (ast-parent n))
                                   n
                                   '()))])
+
+  (ag-rule
+   children-misc-constraint-dict
+   ;; dictionary will contain a list of hints (or nothing) for each child
+   [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n) (list 'constant)))]
+   [Node (λ (n) (hasheq))])
+  (ag-rule inherited-misc-constraints
+           [Node (λ (n) (att-value 'misc-constraints (ast-parent n)))])
+  (ag-rule misc-constraints
+           [Node (λ (n) (append
+                         (dict-ref (att-value 'children-misc-constraint-dict
+                                              (ast-parent n))
+                                   n
+                                   '())
+                         (att-value 'inherited-misc-constraints n)))])
 
 
   (compile-ag-specifications)
