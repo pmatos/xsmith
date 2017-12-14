@@ -140,6 +140,12 @@ Types can be:
         (and (or (not cname) (equal? gname cname))
              (andmap (λ (c) (member c gconst)) cconst))]
        [else #f])]
+    [(list-rest '-> c-args+ret)
+     (match given-t
+       [(list-rest '-> g-args+ret)
+        (and (equal? (length c-args+ret) (length g-args+ret))
+             (map type-satisfies? g-args+ret c-args+ret))]
+       [else #f])]
     ;; if there is no constraint, anything goes
     [#f #t]))
 
@@ -166,6 +172,12 @@ Types can be:
 (define nonzero-type (constrain-type empty-basic-type 'nonzero))
 (define nonzero-int-type (constrain-type int-type 'nonzero))
 (define nonzero-float-type (constrain-type float-type 'nonzero))
+
+(define (print-debug-highlight pretty-print-node)
+  ;; add terminal codes to print in magenta, then switch to default
+  (h-append (text "\033[35m")
+            pretty-print-node
+            (text "\033[0m")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -355,6 +367,12 @@ Types can be:
                       (att-value 'pretty-print (ast-child 'Expression n)))
                      semi
                      (comment (ast-child 'postcomment n))))]
+   [AssignmentExpression
+    (λ (n) (h-append (comment (ast-child 'precomment n))
+                     (h-append (text (ast-child 'name n))
+                               (text " = ")
+                               (att-value 'pretty-print (ast-child 'Expression n)))
+                     (comment (ast-child 'postcomment n))))]
    [LiteralInt (λ (n) (h-append
                        (comment (ast-child 'precomment n))
                        (text (number->string (ast-child 'val n)))
@@ -461,6 +479,9 @@ Types can be:
    [Block (λ (n) (map (λ (cn) (ast-child 'name cn))
                       (ast-children (ast-child 'Declaration* n))))]
    [Declaration (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
+   [AssignmentExpression
+    (λ (n) (cons (ast-child 'name n)
+                 (att-value 'illegal-variable-names (parent-node n))))]
    [Expression (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
    )
 
@@ -484,6 +505,13 @@ Types can be:
                                 (ast-child 'update n) #f))]
    [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
                                        (ast-child 'typename n)))]
+   [AssignmentExpression
+    (λ (n) (hasheq (ast-child 'Expression n)
+                   (hash-ref (binding-bound
+                              (resolve-reference
+                               (reference (ast-child 'name n)
+                                          (att-value 'scope-graph-scope n))))
+                             'type)))]
    [FunctionApplicationExpression
     (λ (n)
       (let ([f-bind (resolve-reference (reference (ast-child 'name n)
@@ -565,8 +593,10 @@ Types can be:
    [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n) (list 'constant)))]
    [Node (λ (n) (hasheq))])
   (ag-rule inherited-misc-constraints
+           [Program (λ (n) '())]
            [Node (λ (n) (att-value 'misc-constraints (ast-parent n)))])
   (ag-rule misc-constraints
+           [Program (λ (n) '())]
            [Node (λ (n) (append
                          (dict-ref (att-value 'children-misc-constraint-dict
                                               (ast-parent n))
@@ -582,6 +612,8 @@ Types can be:
 
 (define cish-ast-choice%
   (class ast-choice%
+    (define/public (misc-constraints)
+      this)
     (define/override (choice-weight) 10)
     (define/public (features-enabled)
       (let ((disabled (xsmith-option 'features-disabled)))
@@ -750,6 +782,35 @@ Types can be:
   (* (random) (random 10))
   (+ .1 (random)))
 
+(define AssignmentExpressionChoice
+  (class ExpressionChoice
+    (define ref-choices-filtered #f)
+    (define/override (fresh)
+      (fresh-node 'AssignmentExpression
+                  (binding-name (random-ref ref-choices-filtered))
+                  (fresh-node 'ExpressionHole)))
+    (define/override (misc-constraints)
+      (and (not (member 'constant (att-value 'misc-constraints current-hole)))
+           this))
+    (define/override (constrain-type)
+      (define visibles (att-value 'visible-bindings current-hole))
+      (define legal-refs
+        (filter (λ (b) (not (member (binding-name b)
+                                    (att-value 'illegal-variable-names current-hole))))
+                visibles))
+      (define type-needed (att-value 'type-context current-hole))
+      (define not-functions (filter (λ (b) (not (function-type?
+                                                 (dict-ref (binding-bound b) 'type))))
+                                    legal-refs))
+      (define legal-with-type
+        (if type-needed
+            (filter (λ (b) (type-satisfies? (dict-ref (binding-bound b) 'type)
+                                            type-needed))
+                    not-functions)
+            not-functions))
+      (set! ref-choices-filtered legal-with-type)
+      (and (not (null? legal-with-type)) this))
+    (super-new)))
 (define VariableReferenceChoice
   (class ExpressionChoice
     (define ref-choices-filtered #f)
@@ -948,6 +1009,7 @@ Types can be:
         (new LessOrEqualExpressionChoice [hole hole])
         (new GreaterOrEqualExpressionChoice [hole hole])
         (new IfExpressionChoice [hole hole])
+        (new AssignmentExpressionChoice [hole hole])
         ))
 
 (define (declaration-choices hole)
@@ -983,6 +1045,7 @@ Types can be:
                                    (top-level-declaration-at-top-level)
                                    (wont-over-deepen)
                                    (respect-return-position)
+                                   (misc-constraints)
                                    (constrain-type)))
           choice-list))
 
