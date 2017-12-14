@@ -37,6 +37,7 @@
  racket/random
  racket/string
  racket/dict
+ racket/set
  racket/match
  racket/class
  (except-in racket/list empty)
@@ -110,6 +111,8 @@
 
 (define bool-hint (hint 8))
 (define block-hint (hint 10))
+(define assignment-hint (hint 25))
+(define application-hint (hint 25))
 
 #|
 TYPES
@@ -368,11 +371,12 @@ Types can be:
                      semi
                      (comment (ast-child 'postcomment n))))]
    [AssignmentExpression
-    (λ (n) (h-append (comment (ast-child 'precomment n))
-                     (h-append (text (ast-child 'name n))
-                               (text " = ")
-                               (att-value 'pretty-print (ast-child 'Expression n)))
-                     (comment (ast-child 'postcomment n))))]
+    (λ (n)
+      (h-append (comment (ast-child 'precomment n))
+                (h-append (text (ast-child 'name n))
+                          (text " = ")
+                          (att-value 'pretty-print (ast-child 'Expression n)))
+                (comment (ast-child 'postcomment n))))]
    [LiteralInt (λ (n) (h-append
                        (comment (ast-child 'precomment n))
                        (text (number->string (ast-child 'val n)))
@@ -528,8 +532,8 @@ Types can be:
                                           [t (cond [(not t) int-type]
                                                    [(basic-type? t)
                                                     (specify-type t "int")])])
-                              (hasheq (ast-child 'l n) t
-                                      (ast-child 'r n) t)))]
+                                     (hasheq (ast-child 'l n) t
+                                             (ast-child 'r n) t)))]
    [ComparisonExpression (λ (n) (let ([t (fresh-var-type)])
                                   (hasheq (ast-child 'l n) t
                                           (ast-child 'r n) t)))]
@@ -580,6 +584,9 @@ Types can be:
                                (ast-child 'then n) (list block-hint)))]
    [LoopStatement (λ (n) (hasheq (ast-child 'test n) (list bool-hint)
                                  (ast-child 'body n) (list block-hint)))]
+   [ExpressionStatement
+    (λ (n) (hasheq (ast-child 'Expression n)
+                   (list assignment-hint application-hint)))]
    [Node (λ (n) (hasheq))])
 
   (ag-rule hints
@@ -589,20 +596,33 @@ Types can be:
 
   (ag-rule
    children-misc-constraint-dict
-   ;; dictionary will contain a list of hints (or nothing) for each child
+   ;; dictionary will contain a set of constraints (or nothing) for each child
    [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n) (list 'constant)))]
    [Node (λ (n) (hasheq))])
-  (ag-rule inherited-misc-constraints
-           [Program (λ (n) '())]
-           [Node (λ (n) (att-value 'misc-constraints (ast-parent n)))])
-  (ag-rule misc-constraints
-           [Program (λ (n) '())]
-           [Node (λ (n) (append
-                         (dict-ref (att-value 'children-misc-constraint-dict
-                                              (ast-parent n))
-                                   n
-                                   '())
-                         (att-value 'inherited-misc-constraints n)))])
+  (define (misc-constraint-dict-ref n)
+    (dict-ref (att-value 'children-misc-constraint-dict
+                         (ast-parent n))
+              n
+              '()))
+  (define (default-misc-constraints n)
+    (set-union (misc-constraint-dict-ref n)
+                   (att-value 'misc-constraints (ast-parent n))))
+  (ag-rule
+   misc-constraints
+   ;; misc-constraints returns a set of symbols
+   [Program (λ (n) '())]
+   [ExpressionStatement
+    (λ (n) (set-subtract
+            (default-misc-constraints n)
+            ;; allow assignments here
+            '(no-assignment)))]
+   [ExpressionHole (λ (n) (default-misc-constraints n))]
+   [DeclarationHole (λ (n) (default-misc-constraints n))]
+   [StatementHole (λ (n) (default-misc-constraints n))]
+   [Node (λ (n) (set-union
+                 ;; Don't allow assignment except where explicitly allowed
+                 '(no-assignment)
+                 (default-misc-constraints n)))])
 
 
   (compile-ag-specifications)
@@ -632,6 +652,15 @@ Types can be:
     (define/public (respect-return-position)
       this)
     (super-new)))
+
+(define-syntax (hinted-choice-weight stx)
+  (syntax-parse stx
+    [(_ hint-name)
+     #'(define/override (choice-weight)
+         (if (member hint-name (att-value 'hints current-hole))
+             (* (hint-weight-multiplier hint-name)
+                (super choice-weight))
+             (super choice-weight)))]))
 
 (define StatementChoice
   (class cish-ast-choice%
@@ -703,11 +732,7 @@ Types can be:
     (super-new)))
 (define BlockChoice
   (class StatementChoice
-    (define/override (choice-weight)
-      (if (member block-hint (att-value 'hints current-hole))
-          (* (hint-weight-multiplier block-hint)
-             (super choice-weight))
-          (super choice-weight)))
+    (hinted-choice-weight block-hint)
     (define/override (fresh)
       (fresh-node 'Block
                   ;; declarations
@@ -785,12 +810,14 @@ Types can be:
 (define AssignmentExpressionChoice
   (class ExpressionChoice
     (define ref-choices-filtered #f)
+    (hinted-choice-weight assignment-hint)
     (define/override (fresh)
       (fresh-node 'AssignmentExpression
                   (binding-name (random-ref ref-choices-filtered))
                   (fresh-node 'ExpressionHole)))
     (define/override (misc-constraints)
-      (and (not (member 'constant (att-value 'misc-constraints current-hole)))
+      (and (set-empty? (set-intersect '(constant no-assignment)
+                                      (att-value 'misc-constraints current-hole)))
            this))
     (define/override (constrain-type)
       (define visibles (att-value 'visible-bindings current-hole))
@@ -838,6 +865,7 @@ Types can be:
 (define FunctionApplicationExpressionChoice
   (class ExpressionChoice
     (define ref-choices-filtered #f)
+    (hinted-choice-weight application-hint)
     (define/override (fresh)
       (define chosen-func (random-ref ref-choices-filtered))
       (fresh-node 'FunctionApplicationExpression
