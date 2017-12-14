@@ -60,6 +60,7 @@
 (define rbrace          (char #\}))
 (define lparen          (char #\())
 (define rparen          (char #\)))
+(define comma           (char #\,))
 (define semi            (char #\;))
 (define plus            (char #\+))
 (define minus           (char #\-))
@@ -69,15 +70,55 @@
 (define eqsign          (char #\=))
 (define greater         (char #\>))
 (define less            (char #\<))
+(define qmark           (char #\?))
+(define colon           (char #\:))
 (define comment-start   (text "/*"))
 (define comment-end     (text "*/"))
 
-(define return          (text "return"))
+(define do:             (text "do"))
+(define else:           (text "else"))
+(define for:            (text "for"))
+(define if:             (text "if"))
+(define return:         (text "return"))
+(define while:          (text "while"))
 
 (define (comment d)
   (if (eq? d empty)
       empty
       (hs-append comment-start d comment-end)))
+
+#;(define (v-comment n d)
+  (let ((pre (ast-child 'precomment n))
+        (post (ast-child 'postcomment n)))
+    (if (eq? post empty)
+        (if (eq? pre empty)
+            (group (h-append d line))
+            (group (h-append (comment pre) line d line)))
+        (if (eq? pre empty)
+            (group (h-append d line (comment post) line))
+            (group (h-append (comment pre) line d line (comment post) line))))))
+
+(define (v-comment n d)
+  (let ((pre (ast-child 'precomment n))
+        (post (ast-child 'postcomment n)))
+    (if (eq? post empty)
+        (if (eq? pre empty)
+            d
+            (group (h-append (comment pre) line d)))
+        (if (eq? pre empty)
+            (group (h-append d line (comment post)))
+            (group (h-append (comment pre) line d line (comment post)))))))
+
+(define (h-comment n d)
+  (let ((pre (ast-child 'precomment n))
+        (post (ast-child 'postcomment n)))
+    (if (eq? post empty)
+        (if (eq? pre empty)
+            d
+            (hs-append (comment pre) d))
+        (if (eq? pre empty)
+            (hs-append d (comment post))
+            (hs-append (comment pre) d (comment post))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -175,147 +216,191 @@
   (ag-rule
    pretty-print
    [Program (λ (n)
-              (vb-append
-               (comment (ast-child 'precomment n))
-               (apply vb-append (map (λ (cn) (att-value 'pretty-print cn))
-                                     (append (ast-children (ast-child 'Declaration* n))
-                                             (list (ast-child 'main n)))))
-               (comment (ast-child 'postcomment n))))]
+              (v-comment
+               n
+               (vb-concat
+                (map (λ (cn) (att-value 'pretty-print cn))
+                     (append (ast-children (ast-child 'Declaration* n))
+                             (list (ast-child 'main n)))))))]
    [FunctionDefinition
     (λ (n)
-      (vb-append
-       (comment (ast-child 'precomment n))
-       (group (h-append
-               (text (ast-child 'typename n))
-               space
-               (text (ast-child 'name n))
-               lparen
-               (text (string-join (map (λ (fp) (string-append (ast-child 'typename fp)
-                                                              " "
-                                                              (ast-child 'name fp)))
-                                       (ast-children (ast-child 'FormalParam* n)))
-                                  ", "))
-               rparen))
-       (att-value 'pretty-print (ast-child 'Block n))
-       (comment (ast-child 'postcomment n))))]
+      (v-comment
+       n
+       (h-append
+        (text (ast-child 'typename n))
+        space
+        (text (ast-child 'name n))
+        lparen
+        (h-concat
+         (add-between
+          (map (λ (fp)
+                 (h-append (text (ast-child 'typename fp))
+                           space
+                           (text (ast-child 'name fp))))
+               (ast-children (ast-child 'FormalParam* n)))
+          (h-append comma space)))
+        rparen
+        line
+        (att-value 'pretty-print (ast-child 'Block n)))))]
    [IfStatement
-    (λ (n) (v-append
-            (h-append (text "if ")
-                      lparen
-                      (att-value 'pretty-print (ast-child 'test n))
-                      rparen)
-            (att-value 'pretty-print (ast-child 'then n))))]
+    (λ (n)
+      (v-comment
+       n
+       (h-append
+        (h-append if: space lparen
+                  (att-value 'pretty-print (ast-child 'test n))
+                  rparen)
+        (nest nest-step
+              (h-append line
+                        (att-value 'pretty-print (ast-child 'then n)))))))]
    [IfElseStatement
-    (λ (n) (v-append
-            (h-append (text "if ")
-                      lparen
-                      (att-value 'pretty-print (ast-child 'test n))
-                      rparen)
-            (att-value 'pretty-print (ast-child 'then n))
-            (text "else")
-            (att-value 'pretty-print (ast-child 'else n))))]
+    (λ (n)
+      (v-comment
+       n
+       (h-append
+        (h-append if: space lparen
+                  (att-value 'pretty-print (ast-child 'test n))
+                  rparen)
+        (nest nest-step
+              (h-append line
+                        (att-value 'pretty-print (ast-child 'then n))))
+        line
+        else:
+        (nest nest-step
+              (h-append line
+                        (att-value 'pretty-print (ast-child 'else n)))))))]
    [WhileStatement
-    (λ (n) (v-append
-            (h-append (text "while(")
-                      (att-value 'pretty-print (ast-child 'test n))
-                      (text ")")
-                      (att-value 'pretty-print (ast-child 'body n)))))]
+    (λ (n)
+      (v-comment
+       n
+       (h-append
+        (h-append while: space lparen
+                  (att-value 'pretty-print (ast-child 'test n))
+                  rparen)
+        (nest nest-step
+              (h-append line
+                        (att-value 'pretty-print (ast-child 'body n)))))))]
    [DoWhileStatement
-    (λ (n) (v-append
-            (text "do")
-            (att-value 'pretty-print (ast-child 'body n))
-            (text "while(")
-            (att-value 'pretty-print (ast-child 'test n))
-            (text ");")))]
+    (λ (n)
+      (v-comment
+       n
+       (h-append
+        do:
+        (nest nest-step
+              (h-append line
+                        (att-value 'pretty-print (ast-child 'body n))))
+        line
+        (h-append while: space lparen
+                  (att-value 'pretty-print (ast-child 'test n))
+                  rparen semi))))]
    [ForStatement
-    (λ (n) (v-append
-            (h-append (text "for(")
-                      (att-value 'pretty-print (ast-child 'init n))
-                      semi
-                      (att-value 'pretty-print (ast-child 'test n))
-                      semi
-                      (att-value 'pretty-print (ast-child 'update n))
-                      (text ")"))
-            (att-value 'pretty-print (ast-child 'body n))))]
-   [Block (λ (n)
-            (v-append
-             (comment (ast-child 'precomment n))
-             (h-append
-              lbrace
-              (nest
-               nest-step
-               (apply v-append
-                      ;; add an extra text node so linebreaks are added...
-                      (text "")
-                      (append
-                       (map (λ (cn) (att-value 'pretty-print cn))
-                            (ast-children (ast-child 'Declaration* n)))
-                       (map (λ (cn) (att-value 'pretty-print cn))
-                            (ast-children (ast-child 'Statement* n))))))
-              line
-              rbrace)
-             (comment (ast-child 'postcomment n))))]
+    (λ (n)
+      (v-comment
+       n
+       (h-append
+        for: space lparen
+        (att-value 'pretty-print (ast-child 'init n))
+        semi space
+        (att-value 'pretty-print (ast-child 'test n))
+        semi space
+        (att-value 'pretty-print (ast-child 'update n))
+        rparen
+        (nest nest-step
+              (h-append line
+                        (att-value 'pretty-print (ast-child 'body n)))))))]
+   [Block
+    (λ (n)
+      (v-comment
+       n
+       (h-append
+        lbrace
+        (nest nest-step
+              (h-append
+               line
+               (v-concat
+                (append
+                 (map (λ (cn) (att-value 'pretty-print cn))
+                      (ast-children (ast-child 'Declaration* n)))
+                 (map (λ (cn) (att-value 'pretty-print cn))
+                      (ast-children (ast-child 'Statement* n)))))))
+        line
+        rbrace)))]
    [ExpressionStatement
-    (λ (n) (h-append (comment (ast-child 'precomment n))
-                     (att-value 'pretty-print (ast-child 3 n))
-                     semi
-                     (comment (ast-child 'postcomment n))))]
+    (λ (n)
+      (v-comment
+       n
+       (h-append (att-value 'pretty-print (ast-child 3 n))
+                 semi)))]
    [ValueReturnStatement
-    (λ (n) (h-append (comment (ast-child 'precomment n))
-                     return
-                     space
-                     (att-value 'pretty-print (ast-child 3 n))
-                     semi
-                     (comment (ast-child 'postcomment n))))]
-   [NullStatement (λ (n)
-                    (h-append (comment (ast-child 'precomment n))
-                              semi
-                              (comment (ast-child 'postcomment n))))]
+    (λ (n)
+      (v-comment
+       n
+       (h-append return: space
+                 (att-value 'pretty-print (ast-child 3 n))
+                 semi)))]
+   [NullStatement
+    (λ (n)
+      (v-comment
+       n
+       (h-append semi)))]
    [VariableDeclaration
-    (λ (n) (h-append (comment (ast-child 'precomment n))
-                     (hs-append
-                      (text (ast-child 'typename n))
-                      (text (ast-child 'name n))
-                      eqsign
-                      (att-value 'pretty-print (ast-child 'Expression n)))
-                     semi
-                     (comment (ast-child 'postcomment n))))]
-   [LiteralInt (λ (n) (h-append
-                       (comment (ast-child 'precomment n))
-                       (text (number->string (ast-child 'val n)))
-                       (comment (ast-child 'postcomment n))))]
-   [LiteralFloat (λ (n) (h-append
-                         (comment (ast-child 'precomment n))
-                         (text (number->string (ast-child 'val n)))
-                         (comment (ast-child 'postcomment n))))]
-   [VariableReference (λ (n) (h-append
-                              (comment (ast-child 'precomment n))
-                              (text (ast-child 'name n))
-                              (comment (ast-child 'postcomment n))))]
+    (λ (n)
+      (v-comment
+       n
+       (h-append (hs-append
+                  (text (ast-child 'typename n))
+                  (text (ast-child 'name n))
+                  eqsign
+                  (att-value 'pretty-print (ast-child 'Expression n)))
+                 semi)))]
+   [LiteralInt
+    (λ (n)
+      (h-comment
+       n
+       (text (number->string (ast-child 'val n)))))]
+   [LiteralFloat
+    (λ (n)
+      (h-comment
+       n
+       (text (number->string (ast-child 'val n)))))]
+   [VariableReference
+    (λ (n)
+      (h-comment
+       n
+       (text (ast-child 'name n))))]
    [FunctionApplicationExpression
-    (λ (n) (h-append (text (ast-child 'name n))
-                     lparen
-                     (apply h-append
-                            (add-between (map (λ (a) (att-value 'pretty-print a))
-                                              (ast-children (ast-child 'Expression* n)))
-                                         (text ", ")))
-                     rparen))]
+    ;; XXX fix for h-comment
+    (λ (n)
+      (h-comment
+       n
+       (h-append
+        (text (ast-child 'name n))
+        lparen
+        (h-concat
+         (add-between (map (λ (a) (att-value 'pretty-print a))
+                           (ast-children (ast-child 'Expression* n)))
+                      (h-append comma space)))
+        rparen)))]
    [IfExpression
-    (λ (n) (h-append lparen
-                     (att-value 'pretty-print (ast-child 'test n))
-                     (text " ? ")
-                     (att-value 'pretty-print (ast-child 'then n))
-                     (text " : ")
-                     (att-value 'pretty-print (ast-child 'else n))
-                     rparen))]
+    (λ (n)
+      (h-comment
+       n
+       (h-append lparen
+                 (hs-append (att-value 'pretty-print (ast-child 'test n))
+                            qmark
+                            (att-value 'pretty-print (ast-child 'then n))
+                            colon
+                            (att-value 'pretty-print (ast-child 'else n)))
+                 rparen)))]
    [BinaryExpression
-    (λ (n) (h-append (comment (ast-child 'precomment n))
-                     lparen
-                     (hs-append (att-value 'pretty-print (ast-child 'l n))
-                                (att-value 'pretty-print-op n)
-                                (att-value 'pretty-print (ast-child 'r n)))
-                     rparen
-                     (comment (ast-child 'postcomment n))))]
+    (λ (n)
+      (h-comment
+       n
+       (h-append lparen
+                 (hs-append (att-value 'pretty-print (ast-child 'l n))
+                            (att-value 'pretty-print-op n)
+                            (att-value 'pretty-print (ast-child 'r n)))
+                 rparen)))]
    )
 
   (ag-rule
