@@ -315,14 +315,14 @@ Types can be:
       (v-comment
        n
        (h-append
-        (text (ast-child 'typename n))
+        (text (basic-type-name (ast-child 'typename n)))
         space
         (text (ast-child 'name n))
         lparen
         (h-concat
          (add-between
           (map (λ (fp)
-                 (h-append (text (ast-child 'typename fp))
+                 (h-append (text (basic-type-name (ast-child 'typename fp)))
                            space
                            (text (ast-child 'name fp))))
                (ast-children (ast-child 'FormalParam* n)))
@@ -436,18 +436,18 @@ Types can be:
       (v-comment
        n
        (h-append (hs-append
-                  (text (ast-child 'typename n))
+                  (text (basic-type-name (ast-child 'typename n)))
                   (text (ast-child 'name n))
                   eqsign
                   (att-value 'pretty-print (ast-child 'Expression n)))
                  semi)))]
    [AssignmentExpression
     (λ (n)
-      (h-append (comment (ast-child 'precomment n))
-                (h-append (text (ast-child 'name n))
-                          (text " = ")
-                          (att-value 'pretty-print (ast-child 'Expression n)))
-                (comment (ast-child 'postcomment n))))]
+      (v-comment
+       n
+       (hs-append (text (ast-child 'name n))
+                  eqsign
+                  (att-value 'pretty-print (ast-child 'Expression n)))))]
    [LiteralInt
     (λ (n)
       (h-comment
