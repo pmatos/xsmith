@@ -39,6 +39,7 @@
  racket/dict
  racket/set
  racket/match
+ racket/math
  racket/class
  (except-in racket/list empty)
  "random.rkt"
@@ -222,6 +223,13 @@ Types can be:
   (h-append (text "\033[35m")
             pretty-print-node
             (text "\033[0m")))
+
+(struct abstract-value/range (low high))
+(define abstract-value/range/top (int/range -inf.0 +inf.0))
+(define (nan->+inf v)
+  (if (nan? v) +inf.0 v))
+(define (nan->-inf v)
+  (if (nan? v) -inf.0 v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -706,6 +714,55 @@ Types can be:
                  '(no-assignment)
                  (default-misc-constraints n)))])
 
+
+  (define (abstract-binary-op/range node store op)
+    ;; op is a function of (l-l l-h r-l r-h -> (list low high))
+    (match-let* ([(list val-l sto-l) (att-value 'abstract-interp-do/range
+                                                (ast-child 'l n))]
+                 [(list val-r sto-r) (att-value 'abstract-interp-do/range
+                                                (ast-child 'r n))])
+      (match val-l
+        [(abstract-value/range l-low l-high)
+         (match val-r
+           [(abstract-value/range r-low r-high)
+            (match (op l-low l-high r-low r-high)
+              [(list low high)
+               (abstract-value/range (nan->-inf low) (nan->+inf high))]
+              [else abstract-value/range/top])]
+           [else abstract-value/range/top])]
+        [else abstract-value/range/top])))
+
+  (ag-rule
+   abstract-interp/range
+   ;; Get the single global result of abstract interpretation of this node.
+   [Node (λ (n) (error 'abstract-interp/range "no default ag-rule"))])
+  (ag-rule
+   abstract-interp-get-store-for-child/range
+   ;; Takes a (parent) node, and the child that the store is wanted for.
+   [Node (λ (n child) (error 'abstract-interp-get-store-for-child/range
+                             "no default ag-rule"))])
+  (ag-rule
+   ;; For implementing abstract-interp/range.
+   ;; For now, store is table from binding to abstract value.
+   ;; Returns (list abstract-value new-store)
+   ;; Note - For functions and operators, argument evaluation order is unspecified.
+   ;;        So the store coming out of each side should be the same.
+   ;;        This should be enforced by disallowing assignment in these places.
+   abstract-interp-do/range
+   [AdditionExpression
+    (λ (n store)
+      (abstract-binary-op/range
+       n store
+       (λ (l-l l-h r-l r-h)
+         (list (+ l-l r-l) (+ l-h r-h)))))]
+   ;; TODO - abstract this for all mathy functions to take just a kernel function
+   [SubtractionExpression
+    (λ (n store)
+      (abstract-binary-op/range
+       n store
+       (λ (l-l l-h r-l r-h)
+         (list (- l-l r-h) (- l-h r-l)))))]
+   [Node (λ (n store) (error 'abstract-interp-do/range "no default ag-rule"))])
 
   (compile-ag-specifications)
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
