@@ -696,7 +696,7 @@ Types can be:
               '()))
   (define (default-misc-constraints n)
     (set-union (misc-constraint-dict-ref n)
-                   (att-value 'misc-constraints (ast-parent n))))
+               (att-value 'misc-constraints (ast-parent n))))
   (ag-rule
    misc-constraints
    ;; misc-constraints returns a set of symbols
@@ -715,7 +715,7 @@ Types can be:
                  (default-misc-constraints n)))])
 
 
-  (define (abstract-binary-op/range node store op)
+  (define ({abstract-binary-op/range op} node store)
     ;; op is a function of (l-l l-h r-l r-h -> (list low high))
     (match-let* ([(list val-l sto-l) (att-value 'abstract-interp-do/range
                                                 (ast-child 'l n))]
@@ -750,40 +750,33 @@ Types can be:
    ;;        This should be enforced by disallowing assignment in these places.
    abstract-interp-do/range
    [AdditionExpression
-    (λ (n store)
-      (abstract-binary-op/range
-       n store
-       (λ (l-l l-h r-l r-h)
-         (list (+ l-l r-l) (+ l-h r-h)))))]
-   ;; TODO - abstract this for all mathy functions to take just a kernel function
+    {abstract-binary-op/range
+     (λ (l-l l-h r-l r-h)
+       (list (+ l-l r-l) (+ l-h r-h)))}]
    [SubtractionExpression
-    (λ (n store)
-      (abstract-binary-op/range
-       n store
-       (λ (l-l l-h r-l r-h)
-         (list (- l-l r-h) (- l-h r-l)))))]
+    {abstract-binary-op/range
+     (λ (l-l l-h r-l r-h)
+       (list (- l-l r-h) (- l-h r-l)))}]
    [MultiplicationExpression
-    (λ (n store)
-      (abstract-binary-op/range
-       n store
-       (λ (l-l l-h r-l r-h)
-         (let ([signl (if (equal? (negative? l-l) (negative? l-h))
-                          (if (negative? l-l) '- '+)
-                          'both)]
-               [signr (if (equal? (negative? r-l) (negative? r-h))
-                          (if (negative? r-l) '- '+)
-                          'both)])
-           (match (list signl signr)
-             ['(+ +) (list (* l-l r-l) (* l-h r-h))]
-             ['(+ both) (list (* l-h r-l) (* l-h r-h))]
-             ['(+ -) (list (* l-h r-l) (* l-l r-h))]
-             ['(both +) (list (* l-l r-h) (* l-h r-h))]
-             ['(both both) (list (min (* l-l r-h) (* l-h r-l))
-                                 (max (* l-l r-l) (* l-h r-h)))]
-             ['(both -) (list (* l-h r-l) (* l-l r-l))]
-             ['(- +) (list (* l-l r-h) (* l-h r-l))]
-             ['(- both) (list (* l-l r-h) (* l-l r-l))]
-             ['(- -) (list (* l-h r-h) (* l-l r-l))])))))]
+    {abstract-binary-op/range
+     (λ (l-l l-h r-l r-h)
+       (let ([signl (if (equal? (negative? l-l) (negative? l-h))
+                        (if (negative? l-l) '- '+)
+                        'both)]
+             [signr (if (equal? (negative? r-l) (negative? r-h))
+                        (if (negative? r-l) '- '+)
+                        'both)])
+         (match (list signl signr)
+           ['(+ +) (list (* l-l r-l) (* l-h r-h))]
+           ['(+ both) (list (* l-h r-l) (* l-h r-h))]
+           ['(+ -) (list (* l-h r-l) (* l-l r-h))]
+           ['(both +) (list (* l-l r-h) (* l-h r-h))]
+           ['(both both) (list (min (* l-l r-h) (* l-h r-l))
+                               (max (* l-l r-l) (* l-h r-h)))]
+           ['(both -) (list (* l-h r-l) (* l-l r-l))]
+           ['(- +) (list (* l-l r-h) (* l-h r-l))]
+           ['(- both) (list (* l-l r-h) (* l-l r-l))]
+           ['(- -) (list (* l-h r-h) (* l-l r-l))])))}]
    [Node (λ (n store) (error 'abstract-interp-do/range "no default ag-rule"))])
 
   (compile-ag-specifications)
