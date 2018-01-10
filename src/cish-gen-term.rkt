@@ -762,6 +762,28 @@ Types can be:
        n store
        (λ (l-l l-h r-l r-h)
          (list (- l-l r-h) (- l-h r-l)))))]
+   [MultiplicationExpression
+    (λ (n store)
+      (abstract-binary-op/range
+       n store
+       (λ (l-l l-h r-l r-h)
+         (let ([signl (if (equal? (negative? l-l) (negative? l-h))
+                          (if (negative? l-l) '- '+)
+                          'both)]
+               [signr (if (equal? (negative? r-l) (negative? r-h))
+                          (if (negative? r-l) '- '+)
+                          'both)])
+           (match (list signl signr)
+             ['(+ +) (list (* l-l r-l) (* l-h r-h))]
+             ['(+ both) (list (* l-h r-l) (* l-h r-h))]
+             ['(+ -) (list (* l-h r-l) (* l-l r-h))]
+             ['(both +) (list (* l-l r-h) (* l-h r-h))]
+             ['(both both) (list (min (* l-l r-h) (* l-h r-l))
+                                 (max (* l-l r-l) (* l-h r-h)))]
+             ['(both -) (list (* l-h r-l) (* l-l r-l))]
+             ['(- +) (list (* l-l r-h) (* l-h r-l))]
+             ['(- both) (list (* l-l r-h) (* l-l r-l))]
+             ['(- -) (list (* l-h r-h) (* l-l r-l))])))))]
    [Node (λ (n store) (error 'abstract-interp-do/range "no default ag-rule"))])
 
   (compile-ag-specifications)
