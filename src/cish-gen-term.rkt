@@ -728,10 +728,11 @@ Types can be:
             (match (op l-low l-high r-low r-high)
               [(list low high)
                (list (abstract-value/range (nan->-inf low) (nan->+inf high))
-                     store)]
+                     sto-r)]
               [else abstract-value/range/top])]
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
+  (define range-store-top (hash))
 
   (ag-rule
    abstract-interp/range
@@ -750,6 +751,76 @@ Types can be:
    ;;        So the store coming out of each side should be the same.
    ;;        This should be enforced by disallowing assignment in these places.
    abstract-interp-do/range
+
+   ;; TODO !!! store -- I need some sort of abstract store, and anywhere I am punting to top without interpreting sub-children I need to make the whole store go to top, because there could be assignment there...
+
+   ;;; Program
+   ;;; TODO
+
+   ;;; Statements
+   #|
+   TODO
+   (ast-rule 'Statement:Node->)
+   (ast-rule 'NullStatement:Statement->)
+   (ast-rule 'Block:Statement->Declaration*-Statement*)
+   (ast-rule 'ExpressionStatement:Statement->Expression)
+   (ast-rule 'IfStatement:Statement->Expression<test-Statement<then)
+   (ast-rule 'IfElseStatement:IfStatement->Statement<else)
+   (ast-rule 'ReturnStatement:Statement->)
+   (ast-rule 'VoidReturnStatement:ReturnStatement->)
+   (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
+   (ast-rule 'StatementHole:Statement->)
+   (ast-rule 'BlockHole:Block->)
+
+   (ast-rule 'LoopStatement:Statement->Expression<test-Statement<body)
+   (ast-rule 'WhileStatement:LoopStatement->)
+   (ast-rule 'DoWhileStatement:LoopStatement->)
+   (ast-rule 'ForStatement:LoopStatement->Expression<init-Expression<update)
+   |#
+
+   ;;; Expressions
+   #|
+   TODO
+   (ast-rule 'ExpressionHole:Expression->)
+
+   (ast-rule 'AssignmentExpression:Expression->name-Expression)
+   (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
+
+   (ast-rule 'FunctionCall:Expression->name-ArgumentList)
+   |#
+
+   [LiteralInt
+    (λ (n store)
+      (list (abstract-value/range (ast-child 'val n) (ast-child 'val n)) store))]
+   [LiteralFloat
+    (λ (n store)
+      (list (abstract-value/range (ast-child 'val n) (ast-child 'val n)) store))]
+
+   [IfExpression
+    (λ (n store)
+      (match-let ([(list (abstract-value/range low high)
+                         new-store)
+                   (att-value 'abstract-interp-do/range (ast-child 'test n) store)])
+        (cond [(or (and (< 0 low) (< 0 high))
+                   (and (> 0 low) (> 0 high)))
+               (att-value 'abstract-interp-do/range (ast-child 'then n) new-store)]
+              [(and (equal? 0 low) (equal? 0 high))
+               (att-value 'abstract-interp-do/range (ast-child 'else n) new-store)]
+              [else
+               (list abstract-value/range/top range-store-top)])))]
+
+   [VariableReference
+    (λ (n store)
+      (let ([ref-node (resolve-reference
+                       (reference (ast-child 'name n)
+                                  (att-value 'scope-graph-scope n)))])
+        ;; TODO -- I'm using an empty hash to represent an unknown state of the store,
+        ;; or at least an unknown state for a variable.  But once there are more than
+        ;; ints and floats I'll need to look at the type of the reference to know what
+        ;; kind of value to use for top.
+        (list (dict-ref store ref-node abstract-value/range/top)
+              store)))]
+
    [AdditionExpression
     {abstract-binary-op/range
      (λ (l-l l-h r-l r-h)
