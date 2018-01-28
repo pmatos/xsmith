@@ -783,7 +783,6 @@ Types can be:
    TODO
    (ast-rule 'ExpressionHole:Expression->)
 
-   (ast-rule 'AssignmentExpression:Expression->name-Expression)
    (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
 
    (ast-rule 'FunctionCall:Expression->name-ArgumentList)
@@ -807,8 +806,18 @@ Types can be:
               [(and (equal? 0 low) (equal? 0 high))
                (att-value 'abstract-interp-do/range (ast-child 'else n) new-store)]
               [else
+               ;; TODO -- interp BOTH sides and merge the result values and stores
                (list abstract-value/range/top range-store-top)])))]
 
+   [AssignmentExpression
+    (λ (n store)
+      (match-let ([(list val new-store)
+                   (att-value 'abstract-interp-do/range
+                              (ast-child 'Expression n)
+                              store)]
+                  [ref-node (reference (ast-child 'name n)
+                                       (att-value 'scope-graph-scope n))])
+        (list val (dict-set new-store ref-node val))))]
    [VariableReference
     (λ (n store)
       (let ([ref-node (resolve-reference
