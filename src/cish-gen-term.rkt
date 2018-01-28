@@ -732,6 +732,24 @@ Types can be:
               [else abstract-value/range/top])]
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
+  (define ((abstract-interp-do/range/if one-sided?) n store)
+    (match-let ([(list (abstract-value/range low high)
+                       new-store)
+                 (att-value 'abstract-interp-do/range (ast-child 'test n) store)])
+      (cond
+        ;; Never false
+        [(or (and (< 0 low) (< 0 high))
+             (and (> 0 low) (> 0 high)))
+         (att-value 'abstract-interp-do/range (ast-child 'then n) new-store)]
+        ;; Never true
+        [(and (equal? 0 low) (equal? 0 high))
+         (if one-sided?
+             (list abstract-value/range/top new-store)
+             (att-value 'abstract-interp-do/range (ast-child 'else n) new-store))]
+        ;; Maybe sometimes true and sometimes false...
+        [else
+         ;; TODO -- interp BOTH sides and merge the result values and stores
+         (list abstract-value/range/top range-store-top)])))
   (define range-store-top (hash))
 
   (ag-rule
@@ -758,25 +776,29 @@ Types can be:
    ;;; TODO
 
    ;;; Statements
+   ;;; Statements return a store but aside from return statements the
+   ;;; result value is meaningless
    #|
    TODO
-   (ast-rule 'Statement:Node->)
-   (ast-rule 'NullStatement:Statement->)
-   (ast-rule 'Block:Statement->Declaration*-Statement*)
-   (ast-rule 'ExpressionStatement:Statement->Expression)
-   (ast-rule 'IfStatement:Statement->Expression<test-Statement<then)
-   (ast-rule 'IfElseStatement:IfStatement->Statement<else)
    (ast-rule 'ReturnStatement:Statement->)
    (ast-rule 'VoidReturnStatement:ReturnStatement->)
    (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
    (ast-rule 'StatementHole:Statement->)
-   (ast-rule 'BlockHole:Block->)
 
    (ast-rule 'LoopStatement:Statement->Expression<test-Statement<body)
    (ast-rule 'WhileStatement:LoopStatement->)
    (ast-rule 'DoWhileStatement:LoopStatement->)
    (ast-rule 'ForStatement:LoopStatement->Expression<init-Expression<update)
    |#
+   [NullStatement (λ (n store) (list abstract-value/range/top store))]
+   [ExpressionStatement
+    (λ (n store)
+      (att-value 'abstract-interp-do/range (ast-child 'Expression n) store))]
+   ;; TODO - block -- add to store based on declarations, then loop over innards
+   [IfStatement
+    {abstract-interp-do/range/if #t}]
+   [IfElseStatement
+    {abstract-interp-do/range/if #f}]
 
    ;;; Expressions
    #|
@@ -796,18 +818,7 @@ Types can be:
       (list (abstract-value/range (ast-child 'val n) (ast-child 'val n)) store))]
 
    [IfExpression
-    (λ (n store)
-      (match-let ([(list (abstract-value/range low high)
-                         new-store)
-                   (att-value 'abstract-interp-do/range (ast-child 'test n) store)])
-        (cond [(or (and (< 0 low) (< 0 high))
-                   (and (> 0 low) (> 0 high)))
-               (att-value 'abstract-interp-do/range (ast-child 'then n) new-store)]
-              [(and (equal? 0 low) (equal? 0 high))
-               (att-value 'abstract-interp-do/range (ast-child 'else n) new-store)]
-              [else
-               ;; TODO -- interp BOTH sides and merge the result values and stores
-               (list abstract-value/range/top range-store-top)])))]
+    {abstract-interp-do/range/if #f}]
 
    [AssignmentExpression
     (λ (n store)
