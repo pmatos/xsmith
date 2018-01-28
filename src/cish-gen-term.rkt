@@ -778,6 +778,20 @@ Types can be:
            ['(- +) (list (* l-l r-h) (* l-h r-l))]
            ['(- both) (list (* l-l r-h) (* l-l r-l))]
            ['(- -) (list (* l-h r-h) (* l-l r-l))])))}]
+   ;; TODO - make a real transfer function
+   [DivisionExpression {abstract-binary-op/range (λ args abstract-value/range/top)}]
+   [ModulusExpression {abstract-binary-op/range (λ args abstract-value/range/top)}]
+
+   [EqualityExpression
+    {abstract-binary-op/range
+     (λ args
+       (let ([equal-val (foldl (λ (l r) (and (equal? l r) r))
+                               (car args) (cdr args))])
+         (if equal-val (list equal-val equal-val) (list 0 1))))}]
+   ;; TODO -- better transfer functions for < > <= >=
+   ;; A default comparison result -- it is always 0 or 1.
+   [ComparisonExpression {abstract-binary-op/range (λ args (list 0 1))}]
+
    [Node (λ (n store) (error 'abstract-interp-do/range "no default ag-rule"))])
 
   (compile-ag-specifications)
