@@ -727,7 +727,8 @@ Types can be:
            [(abstract-value/range r-low r-high)
             (match (op l-low l-high r-low r-high)
               [(list low high)
-               (abstract-value/range (nan->-inf low) (nan->+inf high))]
+               (list (abstract-value/range (nan->-inf low) (nan->+inf high))
+                     store)]
               [else abstract-value/range/top])]
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
