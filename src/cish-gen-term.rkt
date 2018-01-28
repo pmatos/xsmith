@@ -785,10 +785,6 @@ Types can be:
    (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
    (ast-rule 'StatementHole:Statement->)
 
-   (ast-rule 'LoopStatement:Statement->Expression<test-Statement<body)
-   (ast-rule 'WhileStatement:LoopStatement->)
-   (ast-rule 'DoWhileStatement:LoopStatement->)
-   (ast-rule 'ForStatement:LoopStatement->Expression<init-Expression<update)
    |#
    [NullStatement (λ (n store) (list abstract-value/range/top store))]
    [ExpressionStatement
@@ -800,13 +796,15 @@ Types can be:
    [IfElseStatement
     {abstract-interp-do/range/if #f}]
 
+   ;; TODO -- implement specific loops (while, for, do-while) and don't just punt to top
+   [LoopStatement
+    (λ (n store) (list abstract-value/range/top range-store-top))]
+
    ;;; Expressions
    #|
    TODO
    (ast-rule 'ExpressionHole:Expression->)
-
    (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
-
    (ast-rule 'FunctionCall:Expression->name-ArgumentList)
    |#
 
