@@ -224,8 +224,11 @@ Types can be:
             pretty-print-node
             (text "\033[0m")))
 
-(struct abstract-value/range (low high))
+(struct abstract-value/range
+  (low high)
+  #:transparent)
 (define abstract-value/range/top (abstract-value/range -inf.0 +inf.0))
+(define range-store-top (hash))
 (define (nan->+inf v)
   (if (nan? v) +inf.0 v))
 (define (nan->-inf v)
@@ -749,7 +752,6 @@ Types can be:
         [else
          ;; TODO -- interp BOTH sides and merge the result values and stores
          (list abstract-value/range/top range-store-top)])))
-  (define range-store-top (hash))
 
   (ag-rule
    abstract-interp/range
@@ -777,7 +779,8 @@ Types can be:
       (att-value 'abstract-interp-do/range
                  (fresh-node 'FunctionApplicationExpression
                              "main"
-                             (create-ast-list '()))))]
+                             (create-ast-list '()))
+                 range-store-top))]
 
    ;;; Statements
    ;;; Statements return a store but aside from return statements the
