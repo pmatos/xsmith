@@ -225,7 +225,7 @@ Types can be:
             (text "\033[0m")))
 
 (struct abstract-value/range (low high))
-(define abstract-value/range/top (int/range -inf.0 +inf.0))
+(define abstract-value/range/top (abstract-value/range -inf.0 +inf.0))
 (define (nan->+inf v)
   (if (nan? v) +inf.0 v))
 (define (nan->-inf v)
@@ -717,9 +717,9 @@ Types can be:
   (define ({abstract-binary-op/range op} node store)
     ;; op is a function of (l-l l-h r-l r-h -> (list low high))
     (match-let* ([(list val-l sto-l) (att-value 'abstract-interp-do/range
-                                                (ast-child 'l n))]
+                                                (ast-child 'l node))]
                  [(list val-r sto-r) (att-value 'abstract-interp-do/range
-                                                (ast-child 'r n))])
+                                                (ast-child 'r node))])
       (match val-l
         [(abstract-value/range l-low l-high)
          (match val-r
@@ -808,16 +808,16 @@ Types can be:
                                  (reference (ast-child 'name decl)
                                             (att-value 'scope-graph-scope decl)))]
                            [(list v n-store) (att-value 'abstract-interp-do/range
-                                                        (ast-child Expression decl)
+                                                        (ast-child 'Expression decl)
                                                         s)])
                 (dict-set n-store ref v))
               s)))
       (define store-after-statements
         (for/fold ([s store-with-decls])
-                  ([satement (ast-children (ast-child 'Statement* n))])
-          (match-let ([list v n-store (att-value 'abstract-interp-do/range
-                                                 statement
-                                                 s)])
+                  ([statement (ast-children (ast-child 'Statement* n))])
+          (match-let ([(list v n-store) (att-value 'abstract-interp-do/range
+                                                   statement
+                                                   s)])
             n-store)))
       (list abstract-value/range/top store-after-statements))]
    [IfStatement
