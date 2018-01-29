@@ -288,7 +288,6 @@ Types can be:
   (ast-rule 'LiteralInt:Expression->val)
   (ast-rule 'LiteralFloat:Expression->val)
   (ast-rule 'VariableReference:Expression->name)
-  (ast-rule 'FunctionCall:Expression->name-ArgumentList)
 
   (ast-rule 'ArgumentList:Node->)
   (ast-rule 'ArgumentListEmpty:ArgumentList->)
@@ -732,7 +731,7 @@ Types can be:
               [else abstract-value/range/top])]
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
-  (define ((abstract-interp-do/range/if one-sided?) n store)
+  (define ({abstract-interp-do/range/if one-sided?} n store)
     (match-let ([(list (abstract-value/range low high)
                        new-store)
                  (att-value 'abstract-interp-do/range (ast-child 'test n) store)])
@@ -780,17 +779,44 @@ Types can be:
    ;;; result value is meaningless
    #|
    TODO
-   (ast-rule 'ReturnStatement:Statement->)
-   (ast-rule 'VoidReturnStatement:ReturnStatement->)
-   (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
    (ast-rule 'StatementHole:Statement->)
 
    |#
    [NullStatement (λ (n store) (list abstract-value/range/top store))]
+   #|
+   TODO - there are no void functions yet, so once there are this (and all
+          non-return statements) should return void.
+   |#
+   [VoidReturnStatement (λ (n store) (list abstract-value/range/top store))]
    [ExpressionStatement
     (λ (n store)
       (att-value 'abstract-interp-do/range (ast-child 'Expression n) store))]
-   ;; TODO - block -- add to store based on declarations, then loop over innards
+   [ValueReturnStatement
+    (λ (n store)
+      (att-value 'abstract-interp-do/range (ast-child 'Expression n) store))]
+   [Block
+    (λ (n store)
+      (define store-with-decls
+        (for/fold ([s store])
+                  ([decl (ast-children (ast-child 'Declaration* n))])
+          ;; There are declaration holes and such, so check that it is a variable decl.
+          (if (equal? (ast-node-type decl) 'VariableDeclaration)
+              (match-let* ([ref (resolve-reference
+                                 (reference (ast-child 'name decl)
+                                            (att-value 'scope-graph-scope decl)))]
+                           [(list v n-store) (att-value 'abstract-interp-do/range
+                                                        (ast-child Expression decl)
+                                                        s)])
+                (dict-set n-store ref v))
+              s)))
+      (define store-after-statements
+        (for/fold ([s store-with-decls])
+                  ([satement (ast-children (ast-child 'Statement* n))])
+          (match-let ([list v n-store (att-value 'abstract-interp-do/range
+                                                 statement
+                                                 s)])
+            n-store)))
+      (list abstract-value/range/top store-after-statements))]
    [IfStatement
     {abstract-interp-do/range/if #t}]
    [IfElseStatement
@@ -805,7 +831,6 @@ Types can be:
    TODO
    (ast-rule 'ExpressionHole:Expression->)
    (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
-   (ast-rule 'FunctionCall:Expression->name-ArgumentList)
    |#
 
    [LiteralInt
