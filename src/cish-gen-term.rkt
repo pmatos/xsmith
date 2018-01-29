@@ -234,6 +234,26 @@ Types can be:
 (define (nan->-inf v)
   (if (nan? v) -inf.0 v))
 
+(define (abstract-value-merge/range a b)
+  (match-let ([(abstract-value/range a-l a-h) a]
+              [(abstract-value/range b-l b-h) b])
+    (abstract-value/range (min a-l b-l) (max (a-h b-h)))))
+(define ({abstract-store-merge value-merger key->top-value} a b)
+  (for/hash ([key (remove-duplicates (append (dict-keys a) (dict-keys b)))])
+    (let ([top (key->top-value key)])
+      (values key (value-merger (dict-ref a key top)
+                                (dict-ref b key top))))))
+
+(struct abstract-return
+  (v store))
+(struct abstract-flow-control-return
+  #|
+  * maybes is a list of potential returns (corresponding to places a return
+    statement may or may not execute)
+  * must is a single return (corresponding to a place where a return always executes)
+  |#
+  (maybes must))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (with-specification spec
