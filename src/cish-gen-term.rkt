@@ -772,16 +772,19 @@ Types can be:
    ;; TODO !!! store -- I need some sort of abstract store, and anywhere I am punting to top without interpreting sub-children I need to make the whole store go to top, because there could be assignment there...
 
    ;;; Program
-   ;;; TODO
+   [Program
+    (λ (n store)
+      (att-value 'abstract-interp-do/range
+                 (fresh-node 'FunctionApplicationExpression
+                             "main"
+                             (create-ast-list '()))))]
 
    ;;; Statements
    ;;; Statements return a store but aside from return statements the
    ;;; result value is meaningless
-   #|
-   TODO
-   (ast-rule 'StatementHole:Statement->)
+   [StatementHole
+    (λ (n store) (list abstract-value/range/top range-store-top))]
 
-   |#
    [NullStatement (λ (n store) (list abstract-value/range/top store))]
    #|
    TODO - there are no void functions yet, so once there are this (and all
@@ -827,11 +830,8 @@ Types can be:
     (λ (n store) (list abstract-value/range/top range-store-top))]
 
    ;;; Expressions
-   #|
-   TODO
-   (ast-rule 'ExpressionHole:Expression->)
-   (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
-   |#
+   [ExpressionHole
+    (λ (n store) (list abstract-value/range/top range-store-top))]
 
    [LiteralInt
     (λ (n store)
@@ -842,6 +842,10 @@ Types can be:
 
    [IfExpression
     {abstract-interp-do/range/if #f}]
+
+   ;; TODO - implement for real.  This includes tracking control flow and getting some return value/store, or tracking multiple branches to merge values/stores.
+   [FunctionApplicationExpression
+    (λ (n store) (list abstract-value/range/top range-store-top))]
 
    [AssignmentExpression
     (λ (n store)
