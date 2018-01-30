@@ -244,15 +244,48 @@ Types can be:
       (values key (value-merger (dict-ref a key top)
                                 (dict-ref b key top))))))
 
-(struct abstract-return
-  (v store))
 (struct abstract-flow-control-return
   #|
   * maybes is a list of potential returns (corresponding to places a return
     statement may or may not execute)
   * must is a single return (corresponding to a place where a return always executes)
   |#
-  (maybes must))
+  (maybes must) #:transparent)
+(define empty-abstract-flow-control-return (abstract-flow-control-return '() #f))
+(define (maybe-return returns val store)
+  (match returns
+    [(abstract-flow-control-return maybes must)
+     (abstract-flow-control-return (cons (list val store) maybes) must)]))
+(define (must-return returns val store)
+  (match returns
+    [(abstract-flow-control-return maybes must)
+     (abstract-flow-control-return maybes (list val store))]))
+
+(define (abstract-flow-control-return-merge a b)
+  (match a
+    [(abstract-flow-control-return a-maybes a-must)
+     (match b
+       [(abstract-flow-control-return b-maybes b-must)
+        (abstract-flow-control-return (append a-maybes b-maybes)
+                                      (if (and a b)
+                                          (error 'abstract-flow-control-return-merge
+                                                 "Both sides must return, this shouldn't happen")
+                                          (or a b)))])]))
+
+(define ({merge-*-ify merge-func} . args)
+  (cond [(empty? args) (error 'merge-*-ify "this shouldn't happen -- merge-*-ify client got no arguments")]
+        [else (foldl merge-func (first args) (rest args))]))
+
+(define {abstract-store-merge* value-merger key->top-value}
+  {merge-*-ify {abstract-store-merge value-merger key->top-value}})
+
+(define abstract-store-merge*/range
+  {abstract-store-merge* abstract-value-merge/range
+                         (λ (k) abstract-value/range/top)})
+(define abstract-value-merge*/range {merge-*-ify abstract-value-merge/range})
+(define abstract-flow-control-return-merge*
+  {merge-*-ify abstract-flow-control-return-merge})
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -737,7 +770,7 @@ Types can be:
                  (default-misc-constraints n)))])
 
 
-  (define ({abstract-binary-op/range op} node store)
+  (define ({abstract-binary-op/range op} node store flow-returns)
     ;; op is a function of (l-l l-h r-l r-h -> (list low high))
     (match-let* ([(list val-l sto-l) (att-value 'abstract-interp-do/range
                                                 (ast-child 'l node))]
@@ -750,28 +783,31 @@ Types can be:
             (match (op l-low l-high r-low r-high)
               [(list low high)
                (list (abstract-value/range (nan->-inf low) (nan->+inf high))
-                     sto-r)]
+                     sto-r
+                     flow-returns)]
               [else abstract-value/range/top])]
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
-  (define ({abstract-interp-do/range/if one-sided?} n store)
+  (define ({abstract-interp-do/range/if one-sided?} n store flow-returns)
     (match-let ([(list (abstract-value/range low high)
-                       new-store)
+                       new-store
+                       new-rets)
                  (att-value 'abstract-interp-do/range (ast-child 'test n) store)])
       (cond
         ;; Never false
         [(or (and (< 0 low) (< 0 high))
              (and (> 0 low) (> 0 high)))
-         (att-value 'abstract-interp-do/range (ast-child 'then n) new-store)]
+         (att-value 'abstract-interp-do/range (ast-child 'then n) new-store new-rets)]
         ;; Never true
         [(and (equal? 0 low) (equal? 0 high))
          (if one-sided?
-             (list abstract-value/range/top new-store)
-             (att-value 'abstract-interp-do/range (ast-child 'else n) new-store))]
+             (list abstract-value/range/top new-store new-rets)
+             (att-value 'abstract-interp-do/range (ast-child 'else n) new-store new-rets))]
         ;; Maybe sometimes true and sometimes false...
         [else
          ;; TODO -- interp BOTH sides and merge the result values and stores
-         (list abstract-value/range/top range-store-top)])))
+         (list abstract-value/range/top range-store-top
+               (maybe-return new-rets abstract-value/range/top range-store-top))])))
 
   (ag-rule
    abstract-interp/range
@@ -795,33 +831,44 @@ Types can be:
 
    ;;; Program
    [Program
-    (λ (n store)
+    (λ (n store flow-returns)
       (att-value 'abstract-interp-do/range
                  (fresh-node 'FunctionApplicationExpression
                              "main"
                              (create-ast-list '()))
-                 range-store-top))]
+                 range-store-top
+                 empty-abstract-flow-control-return))]
 
    ;;; Statements
    ;;; Statements return a store but aside from return statements the
    ;;; result value is meaningless
    [StatementHole
-    (λ (n store) (list abstract-value/range/top range-store-top))]
+    (λ (n store flow-returns)
+      (list abstract-value/range/top range-store-top
+            (maybe-return abstract-value/range/top range-store-top)))]
 
-   [NullStatement (λ (n store) (list abstract-value/range/top store))]
+   [NullStatement (λ (n store flow-returns)
+                    (list abstract-value/range/top store flow-returns))]
    #|
    TODO - there are no void functions yet, so once there are this (and all
           non-return statements) should return void.
    |#
-   [VoidReturnStatement (λ (n store) (list abstract-value/range/top store))]
+   [VoidReturnStatement
+    (λ (n store flow-returns)
+      (list abstract-value/range/top store
+            (must-return flow-returns abstract-value/range/top store)))]
    [ExpressionStatement
-    (λ (n store)
-      (att-value 'abstract-interp-do/range (ast-child 'Expression n) store))]
+    (λ (n store flow-returns)
+      (att-value 'abstract-interp-do/range
+                 (ast-child 'Expression n) store flow-returns))]
    [ValueReturnStatement
-    (λ (n store)
-      (att-value 'abstract-interp-do/range (ast-child 'Expression n) store))]
+    (λ (n store flow-returns)
+      (match (att-value 'abstract-interp-do/range
+                        (ast-child 'Expression n) store flow-returns)
+        [(list v s r)
+         (list v s (must-return r v s))]))]
    [Block
-    (λ (n store)
+    (λ (n store flow-returns)
       (define store-with-decls
         (for/fold ([s store])
                   ([decl (ast-children (ast-child 'Declaration* n))])
@@ -835,14 +882,17 @@ Types can be:
                                                         s)])
                 (dict-set n-store ref v))
               s)))
-      (define store-after-statements
-        (for/fold ([s store-with-decls])
+      (define-values (store-after-statements rets-after-statements)
+        (for/fold ([s store-with-decls]
+                   [r flow-returns])
                   ([statement (ast-children (ast-child 'Statement* n))])
-          (match-let ([(list v n-store) (att-value 'abstract-interp-do/range
-                                                   statement
-                                                   s)])
-            n-store)))
-      (list abstract-value/range/top store-after-statements))]
+          #:break (abstract-flow-control-return-must r)
+          (match-let ([(list v n-store n-rets) (att-value 'abstract-interp-do/range
+                                                          statement
+                                                          s
+                                                          r)])
+            (values n-store n-rets))))
+      (list abstract-value/range/top store-after-statements rets-after-statements))]
    [IfStatement
     {abstract-interp-do/range/if #t}]
    [IfElseStatement
@@ -850,37 +900,43 @@ Types can be:
 
    ;; TODO -- implement specific loops (while, for, do-while) and don't just punt to top
    [LoopStatement
-    (λ (n store) (list abstract-value/range/top range-store-top))]
+    (λ (n store flow-returns)
+      (list abstract-value/range/top range-store-top
+            (maybe-return flow-returns abstract-value/range/top range-store-top)))]
 
    ;;; Expressions
    [ExpressionHole
-    (λ (n store) (list abstract-value/range/top range-store-top))]
+    (λ (n store flow-returns)
+      (list abstract-value/range/top range-store-top flow-returns))]
 
    [LiteralInt
-    (λ (n store)
-      (list (abstract-value/range (ast-child 'val n) (ast-child 'val n)) store))]
+    (λ (n store flow-returns)
+      (list (abstract-value/range (ast-child 'val n) (ast-child 'val n))
+            store flow-returns))]
    [LiteralFloat
-    (λ (n store)
-      (list (abstract-value/range (ast-child 'val n) (ast-child 'val n)) store))]
+    (λ (n store flow-returns)
+      (list (abstract-value/range (ast-child 'val n) (ast-child 'val n))
+            store flow-returns))]
 
    [IfExpression
     {abstract-interp-do/range/if #f}]
 
    ;; TODO - implement for real.  This includes tracking control flow and getting some return value/store, or tracking multiple branches to merge values/stores.
    [FunctionApplicationExpression
-    (λ (n store) (list abstract-value/range/top range-store-top))]
+    (λ (n store flow-returns)
+      (list abstract-value/range/top range-store-top flow-returns))]
 
    [AssignmentExpression
-    (λ (n store)
+    (λ (n store flow-returns)
       (match-let ([(list val new-store)
                    (att-value 'abstract-interp-do/range
                               (ast-child 'Expression n)
                               store)]
                   [ref-node (reference (ast-child 'name n)
                                        (att-value 'scope-graph-scope n))])
-        (list val (dict-set new-store ref-node val))))]
+        (list val (dict-set new-store ref-node val) flow-returns)))]
    [VariableReference
-    (λ (n store)
+    (λ (n store flow-returns)
       (let ([ref-node (resolve-reference
                        (reference (ast-child 'name n)
                                   (att-value 'scope-graph-scope n)))])
@@ -889,7 +945,8 @@ Types can be:
         ;; ints and floats I'll need to look at the type of the reference to know what
         ;; kind of value to use for top.
         (list (dict-ref store ref-node abstract-value/range/top)
-              store)))]
+              store
+              flow-returns)))]
 
    [AdditionExpression
     {abstract-binary-op/range
@@ -933,7 +990,8 @@ Types can be:
    ;; A default comparison result -- it is always 0 or 1.
    [ComparisonExpression {abstract-binary-op/range (λ args (list 0 1))}]
 
-   [Node (λ (n store) (error 'abstract-interp-do/range "no default ag-rule"))])
+   [Node (λ (n store flow-returns)
+           (error 'abstract-interp-do/range "no default ag-rule"))])
 
   (compile-ag-specifications)
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1488,6 +1546,9 @@ Types can be:
   (parameterize ((xsmith-state state)
                  (xsmith-options options))
     (let ((ast (generate-random-prog (fresh-Prog))))
+      (eprintf "/*\n")
+      (eprintf "abstract return: ~a\n" (att-value 'abstract-interp-do/range ast range-store-top empty-abstract-flow-control-return))
+      (eprintf "*/\n")
       (if (dict-has-key? (xsmith-options) 'output-filename)
           (call-with-output-file (xsmith-option 'output-filename)
             #:exists 'replace
