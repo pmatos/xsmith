@@ -252,6 +252,12 @@ Types can be:
   |#
   (maybes must) #:transparent)
 (define empty-abstract-flow-control-return (abstract-flow-control-return '() #f))
+(define ({abstract-flow-control-return->val-store-list val-merge* store-merge*} r)
+  (match-let* ([(abstract-flow-control-return maybes must) r]
+               [(list (list v s) ...) (if must (cons must maybes) maybes)])
+    (list (apply val-merge* v) (apply store-merge* s))))
+
+
 (define (maybe-return returns val store)
   (match returns
     [(abstract-flow-control-return maybes must)
@@ -286,12 +292,13 @@ Types can be:
 (define abstract-flow-control-return-merge*
   {merge-*-ify abstract-flow-control-return-merge})
 
+(define abstract-flow-control-return->val-store-list/range {abstract-flow-control-return->val-store-list abstract-value-merge*/range abstract-store-merge*/range})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (with-specification spec
   (ast-rule 'Node->precomment-postcomment)
-  (ast-rule 'Program:Node->Declaration*-FunctionDefinition<main)
+  (ast-rule 'Program:Node->Declaration*-FunctionDefinition<main-FunctionApplicationExpression)
 
   (ast-rule 'Declaration:Node->name)
   (ast-rule 'DeclarationHole:Declaration->)
@@ -558,6 +565,7 @@ Types can be:
                             (att-value 'pretty-print-op n)
                             (att-value 'pretty-print (ast-child 'r n)))
                  rparen)))]
+   [Node (λ (n) (error 'pretty-print "no default ag-rule"))]
    )
 
   (ag-rule
@@ -572,6 +580,7 @@ Types can be:
    [LessThanExpression (λ (n) less)]
    [GreaterOrEqualExpression (λ (n) (h-append greater eqsign))]
    [LessOrEqualExpression (λ (n) (h-append less eqsign))]
+   [Node (λ (n) (error 'pretty-print-op "no default ag-rule"))]
    )
 
   (ag-rule
@@ -580,17 +589,20 @@ Types can be:
    [FunctionDefinition
     (λ (n) (binding (ast-child 'name n)
                     ;; TODO - decide what should really go here
-                    (hash 'type (append (list '->)
+                    (hash 'declaration-node n
+                          'type (append (list '->)
                                         (map (λ (fp) (ast-child 'typename fp))
                                              (ast-children (ast-child 'FormalParam* n)))
                                         (list (ast-child 'typename n))))))]
    [VariableDeclaration
     (λ (n) (binding (ast-child 'name n)
                     ;; TODO - decide what should really go here
-                    (hash 'type (ast-child 'typename n))))]
+                    (hash 'declaration-node n
+                          'type (ast-child 'typename n))))]
    [FormalParam
     (λ (n) (binding (ast-child 'name n)
-                    (hash 'type (ast-child 'typename n))))]
+                    (hash 'declaration-node n
+                          'type (ast-child 'typename n))))]
    [DeclarationHole
     (λ (n) #f)])
 
@@ -600,7 +612,8 @@ Types can be:
     (λ (n) (scope #f
                   (filter (λ(x)x)
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
-                               (ast-children (ast-child 'Declaration* n))))
+                               (cons (ast-child 'main n)
+                                     (ast-children (ast-child 'Declaration* n)))))
                   '()))]
    [FunctionDefinition
     (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
@@ -772,10 +785,14 @@ Types can be:
 
   (define ({abstract-binary-op/range op} node store flow-returns)
     ;; op is a function of (l-l l-h r-l r-h -> (list low high))
-    (match-let* ([(list val-l sto-l) (att-value 'abstract-interp-do/range
-                                                (ast-child 'l node))]
-                 [(list val-r sto-r) (att-value 'abstract-interp-do/range
-                                                (ast-child 'r node))])
+    (match-let* ([(list val-l sto-l ret-l) (att-value 'abstract-interp-do/range
+                                                      (ast-child 'l node)
+                                                      store
+                                                      flow-returns)]
+                 [(list val-r sto-r ret-r) (att-value 'abstract-interp-do/range
+                                                      (ast-child 'r node)
+                                                      sto-l
+                                                      ret-l)])
       (match val-l
         [(abstract-value/range l-low l-high)
          (match val-r
@@ -784,7 +801,7 @@ Types can be:
               [(list low high)
                (list (abstract-value/range (nan->-inf low) (nan->+inf high))
                      sto-r
-                     flow-returns)]
+                     ret-r)]
               [else abstract-value/range/top])]
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
@@ -792,7 +809,8 @@ Types can be:
     (match-let ([(list (abstract-value/range low high)
                        new-store
                        new-rets)
-                 (att-value 'abstract-interp-do/range (ast-child 'test n) store)])
+                 (att-value 'abstract-interp-do/range
+                            (ast-child 'test n) store flow-returns)])
       (cond
         ;; Never false
         [(or (and (< 0 low) (< 0 high))
@@ -833,9 +851,7 @@ Types can be:
    [Program
     (λ (n store flow-returns)
       (att-value 'abstract-interp-do/range
-                 (fresh-node 'FunctionApplicationExpression
-                             "main"
-                             (create-ast-list '()))
+                 (ast-child 'FunctionApplicationExpression n)
                  range-store-top
                  empty-abstract-flow-control-return))]
 
@@ -869,22 +885,25 @@ Types can be:
          (list v s (must-return r v s))]))]
    [Block
     (λ (n store flow-returns)
-      (define store-with-decls
-        (for/fold ([s store])
+      (define-values (store-with-decls ret-with-decls)
+        (for/fold ([s store]
+                   [r flow-returns])
                   ([decl (ast-children (ast-child 'Declaration* n))])
           ;; There are declaration holes and such, so check that it is a variable decl.
           (if (equal? (ast-node-type decl) 'VariableDeclaration)
               (match-let* ([ref (resolve-reference
                                  (reference (ast-child 'name decl)
                                             (att-value 'scope-graph-scope decl)))]
-                           [(list v n-store) (att-value 'abstract-interp-do/range
-                                                        (ast-child 'Expression decl)
-                                                        s)])
-                (dict-set n-store ref v))
-              s)))
+                           [(list v n-store n-rets)
+                            (att-value 'abstract-interp-do/range
+                                       (ast-child 'Expression decl)
+                                       s
+                                       r)])
+                (values (dict-set n-store ref v) n-rets))
+              (values s r))))
       (define-values (store-after-statements rets-after-statements)
         (for/fold ([s store-with-decls]
-                   [r flow-returns])
+                   [r ret-with-decls])
                   ([statement (ast-children (ast-child 'Statement* n))])
           #:break (abstract-flow-control-return-must r)
           (match-let ([(list v n-store n-rets) (att-value 'abstract-interp-do/range
@@ -924,17 +943,35 @@ Types can be:
    ;; TODO - implement for real.  This includes tracking control flow and getting some return value/store, or tracking multiple branches to merge values/stores.
    [FunctionApplicationExpression
     (λ (n store flow-returns)
-      (list abstract-value/range/top range-store-top flow-returns))]
+      (let* ([binding (resolve-reference
+                       (reference (ast-child 'name n)
+                                  (att-value 'scope-graph-scope n)))]
+             [bound (binding-bound binding)]
+             [func-def-node (dict-ref bound 'declaration-node)]
+             [func-block (ast-child 'Block func-def-node)]
+             [func-params (ast-children (ast-child 'FormalParam* func-def-node))]
+             ;; for now, let's use top for the arguments
+             [store-for-func (for/fold ([store store])
+                                       ([fp func-params])
+                               (dict-set store fp abstract-value/range/top))])
+        (match (att-value 'abstract-interp-do/range
+                          func-block
+                          store-for-func
+                          empty-abstract-flow-control-return)
+          [(list v s returns)
+           (append (abstract-flow-control-return->val-store-list/range returns)
+                   (list flow-returns))])))]
 
    [AssignmentExpression
     (λ (n store flow-returns)
-      (match-let ([(list val new-store)
+      (match-let ([(list val new-store new-rets)
                    (att-value 'abstract-interp-do/range
                               (ast-child 'Expression n)
-                              store)]
+                              store
+                              flow-returns)]
                   [ref-node (reference (ast-child 'name n)
                                        (att-value 'scope-graph-scope n))])
-        (list val (dict-set new-store ref-node val) flow-returns)))]
+        (list val (dict-set new-store ref-node val) new-rets)))]
    [VariableReference
     (λ (n store flow-returns)
       (let ([ref-node (resolve-reference
@@ -1497,10 +1534,13 @@ Types can be:
                                                          "standin-name"))
                                       (make-list (random 5) #f)))
                 (fresh-node 'FunctionDefinitionHole
-                            "standin-name"
-                            "standin-type"
+                            "main"
+                            "int"
                             (create-ast-list '())
-                            (fresh-block-hole))))
+                            (fresh-block-hole))
+                (fresh-node 'FunctionApplicationExpression
+                             "main"
+                             (create-ast-list '()))))
   (rewrite-terminal 'precomment p
                     (h-append
                      line
