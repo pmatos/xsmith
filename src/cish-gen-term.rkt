@@ -1297,8 +1297,10 @@ Types can be:
                             type-needed))
                     legal-refs)
             legal-refs))
-      (set! ref-choices-filtered legal-with-type)
-      (and (not (null? legal-with-type)) this))
+      (define final-choices (filter (λ (b) (not (equal? "main" (binding-name b))))
+                                    legal-with-type))
+      (set! ref-choices-filtered final-choices)
+      (and (not (null? final-choices)) this))
     (super-new)))
 (define IfExpressionChoice
   (class ExpressionChoice
