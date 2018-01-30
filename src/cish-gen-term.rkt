@@ -237,7 +237,7 @@ Types can be:
 (define (abstract-value-merge/range a b)
   (match-let ([(abstract-value/range a-l a-h) a]
               [(abstract-value/range b-l b-h) b])
-    (abstract-value/range (min a-l b-l) (max (a-h b-h)))))
+    (abstract-value/range (min a-l b-l) (max a-h b-h))))
 (define ({abstract-store-merge value-merger key->top-value} a b)
   (for/hash ([key (remove-duplicates (append (dict-keys a) (dict-keys b)))])
     (let ([top (key->top-value key)])
@@ -1014,8 +1014,12 @@ Types can be:
            ['(- both) (list (* l-l r-h) (* l-l r-l))]
            ['(- -) (list (* l-h r-h) (* l-l r-l))])))}]
    ;; TODO - make a real transfer function
-   [DivisionExpression {abstract-binary-op/range (λ args abstract-value/range/top)}]
-   [ModulusExpression {abstract-binary-op/range (λ args abstract-value/range/top)}]
+   [DivisionExpression
+    {abstract-binary-op/range
+     (λ (l-l l-h r-l r-h) (list -inf.0 +inf.0))}]
+   [ModulusExpression
+    {abstract-binary-op/range
+     (λ (l-l l-h r-l r-h) (list -inf.0 +inf.0))}]
 
    [EqualityExpression
     {abstract-binary-op/range
