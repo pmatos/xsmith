@@ -294,6 +294,20 @@ Types can be:
 
 (define abstract-flow-control-return->val-store-list/range {abstract-flow-control-return->val-store-list abstract-value-merge*/range abstract-store-merge*/range})
 
+
+(define current-abstract-interp-call-stack (make-parameter '()))
+
+;;; wrapper for the ag-rule to prevent function cycles
+(define (abstract-interp-wrap/range n store flow-returns)
+  (if (equal? 'FunctionApplicationExpression (ast-node-type n))
+      (if (member n (current-abstract-interp-call-stack))
+          (list abstract-value/range/top range-store-top flow-returns)
+          (parameterize ([current-abstract-interp-call-stack
+                          (cons n (current-abstract-interp-call-stack))])
+            (att-value 'abstract-interp-do/range n store flow-returns)))
+      (att-value 'abstract-interp-do/range n store flow-returns)))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (with-specification spec
@@ -785,14 +799,14 @@ Types can be:
 
   (define ({abstract-binary-op/range op} node store flow-returns)
     ;; op is a function of (l-l l-h r-l r-h -> (list low high))
-    (match-let* ([(list val-l sto-l ret-l) (att-value 'abstract-interp-do/range
-                                                      (ast-child 'l node)
-                                                      store
-                                                      flow-returns)]
-                 [(list val-r sto-r ret-r) (att-value 'abstract-interp-do/range
-                                                      (ast-child 'r node)
-                                                      sto-l
-                                                      ret-l)])
+    (match-let* ([(list val-l sto-l ret-l) (abstract-interp-wrap/range
+                                            (ast-child 'l node)
+                                            store
+                                            flow-returns)]
+                 [(list val-r sto-r ret-r) (abstract-interp-wrap/range
+                                            (ast-child 'r node)
+                                            sto-l
+                                            ret-l)])
       (match val-l
         [(abstract-value/range l-low l-high)
          (match val-r
@@ -809,18 +823,18 @@ Types can be:
     (match-let ([(list (abstract-value/range low high)
                        new-store
                        new-rets)
-                 (att-value 'abstract-interp-do/range
-                            (ast-child 'test n) store flow-returns)])
+                 (abstract-interp-wrap/range
+                  (ast-child 'test n) store flow-returns)])
       (cond
         ;; Never false
         [(or (and (< 0 low) (< 0 high))
              (and (> 0 low) (> 0 high)))
-         (att-value 'abstract-interp-do/range (ast-child 'then n) new-store new-rets)]
+         (abstract-interp-wrap/range (ast-child 'then n) new-store new-rets)]
         ;; Never true
         [(and (equal? 0 low) (equal? 0 high))
          (if one-sided?
              (list abstract-value/range/top new-store new-rets)
-             (att-value 'abstract-interp-do/range (ast-child 'else n) new-store new-rets))]
+             (abstract-interp-wrap/range (ast-child 'else n) new-store new-rets))]
         ;; Maybe sometimes true and sometimes false...
         [else
          ;; TODO -- interp BOTH sides and merge the result values and stores
@@ -836,6 +850,7 @@ Types can be:
    ;; Takes a (parent) node, and the child that the store is wanted for.
    [Node (λ (n child) (error 'abstract-interp-get-store-for-child/range
                              "no default ag-rule"))])
+
   (ag-rule
    ;; For implementing abstract-interp/range.
    ;; For now, store is table from binding to abstract value.
@@ -845,15 +860,13 @@ Types can be:
    ;;        This should be enforced by disallowing assignment in these places.
    abstract-interp-do/range
 
-   ;; TODO !!! store -- I need some sort of abstract store, and anywhere I am punting to top without interpreting sub-children I need to make the whole store go to top, because there could be assignment there...
-
    ;;; Program
    [Program
     (λ (n store flow-returns)
-      (att-value 'abstract-interp-do/range
-                 (ast-child 'FunctionApplicationExpression n)
-                 range-store-top
-                 empty-abstract-flow-control-return))]
+      (abstract-interp-wrap/range
+       (ast-child 'FunctionApplicationExpression n)
+       range-store-top
+       empty-abstract-flow-control-return))]
 
    ;;; Statements
    ;;; Statements return a store but aside from return statements the
@@ -867,7 +880,7 @@ Types can be:
                     (list abstract-value/range/top store flow-returns))]
    #|
    TODO - there are no void functions yet, so once there are this (and all
-          non-return statements) should return void.
+   non-return statements) should return void.
    |#
    [VoidReturnStatement
     (λ (n store flow-returns)
@@ -875,12 +888,12 @@ Types can be:
             (must-return flow-returns abstract-value/range/top store)))]
    [ExpressionStatement
     (λ (n store flow-returns)
-      (att-value 'abstract-interp-do/range
-                 (ast-child 'Expression n) store flow-returns))]
+      (abstract-interp-wrap/range
+       (ast-child 'Expression n) store flow-returns))]
    [ValueReturnStatement
     (λ (n store flow-returns)
-      (match (att-value 'abstract-interp-do/range
-                        (ast-child 'Expression n) store flow-returns)
+      (match (abstract-interp-wrap/range
+              (ast-child 'Expression n) store flow-returns)
         [(list v s r)
          (list v s (must-return r v s))]))]
    [Block
@@ -895,10 +908,10 @@ Types can be:
                                  (reference (ast-child 'name decl)
                                             (att-value 'scope-graph-scope decl)))]
                            [(list v n-store n-rets)
-                            (att-value 'abstract-interp-do/range
-                                       (ast-child 'Expression decl)
-                                       s
-                                       r)])
+                            (abstract-interp-wrap/range
+                             (ast-child 'Expression decl)
+                             s
+                             r)])
                 (values (dict-set n-store ref v) n-rets))
               (values s r))))
       (define-values (store-after-statements rets-after-statements)
@@ -906,10 +919,10 @@ Types can be:
                    [r ret-with-decls])
                   ([statement (ast-children (ast-child 'Statement* n))])
           #:break (abstract-flow-control-return-must r)
-          (match-let ([(list v n-store n-rets) (att-value 'abstract-interp-do/range
-                                                          statement
-                                                          s
-                                                          r)])
+          (match-let ([(list v n-store n-rets) (abstract-interp-wrap/range
+                                                statement
+                                                s
+                                                r)])
             (values n-store n-rets))))
       (list abstract-value/range/top store-after-statements rets-after-statements))]
    [IfStatement
@@ -940,7 +953,7 @@ Types can be:
    [IfExpression
     {abstract-interp-do/range/if #f}]
 
-   ;; TODO - implement for real.  This includes tracking control flow and getting some return value/store, or tracking multiple branches to merge values/stores.
+   ;; TODO -- I want to analyze functions with everything as top to make any code transformation decisions, but I want to analyze their actual uses with the available abstract data.
    [FunctionApplicationExpression
     (λ (n store flow-returns)
       (let* ([binding (resolve-reference
@@ -951,13 +964,13 @@ Types can be:
              [func-block (ast-child 'Block func-def-node)]
              [func-params (ast-children (ast-child 'FormalParam* func-def-node))]
              ;; for now, let's use top for the arguments
-             [store-for-func (for/fold ([store store])
+             [store-for-func (for/fold ([store range-store-top])
                                        ([fp func-params])
                                (dict-set store fp abstract-value/range/top))])
-        (match (att-value 'abstract-interp-do/range
-                          func-block
-                          store-for-func
-                          empty-abstract-flow-control-return)
+        (match (abstract-interp-wrap/range
+                func-block
+                store-for-func
+                empty-abstract-flow-control-return)
           [(list v s returns)
            (append (abstract-flow-control-return->val-store-list/range returns)
                    (list flow-returns))])))]
@@ -965,10 +978,10 @@ Types can be:
    [AssignmentExpression
     (λ (n store flow-returns)
       (match-let ([(list val new-store new-rets)
-                   (att-value 'abstract-interp-do/range
-                              (ast-child 'Expression n)
-                              store
-                              flow-returns)]
+                   (abstract-interp-wrap/range
+                    (ast-child 'Expression n)
+                    store
+                    flow-returns)]
                   [ref-node (reference (ast-child 'name n)
                                        (att-value 'scope-graph-scope n))])
         (list val (dict-set new-store ref-node val) new-rets)))]
@@ -1593,7 +1606,7 @@ Types can be:
                  (xsmith-options options))
     (let ((ast (generate-random-prog (fresh-Prog))))
       (eprintf "/*\n")
-      (eprintf "abstract return: ~a\n" (att-value 'abstract-interp-do/range ast range-store-top empty-abstract-flow-control-return))
+      (eprintf "abstract return: ~a\n" (abstract-interp-wrap/range ast range-store-top empty-abstract-flow-control-return))
       (eprintf "*/\n")
       (if (dict-has-key? (xsmith-options) 'output-filename)
           (call-with-output-file (xsmith-option 'output-filename)
