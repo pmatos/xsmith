@@ -1605,9 +1605,6 @@ Types can be:
   (parameterize ((xsmith-state state)
                  (xsmith-options options))
     (let ((ast (generate-random-prog (fresh-Prog))))
-      (eprintf "/*\n")
-      (eprintf "abstract return: ~a\n" (abstract-interp-wrap/range ast range-store-top empty-abstract-flow-control-return))
-      (eprintf "*/\n")
       (if (dict-has-key? (xsmith-options) 'output-filename)
           (call-with-output-file (xsmith-option 'output-filename)
             #:exists 'replace
@@ -1615,9 +1612,11 @@ Types can be:
               (pretty-print (att-value 'pretty-print ast)
                             out
                             page-width)))
-          (pretty-print (att-value 'pretty-print ast)
-                        (current-output-port)
-                        page-width))
+          (begin
+            (pretty-print (att-value 'pretty-print ast)
+                          (current-output-port)
+                          page-width)
+            (printf "\n\n/*\nabstract return: ~a\n*/\n" (abstract-interp-wrap/range ast range-store-top empty-abstract-flow-control-return))))
       )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
