@@ -819,6 +819,22 @@ Types can be:
               [else abstract-value/range/top])]
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
+
+  (define {abstract-comparison-op/range op opposite-op}
+    {abstract-binary-op/range
+     (λ (l-l l-h r-l r-h)
+       (cond [(and (op l-l r-l)
+                   (op l-l r-h)
+                   (op l-h r-l)
+                   (op l-h r-h))
+              (list 1 1)]
+             [(and (opposite-op l-l r-l)
+                   (opposite-op l-l r-h)
+                   (opposite-op l-h r-l)
+                   (opposite-op l-h r-h))
+              (list 0 0)]
+             [else (list 0 1)]))})
+
   (define ({abstract-interp-do/range/if one-sided?} n store flow-returns)
     (match-let ([(list (abstract-value/range low high)
                        new-store
@@ -1026,7 +1042,10 @@ Types can be:
            ['(- +) (list (* l-l r-h) (* l-h r-l))]
            ['(- both) (list (* l-l r-h) (* l-l r-l))]
            ['(- -) (list (* l-h r-h) (* l-l r-l))])))}]
-   ;; TODO - make a real transfer function
+   ;; TODO - make a real transfer functions.
+   ;; Division and modulus are both undefined when the divisor is 0,
+   ;; division is undefined if the numerator is INT_MIN and the denominator is -1,
+   ;; and I'm not sure about modulus in that case.
    [DivisionExpression
     {abstract-binary-op/range
      (λ (l-l l-h r-l r-h) (list -inf.0 +inf.0))}]
@@ -1036,13 +1055,20 @@ Types can be:
 
    [EqualityExpression
     {abstract-binary-op/range
-     (λ args
+     (λ (l-l l-h r-l r-h)
        (let ([equal-val (foldl (λ (l r) (and (equal? l r) r))
-                               (car args) (cdr args))])
-         (if equal-val (list equal-val equal-val) (list 0 1))))}]
-   ;; TODO -- better transfer functions for < > <= >=
-   ;; A default comparison result -- it is always 0 or 1.
-   [ComparisonExpression {abstract-binary-op/range (λ args (list 0 1))}]
+                               l-l (list l-h r-l r-h))]
+             [no-overlap? (or (and (< l-l r-l r-h)
+                                   (< l-h r-l r-h))
+                              (and (< r-l l-l l-h)
+                                   (< r-h l-l l-h)))])
+         (cond [equal-val (list 1 1)]
+               [no-overlap? (list 0 0)]
+               [else (list 0 1)])))}]
+   [LessThanExpression {abstract-comparison-op/range < >=}]
+   [GreaterThanExpression {abstract-comparison-op/range > <=}]
+   [LessOrEqualExpression {abstract-comparison-op/range <= >}]
+   [GreaterOrEqualExpression {abstract-comparison-op/range >= <}]
 
    [Node (λ (n store flow-returns)
            (error 'abstract-interp-do/range "no default ag-rule"))])
