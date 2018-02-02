@@ -299,7 +299,8 @@ Types can be:
 
 ;;; wrapper for the ag-rule to prevent function cycles
 (define (abstract-interp-wrap/range n store flow-returns)
-  (if (equal? 'FunctionApplicationExpression (ast-node-type n))
+  (if (member (ast-node-type n) '(FunctionApplicationExpression
+                                  FunctionDefinition))
       (if (member n (current-abstract-interp-call-stack))
           (list abstract-value/range/top range-store-top flow-returns)
           (parameterize ([current-abstract-interp-call-stack
@@ -307,12 +308,18 @@ Types can be:
             (att-value 'abstract-interp-do/range n store flow-returns)))
       (att-value 'abstract-interp-do/range n store flow-returns)))
 
+(define-syntax (values->list stx)
+  (syntax-parse stx
+    [(_ e ...)
+     #'(call-with-values
+        (λ () e ...)
+        list)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (with-specification spec
   (ast-rule 'Node->precomment-postcomment)
-  (ast-rule 'Program:Node->Declaration*-FunctionDefinition<main-FunctionApplicationExpression)
+  (ast-rule 'Program:Node->Declaration*-FunctionDefinition<main)
 
   (ast-rule 'Declaration:Node->name)
   (ast-rule 'DeclarationHole:Declaration->)
@@ -880,7 +887,7 @@ Types can be:
    [Program
     (λ (n store flow-returns)
       (abstract-interp-wrap/range
-       (ast-child 'FunctionApplicationExpression n)
+       (ast-child 'main n)
        range-store-top
        empty-abstract-flow-control-return))]
 
@@ -969,20 +976,40 @@ Types can be:
    [IfExpression
     {abstract-interp-do/range/if #f}]
 
-   ;; TODO -- I want to analyze functions with everything as top to make any code transformation decisions, but I want to analyze their actual uses with the available abstract data.
+   ;; Function Definitions will be evaluated with store and arguments as top for
+   ;; analyzing for potential code transformations.
+   [FunctionDefinition
+    (λ (func-def-node store flow-returns)
+      (match (abstract-interp-wrap/range
+              (ast-child 'Block func-def-node)
+              range-store-top
+              empty-abstract-flow-control-return)
+        [(list v s returns)
+         (append (abstract-flow-control-return->val-store-list/range returns)
+                 (list flow-returns))]))]
+   ;; Function applications will be evaluated with the arguments given.
    [FunctionApplicationExpression
     (λ (n store flow-returns)
-      (let* ([binding (resolve-reference
-                       (reference (ast-child 'name n)
-                                  (att-value 'scope-graph-scope n)))]
-             [bound (binding-bound binding)]
-             [func-def-node (dict-ref bound 'declaration-node)]
-             [func-block (ast-child 'Block func-def-node)]
-             [func-params (ast-children (ast-child 'FormalParam* func-def-node))]
-             ;; for now, let's use top for the arguments
-             [store-for-func (for/fold ([store range-store-top])
-                                       ([fp func-params])
-                               (dict-set store fp abstract-value/range/top))])
+      (match-let* ([binding (resolve-reference
+                             (reference (ast-child 'name n)
+                                        (att-value 'scope-graph-scope n)))]
+                   [bound (binding-bound binding)]
+                   [func-def-node (dict-ref bound 'declaration-node)]
+                   [func-block (ast-child 'Block func-def-node)]
+                   [func-params (ast-children (ast-child 'FormalParam* func-def-node))]
+                   [(list reversed-args store rets)
+                    (values->list
+                     (for/fold ([args-so-far '()]
+                                [store store]
+                                [rets flow-returns])
+                               ([expr (ast-children (ast-child 'Expression* n))])
+                       (match-define (list v s r)
+                         (abstract-interp-wrap/range expr store rets))
+                       (values (cons v args-so-far) s r)))]
+                   [store-for-func (for/fold ([store store])
+                                             ([fp func-params]
+                                              [arg (reverse reversed-args)])
+                                     (dict-set store fp arg))])
         (match (abstract-interp-wrap/range
                 func-block
                 store-for-func
@@ -1582,10 +1609,7 @@ Types can be:
                             "main"
                             "int"
                             (create-ast-list '())
-                            (fresh-block-hole))
-                (fresh-node 'FunctionApplicationExpression
-                             "main"
-                             (create-ast-list '()))))
+                            (fresh-block-hole))))
   (rewrite-terminal 'precomment p
                     (h-append
                      line
