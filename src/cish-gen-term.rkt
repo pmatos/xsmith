@@ -308,11 +308,12 @@ Types can be:
 (define (abstract-interp-wrap/range n store flow-returns)
   (if (member (ast-node-type n) '(FunctionApplicationExpression
                                   FunctionDefinition))
-      (if (member n (current-abstract-interp-call-stack))
-          (list abstract-value/range/top range-store-top flow-returns)
-          (parameterize ([current-abstract-interp-call-stack
-                          (cons n (current-abstract-interp-call-stack))])
-            (att-value 'abstract-interp-do/range n store flow-returns)))
+      (let ([name (ast-child 'name n)])
+        (if (member name (current-abstract-interp-call-stack))
+            (list abstract-value/range/top range-store-top flow-returns)
+            (parameterize ([current-abstract-interp-call-stack
+                            (cons name (current-abstract-interp-call-stack))])
+              (att-value 'abstract-interp-do/range n store flow-returns))))
       (att-value 'abstract-interp-do/range n store flow-returns)))
 
 (define-syntax (values->list stx)
