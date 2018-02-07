@@ -272,11 +272,18 @@ Types can be:
     [(abstract-flow-control-return a-maybes a-must)
      (match b
        [(abstract-flow-control-return b-maybes b-must)
-        (abstract-flow-control-return (append a-maybes b-maybes)
-                                      (if (and a b)
-                                          (error 'abstract-flow-control-return-merge
-                                                 "Both sides must return, this shouldn't happen")
-                                          (or a b)))])]))
+        (if (and a-must b-must)
+            (abstract-flow-control-return (append (list a-must) a-maybes b-maybes)
+                                          b-must)
+            (abstract-flow-control-return (append a-maybes b-maybes)
+                                          (or a-must b-must)))])]))
+
+(define (abstract-flow-control-return-only-maybe-ify r)
+  (match r
+    [(abstract-flow-control-return maybes must)
+     (if must
+         (abstract-flow-control-return (cons must maybes) #f)
+         r)]))
 
 (define ({merge-*-ify merge-func} . args)
   (cond [(empty? args) (error 'merge-*-ify "this shouldn't happen -- merge-*-ify client got no arguments")]
@@ -314,6 +321,18 @@ Types can be:
      #'(call-with-values
         (λ () e ...)
         list)]))
+
+;; find child with simplified interface for my normal case
+(define (ast-find-child+1 n predicate)
+  (ast-find-child (λ (index node)
+                    (and (ast-node? node)
+                         (predicate node)))
+                  n))
+
+;; find ALL children that satisfy the predicate
+(define (ast-find-child+* n predicate)
+  (filter (λ (child) (and (ast-node? child) (predicate child)))
+          (ast-children n)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -956,8 +975,30 @@ Types can be:
    ;; TODO -- implement specific loops (while, for, do-while) and don't just punt to top
    [LoopStatement
     (λ (n store flow-returns)
-      (list abstract-value/range/top range-store-top
-            (maybe-return flow-returns abstract-value/range/top range-store-top)))]
+      (define assignments
+        (ast-find-child+* n (λ (node)
+                              (ast-subtype? node 'AssignmentExpression))))
+      (define new-store
+        (for/fold ([s store])
+                  ([a assignments])
+          (dict-set s
+                    (resolve-reference
+                     (reference (ast-child 'name a)
+                                (att-value 'scope-graph-scope a)))
+                    abstract-value/range/top)))
+      (define has-return?
+        (ast-find-child+1 n (λ (node)
+                              (ast-subtype? node 'ReturnStatement))))
+      (if has-return?
+          (match-let ([(list v s r)
+                       (abstract-interp-wrap/range (ast-child 'body n)
+                                                   new-store
+                                                   flow-returns)])
+            (list abstract-value/range/top
+                  s
+                  (abstract-flow-control-return-only-maybe-ify
+                   (abstract-flow-control-return-merge flow-returns r))))
+          (list abstract-value/range/top new-store flow-returns)))]
 
    ;;; Expressions
    [ExpressionHole
