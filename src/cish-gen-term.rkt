@@ -299,7 +299,9 @@ Types can be:
 (define abstract-flow-control-return-merge*
   {merge-*-ify abstract-flow-control-return-merge})
 
-(define abstract-flow-control-return->val-store-list/range {abstract-flow-control-return->val-store-list abstract-value-merge*/range abstract-store-merge*/range})
+(define abstract-flow-control-return->val-store-list/range
+  {abstract-flow-control-return->val-store-list
+   abstract-value-merge*/range abstract-store-merge*/range})
 
 
 (define current-abstract-interp-call-stack (make-parameter '()))
@@ -881,8 +883,20 @@ Types can be:
         ;; Maybe sometimes true and sometimes false...
         [else
          ;; TODO -- interp BOTH sides and merge the result values and stores
-         (list abstract-value/range/top range-store-top
-               (maybe-return new-rets abstract-value/range/top range-store-top))])))
+         ;;; (abstract-flow-control-return-merge flow-returns r)
+         (match-let ([(list then-v then-s then-r)
+                      (abstract-interp-wrap/range (ast-child 'then n)
+                                                  new-store
+                                                  new-rets)]
+                     [(list else-v else-s else-r)
+                      (if one-sided?
+                          (list abstract-value/range/top new-store new-rets)
+                          (abstract-interp-wrap/range (ast-child 'else n)
+                                                      new-store
+                                                      new-rets))])
+           (list (abstract-value-merge/range then-v else-v)
+                 (abstract-store-merge*/range then-s else-s)
+                 (abstract-flow-control-return-merge then-r else-r)))])))
 
   (ag-rule
    abstract-interp/range
