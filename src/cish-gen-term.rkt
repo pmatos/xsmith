@@ -308,15 +308,19 @@ Types can be:
 
 ;;; wrapper for the ag-rule to prevent function cycles
 (define (abstract-interp-wrap/range n store flow-returns)
-  (if (member (ast-node-type n) '(FunctionApplicationExpression
-                                  FunctionDefinition))
-      (let ([name (ast-child 'name n)])
-        (if (member name (current-abstract-interp-call-stack))
-            (list abstract-value/range/top range-store-top flow-returns)
-            (parameterize ([current-abstract-interp-call-stack
-                            (cons name (current-abstract-interp-call-stack))])
-              (att-value 'abstract-interp-do/range n store flow-returns))))
-      (att-value 'abstract-interp-do/range n store flow-returns)))
+  (let* ([result
+          (if (member (ast-node-type n) '(FunctionApplicationExpression
+                                          FunctionDefinition))
+              (let ([name (ast-child 'name n)])
+                (if (member name (current-abstract-interp-call-stack))
+                    (list abstract-value/range/top range-store-top flow-returns)
+                    (parameterize ([current-abstract-interp-call-stack
+                                    (cons name (current-abstract-interp-call-stack))])
+                      (att-value 'abstract-interp-do/range n store flow-returns))))
+              (att-value 'abstract-interp-do/range n store flow-returns))]
+         [result-hash (att-value 'abstract-interp-result-hash/range n)])
+    (hash-set! result-hash n (cons result (hash-ref result-hash n '())))
+    result))
 
 (define-syntax (values->list stx)
   (syntax-parse stx
@@ -901,12 +905,38 @@ Types can be:
   (ag-rule
    abstract-interp/range
    ;; Get the single global result of abstract interpretation of this node.
+   [Node (λ (n)
+           ;; Interp the containing function to fill the result hash.
+           (abstract-interp-wrap/range
+            (att-value 'get-containing-function-definition n)
+            range-store-top
+            empty-abstract-flow-control-return)
+           (match (att-value 'abstract-interp-result-hash/range n)
+             [(list (list vs ss rs) ...)
+              (list (apply abstract-value-merge*/range vs)
+                    (apply abstract-store-merge*/range ss)
+                    (apply abstract-flow-control-return-merge* rs))]))]
    [Node (λ (n) (error 'abstract-interp/range "no default ag-rule"))])
   (ag-rule
-   abstract-interp-get-store-for-child/range
-   ;; Takes a (parent) node, and the child that the store is wanted for.
-   [Node (λ (n child) (error 'abstract-interp-get-store-for-child/range
-                             "no default ag-rule"))])
+   get-containing-function-definition
+   [FunctionDefinition (λ (n) n)]
+   [Program (λ (n) (error 'get-containing-function-definition
+                          "This ag-rule should never be called on the top-level program node"))]
+   [Node (λ (n) (att-value 'get-containing-function-definition (ast-parent n)))])
+
+  (ag-rule
+   ;; To get a general interp result for any given node, we need to cache
+   ;; the results of evaluation when we interpret the whole function it is in.
+   ;; We collect results in this hash, then merge if there are multiple results.
+   ;; The hash is MUTATED during interpretation to achieve this.
+   ;; The hash holds a list of results for each node (or nothing -- use '() as
+   ;; a default).  Although an empty result should mean the node is dead code.
+   abstract-interp-result-hash/range
+   [FunctionDefinition (λ (n) (make-hash))]
+   [Program (λ (n) (error 'abstract-interp-result-hash/range
+                          "This should never be called on the top-level program node."))]
+   [Node (λ (n) (att-value 'abstract-interp-result-hash/range (ast-parent n)))]
+   )
 
   (ag-rule
    ;; For implementing abstract-interp/range.
