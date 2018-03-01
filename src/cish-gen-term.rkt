@@ -915,13 +915,11 @@ Types can be:
              [(list (list vs ss rs) ...)
               (list (apply abstract-value-merge*/range vs)
                     (apply abstract-store-merge*/range ss)
-                    (apply abstract-flow-control-return-merge* rs))]))]
-   [Node (λ (n) (error 'abstract-interp/range "no default ag-rule"))])
+                    (apply abstract-flow-control-return-merge* rs))]))])
   (ag-rule
    get-containing-function-definition
    [FunctionDefinition (λ (n) n)]
-   [Program (λ (n) (error 'get-containing-function-definition
-                          "This ag-rule should never be called on the top-level program node"))]
+   [Program (λ (n) (att-value 'get-containing-function-definition (ast-child 'main n)))]
    [Node (λ (n) (att-value 'get-containing-function-definition (ast-parent n)))])
 
   (ag-rule
@@ -933,8 +931,7 @@ Types can be:
    ;; a default).  Although an empty result should mean the node is dead code.
    abstract-interp-result-hash/range
    [FunctionDefinition (λ (n) (make-hash))]
-   [Program (λ (n) (error 'abstract-interp-result-hash/range
-                          "This should never be called on the top-level program node."))]
+   [Program (λ (n) (att-value 'abstract-interp-result-hash/range (ast-child 'main n)))]
    [Node (λ (n) (att-value 'abstract-interp-result-hash/range (ast-parent n)))]
    )
 
