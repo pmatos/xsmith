@@ -341,6 +341,25 @@ Types can be:
   (filter (λ (child) (and (ast-node? child) (predicate child)))
           (ast-children n)))
 
+
+(define ({binary-expression-print/infix op-sym} n)
+  (h-comment
+   n
+   (h-append lparen
+             (hs-append (att-value 'pretty-print (ast-child 'l n))
+                        op-sym
+                        (att-value 'pretty-print (ast-child 'r n)))
+             rparen)))
+(define ({binary-expression-print/function f-name} n)
+  (h-comment
+   n
+   (h-append f-name
+             lparen
+             (hs-append (att-value 'pretty-print (ast-child 'l n))
+                        comma
+                        (att-value 'pretty-print (ast-child 'r n)))
+             rparen)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (with-specification spec
@@ -380,12 +399,17 @@ Types can be:
   (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
   (ast-rule 'BinaryExpression:Expression->Expression<l-Expression<r)
   (ast-rule 'AdditionExpression:BinaryExpression->)
+  (ast-rule 'UnsafeAdditionExpression:AdditionExpression->)
   (ast-rule 'SubtractionExpression:BinaryExpression->)
+  (ast-rule 'UnsafeSubtractionExpression:SubtractionExpression->)
   (ast-rule 'MultiplicationExpression:BinaryExpression->)
+  (ast-rule 'UnsafeMultiplicationExpression:MultiplicationExpression->)
   (ast-rule 'DivisionExpression:BinaryExpression->)
+  (ast-rule 'UnsafeDivisionExpression:DivisionExpression->)
 
   (ast-rule 'IntOnlyBinaryExpression:BinaryExpression->)
   (ast-rule 'ModulusExpression:IntOnlyBinaryExpression->)
+  (ast-rule 'UnsafeModulusExpression:ModulusExpression->)
 
   (ast-rule 'ComparisonExpression:BinaryExpression->)
   (ast-rule 'EqualityExpression:ComparisonExpression->)
@@ -603,32 +627,29 @@ Types can be:
                             colon
                             (att-value 'pretty-print (ast-child 'else n)))
                  rparen)))]
-   [BinaryExpression
-    (λ (n)
-      (h-comment
-       n
-       (h-append lparen
-                 (hs-append (att-value 'pretty-print (ast-child 'l n))
-                            (att-value 'pretty-print-op n)
-                            (att-value 'pretty-print (ast-child 'r n)))
-                 rparen)))]
+
+   ;; TODO -- gen the name of the safe op function from the type of the operator
+   [AdditionExpression {binary-expression-print/function (text "safe_add")}]
+   [SubtractionExpression {binary-expression-print/function (text "safe_sub")}]
+   [MultiplicationExpression {binary-expression-print/function (text "safe_mul")}]
+   [DivisionExpression {binary-expression-print/function (text "safe_div")}]
+   [ModulusExpression {binary-expression-print/function (text "safe_mod")}]
+
+   [UnsafeAdditionExpression {binary-expression-print/infix plus}]
+   [UnsafeSubtractionExpression {binary-expression-print/infix minus}]
+   [UnsafeMultiplicationExpression {binary-expression-print/infix star}]
+   [UnsafeDivisionExpression {binary-expression-print/infix slash}]
+   [UnsafeModulusExpression {binary-expression-print/infix percent}]
+
+   [EqualityExpression {binary-expression-print/infix (h-append eqsign eqsign)}]
+   [GreaterThanExpression {binary-expression-print/infix greater}]
+   [LessThanExpression {binary-expression-print/infix less}]
+   [GreaterOrEqualExpression {binary-expression-print/infix (h-append greater eqsign)}]
+   [LessOrEqualExpression {binary-expression-print/infix (h-append less eqsign)}]
+
    [Node (λ (n) (error 'pretty-print "no default ag-rule"))]
    )
 
-  (ag-rule
-   pretty-print-op
-   [AdditionExpression (λ (n) plus)]
-   [SubtractionExpression (λ (n) minus)]
-   [MultiplicationExpression (λ (n) star)]
-   [DivisionExpression (λ (n) slash)]
-   [ModulusExpression (λ (n) percent)]
-   [EqualityExpression (λ (n) (h-append eqsign eqsign))]
-   [GreaterThanExpression (λ (n) greater)]
-   [LessThanExpression (λ (n) less)]
-   [GreaterOrEqualExpression (λ (n) (h-append greater eqsign))]
-   [LessOrEqualExpression (λ (n) (h-append less eqsign))]
-   [Node (λ (n) (error 'pretty-print-op "no default ag-rule"))]
-   )
 
   (ag-rule
    scope-graph-binding
@@ -1124,6 +1145,7 @@ Types can be:
               store
               flow-returns)))]
 
+   ;; TODO - make the current transfer functions be for the unsafe versions, and add safe wrappers that add the range of the default return
    [AdditionExpression
     {abstract-binary-op/range
      (λ (l-l l-h r-l r-h)
