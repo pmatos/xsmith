@@ -851,7 +851,7 @@ Types can be:
                  (default-misc-constraints n)))])
 
 
-  (define ({abstract-binary-op/range op} node store flow-returns)
+  (define ({abstract-binary-op/range op #:unsafe [unsafe #f]} node store flow-returns)
     ;; op is a function of (l-l l-h r-l r-h -> (list low high))
     (match-let* ([(list val-l sto-l ret-l) (abstract-interp-wrap/range
                                             (ast-child 'l node)
@@ -867,9 +867,14 @@ Types can be:
            [(abstract-value/range r-low r-high)
             (match (op l-low l-high r-low r-high)
               [(list low high)
-               (list (abstract-value/range (nan->-inf low) (nan->+inf high))
-                     sto-r
-                     ret-r)]
+               (let ([result (abstract-value/range (nan->-inf low) (nan->+inf high))])
+                 (if unsafe
+                     (list result
+                           sto-r
+                           ret-r)
+                     (list (abstract-value-merge/range result val-l)
+                           sto-r
+                           ret-r)))]
               [else abstract-value/range/top])]
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
@@ -887,7 +892,8 @@ Types can be:
                    (opposite-op l-h r-l)
                    (opposite-op l-h r-h))
               (list 0 0)]
-             [else (list 0 1)]))})
+             [else (list 0 1)]))
+     #:unsafe #t})
 
   (define ({abstract-interp-do/range/if one-sided?} n store flow-returns)
     (match-let ([(list (abstract-value/range low high)
@@ -922,6 +928,41 @@ Types can be:
            (list (abstract-value-merge/range then-v else-v)
                  (abstract-store-merge*/range then-s else-s)
                  (abstract-flow-control-return-merge then-r else-r)))])))
+
+
+  (define addition-op/range
+    (λ (l-l l-h r-l r-h)
+      (list (+ l-l r-l) (+ l-h r-h))))
+  (define subtraction-op/range
+    (λ (l-l l-h r-l r-h)
+      (list (- l-l r-h) (- l-h r-l))))
+  (define multiplication-op/range
+    (λ (l-l l-h r-l r-h)
+      (let ([signl (if (equal? (negative? l-l) (negative? l-h))
+                       (if (negative? l-l) '- '+)
+                       'both)]
+            [signr (if (equal? (negative? r-l) (negative? r-h))
+                       (if (negative? r-l) '- '+)
+                       'both)])
+        (match (list signl signr)
+          ['(+ +) (list (* l-l r-l) (* l-h r-h))]
+          ['(+ both) (list (* l-h r-l) (* l-h r-h))]
+          ['(+ -) (list (* l-h r-l) (* l-l r-h))]
+          ['(both +) (list (* l-l r-h) (* l-h r-h))]
+          ['(both both) (list (min (* l-l r-h) (* l-h r-l))
+                              (max (* l-l r-l) (* l-h r-h)))]
+          ['(both -) (list (* l-h r-l) (* l-l r-l))]
+          ['(- +) (list (* l-l r-h) (* l-h r-l))]
+          ['(- both) (list (* l-l r-h) (* l-l r-l))]
+          ['(- -) (list (* l-h r-h) (* l-l r-l))]))))
+  ;; TODO - make a real transfer functions.
+  ;; Division and modulus are both undefined when the divisor is 0,
+  ;; division is undefined if the numerator is INT_MIN and the denominator is -1,
+  ;; and I'm not sure about modulus in that case.
+  (define division-op/range
+    (λ (l-l l-h r-l r-h) (list -inf.0 +inf.0)))
+  (define modulus-op/range
+    (λ (l-l l-h r-l r-h) (list -inf.0 +inf.0)))
 
   (ag-rule
    abstract-interp/range
@@ -1145,45 +1186,26 @@ Types can be:
               store
               flow-returns)))]
 
-   ;; TODO - make the current transfer functions be for the unsafe versions, and add safe wrappers that add the range of the default return
    [AdditionExpression
-    {abstract-binary-op/range
-     (λ (l-l l-h r-l r-h)
-       (list (+ l-l r-l) (+ l-h r-h)))}]
+    {abstract-binary-op/range addition-op/range}]
+   [UnsafeAdditionExpression
+    {abstract-binary-op/range addition-op/range #:unsafe #t}]
    [SubtractionExpression
-    {abstract-binary-op/range
-     (λ (l-l l-h r-l r-h)
-       (list (- l-l r-h) (- l-h r-l)))}]
+    {abstract-binary-op/range subtraction-op/range}]
+   [UnsafeSubtractionExpression
+    {abstract-binary-op/range subtraction-op/range #:unsafe #t}]
    [MultiplicationExpression
-    {abstract-binary-op/range
-     (λ (l-l l-h r-l r-h)
-       (let ([signl (if (equal? (negative? l-l) (negative? l-h))
-                        (if (negative? l-l) '- '+)
-                        'both)]
-             [signr (if (equal? (negative? r-l) (negative? r-h))
-                        (if (negative? r-l) '- '+)
-                        'both)])
-         (match (list signl signr)
-           ['(+ +) (list (* l-l r-l) (* l-h r-h))]
-           ['(+ both) (list (* l-h r-l) (* l-h r-h))]
-           ['(+ -) (list (* l-h r-l) (* l-l r-h))]
-           ['(both +) (list (* l-l r-h) (* l-h r-h))]
-           ['(both both) (list (min (* l-l r-h) (* l-h r-l))
-                               (max (* l-l r-l) (* l-h r-h)))]
-           ['(both -) (list (* l-h r-l) (* l-l r-l))]
-           ['(- +) (list (* l-l r-h) (* l-h r-l))]
-           ['(- both) (list (* l-l r-h) (* l-l r-l))]
-           ['(- -) (list (* l-h r-h) (* l-l r-l))])))}]
-   ;; TODO - make a real transfer functions.
-   ;; Division and modulus are both undefined when the divisor is 0,
-   ;; division is undefined if the numerator is INT_MIN and the denominator is -1,
-   ;; and I'm not sure about modulus in that case.
+    {abstract-binary-op/range multiplication-op/range}]
+   [UnsafeMultiplicationExpression
+    {abstract-binary-op/range multiplication-op/range #:unsafe #t}]
    [DivisionExpression
-    {abstract-binary-op/range
-     (λ (l-l l-h r-l r-h) (list -inf.0 +inf.0))}]
+    {abstract-binary-op/range division-op/range}]
+   [UnsafeDivisionExpression
+    {abstract-binary-op/range division-op/range #:unsafe #t}]
    [ModulusExpression
-    {abstract-binary-op/range
-     (λ (l-l l-h r-l r-h) (list -inf.0 +inf.0))}]
+    {abstract-binary-op/range modulus-op/range}]
+   [UnsafeModulusExpression
+    {abstract-binary-op/range modulus-op/range #:unsafe #t}]
 
    [EqualityExpression
     {abstract-binary-op/range
