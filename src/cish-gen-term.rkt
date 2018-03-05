@@ -329,17 +329,28 @@ Types can be:
         (λ () e ...)
         list)]))
 
-;; find child with simplified interface for my normal case
-(define (ast-find-child+1 n predicate)
-  (ast-find-child (λ (index node)
-                    (and (ast-node? node)
-                         (predicate node)))
-                  n))
+(define (ast-children/flat n)
+  (flatten
+   (map (λ (x) (if (and (ast-node? x) (ast-list-node? x))
+                   (ast-children x)
+                   x))
+        (ast-children n))))
 
-;; find ALL children that satisfy the predicate
-(define (ast-find-child+* n predicate)
-  (filter (λ (child) (and (ast-node? child) (predicate child)))
-          (ast-children n)))
+;;; Find all children satisfying the predicate (the given node included)
+(define (ast-find-descendants n predicate)
+  (define children (filter ast-node? (ast-children/flat n)))
+  (define matches
+    (apply append (map (λ (x) (ast-find-descendants x predicate)) children)))
+  (if (predicate n)
+      (cons n matches)
+      matches))
+
+;;; Find the first node that satisfies the predicate (the given node included)
+(define (ast-find-a-descendant n predicate)
+  (if (predicate n)
+      n
+      (for/or ([c (filter ast-node? (ast-children/flat n))])
+        (ast-find-a-descendant c predicate))))
 
 
 (define ({binary-expression-print/infix op-sym} n)
@@ -1080,8 +1091,8 @@ Types can be:
    [LoopStatement
     (λ (n store flow-returns)
       (define assignments
-        (ast-find-child+* n (λ (node)
-                              (ast-subtype? node 'AssignmentExpression))))
+        (ast-find-descendants n (λ (node)
+                                  (ast-subtype? node 'AssignmentExpression))))
       (define new-store
         (for/fold ([s store])
                   ([a assignments])
@@ -1091,8 +1102,8 @@ Types can be:
                                 (att-value 'scope-graph-scope a)))
                     abstract-value/range/top)))
       (define has-return?
-        (ast-find-child+1 n (λ (node)
-                              (ast-subtype? node 'ReturnStatement))))
+        (ast-find-a-descendant n (λ (node)
+                                   (ast-subtype? node 'ReturnStatement))))
       (if has-return?
           (match-let ([(list v s r)
                        (abstract-interp-wrap/range (ast-child 'body n)
@@ -1782,7 +1793,8 @@ Types can be:
 (define (do-one state options)
   (parameterize ((xsmith-state state)
                  (xsmith-options options))
-    (let ((ast (generate-random-prog (fresh-Prog))))
+    (let* ([ast (generate-random-prog (fresh-Prog))]
+           [ast (ast-add-unsafe-math ast)])
       (if (dict-has-key? (xsmith-options) 'output-filename)
           (call-with-output-file (xsmith-option 'output-filename)
             #:exists 'replace
@@ -1796,6 +1808,9 @@ Types can be:
                           page-width)
             (printf "\n\n/*\nabstract return: ~a\n*/\n" (abstract-interp-wrap/range ast range-store-top empty-abstract-flow-control-return))))
       )))
+
+(define (ast-add-unsafe-math ast)
+  ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
