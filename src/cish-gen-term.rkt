@@ -897,13 +897,17 @@ Types can be:
 
   ;;; safety-pred is a function of (l-l l-h r-l r-h -> bool)
   (define ({safe-binary-op-swap/range unsafe-version safety-pred} n)
-    (match-let* ([l (ast-child 'l n)]
-                 [r (ast-child 'r n)]
-                 [(list l-l l-h) (att-value 'abstract-interp/range (ast-child 'l n))]
-                 [(list r-l r-h) (att-value 'abstract-interp/range (ast-child 'r n))])
-      (if (safety-pred l-l l-h r-l r-h)
-          (fresh-node unsafe-version l r)
-          n)))
+    (define l (ast-child 'l n))
+    (define r (ast-child 'r n))
+    (define l-result (att-value 'abstract-interp/range (ast-child 'l n)))
+    (define r-result (att-value 'abstract-interp/range (ast-child 'r n)))
+    (if (member 'dead (list l-result r-result))
+        #f
+        (match-let ([(list (abstract-value/range l-l l-h) store-l returns-l) l-result]
+                    [(list (abstract-value/range r-l r-h) store-r returns-r) r-result])
+          (if (safety-pred l-l l-h r-l r-h)
+              unsafe-version
+              #f))))
 
   (define {abstract-comparison-op/range op opposite-op}
     {abstract-binary-op/range
@@ -999,7 +1003,12 @@ Types can be:
             (att-value 'get-containing-function-definition n)
             range-store-top
             empty-abstract-flow-control-return)
-           (match (att-value 'abstract-interp-result-hash/range n)
+           ;; If the code is unreachable then it will have no result here.
+           (match (hash-ref
+                   (att-value 'abstract-interp-result-hash/range n)
+                   n
+                   'dead)
+             ['dead 'dead]
              [(list (list vs ss rs) ...)
               (list (apply abstract-value-merge*/range vs)
                     (apply abstract-store-merge*/range ss)
@@ -1256,7 +1265,7 @@ Types can be:
   (define ({bounded-range min max} low high)
     (and (<= min low) (<= min high) (>= max low) (>= max high)))
   (define ({result-in-bounds/range range-op min max} l-l l-h r-l r-h)
-    (apply bounded-range min max (range-op l-l l-h r-l r-h)))
+    (apply (bounded-range min max) (range-op l-l l-h r-l r-h)))
   (define (division-safety-check/range l-l l-h r-l r-h)
     (and
      ;; No division by zero.
@@ -1268,27 +1277,30 @@ Types can be:
              (and (> -1 r-l) (> -1 r-h))))))
 
   (ag-rule
+   ;;; Return #f if the unsafe op can't be safely used,
+   ;;; otherwise return the name of the unsafe type to be used
+   ;;; as a refinement.
    unsafe-op-if-possible
-   ;;;;;; TODO -- I should leverage the implementation of the unsafe transfer function to check that the result is in bounds, and then use extra checks for specific args (like 0 for division)
    [AdditionExpression
     {safe-binary-op-swap/range
      'UnsafeAdditionExpression
-     {result-in-bounds/range addition-op/range}}]
+     {result-in-bounds/range addition-op/range INT_MIN INT_MAX}}]
    [SubtractionExpression
     {safe-binary-op-swap/range
      'UnsafeSubtractionExpression
-     {result-in-bounds/range subtraction-op/range}}]
+     {result-in-bounds/range subtraction-op/range INT_MIN INT_MAX}}]
    [MultiplicationExpression
     {safe-binary-op-swap/range
      'UnsafeMultiplicationExpression
-     {result-in-bounds/range multiplication-op/range}}]
+     {result-in-bounds/range multiplication-op/range INT_MIN INT_MAX}}]
    [DivisionExpression
     {safe-binary-op-swap/range
      'UnsafeDivisionExpression
      division-safety-check/range}]
    [ModulusExpression
-    'UnsafeModulusExpression
-    division-safety-check/range]
+    {safe-binary-op-swap/range
+     'UnsafeModulusExpression
+     division-safety-check/range}]
    [Node (λ (n) (error 'unsafe-op-if-possible "No default implementation"))]
    )
 
@@ -1823,6 +1835,32 @@ Types can be:
                       soft-break)))
   p)
 
+(define (ast-add-unsafe-math ast)
+  (define ops (ast-find-descendants ast (λ (n) (member (ast-node-type n)
+                                                       '(AdditionExpression
+                                                         SubtractionExpression
+                                                         MultiplicationExpression
+                                                         DivisionExpression
+                                                         ModulusExpression
+                                                         )))))
+  (define (transformer n)
+    ;; Perform any rewrites and return #t if a rewrite was performed else #f
+    (if (member (node-type n)
+                '(AdditionExpression
+                  SubtractionExpression
+                  MultiplicationExpression
+                  DivisionExpression
+                  ModulusExpression
+                  ))
+        (let ([refined-type (att-value 'unsafe-op-if-possible n)])
+          (and refined-type
+               (begin
+                 (rewrite-refine n refined-type)
+                 #t)))
+        #f))
+  (perform-rewrites ast 'bottom-up transformer)
+  ast)
+
 (define (do-it options)
   (let ((state (make-generator-state)))
     ;; Initialize the state from the options.
@@ -1862,16 +1900,6 @@ Types can be:
                           page-width)
             (printf "\n\n/*\nabstract return: ~a\n*/\n" (abstract-interp-wrap/range ast range-store-top empty-abstract-flow-control-return))))
       )))
-
-(define (ast-add-unsafe-math ast)
-  (define ops (ast-find-descendants ast (λ (n) (member (ast-node-type n)
-                                                       '(AdditionExpression
-                                                         SubtractionExpression
-                                                         MultiplicationExpression
-                                                         DivisionExpression
-                                                         ModulusExpression
-                                                         )))))
-  aoeu)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
