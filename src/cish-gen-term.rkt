@@ -224,6 +224,11 @@ Types can be:
             pretty-print-node
             (text "\033[0m")))
 
+;; TODO - I need one of these for each int type, when there are multiple
+;; TODO - I should also use the actual values that these will take...
+(define INT_MIN -10001)
+(define INT_MAX 10000)
+
 (struct abstract-value/range
   (low high)
   #:transparent)
@@ -890,6 +895,16 @@ Types can be:
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
 
+  ;;; safety-pred is a function of (l-l l-h r-l r-h -> bool)
+  (define ({safe-binary-op-swap/range unsafe-version safety-pred} n)
+    (match-let* ([l (ast-child 'l n)]
+                 [r (ast-child 'r n)]
+                 [(list l-l l-h) (att-value 'abstract-interp/range (ast-child 'l n))]
+                 [(list r-l r-h) (att-value 'abstract-interp/range (ast-child 'r n))])
+      (if (safety-pred l-l l-h r-l r-h)
+          (fresh-node unsafe-version l r)
+          n)))
+
   (define {abstract-comparison-op/range op opposite-op}
     {abstract-binary-op/range
      (λ (l-l l-h r-l r-h)
@@ -1237,6 +1252,45 @@ Types can be:
 
    [Node (λ (n store flow-returns)
            (error 'abstract-interp-do/range "no default ag-rule"))])
+
+  (define ({bounded-range min max} low high)
+    (and (<= min low) (<= min high) (>= max low) (>= max high)))
+  (define ({result-in-bounds/range range-op min max} l-l l-h r-l r-h)
+    (apply bounded-range min max (range-op l-l l-h r-l r-h)))
+  (define (division-safety-check/range l-l l-h r-l r-h)
+    (and
+     ;; No division by zero.
+     (or (and (< 0 r-l) (< 0 r-h))
+         (and (> 0 r-l) (> 0 r-h)))
+     ;; No INT_MIN / -1
+     (or (< INT_MIN l-h)
+         (or (and (< -1 r-l) (< -1 r-h))
+             (and (> -1 r-l) (> -1 r-h))))))
+
+  (ag-rule
+   unsafe-op-if-possible
+   ;;;;;; TODO -- I should leverage the implementation of the unsafe transfer function to check that the result is in bounds, and then use extra checks for specific args (like 0 for division)
+   [AdditionExpression
+    {safe-binary-op-swap/range
+     'UnsafeAdditionExpression
+     {result-in-bounds/range addition-op/range}}]
+   [SubtractionExpression
+    {safe-binary-op-swap/range
+     'UnsafeSubtractionExpression
+     {result-in-bounds/range subtraction-op/range}}]
+   [MultiplicationExpression
+    {safe-binary-op-swap/range
+     'UnsafeMultiplicationExpression
+     {result-in-bounds/range multiplication-op/range}}]
+   [DivisionExpression
+    {safe-binary-op-swap/range
+     'UnsafeDivisionExpression
+     division-safety-check/range}]
+   [ModulusExpression
+    'UnsafeModulusExpression
+    division-safety-check/range]
+   [Node (λ (n) (error 'unsafe-op-if-possible "No default implementation"))]
+   )
 
   (compile-ag-specifications)
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1810,7 +1864,14 @@ Types can be:
       )))
 
 (define (ast-add-unsafe-math ast)
-  ast)
+  (define ops (ast-find-descendants ast (λ (n) (member (ast-node-type n)
+                                                       '(AdditionExpression
+                                                         SubtractionExpression
+                                                         MultiplicationExpression
+                                                         DivisionExpression
+                                                         ModulusExpression
+                                                         )))))
+  aoeu)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
