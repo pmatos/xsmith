@@ -1044,10 +1044,32 @@ Types can be:
    ;;; Program
    [Program
     (λ (n store flow-returns)
+      (define init-store
+        (for/fold ([store range-store-top])
+                  ([global (filter (λ (cn) (equal? 'VariableDeclaration
+                                                   (node-type cn)))
+                                   (ast-children (ast-child 'Declaration* n)))])
+          (match-let* ([(list v n-store n-rets)
+                        (abstract-interp-wrap/range
+                         global
+                         store
+                         empty-abstract-flow-control-return)])
+            n-store)))
       (abstract-interp-wrap/range
        (ast-child 'main n)
-       range-store-top
+       init-store
        empty-abstract-flow-control-return))]
+   [VariableDeclaration
+    (λ (n store flow-returns)
+      (match-let* ([ref (resolve-reference
+                         (reference (ast-child 'name n)
+                                    (att-value 'scope-graph-scope n)))]
+                   [(list v n-store n-rets)
+                    (abstract-interp-wrap/range
+                     (ast-child 'Expression n)
+                     store
+                     empty-abstract-flow-control-return)])
+        (list v (dict-set n-store ref v) n-rets)))]
 
    ;;; Statements
    ;;; Statements return a store but aside from return statements the
@@ -1085,15 +1107,9 @@ Types can be:
                   ([decl (ast-children (ast-child 'Declaration* n))])
           ;; There are declaration holes and such, so check that it is a variable decl.
           (if (equal? (ast-node-type decl) 'VariableDeclaration)
-              (match-let* ([ref (resolve-reference
-                                 (reference (ast-child 'name decl)
-                                            (att-value 'scope-graph-scope decl)))]
-                           [(list v n-store n-rets)
-                            (abstract-interp-wrap/range
-                             (ast-child 'Expression decl)
-                             s
-                             r)])
-                (values (dict-set n-store ref v) n-rets))
+              (match-let* ([(list v n-store n-rets)
+                            (abstract-interp-wrap/range decl s r)])
+                (values n-store n-rets))
               (values s r))))
       (define-values (store-after-statements rets-after-statements)
         (for/fold ([s store-with-decls]
