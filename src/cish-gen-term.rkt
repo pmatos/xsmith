@@ -323,8 +323,9 @@ Types can be:
                                     (cons name (current-abstract-interp-call-stack))])
                       (att-value 'abstract-interp-do/range n store flow-returns))))
               (att-value 'abstract-interp-do/range n store flow-returns))]
-         [result-hash (att-value 'abstract-interp-result-hash/range n)])
-    (hash-set! result-hash n (cons result (hash-ref result-hash n '())))
+         [result-hash (att-value 'abstract-interp-result-hash/range n)]
+         [node-id (ast-child 'serialnumber n)])
+    (hash-set! result-hash node-id (cons result (hash-ref result-hash node-id '())))
     result))
 
 (define-syntax (values->list stx)
@@ -339,7 +340,9 @@ Types can be:
    (map (λ (x) (if (and (ast-node? x) (ast-list-node? x))
                    (ast-children x)
                    x))
-        (ast-children n))))
+        (if (ast-node? n)
+            (ast-children n)
+            '()))))
 
 ;;; Find all children satisfying the predicate (the given node included)
 (define (ast-find-descendants n predicate)
@@ -379,7 +382,7 @@ Types can be:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (with-specification spec
-  (ast-rule 'Node->precomment-postcomment)
+  (ast-rule 'Node->precomment-postcomment-serialnumber)
   (ast-rule 'Program:Node->Declaration*-FunctionDefinition<main)
 
   (ast-rule 'Declaration:Node->name)
@@ -574,14 +577,14 @@ Types can be:
     (λ (n)
       (v-comment
        n
-       (h-append (att-value 'pretty-print (ast-child 3 n))
+       (h-append (att-value 'pretty-print (ast-child 'Expression n))
                  semi)))]
    [ValueReturnStatement
     (λ (n)
       (v-comment
        n
        (h-append return: space
-                 (att-value 'pretty-print (ast-child 3 n))
+                 (att-value 'pretty-print (ast-child 'Expression n))
                  semi)))]
    [NullStatement
     (λ (n)
@@ -999,14 +1002,15 @@ Types can be:
    ;; Get the single global result of abstract interpretation of this node.
    [Node (λ (n)
            ;; Interp the containing function to fill the result hash.
-           (abstract-interp-wrap/range
-            (att-value 'get-containing-function-definition n)
-            range-store-top
-            empty-abstract-flow-control-return)
+           (define result
+             (abstract-interp-wrap/range
+              (att-value 'get-containing-function-definition n)
+              range-store-top
+              empty-abstract-flow-control-return))
            ;; If the code is unreachable then it will have no result here.
            (match (hash-ref
                    (att-value 'abstract-interp-result-hash/range n)
-                   n
+                   (ast-child 'serialnumber n)
                    'dead)
              ['dead 'dead]
              [(list (list vs ss rs) ...)
@@ -1015,8 +1019,10 @@ Types can be:
                     (apply abstract-flow-control-return-merge* rs))]))])
   (ag-rule
    get-containing-function-definition
-   [FunctionDefinition (λ (n) n)]
-   [Program (λ (n) (att-value 'get-containing-function-definition (ast-child 'main n)))]
+   [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main"))
+                                  n
+                                  (ast-parent n)))]
+   [Program (λ (n) n)]
    [Node (λ (n) (att-value 'get-containing-function-definition (ast-parent n)))])
 
   (ag-rule
@@ -1027,8 +1033,11 @@ Types can be:
    ;; The hash holds a list of results for each node (or nothing -- use '() as
    ;; a default).  Although an empty result should mean the node is dead code.
    abstract-interp-result-hash/range
-   [FunctionDefinition (λ (n) (make-hash))]
-   [Program (λ (n) (att-value 'abstract-interp-result-hash/range (ast-child 'main n)))]
+   [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main"))
+                                  (make-hasheq)
+                                  (att-value 'abstract-interp-result-hash/range
+                                             (ast-parent n))))]
+   [Program (λ (n) (make-hasheq))]
    [Node (λ (n) (att-value 'abstract-interp-result-hash/range (ast-parent n)))]
    )
 
@@ -1046,8 +1055,7 @@ Types can be:
     (λ (n store flow-returns)
       (define init-store
         (for/fold ([store range-store-top])
-                  ([global (filter (λ (cn) (equal? 'VariableDeclaration
-                                                   (node-type cn)))
+                  ([global (filter (λ (cn) (ast-subtype? cn 'VariableDeclaration))
                                    (ast-children (ast-child 'Declaration* n)))])
           (match-let* ([(list v n-store n-rets)
                         (abstract-interp-wrap/range
@@ -1745,7 +1753,13 @@ Types can be:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-syntax-rule (fresh-node type attr-val ...)
-  (create-ast spec type (list empty empty attr-val ...)))
+  (create-ast spec type (list empty empty (node-id) attr-val ...)))
+
+(define node-id-counter 0)
+(define (node-id)
+  (begin0
+      node-id-counter
+    (set! node-id-counter (add1 node-id-counter))))
 
 (define (node-type n)
   (and (not (ast-list-node? n)) (not (ast-bud-node? n)) (ast-node-type n)))
