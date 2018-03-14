@@ -152,9 +152,9 @@
   #:transparent)
 
 (define bool-hint (hint 8))
-(define block-hint (hint 10))
-(define assignment-hint (hint 100))
-(define application-hint (hint 25))
+(define block-hint (hint 50))
+(define assignment-hint (hint 70))
+(define application-hint (hint 50))
 
 #|
 TYPES
@@ -1440,12 +1440,16 @@ Types can be:
 
 (define-syntax (hinted-choice-weight stx)
   (syntax-parse stx
-    [(_ hint-name)
+    [(_ base-weight hint-name)
      #'(define/override (choice-weight)
+         (define bw base-weight)
+         (define w (or bw (super choice-weight)))
          (if (member hint-name (att-value 'hints current-hole))
              (* (hint-weight-multiplier hint-name)
-                (super choice-weight))
-             (super choice-weight)))]))
+                w)
+             w))]
+    [(rec hint-name)
+     #'(rec #f hint-name)]))
 
 (define StatementChoice
   (class cish-ast-choice%
@@ -1473,6 +1477,7 @@ Types can be:
     (super-new)))
 (define IfStatementChoice
   (class StatementChoice
+    (define/override (choice-weight) 5)
     (define/override (features) '(if-statement))
     (define/override (fresh)
       (fresh-node 'IfStatement
@@ -1481,6 +1486,7 @@ Types can be:
     (super-new)))
 (define IfElseStatementChoice
   (class IfStatementChoice
+    (define/override (choice-weight) 5)
     (define/override (fresh)
       (fresh-node 'IfElseStatement
                   (fresh-node 'ExpressionHole)
@@ -1495,6 +1501,7 @@ Types can be:
     (super-new)))
 (define WhileStatementChoice
   (class LoopStatementChoice
+    (define/override (choice-weight) 2)
     (define/override (fresh)
       (fresh-node 'WhileStatement
                   (fresh-node 'ExpressionHole)
@@ -1502,6 +1509,7 @@ Types can be:
     (super-new)))
 (define DoWhileStatementChoice
   (class LoopStatementChoice
+    (define/override (choice-weight) 1)
     (define/override (fresh)
       (fresh-node 'DoWhileStatement
                   (fresh-node 'ExpressionHole)
@@ -1509,6 +1517,7 @@ Types can be:
     (super-new)))
 (define ForStatementChoice
   (class LoopStatementChoice
+    (define/override (choice-weight) 7)
     (define/override (fresh)
       (fresh-node 'ForStatement
                   (fresh-node 'ExpressionHole)
@@ -1519,13 +1528,13 @@ Types can be:
     (super-new)))
 (define BlockChoice
   (class StatementChoice
-    (hinted-choice-weight block-hint)
+    (hinted-choice-weight 1 block-hint)
     (define/override (fresh)
       (fresh-node 'Block
                   ;; declarations
                   (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
                                                            "standin-name"))
-                                        (make-list (random 3) #f)))
+                                        (make-list (random 9) #f)))
                   ;; statements
                   (create-ast-list
                    (map (λ (x) (fresh-node 'StatementHole))
@@ -1579,6 +1588,7 @@ Types can be:
            (define/override (features) '(feature))
            (define/override (wont-over-deepen)
              this)
+           (define/override (choice-weight) 3)
            (define/override (constrain-type)
              (let ([t (att-value 'type-context current-hole)])
                ;; This isn't necessarily nonzero, but it will be if needed.
