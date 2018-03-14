@@ -1032,6 +1032,10 @@ Types can be:
       (ast-find-a-descendant n (λ (node)
                                  (and (ast-node? node)
                                       (node-subtype? node 'ReturnStatement)))))
+    ;; interp the test once generically for analysis info to be properly generic
+    (abstract-interp-wrap/range (ast-child 'test n)
+                                range-store-top
+                                empty-abstract-flow-control-return)
     (if has-return?
         (match-let ([(list v s r)
                      (abstract-interp-wrap/range (ast-child 'body n)
@@ -1214,13 +1218,32 @@ Types can be:
    [IfElseStatement
     {abstract-interp-do/range/if #f}]
 
-   ;; TODO - improve loops
    [ForStatement
     (λ (n store flow-returns)
-      (match-define (list v n-store n-rets)
-        (abstract-interp-wrap/range (ast-child 'init n) store flow-returns))
-      (abstract-interp-loop/body n n-store n-rets))]
-   [LoopStatement abstract-interp-loop/body]
+      (match-let*
+          ([(list v store flow-returns)
+            (abstract-interp-wrap/range (ast-child 'init n) store flow-returns)]
+           [(list (abstract-value/range low high) store flow-returns)
+            (abstract-interp-wrap/range (ast-child 'test n) store flow-returns)])
+        (if (and (equal? low 0) (equal? high 0))
+            (list abstract-value/range/top store flow-returns)
+            (begin
+
+              ;; interp the update once generically for analysis info to be properly generic
+              (abstract-interp-wrap/range (ast-child 'update n)
+                                          range-store-top
+                                          empty-abstract-flow-control-return)
+              (abstract-interp-loop/body n store flow-returns)))))]
+   [WhileStatement
+    (λ (n store flow-returns)
+      (match-let* ([(list (abstract-value/range low high) store flow-returns)
+                    (abstract-interp-wrap/range (ast-child 'test n) store flow-returns)])
+        (if (and (equal? low 0) (equal? high 0))
+            (list abstract-value/range/top store flow-returns)
+            (abstract-interp-loop/body n store flow-returns))))]
+   [DoWhileStatement
+    (λ (n store flow-returns)
+      (abstract-interp-loop/body n store flow-returns))]
 
    ;;; Expressions
    [ExpressionHole
