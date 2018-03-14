@@ -319,7 +319,7 @@ Types can be:
               (let ([name (ast-child 'name n)])
                 (if (member name (current-abstract-interp-call-stack))
                     (let* ([assignments
-                            (ast-find-transitive-assignments
+                            (att-value 'find-transitive-assignments
                              (if (node-subtype? n 'FunctionDefinition)
                                  n
                                  (let ([ref (resolve-variable-reference-node n)])
@@ -358,60 +358,7 @@ Types can be:
             (ast-children n)
             '()))))
 
-;;; Find all children satisfying the predicate (the given node included)
-(define (ast-find-descendants n predicate)
-  (define children (filter ast-node? (ast-children/flat n)))
-  (define matches
-    (apply append (map (λ (x) (ast-find-descendants x predicate)) children)))
-  (if (predicate n)
-      (cons n matches)
-      matches))
 
-;;; Find the first node that satisfies the predicate (the given node included)
-(define (ast-find-a-descendant n predicate)
-  (if (predicate n)
-      n
-      (for/or ([c (filter ast-node? (ast-children/flat n))])
-        (ast-find-a-descendant c predicate))))
-
-(define (ast-find-direct-resolved n node-type)
-  (remove-duplicates
-   (map resolve-variable-reference-node
-        (ast-find-descendants
-         n (λ (cn) (node-subtype? cn node-type))))))
-(define (ast-find-direct-assignments n)
-  (ast-find-direct-resolved n 'AssignmentExpression))
-(define (ast-find-direct-function-call-refs n)
-  (ast-find-direct-resolved n 'FunctionApplicationExpression))
-(define (ast-find-direct-variable-references n)
-  (ast-find-direct-resolved n 'VariableReference))
-
-(define (ast-find-transitive-function-call-refs n)
-  (define (rec to-search searched)
-    (if (empty? to-search)
-        searched
-        (let* ([calls (ast-find-direct-function-call-refs
-                       (hash-ref (binding-bound (car to-search))
-                                 'declaration-node))]
-               [searched (cons (car to-search) searched)]
-               [new-calls (set-subtract calls searched)]
-               [to-search (append new-calls (cdr to-search))])
-          (rec to-search searched))))
-  (rec (ast-find-direct-function-call-refs n) '()))
-
-(define (ast-find-transitive-resolved n node-type)
-  (remove-duplicates
-   (append (ast-find-direct-resolved n node-type)
-           (flatten
-            (map (λ (r) (ast-find-direct-resolved
-                         (hash-ref (binding-bound r)
-                                   'declaration-node)
-                         node-type))
-                 (ast-find-transitive-function-call-refs n))))))
-(define (ast-find-transitive-assignments n)
-  (ast-find-transitive-resolved n 'AssignmentExpression))
-(define (ast-find-transitive-variable-references n)
-  (ast-find-transitive-resolved n 'VariableReference))
 
 
 (define ({binary-expression-print/infix op-sym} n)
@@ -502,9 +449,24 @@ Types can be:
   (compile-ast-specifications 'Node) ; Program
 
 
-  (ag-rule ast-depth
-           [Program (λ (n) 0)]
-           [Node (λ (n) (add1 (att-value 'ast-depth (parent-node n))))])
+  (ag-rule
+   ast-depth
+   [Program (λ (n) 0)]
+   [Block (λ (n) (if (member (node-type (parent-node n))
+                             '(IfStatement
+                               IfElseStatement
+                               FunctionDefinition
+                               ForStatement
+                               WhileStatement
+                               DoWhileStatement))
+                     (att-value 'ast-depth (parent-node n))
+                     (add1 (att-value 'ast-depth (parent-node n)))))]
+   ;; Some nodes shouldn't really increase depth
+   [ExpressionStatement (λ (n) (att-value 'ast-depth (parent-node n)))]
+   [AssignmentExpression (λ (n) (att-value 'ast-depth (parent-node n)))]
+   [Declaration (λ (n) (att-value 'ast-depth (parent-node n)))]
+   ;; By default increase
+   [Node (λ (n) (add1 (att-value 'ast-depth (parent-node n))))])
 
   ;; IE are declarations here global?
   (ag-rule at-top-level?
@@ -527,11 +489,14 @@ Types can be:
                                           children))
               (define functions (filter (λ (d) (node-subtype? d 'FunctionDefinition))
                                         children))
-              (v-comment
-               n
-               (vb-concat
-                (map (λ (cn) (att-value 'pretty-print cn))
-                     (append global-vars functions)))))]
+              (v-append
+               (v-comment
+                n
+                (vb-concat
+                 (map (λ (cn) (att-value 'pretty-print cn))
+                      (append global-vars functions))))
+               ;; Hack to get a newline...
+               (text "")))]
    [FunctionDefinition
     (λ (n)
       (v-comment
@@ -1028,15 +993,17 @@ Types can be:
                  (abstract-flow-control-return-merge then-r else-r)))])))
 
   (define (abstract-interp-loop/body n store flow-returns)
-    (define altered-refs (ast-find-transitive-assignments n))
+    (define altered-refs (att-value 'find-transitive-assignments n))
     (define new-store
       (for/fold ([s store])
                 ([a altered-refs])
         (dict-set s a abstract-value/range/top)))
     (define has-return?
-      (ast-find-a-descendant n (λ (node)
-                                 (and (ast-node? node)
-                                      (node-subtype? node 'ReturnStatement)))))
+      (att-value 'find-a-descendant
+                 n
+                 (λ (node)
+                   (and (ast-node? node)
+                        (node-subtype? node 'ReturnStatement)))))
     ;; interp the test once generically for analysis info to be properly generic
     (abstract-interp-wrap/range (ast-child 'test n)
                                 range-store-top
@@ -1410,6 +1377,78 @@ Types can be:
    [Node (λ (n) (error 'unsafe-op-if-possible "No default implementation"))]
    )
 
+  (ag-rule
+   ;;; Find all children satisfying the predicate (the given node included)
+   find-descendants
+   [Node (λ (n predicate)
+           (define children (filter ast-node? (ast-children/flat n)))
+           (define matches
+             (apply append (map (λ (x) (att-value 'find-descendants x predicate))
+                                children)))
+           (if (predicate n)
+               (cons n matches)
+               matches))])
+
+  (ag-rule
+   ;;; Find the first node that satisfies the predicate (the given node included)
+   find-a-descendant
+   [Node (λ (n predicate)
+           (if (predicate n)
+               n
+               (for/or ([c (filter ast-node? (ast-children/flat n))])
+                 (att-value 'find-a-descendant c predicate))))])
+
+  (ag-rule
+   find-direct-resolved
+   [Node (λ (n node-type)
+           (remove-duplicates
+            (map resolve-variable-reference-node
+                 (att-value 'find-descendants
+                            n (λ (cn) (node-subtype? cn node-type))))))])
+  (ag-rule
+   find-direct-assignments
+   [Node (λ (n) (att-value 'find-direct-resolved n 'AssignmentExpression))])
+  (ag-rule
+   find-direct-function-call-refs
+   [Node (λ (n) (att-value 'find-direct-resolved n 'FunctionApplicationExpression))])
+  (ag-rule
+   find-direct-variable-references
+   [Node (λ (n) (att-value 'find-direct-resolved n 'VariableReference))])
+
+  (ag-rule
+   find-transitive-function-call-refs
+   [Node (λ (n)
+           (define (rec to-search searched)
+             (if (empty? to-search)
+                 searched
+                 (let* ([calls (att-value 'find-direct-function-call-refs
+                                          (hash-ref (binding-bound (car to-search))
+                                                    'declaration-node))]
+                        [searched (cons (car to-search) searched)]
+                        [new-calls (set-subtract calls searched)]
+                        [to-search (append new-calls (cdr to-search))])
+                   (rec to-search searched))))
+           (rec (att-value 'find-direct-function-call-refs n) '()))])
+
+  (ag-rule
+   find-transitive-resolved
+   [Node (λ (n node-type)
+           (remove-duplicates
+            (append (att-value 'find-direct-resolved n node-type)
+                    (flatten
+                     (map (λ (r) (att-value 'find-direct-resolved
+                                            (hash-ref (binding-bound r)
+                                                      'declaration-node)
+                                            node-type))
+                          (att-value 'find-transitive-function-call-refs n))))))])
+  (ag-rule
+   find-transitive-assignments
+   [Node (λ (n) (att-value 'find-transitive-resolved n 'AssignmentExpression))])
+  (ag-rule
+   find-transitive-variable-references
+   [Node (λ (n) (att-value 'find-transitive-resolved n 'VariableReference))])
+
+
   (compile-ag-specifications)
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1451,6 +1490,15 @@ Types can be:
     [(rec hint-name)
      #'(rec #f hint-name)]))
 
+(define-syntax (top-heavy-choice stx)
+  ;; TODO - this should take into account the max depth, because higher max-depths
+  ;;        now produce really wonky stuff.
+  (syntax-parse stx
+    [(_ base-weight)
+     #'(max 0
+            (- base-weight
+               (* 2 (att-value 'ast-depth current-hole))))]))
+
 (define StatementChoice
   (class cish-ast-choice%
     (define/override (respect-return-position)
@@ -1469,7 +1517,7 @@ Types can be:
 (define ExpressionStatementChoice
   (class StatementChoice
     ;; High choice-weich, because this will turn out to be an assignment expression usually.
-    (define/override (choice-weight) 50)
+    (define/override (choice-weight) 70)
     (define/override (fresh)
       (fresh-node 'ExpressionStatement (fresh-node 'ExpressionHole)))
     (define/override (wont-over-deepen)
@@ -1477,7 +1525,7 @@ Types can be:
     (super-new)))
 (define IfStatementChoice
   (class StatementChoice
-    (define/override (choice-weight) 5)
+    (define/override (choice-weight) (top-heavy-choice 5))
     (define/override (features) '(if-statement))
     (define/override (fresh)
       (fresh-node 'IfStatement
@@ -1486,7 +1534,7 @@ Types can be:
     (super-new)))
 (define IfElseStatementChoice
   (class IfStatementChoice
-    (define/override (choice-weight) 5)
+    (define/override (choice-weight) (top-heavy-choice 5))
     (define/override (fresh)
       (fresh-node 'IfElseStatement
                   (fresh-node 'ExpressionHole)
@@ -1501,7 +1549,7 @@ Types can be:
     (super-new)))
 (define WhileStatementChoice
   (class LoopStatementChoice
-    (define/override (choice-weight) 2)
+    (define/override (choice-weight) (top-heavy-choice 2))
     (define/override (fresh)
       (fresh-node 'WhileStatement
                   (fresh-node 'ExpressionHole)
@@ -1509,7 +1557,7 @@ Types can be:
     (super-new)))
 (define DoWhileStatementChoice
   (class LoopStatementChoice
-    (define/override (choice-weight) 1)
+    (define/override (choice-weight) (top-heavy-choice 2))
     (define/override (fresh)
       (fresh-node 'DoWhileStatement
                   (fresh-node 'ExpressionHole)
@@ -1517,7 +1565,7 @@ Types can be:
     (super-new)))
 (define ForStatementChoice
   (class LoopStatementChoice
-    (define/override (choice-weight) 7)
+    (define/override (choice-weight) (top-heavy-choice 7))
     (define/override (fresh)
       (fresh-node 'ForStatement
                   (fresh-node 'ExpressionHole)
@@ -1534,7 +1582,7 @@ Types can be:
                   ;; declarations
                   (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
                                                            "standin-name"))
-                                        (make-list (random 9) #f)))
+                                        (make-list (random 2) #f)))
                   ;; statements
                   (create-ast-list
                    (map (λ (x) (fresh-node 'StatementHole))
@@ -1766,7 +1814,7 @@ Types can be:
   (class DeclarationChoice
     (define/override (wont-over-deepen)
       this)
-    (define/override (choice-weight) 40)
+    (define/override (choice-weight) 20)
     (define/override (fresh)
       (define name (if (equal? (att-value 'top-level-node current-hole)
                                (parent-node current-hole))
@@ -1943,7 +1991,7 @@ Types can be:
     (fresh-node 'Program
                 (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
                                                          "standin-name"))
-                                      (make-list (random 10) #f)))
+                                      (make-list (random 7) #f)))
                 (fresh-node 'FunctionDefinitionHole
                             "main"
                             "int"
@@ -1970,13 +2018,14 @@ Types can be:
   p)
 
 (define (ast-add-unsafe-math ast)
-  (define ops (ast-find-descendants ast (λ (n) (member (ast-node-type n)
-                                                       '(AdditionExpression
-                                                         SubtractionExpression
-                                                         MultiplicationExpression
-                                                         DivisionExpression
-                                                         ModulusExpression
-                                                         )))))
+  (define ops (att-value 'find-descendants ast
+                         (λ (n) (member (ast-node-type n)
+                                        '(AdditionExpression
+                                          SubtractionExpression
+                                          MultiplicationExpression
+                                          DivisionExpression
+                                          ModulusExpression
+                                          )))))
   (define (transformer n)
     ;; Perform any rewrites and return #t if a rewrite was performed else #f
     (if (member (node-type n)
@@ -2032,7 +2081,7 @@ Types can be:
             (pretty-print (att-value 'pretty-print ast)
                           (current-output-port)
                           page-width)
-            (printf "\n\n/*\nabstract return: ~a\n*/\n"
+            #;(printf "\n\n/*\nabstract return: ~a\n*/\n"
                     (car
                      (abstract-interp-wrap/range ast range-store-top
                                                  empty-abstract-flow-control-return)))))
