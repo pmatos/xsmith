@@ -153,7 +153,7 @@
 
 (define bool-hint (hint 8))
 (define block-hint (hint 10))
-(define assignment-hint (hint 25))
+(define assignment-hint (hint 100))
 (define application-hint (hint 25))
 
 #|
@@ -920,7 +920,7 @@ Types can be:
     (λ (n) (set-subtract
             (default-misc-constraints n)
             ;; allow assignments here
-            '(no-assignment)))]
+            '(no-assignment constant)))]
    [ExpressionHole (λ (n) (default-misc-constraints n))]
    [DeclarationHole (λ (n) (default-misc-constraints n))]
    [StatementHole (λ (n) (default-misc-constraints n))]
@@ -1455,10 +1455,12 @@ Types can be:
     (define/override (features) '(null))
     (define/override (wont-over-deepen)
       this)
-    (define/override (choice-weight) 2)
+    (define/override (choice-weight) 1)
     (super-new)))
 (define ExpressionStatementChoice
   (class StatementChoice
+    ;; High choice-weich, because this will turn out to be an assignment expression usually.
+    (define/override (choice-weight) 50)
     (define/override (fresh)
       (fresh-node 'ExpressionStatement (fresh-node 'ExpressionHole)))
     (define/override (wont-over-deepen)
@@ -1532,7 +1534,7 @@ Types can be:
     (super-new)))
 (define ReturnStatementChoice
   (class StatementChoice
-    (define/override (choice-weight) 2)
+    (define/override (choice-weight) 1)
     (define/override (wont-over-deepen)
       this)
     (define/override (respect-return-position)
@@ -1540,7 +1542,7 @@ Types can be:
     (super-new)))
 (define ValueReturnStatementChoice
   (class ReturnStatementChoice
-    (define/override (choice-weight) 2)
+    (define/override (choice-weight) 1)
     (define/override (fresh)
       (fresh-node 'ValueReturnStatement (fresh-node 'ExpressionHole)))
     (define/override (respect-return-position)
@@ -1591,6 +1593,7 @@ Types can be:
   (class ExpressionChoice
     (define ref-choices-filtered #f)
     (hinted-choice-weight assignment-hint)
+    (define/override (wont-over-deepen) this)
     (define/override (fresh)
       (fresh-node 'AssignmentExpression
                   (binding-name (random-ref ref-choices-filtered))
@@ -1748,6 +1751,7 @@ Types can be:
   (class DeclarationChoice
     (define/override (wont-over-deepen)
       this)
+    (define/override (choice-weight) 40)
     (define/override (fresh)
       (fresh-node 'VariableDeclaration
                   (fresh-var-name)
@@ -1920,7 +1924,7 @@ Types can be:
     (fresh-node 'Program
                 (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
                                                          "standin-name"))
-                                      (make-list (random 5) #f)))
+                                      (make-list (random 10) #f)))
                 (fresh-node 'FunctionDefinitionHole
                             "main"
                             "int"
@@ -2009,7 +2013,10 @@ Types can be:
             (pretty-print (att-value 'pretty-print ast)
                           (current-output-port)
                           page-width)
-            (printf "\n\n/*\nabstract return: ~a\n*/\n" (abstract-interp-wrap/range ast range-store-top empty-abstract-flow-control-return))))
+            (printf "\n\n/*\nabstract return: ~a\n*/\n"
+                    (car
+                     (abstract-interp-wrap/range ast range-store-top
+                                                 empty-abstract-flow-control-return)))))
       )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
