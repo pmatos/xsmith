@@ -462,7 +462,7 @@ Types can be:
   (ast-rule 'LoopStatement:Statement->Expression<test-Statement<body)
   (ast-rule 'WhileStatement:LoopStatement->)
   (ast-rule 'DoWhileStatement:LoopStatement->)
-  (ast-rule 'ForStatement:LoopStatement->Expression<init-Expression<update)
+  (ast-rule 'ForStatement:LoopStatement->Declaration<init-Expression<update)
 
   (ast-rule 'Expression:Node->)
   (ast-rule 'ExpressionHole:Expression->)
@@ -605,7 +605,8 @@ Types can be:
        (h-append
         for: space lparen
         (att-value 'pretty-print (ast-child 'init n))
-        semi space
+        ;; since init is a declaration it already prints a semicolon
+        space
         (att-value 'pretty-print (ast-child 'test n))
         semi space
         (att-value 'pretty-print (ast-child 'update n))
@@ -770,6 +771,11 @@ Types can be:
                   (filter (λ(x)x)
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
                                (ast-children (ast-child 'Declaration* n))))
+                  '()))]
+   [ForStatement
+    (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
+                  (filter (λ(x)x)
+                          (list (att-value 'scope-graph-binding (ast-child 'init n))))
                   '()))]
    [Node
     (λ (n) (att-value 'scope-graph-scope (parent-node n)))])
@@ -1016,6 +1022,27 @@ Types can be:
                  (abstract-store-merge*/range then-s else-s)
                  (abstract-flow-control-return-merge then-r else-r)))])))
 
+  (define (abstract-interp-loop/body n store flow-returns)
+    (define altered-refs (ast-find-transitive-assignments n))
+    (define new-store
+      (for/fold ([s store])
+                ([a altered-refs])
+        (dict-set s a abstract-value/range/top)))
+    (define has-return?
+      (ast-find-a-descendant n (λ (node)
+                                 (and (ast-node? node)
+                                      (node-subtype? node 'ReturnStatement)))))
+    (if has-return?
+        (match-let ([(list v s r)
+                     (abstract-interp-wrap/range (ast-child 'body n)
+                                                 new-store
+                                                 flow-returns)])
+          (list abstract-value/range/top
+                s
+                (abstract-flow-control-return-only-maybe-ify
+                 (abstract-flow-control-return-merge flow-returns r))))
+        (list abstract-value/range/top new-store flow-returns)))
+
 
   (define addition-op/range
     (λ (l-l l-h r-l r-h)
@@ -1187,28 +1214,13 @@ Types can be:
    [IfElseStatement
     {abstract-interp-do/range/if #f}]
 
-   ;; TODO -- implement specific loops (while, for, do-while) and don't just punt to top
-   [LoopStatement
+   ;; TODO - improve loops
+   [ForStatement
     (λ (n store flow-returns)
-      (define altered-refs (ast-find-transitive-assignments n))
-      (define new-store
-        (for/fold ([s store])
-                  ([a altered-refs])
-          (dict-set s a abstract-value/range/top)))
-      (define has-return?
-        (ast-find-a-descendant n (λ (node)
-                                   (and (ast-node? node)
-                                        (node-subtype? node 'ReturnStatement)))))
-      (if has-return?
-          (match-let ([(list v s r)
-                       (abstract-interp-wrap/range (ast-child 'body n)
-                                                   new-store
-                                                   flow-returns)])
-            (list abstract-value/range/top
-                  s
-                  (abstract-flow-control-return-only-maybe-ify
-                   (abstract-flow-control-return-merge flow-returns r))))
-          (list abstract-value/range/top new-store flow-returns)))]
+      (match-define (list v n-store n-rets)
+        (abstract-interp-wrap/range (ast-child 'init n) store flow-returns))
+      (abstract-interp-loop/body n n-store n-rets))]
+   [LoopStatement abstract-interp-loop/body]
 
    ;;; Expressions
    [ExpressionHole
@@ -1472,7 +1484,7 @@ Types can be:
                   (fresh-node 'ExpressionHole)
                   (fresh-node 'StatementHole)
                   ;; init, update
-                  (fresh-node 'ExpressionHole)
+                  (fresh-node 'DeclarationHole "standin-name")
                   (fresh-node 'ExpressionHole)))
     (super-new)))
 (define BlockChoice
