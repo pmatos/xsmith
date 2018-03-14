@@ -521,12 +521,17 @@ Types can be:
   (ag-rule
    pretty-print
    [Program (λ (n)
+              (define children (append (ast-children (ast-child 'Declaration* n))
+                                       (list (ast-child 'main n))))
+              (define global-vars (filter (λ (d) (node-subtype? d 'VariableDeclaration))
+                                          children))
+              (define functions (filter (λ (d) (node-subtype? d 'FunctionDefinition))
+                                        children))
               (v-comment
                n
                (vb-concat
                 (map (λ (cn) (att-value 'pretty-print cn))
-                     (append (ast-children (ast-child 'Declaration* n))
-                             (list (ast-child 'main n)))))))]
+                     (append global-vars functions)))))]
    [FunctionDefinition
     (λ (n)
       (v-comment
@@ -1753,8 +1758,12 @@ Types can be:
       this)
     (define/override (choice-weight) 40)
     (define/override (fresh)
+      (define name (if (equal? (att-value 'top-level-node current-hole)
+                               (parent-node current-hole))
+                       (fresh-var-name "global_")
+                       (fresh-var-name "local_")))
       (fresh-node 'VariableDeclaration
-                  (fresh-var-name)
+                  name
                   (fresh-var-type)
                   (fresh-node 'ExpressionHole)))
     (super-new)))
@@ -1769,19 +1778,19 @@ Types can be:
       (define main? (and (eq? (node-type p) 'Program)
                          (eq? (ast-child 'main p) current-hole)))
       (fresh-node 'FunctionDefinition
-                  (if main? "main" (fresh-var-name "func"))
+                  (if main? "main" (fresh-var-name "func_"))
                   (if main? int-type (fresh-var-type))
                   ;; parameters
                   (if main?
                       (create-ast-list '())
                       (create-ast-list (map (λ (x) (fresh-node 'FormalParam
                                                                (fresh-var-type)
-                                                               (fresh-var-name)))
+                                                               (fresh-var-name "arg_")))
                                             (make-list (random 5) #f))))
                   (fresh-block-hole)))
     (super-new)))
 
-(define (fresh-var-name [base "var"])
+(define (fresh-var-name [base "var_"])
   (let ((n (generator-state-fresh-name-counter (xsmith-state))))
     (set-generator-state-fresh-name-counter! (xsmith-state) (add1 n))
     (format "~a~a" base n)))
