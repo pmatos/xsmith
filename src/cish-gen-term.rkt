@@ -318,7 +318,16 @@ Types can be:
                                           FunctionDefinition))
               (let ([name (ast-child 'name n)])
                 (if (member name (current-abstract-interp-call-stack))
-                    (list abstract-value/range/top range-store-top flow-returns)
+                    (let* ([assignments
+                            (ast-find-transitive-assignments
+                             (if (node-subtype? n 'FunctionDefinition)
+                                 n
+                                 (let ([ref (resolve-variable-reference-node n)])
+                                   (dict-ref (binding-bound ref) 'declaration-node))))]
+                           [new-store (for/fold ([store store])
+                                            ([a assignments])
+                                    (dict-set store a abstract-value/range/top))])
+                      (list abstract-value/range/top new-store flow-returns))
                     (parameterize ([current-abstract-interp-call-stack
                                     (cons name (current-abstract-interp-call-stack))])
                       (att-value 'abstract-interp-do/range n store flow-returns))))
@@ -334,6 +343,11 @@ Types can be:
      #'(call-with-values
         (λ () e ...)
         list)]))
+
+(define (resolve-variable-reference-node n)
+  (resolve-reference
+   (reference (ast-child 'name n)
+              (att-value 'scope-graph-scope n))))
 
 (define (ast-children/flat n)
   (flatten
@@ -359,6 +373,45 @@ Types can be:
       n
       (for/or ([c (filter ast-node? (ast-children/flat n))])
         (ast-find-a-descendant c predicate))))
+
+(define (ast-find-direct-resolved n node-type)
+  (remove-duplicates
+   (map resolve-variable-reference-node
+        (ast-find-descendants
+         n (λ (cn) (node-subtype? cn node-type))))))
+(define (ast-find-direct-assignments n)
+  (ast-find-direct-resolved n 'AssignmentExpression))
+(define (ast-find-direct-function-call-refs n)
+  (ast-find-direct-resolved n 'FunctionApplicationExpression))
+(define (ast-find-direct-variable-references n)
+  (ast-find-direct-resolved n 'VariableReference))
+
+(define (ast-find-transitive-function-call-refs n)
+  (define (rec to-search searched)
+    (if (empty? to-search)
+        searched
+        (let* ([calls (ast-find-direct-function-call-refs
+                       (hash-ref (binding-bound (car to-search))
+                                 'declaration-node))]
+               [searched (cons (car to-search) searched)]
+               [new-calls (set-subtract calls searched)]
+               [to-search (append new-calls (cdr to-search))])
+          (rec to-search searched))))
+  (rec (ast-find-direct-function-call-refs n) '()))
+
+(define (ast-find-transitive-resolved n node-type)
+  (remove-duplicates
+   (append (ast-find-direct-resolved n node-type)
+           (flatten
+            (map (λ (r) (ast-find-direct-resolved
+                         (hash-ref (binding-bound r)
+                                   'declaration-node)
+                         node-type))
+                 (ast-find-transitive-function-call-refs n))))))
+(define (ast-find-transitive-assignments n)
+  (ast-find-transitive-resolved n 'AssignmentExpression))
+(define (ast-find-transitive-variable-references n)
+  (ast-find-transitive-resolved n 'VariableReference))
 
 
 (define ({binary-expression-print/infix op-sym} n)
@@ -460,6 +513,10 @@ Types can be:
                           (or (equal? (node-type p) 'Program)
                               (and (ast-list-node? p)
                                    (equal? (node-type (parent-node p)) 'Program)))))])
+
+  (ag-rule top-level-node
+           [Program (λ (n) n)]
+           [Node (λ (n) (att-value 'top-level-node (parent-node n)))])
 
   (ag-rule
    pretty-print
@@ -757,14 +814,11 @@ Types can be:
    [AssignmentExpression
     (λ (n) (hasheq (ast-child 'Expression n)
                    (hash-ref (binding-bound
-                              (resolve-reference
-                               (reference (ast-child 'name n)
-                                          (att-value 'scope-graph-scope n))))
+                              (resolve-variable-reference-node n))
                              'type)))]
    [FunctionApplicationExpression
     (λ (n)
-      (let ([f-bind (resolve-reference (reference (ast-child 'name n)
-                                                  (att-value 'scope-graph-scope n)))])
+      (let ([f-bind (resolve-variable-reference-node n)])
         (for/fold ([h (hasheq)])
                   ([cn (ast-children (ast-child 'Expression* n))]
                    [t (reverse (cdr (reverse (cdr (hash-ref (binding-bound f-bind)
@@ -1055,7 +1109,7 @@ Types can be:
     (λ (n store flow-returns)
       (define init-store
         (for/fold ([store range-store-top])
-                  ([global (filter (λ (cn) (ast-subtype? cn 'VariableDeclaration))
+                  ([global (filter (λ (cn) (node-subtype? cn 'VariableDeclaration))
                                    (ast-children (ast-child 'Declaration* n)))])
           (match-let* ([(list v n-store n-rets)
                         (abstract-interp-wrap/range
@@ -1069,9 +1123,7 @@ Types can be:
        empty-abstract-flow-control-return))]
    [VariableDeclaration
     (λ (n store flow-returns)
-      (match-let* ([ref (resolve-reference
-                         (reference (ast-child 'name n)
-                                    (att-value 'scope-graph-scope n)))]
+      (match-let* ([ref (resolve-variable-reference-node n)]
                    [(list v n-store n-rets)
                     (abstract-interp-wrap/range
                      (ast-child 'Expression n)
@@ -1138,20 +1190,15 @@ Types can be:
    ;; TODO -- implement specific loops (while, for, do-while) and don't just punt to top
    [LoopStatement
     (λ (n store flow-returns)
-      (define assignments
-        (ast-find-descendants n (λ (node)
-                                  (ast-subtype? node 'AssignmentExpression))))
+      (define altered-refs (ast-find-transitive-assignments n))
       (define new-store
         (for/fold ([s store])
-                  ([a assignments])
-          (dict-set s
-                    (resolve-reference
-                     (reference (ast-child 'name a)
-                                (att-value 'scope-graph-scope a)))
-                    abstract-value/range/top)))
+                  ([a altered-refs])
+          (dict-set s a abstract-value/range/top)))
       (define has-return?
         (ast-find-a-descendant n (λ (node)
-                                   (ast-subtype? node 'ReturnStatement))))
+                                   (and (ast-node? node)
+                                        (node-subtype? node 'ReturnStatement)))))
       (if has-return?
           (match-let ([(list v s r)
                        (abstract-interp-wrap/range (ast-child 'body n)
@@ -1194,9 +1241,7 @@ Types can be:
    ;; Function applications will be evaluated with the arguments given.
    [FunctionApplicationExpression
     (λ (n store flow-returns)
-      (match-let* ([binding (resolve-reference
-                             (reference (ast-child 'name n)
-                                        (att-value 'scope-graph-scope n)))]
+      (match-let* ([binding (resolve-variable-reference-node n)]
                    [bound (binding-bound binding)]
                    [func-def-node (dict-ref bound 'declaration-node)]
                    [func-block (ast-child 'Block func-def-node)]
@@ -1229,14 +1274,11 @@ Types can be:
                     (ast-child 'Expression n)
                     store
                     flow-returns)]
-                  [ref-node (reference (ast-child 'name n)
-                                       (att-value 'scope-graph-scope n))])
+                  [ref-node (resolve-variable-reference-node n)])
         (list val (dict-set new-store ref-node val) new-rets)))]
    [VariableReference
     (λ (n store flow-returns)
-      (let ([ref-node (resolve-reference
-                       (reference (ast-child 'name n)
-                                  (att-value 'scope-graph-scope n)))])
+      (let ([ref-node (resolve-variable-reference-node n)])
         ;; TODO -- I'm using an empty hash to represent an unknown state of the store,
         ;; or at least an unknown state for a variable.  But once there are more than
         ;; ints and floats I'll need to look at the type of the reference to know what
@@ -1771,6 +1813,10 @@ Types can be:
     (if (ast-list-node? p)
         (ast-parent p)
         p)))
+(define (node-subtype? n t)
+  (when (not (ast-node? n))
+    (error 'node-subtype "called on non-ast-node.  Arguments: ~a ~a" n t))
+  (and (ast-node? n) (ast-subtype? n t)))
 
 (define-syntax-rule (maybe-send obj method arg ...)
   (and obj (send obj method arg ...)))
