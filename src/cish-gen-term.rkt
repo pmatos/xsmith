@@ -1377,6 +1377,92 @@ Types can be:
    [Node (λ (n) (error 'unsafe-op-if-possible "No default implementation"))]
    )
 
+  (define (fresh-symbolic-var type-pred)
+    (define-symbolic* var type-pred)
+    var)
+
+  (ag-rule
+   ;; This rule adds rosette assertions, so it should only be called when
+   ;; the rosette environment has been prepared (eg. pushed/popped an
+   ;; interpreter, so two interpretations don't step on each other).
+
+   ;; `solver-push` and `solver-pop` let you push/pop assertions, but not get the current assertions!
+   ;; `asserts` lets you get the current global assertions, but provides no push/pop!
+   ;; Maybe I can use `with-asserts` for things like conditionals/ifs -- interp one side with-asserts, interp the other side with-asserts, and then OR the resulting assert lists together.
+   ;; I should keep track of the path conditions and in the store I should put PC -> variable-value
+   ;; I can also tie the path conditions to return values, or have a return variable for the function that the path condition implies to be some value.
+   symbolic-interp-do
+   #|
+   TODO
+   (ast-rule 'Program:Node->Declaration*-FunctionDefinition<main)
+   (ast-rule 'FunctionDefinition:Declaration->typename-FormalParam*-Block)
+
+   (ast-rule 'NullStatement:Statement->)
+   (ast-rule 'Block:Statement->Declaration*-Statement*)
+   (ast-rule 'ExpressionStatement:Statement->Expression)
+   (ast-rule 'IfStatement:Statement->Expression<test-Statement<then)
+   (ast-rule 'IfElseStatement:IfStatement->Statement<else)
+   (ast-rule 'ReturnStatement:Statement->)
+   (ast-rule 'VoidReturnStatement:ReturnStatement->)
+   (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
+   (ast-rule 'StatementHole:Statement->)
+   (ast-rule 'BlockHole:Block->)
+
+   (ast-rule 'LoopStatement:Statement->Expression<test-Statement<body)
+   (ast-rule 'WhileStatement:LoopStatement->)
+   (ast-rule 'DoWhileStatement:LoopStatement->)
+   (ast-rule 'ForStatement:LoopStatement->Declaration<init-Expression<update)
+
+   (ast-rule 'Expression:Node->)
+   (ast-rule 'ExpressionHole:Expression->)
+   (ast-rule 'AssignmentExpression:Expression->name-Expression)
+   (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
+   (ast-rule 'BinaryExpression:Expression->Expression<l-Expression<r)
+   (ast-rule 'AdditionExpression:BinaryExpression->)
+   (ast-rule 'UnsafeAdditionExpression:AdditionExpression->)
+   (ast-rule 'SubtractionExpression:BinaryExpression->)
+   (ast-rule 'UnsafeSubtractionExpression:SubtractionExpression->)
+   (ast-rule 'MultiplicationExpression:BinaryExpression->)
+   (ast-rule 'UnsafeMultiplicationExpression:MultiplicationExpression->)
+   (ast-rule 'DivisionExpression:BinaryExpression->)
+   (ast-rule 'UnsafeDivisionExpression:DivisionExpression->)
+
+   (ast-rule 'IntOnlyBinaryExpression:BinaryExpression->)
+   (ast-rule 'ModulusExpression:IntOnlyBinaryExpression->)
+   (ast-rule 'UnsafeModulusExpression:ModulusExpression->)
+
+   (ast-rule 'ComparisonExpression:BinaryExpression->)
+   (ast-rule 'EqualityExpression:ComparisonExpression->)
+   (ast-rule 'GreaterThanExpression:ComparisonExpression->)
+   (ast-rule 'LessThanExpression:ComparisonExpression->)
+   (ast-rule 'LessOrEqualExpression:ComparisonExpression->)
+   (ast-rule 'GreaterOrEqualExpression:ComparisonExpression->)
+
+   (ast-rule 'IfExpression:Expression->Expression<test-Expression<then-Expression<else)
+   (ast-rule 'LiteralInt:Expression->val)
+   (ast-rule 'LiteralFloat:Expression->val)
+   (ast-rule 'VariableReference:Expression->name)
+
+   (ast-rule 'ArgumentList:Node->)
+   (ast-rule 'ArgumentListEmpty:ArgumentList->)
+   (ast-rule 'ArgumentListNode:ArgumentList->Expression-ArgumentList)
+   |#
+   aoeu
+   [VariableDeclaration
+    (λ (n store flow-returns)
+      (let* ([name (ast-child n 'name)]
+             [type (ast-child n 'typename)]
+             [sym-var (match type
+                        ["int" (fresh-symbolic-var integer?)]
+                        ["float" (fresh-symbolic-var float?)])]
+             [ref (resolve-variable-reference-node n)])
+        (define-values (v n-store n-rets)
+          (symbolic-interp-wrap (ast-child 'Expression n) store flow-returns))
+        (assert (= sym-var v))
+        (list v (dict-set n-store ref sym-var) n-rets)))]
+   [Node (λ (n store flow-returns)
+           (error 'symbolic-interp "No default implementation"))])
+
   (ag-rule
    ;;; Find all children satisfying the predicate (the given node included)
    find-descendants
