@@ -1442,64 +1442,35 @@ Types can be:
                         always-ret?)))))))
 
   (ag-rule
+   symbolic-interp-do
    ;; This rule adds rosette assertions, so it should only be called when
    ;; the rosette environment has been prepared (eg. pushed/popped an
    ;; interpreter, so two interpretations don't step on each other).
 
    ;; Returns (list val=[symbolic expression] store=[binding->symbolic-expression hash] always-returns=[bool])
 
-   ;; `solver-push` and `solver-pop` let you push/pop assertions, but not get the current assertions!
-   ;; `asserts` lets you get the current global assertions, but provides no push/pop!
-   ;; Maybe I can use `with-asserts` for things like conditionals/ifs -- interp one side with-asserts, interp the other side with-asserts, and then OR the resulting assert lists together.
-   ;; I should keep track of the path conditions and in the store I should put PC -> variable-value
-   ;; I can also tie the path conditions to return values, or have a return variable for the function that the path condition implies to be some value.
+   ;;; Declarations
+   ;; TODO
+   ;;(ast-rule 'Program:Node->Declaration*-FunctionDefinition<main)
+   ;;(ast-rule 'FunctionDefinition:Declaration->typename-FormalParam*-Block)
+   [VariableDeclaration
+    (λ (n store path-condition return-variable)
+      (let* ([name (ast-child n 'name)]
+             [type (ast-child n 'typename)]
+             [sym-var (fresh-symbolic-var type)]
+             [ref (resolve-variable-reference-node n)])
+        (define-values (v n-store always-rets)
+          (symbolic-interp-wrap (ast-child 'Expression n)
+                                store path-condition return-variable))
+        (assert (= sym-var v))
+        (list v (dict-set n-store ref sym-var) #f)))]
 
-   ;; When I set things in the store, I should AND the path condition with the value, and OR it with any value that is currently there AND NOT path condition.
-   symbolic-interp-do
-   #|
-   TODO
-   (ast-rule 'Program:Node->Declaration*-FunctionDefinition<main)
-   (ast-rule 'FunctionDefinition:Declaration->typename-FormalParam*-Block)
-
-   (ast-rule 'ExpressionStatement:Statement->Expression)
-
-   (ast-rule 'LoopStatement:Statement->Expression<test-Statement<body)
-   (ast-rule 'WhileStatement:LoopStatement->)
-   (ast-rule 'DoWhileStatement:LoopStatement->)
-   (ast-rule 'ForStatement:LoopStatement->Declaration<init-Expression<update)
-
-   (ast-rule 'AssignmentExpression:Expression->name-Expression)
-   (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
-   (ast-rule 'BinaryExpression:Expression->Expression<l-Expression<r)
-   (ast-rule 'AdditionExpression:BinaryExpression->)
-   (ast-rule 'UnsafeAdditionExpression:AdditionExpression->)
-   (ast-rule 'SubtractionExpression:BinaryExpression->)
-   (ast-rule 'UnsafeSubtractionExpression:SubtractionExpression->)
-   (ast-rule 'MultiplicationExpression:BinaryExpression->)
-   (ast-rule 'UnsafeMultiplicationExpression:MultiplicationExpression->)
-   (ast-rule 'DivisionExpression:BinaryExpression->)
-   (ast-rule 'UnsafeDivisionExpression:DivisionExpression->)
-
-   (ast-rule 'IntOnlyBinaryExpression:BinaryExpression->)
-   (ast-rule 'ModulusExpression:IntOnlyBinaryExpression->)
-   (ast-rule 'UnsafeModulusExpression:ModulusExpression->)
-
-   (ast-rule 'ComparisonExpression:BinaryExpression->)
-   (ast-rule 'EqualityExpression:ComparisonExpression->)
-   (ast-rule 'GreaterThanExpression:ComparisonExpression->)
-   (ast-rule 'LessThanExpression:ComparisonExpression->)
-   (ast-rule 'LessOrEqualExpression:ComparisonExpression->)
-   (ast-rule 'GreaterOrEqualExpression:ComparisonExpression->)
-
-   (ast-rule 'LiteralInt:Expression->val)
-   (ast-rule 'LiteralFloat:Expression->val)
-   (ast-rule 'VariableReference:Expression->name)
-
-   (ast-rule 'ArgumentList:Node->)
-   (ast-rule 'ArgumentListEmpty:ArgumentList->)
-   (ast-rule 'ArgumentListNode:ArgumentList->Expression-ArgumentList)
-   |#
-
+   ;;; Statements
+   ;; TODO
+   ;;(ast-rule 'LoopStatement:Statement->Expression<test-Statement<body)
+   ;;(ast-rule 'WhileStatement:LoopStatement->)
+   ;;(ast-rule 'DoWhileStatement:LoopStatement->)
+   ;;(ast-rule 'ForStatement:LoopStatement->Declaration<init-Expression<update)
    [Block
     (λ (n store path-condition return-variable)
       (define (rec store children-left)
@@ -1519,27 +1490,50 @@ Types can be:
                               store path-condition return-variable))
       (assert (=> (apply && path-condition) (= v return-variable)))
       (list v n-store #t))]
+   [IfStatement {symbolic-if-interp #t #f}]
+   [IfElseStatement {symbolic-if-interp #f #f}]
+   [ExpressionStatement
+    (λ (n store path-condition return-variable)
+      (symbolic-interp-wrap (ast-child 'Expression n)
+                            store path-condition return-variable))]
+   [NullStatement
+    (λ (n store path-condition return-variable)
+      (list #f store #f))]
+
+   ;;; Expressions
+   ;; TODO
+   ;;(ast-rule 'AssignmentExpression:Expression->name-Expression)
+   ;;(ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
+   ;;(ast-rule 'BinaryExpression:Expression->Expression<l-Expression<r)
+   ;;(ast-rule 'AdditionExpression:BinaryExpression->)
+   ;;(ast-rule 'UnsafeAdditionExpression:AdditionExpression->)
+   ;;(ast-rule 'SubtractionExpression:BinaryExpression->)
+   ;;(ast-rule 'UnsafeSubtractionExpression:SubtractionExpression->)
+   ;;(ast-rule 'MultiplicationExpression:BinaryExpression->)
+   ;;(ast-rule 'UnsafeMultiplicationExpression:MultiplicationExpression->)
+   ;;(ast-rule 'DivisionExpression:BinaryExpression->)
+   ;;(ast-rule 'UnsafeDivisionExpression:DivisionExpression->)
+
+   ;;(ast-rule 'IntOnlyBinaryExpression:BinaryExpression->)
+   ;;(ast-rule 'ModulusExpression:IntOnlyBinaryExpression->)
+   ;;(ast-rule 'UnsafeModulusExpression:ModulusExpression->)
+
+   ;;(ast-rule 'ComparisonExpression:BinaryExpression->)
+   ;;(ast-rule 'EqualityExpression:ComparisonExpression->)
+   ;;(ast-rule 'GreaterThanExpression:ComparisonExpression->)
+   ;;(ast-rule 'LessThanExpression:ComparisonExpression->)
+   ;;(ast-rule 'LessOrEqualExpression:ComparisonExpression->)
+   ;;(ast-rule 'GreaterOrEqualExpression:ComparisonExpression->)
+
+   ;;(ast-rule 'LiteralInt:Expression->val)
+   ;;(ast-rule 'LiteralFloat:Expression->val)
+   ;;(ast-rule 'VariableReference:Expression->name)
    [IfExpression
     {symbolic-if-interp #f
                         (or (att-value 'type-context n)
                             (att-value 'type-context
                                        (ast-child n 'then)))}]
-   [IfStatement {symbolic-if-interp #t #f}]
-   [IfElseStatement {symbolic-if-interp #f #f}]
-   [VariableDeclaration
-    (λ (n store path-condition return-variable)
-      (let* ([name (ast-child n 'name)]
-             [type (ast-child n 'typename)]
-             [sym-var (fresh-symbolic-var type)]
-             [ref (resolve-variable-reference-node n)])
-        (define-values (v n-store always-rets)
-          (symbolic-interp-wrap (ast-child 'Expression n)
-                                store path-condition return-variable))
-        (assert (= sym-var v))
-        (list v (dict-set n-store ref sym-var) #f)))]
-   [NullStatement
-    (λ (n store path-condition return-variable)
-      (list #f store #f))]
+
    [Node (λ (n store path-condition return-variable)
            (error 'symbolic-interp "No default implementation"))])
 
