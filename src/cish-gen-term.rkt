@@ -1377,9 +1377,62 @@ Types can be:
    [Node (λ (n) (error 'unsafe-op-if-possible "No default implementation"))]
    )
 
-  (define (fresh-symbolic-var type-pred)
+  (define (fresh-symbolic-var type)
+    (define type-pred (cond [(equal? type "int") integer?]
+                            [(equal? type "float") float?]))
     (define-symbolic* var type-pred)
     var)
+
+  (define (symbolic-store-merge s1 pc1 s2 pc2)
+    (for/hash ([k (set-union (hash-keys s1) (hash-keys s2))])
+      (define v1 (hash-ref s1 k 'not-found))
+      (define v2 (hash-ref s2 k 'not-found))
+      (cond [(equal? v1 'not-found) (values k v2)]
+            [(equal? v2 'not-found) (values k v1)]
+            [(equal? v1 v2) (values k v1)]
+            [else
+             (define fv (fresh-symbolic-var (dict-ref (binding-bound k) 'type)))
+             (assert (=> (apply && pc1) (= fv v1)))
+             (assert (=> (apply && pc2) (= fv v2)))
+             (values k fv)])))
+
+  (define {symbolic-if-interp one-sided? type}
+    (λ (n store path-condition return-variable)
+      (match-define (list test-val test-store)
+        (symbolic-interp-wrap (ast-child n 'test)
+                              store path-condition return-variable))
+
+      (match-define-values
+       ((list then-v then-store) then-asserts+)
+       (with-asserts (begin (assert test-val)
+                            (symbolic-interp-wrap (ast-child n 'then)
+                                                  test-store
+                                                  (cons test-val path-condition)
+                                                  return-variable))))
+      (define then-asserts (set-subtract then-asserts+ (asserts)))
+      (assert (=> cond-v (apply && cond-asserts)))
+
+      (if one-sided?
+          (list #t (symbolic-store-merge test-store (not test-val) then-store test-val))
+          (let ()
+            (match-define-values
+             ((list else-v else-store) else-asserts+)
+             (with-asserts
+               (begin (assert (not test-val))
+                      (symbolic-interp-wrap (ast-child n 'else)
+                                            test-store
+                                            (cons (not test-val) path-condition)
+                                            return-variable))))
+            (define else-asserts (set-subtract else-asserts+ (asserts)))
+            (assert (=> (not cond-v) (apply && else-asserts)))
+            (if (not type)
+                (list #t (symbolic-store-merge else-store (not test-val)
+                                               then-store test-val))
+                (let ([v (fresh-symbolic-var type)])
+                  (assert (&& (=> cond-v (= then-v v))
+                              (=> (not cond-v) (= else-v v))))
+                  (list v (symbolic-store-merge else-store (not test-val)
+                                                then-store test-val))))))))
 
   (ag-rule
    ;; This rule adds rosette assertions, so it should only be called when
@@ -1391,6 +1444,8 @@ Types can be:
    ;; Maybe I can use `with-asserts` for things like conditionals/ifs -- interp one side with-asserts, interp the other side with-asserts, and then OR the resulting assert lists together.
    ;; I should keep track of the path conditions and in the store I should put PC -> variable-value
    ;; I can also tie the path conditions to return values, or have a return variable for the function that the path condition implies to be some value.
+
+   ;; When I set things in the store, I should AND the path condition with the value, and OR it with any value that is currently there AND NOT path condition.
    symbolic-interp-do
    #|
    TODO
@@ -1400,8 +1455,6 @@ Types can be:
    (ast-rule 'NullStatement:Statement->)
    (ast-rule 'Block:Statement->Declaration*-Statement*)
    (ast-rule 'ExpressionStatement:Statement->Expression)
-   (ast-rule 'IfStatement:Statement->Expression<test-Statement<then)
-   (ast-rule 'IfElseStatement:IfStatement->Statement<else)
    (ast-rule 'ReturnStatement:Statement->)
    (ast-rule 'VoidReturnStatement:ReturnStatement->)
    (ast-rule 'ValueReturnStatement:ReturnStatement->Expression)
@@ -1413,8 +1466,6 @@ Types can be:
    (ast-rule 'DoWhileStatement:LoopStatement->)
    (ast-rule 'ForStatement:LoopStatement->Declaration<init-Expression<update)
 
-   (ast-rule 'Expression:Node->)
-   (ast-rule 'ExpressionHole:Expression->)
    (ast-rule 'AssignmentExpression:Expression->name-Expression)
    (ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
    (ast-rule 'BinaryExpression:Expression->Expression<l-Expression<r)
@@ -1438,7 +1489,6 @@ Types can be:
    (ast-rule 'LessOrEqualExpression:ComparisonExpression->)
    (ast-rule 'GreaterOrEqualExpression:ComparisonExpression->)
 
-   (ast-rule 'IfExpression:Expression->Expression<test-Expression<then-Expression<else)
    (ast-rule 'LiteralInt:Expression->val)
    (ast-rule 'LiteralFloat:Expression->val)
    (ast-rule 'VariableReference:Expression->name)
@@ -1448,19 +1498,29 @@ Types can be:
    (ast-rule 'ArgumentListNode:ArgumentList->Expression-ArgumentList)
    |#
    aoeu
+
+   [IfExpression
+    {symbolic-if-interp #f
+                        (or (att-value 'type-context n)
+                            (att-value 'type-context
+                                       (ast-child n 'then)))}]
+   [IfStatement {symbolic-if-interp #t #f}]
+   [IfElseStatement {symbolic-if-interp #f #f}]
    [VariableDeclaration
-    (λ (n store flow-returns)
+    (λ (n store path-condition return-variable)
       (let* ([name (ast-child n 'name)]
              [type (ast-child n 'typename)]
-             [sym-var (match type
-                        ["int" (fresh-symbolic-var integer?)]
-                        ["float" (fresh-symbolic-var float?)])]
+             [sym-var (fresh-symbolic-var type)]
              [ref (resolve-variable-reference-node n)])
-        (define-values (v n-store n-rets)
-          (symbolic-interp-wrap (ast-child 'Expression n) store flow-returns))
+        (define-values (v n-store)
+          (symbolic-interp-wrap (ast-child 'Expression n)
+                                store path-condition return-variable))
         (assert (= sym-var v))
-        (list v (dict-set n-store ref sym-var) n-rets)))]
-   [Node (λ (n store flow-returns)
+        (list v (dict-set n-store ref sym-var))))]
+   [NullStatement
+    (λ (n store path-condition return-variable)
+      (list #f store))]
+   [Node (λ (n store path-condition return-variable)
            (error 'symbolic-interp "No default implementation"))])
 
   (ag-rule
