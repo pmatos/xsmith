@@ -1442,6 +1442,38 @@ Types can be:
                                               then-store test-val)
                         always-ret?)))))))
 
+  (define {symbolic-binary-op #:safety-clause [make-violation-condition #f]
+                              #:result-clause make-normal-result}
+    ;; safety-clause and result-clause are both functions that take a
+    ;; left and right rosette clause and returns a new clause.
+    ;; The safety-clause should be true if undefined behavior would be tripped,
+    ;; the result-clause should be the result of the unsafe operation.
+    (λ (n store path-condition return-variable)
+      (match-let* ([(list v-l s-l ar-l)
+                    (symbolic-interp-wrap
+                     (ast-child 'l n)
+                     store path-condition return-variable)]
+                   [(list v-r s-r ar-r)
+                    (symbolic-interp-wrap
+                     (ast-child 'r n)
+                     s-l path-condition return-variable)]
+                   [normal-result (make-normal-result v-l v-r)])
+        (if make-violation-condition
+            (let ([fv (fresh-symbolic-var aoeu)]
+                  [violation-condition (make-violation-condition v-l v-r)])
+              (rt:assert (rt:&& (rt:=> violation-condition
+                                       (rt:= fv v-l))
+                                (rt:=> (rt:! violation-condition)
+                                       normal-result)))
+              (list fv s-r #f))
+            (list normal-result s-r #f)))))
+
+  (define symbolic-addition-safety
+    (λ (l r) (rt:|| (rt:> (rt:+ l r) INT_MAX)
+                    (rt:< (rt:+ l r) INT_MIN))))
+  (define symbolic-addition-result
+    (λ (l r) (rt:+ l r)))
+
   (ag-rule
    symbolic-interp-do
    ;; This rule adds rosette assertions, so it should only be called when
@@ -1534,6 +1566,21 @@ Types can be:
                         (or (att-value 'type-context n)
                             (att-value 'type-context
                                        (ast-child n 'then)))}]
+   [AssignmentExpression
+    (λ (n store path-condition return-variable)
+      (match-let ([(list val new-store always-rets)
+                   (symbolic-interp-wrap
+                    (ast-child 'Expression n)
+                    store
+                    path-condition
+                    return-variable)]
+                  [ref-node (resolve-variable-reference-node n)])
+        (list val (dict-set new-store ref-node val) #f)))]
+   [AdditionExpression
+    {symbolic-binary-op #:safety-clause symbolic-addition-safety
+                        #:result-clause symbolic-addition-result}]
+   [UnsafeAdditionExpression
+    {symbolic-binary-op #:result-clause symbolic-addition-result}]
 
    [Node (λ (n store path-condition return-variable)
            (error 'symbolic-interp "No default implementation"))])
