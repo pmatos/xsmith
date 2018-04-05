@@ -1468,11 +1468,40 @@ Types can be:
               (list fv s-r #f))
             (list normal-result s-r #f)))))
 
-  (define symbolic-addition-safety
-    (λ (l r) (rt:|| (rt:> (rt:+ l r) INT_MAX)
-                    (rt:< (rt:+ l r) INT_MIN))))
+  (define {make-normal-symbolic-safety-func op}
+    (λ (l r) (rt:|| (rt:> (op l r) INT_MAX)
+                    (rt:< (op l r) INT_MIN))))
+  (define symbolic-addition-safety {make-normal-symbolic-safety-func rt:+})
+  (define symbolic-subtraction-safety {make-normal-symbolic-safety-func rt:-})
+  (define symbolic-multiplication-safety {make-normal-symbolic-safety-func rt:*})
+  (define symbolic-division-safety
+    (λ (l r)
+      (rt:|| (rt:= r 0)
+             (rt:&& (rt:= l INT_MIN)
+                    (rt:= r -1)))))
+
   (define symbolic-addition-result
     (λ (l r) (rt:+ l r)))
+  (define symbolic-multiplication-result
+    (λ (l r) (rt:* l r)))
+  (define symbolic-subtraction-result
+    (λ (l r) (rt:- l r)))
+  (define symbolic-division-result
+    (λ (l r) (rt:/ l r)))
+  (define symbolic-modulus-result
+    (λ (l r) (rt:modulo l r)))
+  (define symbolic-equality-result
+    (λ (l r) (rt:= l r)))
+  (define symbolic-inequality-result
+    (λ (l r) (rt:! (rt:= l r))))
+  (define symbolic-less-than-result
+    (λ (l r) (rt:< l r)))
+  (define symbolic-greater-than-result
+    (λ (l r) (rt:> l r)))
+  (define symbolic-lte-result
+    (λ (l r) (rt:<= l r)))
+  (define symbolic-gte-result
+    (λ (l r) (rt:>= l r)))
 
   (ag-rule
    symbolic-interp-do
@@ -1537,26 +1566,6 @@ Types can be:
    ;; TODO
    ;;(ast-rule 'AssignmentExpression:Expression->name-Expression)
    ;;(ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
-   ;;(ast-rule 'BinaryExpression:Expression->Expression<l-Expression<r)
-   ;;(ast-rule 'AdditionExpression:BinaryExpression->)
-   ;;(ast-rule 'UnsafeAdditionExpression:AdditionExpression->)
-   ;;(ast-rule 'SubtractionExpression:BinaryExpression->)
-   ;;(ast-rule 'UnsafeSubtractionExpression:SubtractionExpression->)
-   ;;(ast-rule 'MultiplicationExpression:BinaryExpression->)
-   ;;(ast-rule 'UnsafeMultiplicationExpression:MultiplicationExpression->)
-   ;;(ast-rule 'DivisionExpression:BinaryExpression->)
-   ;;(ast-rule 'UnsafeDivisionExpression:DivisionExpression->)
-
-   ;;(ast-rule 'IntOnlyBinaryExpression:BinaryExpression->)
-   ;;(ast-rule 'ModulusExpression:IntOnlyBinaryExpression->)
-   ;;(ast-rule 'UnsafeModulusExpression:ModulusExpression->)
-
-   ;;(ast-rule 'ComparisonExpression:BinaryExpression->)
-   ;;(ast-rule 'EqualityExpression:ComparisonExpression->)
-   ;;(ast-rule 'GreaterThanExpression:ComparisonExpression->)
-   ;;(ast-rule 'LessThanExpression:ComparisonExpression->)
-   ;;(ast-rule 'LessOrEqualExpression:ComparisonExpression->)
-   ;;(ast-rule 'GreaterOrEqualExpression:ComparisonExpression->)
 
    ;;(ast-rule 'LiteralInt:Expression->val)
    ;;(ast-rule 'LiteralFloat:Expression->val)
@@ -1579,8 +1588,31 @@ Types can be:
    [AdditionExpression
     {symbolic-binary-op #:safety-clause symbolic-addition-safety
                         #:result-clause symbolic-addition-result}]
-   [UnsafeAdditionExpression
-    {symbolic-binary-op #:result-clause symbolic-addition-result}]
+   [SubtractionExpression
+    {symbolic-binary-op #:safety-clause symbolic-subtraction-safety
+                        #:result-clause symbolic-subtraction-result}]
+   [MultiplicationExpression
+    {symbolic-binary-op #:safety-clause symbolic-multiplication-safety
+                        #:result-clause symbolic-multiplication-result}]
+   [DivisionExpression
+    {symbolic-binary-op #:safety-clause symbolic-division-safety
+                        #:result-clause symbolic-division-result}]
+   [ModulusExpression
+    {symbolic-binary-op #:safety-clause symbolic-division-safety
+                        #:result-clause symbolic-modulus-result}]
+
+   [UnsafeAdditionExpression {symbolic-binary-op #:result-clause symbolic-addition-result}]
+   [UnsafeSubtractionExpression {symbolic-binary-op #:result-clause symbolic-subtraction-result}]
+   [UnsafeMultiplicationExpression {symbolic-binary-op #:result-clause symbolic-multiplication-result}]
+   [UnsafeDivisionExpression {symbolic-binary-op #:result-clause symbolic-division-result}]
+   [UnsafeModulusExpression {symbolic-binary-op #:result-clause symbolic-modulus-result}]
+   [EqualityExpression {symbolic-binary-op #:result-clause symbolic-equality-result}]
+   ;[InequalityExpression {symbolic-binary-op #:result-clause symbolic-inequality-result}]
+   [LessThanExpression {symbolic-binary-op #:result-clause symbolic-less-than-result}]
+   [GreaterThanExpression {symbolic-binary-op #:result-clause symbolic-greater-than-result}]
+
+   [LessOrEqualExpression {symbolic-binary-op #:result-clause symbolic-lte-result}]
+   [GreaterOrEqualExpression {symbolic-binary-op #:result-clause symbolic-gte-result}]
 
    [Node (λ (n store path-condition return-variable)
            (error 'symbolic-interp "No default implementation"))])
