@@ -41,6 +41,7 @@
  racket/match
  racket/math
  racket/class
+ (prefix-in rt: rosette)
  (except-in racket/list empty)
  "random.rkt"
  "choice.rkt"
@@ -1378,9 +1379,9 @@ Types can be:
    )
 
   (define (fresh-symbolic-var type)
-    (define type-pred (cond [(equal? type "int") integer?]
-                            [(equal? type "float") float?]))
-    (define-symbolic* var type-pred)
+    (define type-pred (cond [(equal? type "int") rt:integer?]
+                            [(equal? type "float") rt:float?]))
+    (rt:define-symbolic* var type-pred)
     var)
 
   (define (symbolic-store-merge s1 pc1 s2 pc2)
@@ -1392,8 +1393,8 @@ Types can be:
             [(equal? v1 v2) (values k v1)]
             [else
              (define fv (fresh-symbolic-var (dict-ref (binding-bound k) 'type)))
-             (assert (=> (apply && pc1) (= fv v1)))
-             (assert (=> (apply && pc2) (= fv v2)))
+             (rt:assert (rt:=> (apply rt:&& pc1) (rt:= fv v1)))
+             (rt:assert (rt:=> (apply rt:&& pc2) (rt:= fv v2)))
              (values k fv)])))
 
   (define {symbolic-if-interp one-sided? type}
@@ -1409,35 +1410,35 @@ Types can be:
                                                   test-store
                                                   (cons test-val path-condition)
                                                   return-variable))))
-      (define then-asserts (set-subtract then-asserts+ (asserts)))
-      (assert (=> cond-v (apply && cond-asserts)))
+      (define then-asserts (set-subtract then-asserts+ (rt:asserts)))
+      (rt:assert (rt:=> cond-v (apply rt:&& cond-asserts)))
 
       (if one-sided?
           (list #t
-                (symbolic-store-merge test-store (not test-val) then-store test-val)
+                (symbolic-store-merge test-store (rt:not test-val) then-store test-val)
                 #f)
           (let ()
             (match-define-values
              ((list else-v else-store else-always-rets) else-asserts+)
              (with-asserts
-               (begin (assert (not test-val))
+               (begin (rt:assert (rt:not test-val))
                       (symbolic-interp-wrap (ast-child n 'else)
                                             test-store
-                                            (cons (not test-val) path-condition)
+                                            (cons (rt:not test-val) path-condition)
                                             return-variable))))
-            (define else-asserts (set-subtract else-asserts+ (asserts)))
-            (assert (=> (not cond-v) (apply && else-asserts)))
+            (define else-asserts (set-subtract else-asserts+ (rt:asserts)))
+            (rt:assert (rt:=> (rt:not cond-v) (apply rt:&& else-asserts)))
             (define always-ret? (and then-always-rets else-always-rets))
             (if (not type)
                 (list #t
-                      (symbolic-store-merge else-store (not test-val)
+                      (symbolic-store-merge else-store (rt:not test-val)
                                             then-store test-val)
                       always-ret?)
                 (let ([v (fresh-symbolic-var type)])
-                  (assert (&& (=> cond-v (= then-v v))
-                              (=> (not cond-v) (= else-v v))))
+                  (rt:assert (rt:&& (rt:=> cond-v (rt:= then-v v))
+                                    (rt:=> (rt:not cond-v) (rt:= else-v v))))
                   (list v
-                        (symbolic-store-merge else-store (not test-val)
+                        (symbolic-store-merge else-store (rt:not test-val)
                                               then-store test-val)
                         always-ret?)))))))
 
@@ -1462,7 +1463,7 @@ Types can be:
         (define-values (v n-store always-rets)
           (symbolic-interp-wrap (ast-child 'Expression n)
                                 store path-condition return-variable))
-        (assert (= sym-var v))
+        (rt:assert (rt:= sym-var v))
         (list v (dict-set n-store ref sym-var) #f)))]
 
    ;;; Statements
@@ -1488,7 +1489,7 @@ Types can be:
       (define-values (v n-store always-rets)
         (symbolic-interp-wrap (ast-child 'Expression n)
                               store path-condition return-variable))
-      (assert (=> (apply && path-condition) (= v return-variable)))
+      (rt:assert (rt:=> (apply rt:&& path-condition) (rt:= v return-variable)))
       (list v n-store #t))]
    [IfStatement {symbolic-if-interp #t #f}]
    [IfElseStatement {symbolic-if-interp #f #f}]
