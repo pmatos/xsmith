@@ -313,30 +313,75 @@ Types can be:
 (define current-abstract-interp-call-stack (make-parameter '()))
 
 ;;; wrapper for the ag-rule to prevent function cycles
-(define (abstract-interp-wrap/range n store flow-returns)
-  (let* ([result
-          (if (member (ast-node-type n) '(FunctionApplicationExpression
-                                          FunctionDefinition))
-              (let ([name (ast-child 'name n)])
-                (if (member name (current-abstract-interp-call-stack))
-                    (let* ([assignments
-                            (att-value 'find-transitive-assignments
-                             (if (node-subtype? n 'FunctionDefinition)
-                                 n
-                                 (let ([ref (resolve-variable-reference-node n)])
-                                   (dict-ref (binding-bound ref) 'declaration-node))))]
-                           [new-store (for/fold ([store store])
-                                            ([a assignments])
-                                    (dict-set store a abstract-value/range/top))])
-                      (list abstract-value/range/top new-store flow-returns))
-                    (parameterize ([current-abstract-interp-call-stack
-                                    (cons name (current-abstract-interp-call-stack))])
-                      (att-value 'abstract-interp-do/range n store flow-returns))))
-              (att-value 'abstract-interp-do/range n store flow-returns))]
-         [result-hash (att-value 'abstract-interp-result-hash/range n)]
-         [node-id (ast-child 'serialnumber n)])
-    (hash-set! result-hash node-id (cons result (hash-ref result-hash node-id '())))
-    result))
+(define (abstract-interp-wrap do-function
+                              store-member-to-top-func
+                              get-result-hash-func)
+  (λ (n store . rest)
+    (let* ([result
+            (if (member (ast-node-type n) '(FunctionApplicationExpression
+                                            FunctionDefinition))
+                (let ([name (ast-child 'name n)])
+                  (if (member name (current-abstract-interp-call-stack))
+                      (let* ([assignments
+                              (att-value 'find-transitive-assignments
+                                         (if (node-subtype? n 'FunctionDefinition)
+                                             n
+                                             (let ([ref (resolve-variable-reference-node n)])
+                                               (dict-ref (binding-bound ref) 'declaration-node))))]
+                             [new-store (for/fold ([store store])
+                                                  ([a assignments])
+                                          (store-member-to-top-func store a))])
+                        (list abstract-value/range/top new-store flow-returns))
+                      (parameterize ([current-abstract-interp-call-stack
+                                      (cons name (current-abstract-interp-call-stack))])
+                        (apply do-function n store rest))))
+                (apply do-function n store rest))]
+           [result-hash (get-result-hash-func n)]
+           [node-id (ast-child 'serialnumber n)])
+      (hash-set! result-hash node-id (cons result (hash-ref result-hash node-id '())))
+      result)))
+
+(define abstract-interp-wrap/range
+  (abstract-interp-wrap (λ (n store flow-returns)
+                          (att-value 'abstract-interp-do/range n store flow-returns))
+                        (λ (store key)
+                          (dict-set store key abstract-value/range/top))
+                        (λ (n)
+                          (att-value 'abstract-interp-result-hash/range n))))
+(define symbolic-interp-wrap
+  (abstract-interp-wrap (λ (n store path-condition return-variable)
+                          (att-value 'symbolic-interp-do
+                                     n store path-condition return-variable))
+                        (λ (store key)
+                          (define t (dict-ref (binding-bound key) 'type))
+                          (dict-set store key (fresh-symbolic-var t)))
+                        (λ (n)
+                          (att-value 'symbolic-interp-result-hash n))))
+
+;(define (abstract-interp-wrap/range n store flow-returns)
+;  (let* ([result
+;          (if (member (ast-node-type n) '(FunctionApplicationExpression
+;                                          FunctionDefinition))
+;              (let ([name (ast-child 'name n)])
+;                (if (member name (current-abstract-interp-call-stack))
+;                    (let* ([assignments
+;                            (att-value 'find-transitive-assignments
+;                             (if (node-subtype? n 'FunctionDefinition)
+;                                 n
+;                                 (let ([ref (resolve-variable-reference-node n)])
+;                                   (dict-ref (binding-bound ref) 'declaration-node))))]
+;                           [new-store (for/fold ([store store])
+;                                            ([a assignments])
+;                                    (dict-set store a abstract-value/range/top))])
+;                      (list abstract-value/range/top new-store flow-returns))
+;                    (parameterize ([current-abstract-interp-call-stack
+;                                    (cons name (current-abstract-interp-call-stack))])
+;                      (att-value 'abstract-interp-do/range n store flow-returns))))
+;              (att-value 'abstract-interp-do/range n store flow-returns))]
+;         [result-hash (att-value 'abstract-interp-result-hash/range n)]
+;         [node-id (ast-child 'serialnumber n)])
+;    (hash-set! result-hash node-id (cons result (hash-ref result-hash node-id '())))
+;    result))
 
 (define-syntax (values->list stx)
   (syntax-parse stx
@@ -822,6 +867,10 @@ Types can be:
   (ag-rule
    type-context
    [Node (λ (n) (error 'type-context "no default ag-rule"))]
+   [BinaryExpression (λ (n) (let ([t (or (dict-ref (att-value 'children-type-dict
+                                                              (parent-node n))
+                                                   n))])
+                              (or t (fresh-var-type))))]
    [Expression (λ (n) (dict-ref (att-value 'children-type-dict (parent-node n))
                                 n))]
    )
@@ -1459,7 +1508,7 @@ Types can be:
                      s-l path-condition return-variable)]
                    [normal-result (make-normal-result v-l v-r)])
         (if make-violation-condition
-            (let ([fv (fresh-symbolic-var aoeu)]
+            (let ([fv (fresh-symbolic-var (att-value 'type-context n))]
                   [violation-condition (make-violation-condition v-l v-r)])
               (rt:assert (rt:&& (rt:=> violation-condition
                                        (rt:= fv v-l))
@@ -1512,9 +1561,41 @@ Types can be:
    ;; Returns (list val=[symbolic expression] store=[binding->symbolic-expression hash] always-returns=[bool])
 
    ;;; Declarations
-   ;; TODO
-   ;;(ast-rule 'Program:Node->Declaration*-FunctionDefinition<main)
-   ;;(ast-rule 'FunctionDefinition:Declaration->typename-FormalParam*-Block)
+   [Program
+    (λ (n store path-condition return-variable)
+      (define init-store
+        (for/fold ([store store])
+                  ([global (filter (λ (cn) (node-subtype? cn 'VariableDeclaration))
+                                   (ast-children (ast-child 'Declaration* n)))])
+          (match-let* ([(list v n-store n-rets)
+                        (symbolic-interp-wrap
+                         global
+                         store
+                         path-condition
+                         return-variable)])
+            n-store)))
+      (define main (ast-child 'main n))
+      (define main-ret (fresh-symbolic-var "int"))
+      (symbolic-interp-wrap
+       main
+       init-store
+       path-condition
+       main-ret))]
+   ;; Function Definitions will be evaluated with store and arguments as top for
+   ;; analyzing for potential code transformations.
+   [FunctionDefinition
+    (λ (n store path-condition return-variable)
+      (define ret-var (fresh-symbolic-variable (ast-child 'typename n)))
+      (match (symbolic-interp-wrap
+              (ast-child 'Block n)
+              symbolic-store-top
+              '()
+              ret-var)
+        [(list v s always-ret)
+         (define result-hash (att-value 'symbolic-interp-result-hash n))
+         (hash-set! result-hash node-id
+                    (cons result (hash-ref result-hash node-id '())))
+         (list v s always-ret)]))]
    [VariableDeclaration
     (λ (n store path-condition return-variable)
       (let* ([name (ast-child n 'name)]
@@ -1563,18 +1644,40 @@ Types can be:
       (list #f store #f))]
 
    ;;; Expressions
-   ;; TODO
-   ;;(ast-rule 'AssignmentExpression:Expression->name-Expression)
-   ;;(ast-rule 'FunctionApplicationExpression:Expression->name-Expression*)
+   [FunctionApplicationExpression
+    (λ (n store path-condition return-variable)
+      ;; TODO - this is almost the same as the one for abstract-interp/range
+      ;; I should abstract over them somehow.
+      (define ref-node (resolve-variable-reference-node n))
+      (define def-node (dict-ref (binding-bound ref-node)
+                                 'declaration-node))
+      (define func-params (ast-children (ast-child 'FormalParam* func-def-node)))
+      (match-define (list reversed-args store-post-arguments)
+        (values->list
+         (for/fold ([args-so-far '()]
+                    [store store])
+                   ([expr (ast-children (ast-child 'Expression* n))])
+           (match-define (list v s ar)
+             (symbolic-interp-wrap expr store return-variable)))))
+      (define store-for-func (for/fold ([store store-post-arguments])
+                                       ([fp func-params]
+                                        [arg (reverse reversed-args)])
+                               (dict-set store fg arg)))
 
-   ;;(ast-rule 'LiteralInt:Expression->val)
-   ;;(ast-rule 'LiteralFloat:Expression->val)
-   ;;(ast-rule 'VariableReference:Expression->name)
+      (define ret-type (ast-child 'typename def-node))
+      (define return-var-for-func (fresh-symbolic-var ret-type))
+
+      (match (symbolic-interp-wrap func-block store-for-func return-var-for-func)
+        [(list v s always-rets)
+         (list v s #f)]))]
    [IfExpression
     {symbolic-if-interp #f
                         (or (att-value 'type-context n)
                             (att-value 'type-context
                                        (ast-child n 'then)))}]
+   [VariableReference
+    (λ (n store path-condition return-variable)
+      (list (hash-ref store (resolve-variable-reference-node n)) store #f))]
    [AssignmentExpression
     (λ (n store path-condition return-variable)
       (match-let ([(list val new-store always-rets)
@@ -1585,6 +1688,12 @@ Types can be:
                     return-variable)]
                   [ref-node (resolve-variable-reference-node n)])
         (list val (dict-set new-store ref-node val) #f)))]
+   [LiteralInt
+    (λ (n store path-condition return-variable)
+      (list (ast-child 'val n) store #f))]
+   [LiteralFloat
+    (λ (n store path-condition return-variable)
+      (list (ast-child 'val n) store #f))]
    [AdditionExpression
     {symbolic-binary-op #:safety-clause symbolic-addition-safety
                         #:result-clause symbolic-addition-result}]
