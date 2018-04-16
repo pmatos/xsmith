@@ -1442,13 +1442,12 @@ Types can be:
 
   (define ({result-in-bounds/symbolic range-op min max} l r)
     (define ({bounded-symbolic min max} v)
-      (and (rt:unsat? (rt:verify (rt:assert (rt:>= v min))))
-           (rt:unsat? (rt:verify (rt:assert (rt:<= v max))))))
+      (rt:unsat? (rt:verify (rt:assert (rt:&& (rt:>= v min) (rt:<= v max))))))
     ({bounded-symbolic min max} (range-op l r)))
   (define (division-safety-check/symbolic l r)
-    (and (rt:unsat? (rt:verify (rt:assert (rt:! (rt:= r 0)))))
-         (rt:unsat? (rt:verify (rt:assert (rt:|| (rt:! (rt:= l INT_MIN))
-                                                 (rt:! (rt:= r -1))))))))
+    (rt:unsat? (rt:verify (rt:assert (rt:&& (rt:! (rt:= r 0))
+                                            (rt:|| (rt:! (rt:= l INT_MIN))
+                                                   (rt:! (rt:= r -1))))))))
   (define ({safe-binary-op-swap/symbolic unsafe-version safety-pred} n)
     ;; safety-pred is a predicate on two symbolic values
     (define l (ast-child 'l n))
