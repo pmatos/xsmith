@@ -1119,11 +1119,11 @@ Types can be:
                    (att-value 'symbolic-interp-result-hash n)
                    (ast-child 'serialnumber n)
                    'dead)
-             ['dead 'dead]
-             [(list (list vals stores always-rets) ...)
+             ['dead (list 'dead 'dead)]
+             [(list (list vals stores always-rets assert-sets) ...)
               (define fv (fresh-symbolic-var (att-value 'type-context n)))
-              (rt:assert (apply rt:|| (map (λ (v) (rt:= fv v)) vals)))
-              fv]))])
+              (define val-assert (apply rt:|| (map (λ (v) (rt:= fv v)) vals)))
+              (list fv (apply set-union (list val-assert) assert-sets))]))])
   (ag-rule
    abstract-interp/range
    ;; Get the single global result of abstract interpretation of this node.
@@ -1444,23 +1444,35 @@ Types can be:
          (or (and (< -1 r-l) (< -1 r-h))
              (and (> -1 r-l) (> -1 r-h))))))
 
-  (define ({result-in-bounds/symbolic range-op min max} l r)
+  (define (verify assert-to-verify other-asserts)
+    (rt:solver-push (rt:current-solver))
+    (rt:solver-assert (rt:current-solver) other-asserts)
+    (rt:solver-assert (rt:current-solver) (list (rt:! assert-to-verify)))
+    (define result (rt:solver-check (rt:current-solver)))
+    (rt:solver-pop (rt:current-solver))
+    (rt:unsat? result))
+
+  (define ({result-in-bounds/symbolic range-op min max} l r asserts)
     (define ({bounded-symbolic min max} v)
-      (rt:unsat? (rt:verify (rt:assert (rt:&& (rt:>= v min) (rt:<= v max))))))
+      (verify (rt:&& (rt:>= v min) (rt:<= v max))
+              asserts))
     ({bounded-symbolic min max} (range-op l r)))
-  (define (division-safety-check/symbolic l r)
-    (rt:unsat? (rt:verify (rt:assert (rt:&& (rt:! (rt:= r 0))
-                                            (rt:|| (rt:! (rt:= l INT_MIN))
-                                                   (rt:! (rt:= r -1))))))))
+  (define (division-safety-check/symbolic l r asserts)
+    (verify (rt:&& (rt:! (rt:= r 0))
+                   (rt:|| (rt:! (rt:= l INT_MIN))
+                          (rt:! (rt:= r -1))))
+            asserts))
   (define ({safe-binary-op-swap/symbolic unsafe-version safety-pred} n)
     ;; safety-pred is a predicate on two symbolic values
     (define l (ast-child 'l n))
     (define r (ast-child 'r n))
-    (define l-result (att-value 'symbolic-interp (ast-child 'l n)))
-    (define r-result (att-value 'symbolic-interp (ast-child 'r n)))
+    (match-define (list l-result l-asserts)
+      (att-value 'symbolic-interp (ast-child 'l n)))
+    (match-define (list r-result r-asserts)
+      (att-value 'symbolic-interp (ast-child 'r n)))
     (if (member 'dead (list l-result r-result))
         #f
-        (if (safety-pred l-result r-result)
+        (if (safety-pred l-result r-result (set-union l-asserts r-asserts))
             unsafe-version
             #f)))
 
@@ -1712,7 +1724,7 @@ Types can be:
              [type (ast-child 'typename n)]
              [sym-var (fresh-symbolic-var type)]
              [ref (resolve-variable-reference-node n)])
-        (define-values (v n-store always-rets n-asserts)
+        (match-define (list v n-store always-rets n-asserts)
           (symbolic-interp-wrap (ast-child 'Expression n)
                                 store path-condition return-variable assertions))
         (list v
@@ -1743,7 +1755,7 @@ Types can be:
       (rec store assertions (ast-children (ast-child 'Statement* n))))]
    [ValueReturnStatement
     (λ (n store path-condition return-variable assertions)
-      (define-values (v n-store always-rets n-asserts)
+      (match-define (list v n-store always-rets n-asserts)
         (symbolic-interp-wrap (ast-child 'Expression n)
                               store path-condition return-variable assertions))
       (list v
@@ -1778,22 +1790,25 @@ Types can be:
                     [asserts assertions])
                    ([expr (ast-children (ast-child 'Expression* n))])
            (match-define (list v s ar n-asserts)
-             (symbolic-interp-wrap expr store return-variable asserts))
+             (symbolic-interp-wrap expr store path-condition return-variable asserts))
            (values (cons v args-so-far) s n-asserts))))
       (define store-for-func (for/fold ([store store-post-arguments])
                                        ([fp func-params]
                                         [arg (reverse reversed-args)])
-                               (dict-set store fp arg)))
+                               (dict-set store
+                                         (resolve-variable-reference-node fp)
+                                         arg)))
 
       (define ret-type (ast-child 'typename def-node))
       (define return-var-for-func (fresh-symbolic-var ret-type))
 
       (match (symbolic-interp-wrap func-block
                                    store-for-func
+                                   path-condition
                                    return-var-for-func
                                    asserts-post-arguments)
         [(list v s always-rets as)
-         (list v s #f as)]))]
+         (list return-var-for-func s #f as)]))]
    [IfExpression
     (λ (n store path-condition return-variable assertions)
       ({symbolic-if-interp #f
@@ -1804,8 +1819,10 @@ Types can be:
    [VariableReference
     (λ (n store path-condition return-variable assertions)
       (define ref (resolve-variable-reference-node n))
-      (list (hash-ref store ref
-                      (λ () (fresh-symbolic-var (hash-ref (binding-bound ref) 'type))))
+      (define val (hash-ref store ref
+                            (λ () (fresh-symbolic-var
+                                   (hash-ref (binding-bound ref) 'type)))))
+      (list val
             store
             #f
             assertions))]
