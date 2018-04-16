@@ -510,6 +510,10 @@ Types can be:
 
   (compile-ast-specifications 'Node) ; Program
 
+  (ag-rule ast-serial-number
+           ;; This is basically just a hack to signal stale state for the Rosette assertion stack.
+           [Program (λ (n) (fresh-int!))]
+           [Node (λ (n) (att-value 'ast-serial-number (parent-node n)))])
 
   (ag-rule
    ast-depth
@@ -994,20 +998,6 @@ Types can be:
            [else abstract-value/range/top])]
         [else abstract-value/range/top])))
 
-  ;;; safety-pred is a function of (l-l l-h r-l r-h -> bool)
-  (define ({safe-binary-op-swap/range unsafe-version safety-pred} n)
-    (define l (ast-child 'l n))
-    (define r (ast-child 'r n))
-    (define l-result (att-value 'abstract-interp/range (ast-child 'l n)))
-    (define r-result (att-value 'abstract-interp/range (ast-child 'r n)))
-    (if (member 'dead (list l-result r-result))
-        #f
-        (match-let ([(list (abstract-value/range l-l l-h) store-l returns-l) l-result]
-                    [(list (abstract-value/range r-l r-h) store-r returns-r) r-result])
-          (if (safety-pred l-l l-h r-l r-h)
-              unsafe-version
-              #f))))
-
   (define {abstract-comparison-op/range op opposite-op}
     {abstract-binary-op/range
      (λ (l-l l-h r-l r-h)
@@ -1120,6 +1110,36 @@ Types can be:
   (define modulus-op/range
     (λ (l-l l-h r-l r-h) (list -inf.0 +inf.0)))
 
+  (define rosette-last-ast-serial-number -1)
+  (define (maybe-reset-rosette-assertions! n)
+    (define current-ast-serial (att-value 'ast-serial-number n))
+    (when (not (equal? rosette-last-ast-serial-number
+                       current-ast-serial))
+      (set! rosette-last-ast-serial-number current-ast-serial)
+      (rt:clear-asserts!)))
+
+  (ag-rule
+   symbolic-interp
+   ;; Get the single global result
+   [Node (λ (n)
+           (maybe-reset-rosette-assertions! n)
+           ;; Interp the containing function to fill the result hash.
+           (define result
+             (symbolic-interp-wrap
+              (att-value 'get-containing-function-definition n)
+              symbolic-store-top
+              '()
+              #f))
+           ;; If the code is unreachable then it will have no result here.
+           (match (hash-ref
+                   (att-value 'symbolic-interp-result-hash n)
+                   (ast-child 'serialnumber n)
+                   'dead)
+             ['dead 'dead]
+             [(list (list vals stores always-rets) ...)
+              (define fv (fresh-symbolic-var (att-value 'type-context n)))
+              (rt:assert (apply rt:|| (map (λ (v) (rt:= fv v)) vals)))
+              fv]))])
   (ag-rule
    abstract-interp/range
    ;; Get the single global result of abstract interpretation of this node.
@@ -1401,9 +1421,23 @@ Types can be:
    [Node (λ (n store flow-returns)
            (error 'abstract-interp-do/range "no default ag-rule"))])
 
-  (define ({bounded-range min max} low high)
-    (and (<= min low) (<= min high) (>= max low) (>= max high)))
+  ;;; safety-pred is a function of (l-l l-h r-l r-h -> bool)
+  (define ({safe-binary-op-swap/range unsafe-version safety-pred} n)
+    (define l (ast-child 'l n))
+    (define r (ast-child 'r n))
+    (define l-result (att-value 'abstract-interp/range (ast-child 'l n)))
+    (define r-result (att-value 'abstract-interp/range (ast-child 'r n)))
+    (if (member 'dead (list l-result r-result))
+        #f
+        (match-let ([(list (abstract-value/range l-l l-h) store-l returns-l) l-result]
+                    [(list (abstract-value/range r-l r-h) store-r returns-r) r-result])
+          (if (safety-pred l-l l-h r-l r-h)
+              unsafe-version
+              #f))))
+
   (define ({result-in-bounds/range range-op min max} l-l l-h r-l r-h)
+    (define ({bounded-range min max} low high)
+      (and (<= min low) (<= min high) (>= max low) (>= max high)))
     (apply (bounded-range min max) (range-op l-l l-h r-l r-h)))
   (define (division-safety-check/range l-l l-h r-l r-h)
     (and
@@ -1415,91 +1449,26 @@ Types can be:
          (or (and (< -1 r-l) (< -1 r-h))
              (and (> -1 r-l) (> -1 r-h))))))
 
-  (ag-rule
-   ;;; Return #f if the unsafe op can't be safely used,
-   ;;; otherwise return the name of the unsafe type to be used
-   ;;; as a refinement.
-   unsafe-op-if-possible
-   [AdditionExpression
-    {safe-binary-op-swap/range
-     'UnsafeAdditionExpression
-     {result-in-bounds/range addition-op/range INT_MIN INT_MAX}}]
-   [SubtractionExpression
-    {safe-binary-op-swap/range
-     'UnsafeSubtractionExpression
-     {result-in-bounds/range subtraction-op/range INT_MIN INT_MAX}}]
-   [MultiplicationExpression
-    {safe-binary-op-swap/range
-     'UnsafeMultiplicationExpression
-     {result-in-bounds/range multiplication-op/range INT_MIN INT_MAX}}]
-   [DivisionExpression
-    {safe-binary-op-swap/range
-     'UnsafeDivisionExpression
-     division-safety-check/range}]
-   [ModulusExpression
-    {safe-binary-op-swap/range
-     'UnsafeModulusExpression
-     division-safety-check/range}]
-   [Node (λ (n) (error 'unsafe-op-if-possible "No default implementation"))]
-   )
-
-  (define (symbolic-store-merge s1 pc1 s2 pc2)
-    (for/hash ([k (set-union (hash-keys s1) (hash-keys s2))])
-      (define v1 (hash-ref s1 k 'not-found))
-      (define v2 (hash-ref s2 k 'not-found))
-      (cond [(equal? v1 'not-found) (values k v2)]
-            [(equal? v2 'not-found) (values k v1)]
-            [(equal? v1 v2) (values k v1)]
-            [else
-             (define fv (fresh-symbolic-var (dict-ref (binding-bound k) 'type)))
-             (rt:assert (rt:=> (apply rt:&& pc1) (rt:= fv v1)))
-             (rt:assert (rt:=> (apply rt:&& pc2) (rt:= fv v2)))
-             (values k fv)])))
-
-  (define {symbolic-if-interp one-sided? type}
-    (λ (n store path-condition return-variable)
-      (match-define (list test-val test-store)
-        (symbolic-interp-wrap (ast-child n 'test)
-                              store path-condition return-variable))
-
-      (match-define-values
-       ((list then-v then-store then-always-rets) then-asserts+)
-       (rt:with-asserts (begin (rt:assert test-val)
-                               (symbolic-interp-wrap (ast-child n 'then)
-                                                     test-store
-                                                     (cons test-val path-condition)
-                                                     return-variable))))
-      (define then-asserts (set-subtract then-asserts+ (rt:asserts)))
-      (rt:assert (rt:=> test-val (apply rt:&& then-asserts)))
-
-      (if one-sided?
-          (list #t
-                (symbolic-store-merge test-store (rt:not test-val) then-store test-val)
-                #f)
-          (let ()
-            (match-define-values
-             ((list else-v else-store else-always-rets) else-asserts+)
-             (rt:with-asserts
-              (begin (rt:assert (rt:not test-val))
-                     (symbolic-interp-wrap (ast-child n 'else)
-                                           test-store
-                                           (cons (rt:not test-val) path-condition)
-                                           return-variable))))
-            (define else-asserts (set-subtract else-asserts+ (rt:asserts)))
-            (rt:assert (rt:=> (rt:not test-val) (apply rt:&& else-asserts)))
-            (define always-ret? (and then-always-rets else-always-rets))
-            (if (not type)
-                (list #t
-                      (symbolic-store-merge else-store (rt:not test-val)
-                                            then-store test-val)
-                      always-ret?)
-                (let ([v (fresh-symbolic-var type)])
-                  (rt:assert (rt:&& (rt:=> test-val (rt:= then-v v))
-                                    (rt:=> (rt:not test-val) (rt:= else-v v))))
-                  (list v
-                        (symbolic-store-merge else-store (rt:not test-val)
-                                              then-store test-val)
-                        always-ret?)))))))
+  (define ({result-in-bounds/symbolic range-op min max} l r)
+    (define ({bounded-symbolic min max} v)
+      (and (rt:unsat? (rt:verify (rt:assert (rt:>= v min))))
+           (rt:unsat? (rt:verify (rt:assert (rt:<= v max))))))
+    ({bounded-symbolic min max} (range-op l r)))
+  (define (division-safety-check/symbolic l r)
+    (and (rt:unsat? (rt:verify (rt:assert (rt:! (rt:= r 0)))))
+         (rt:unsat? (rt:verify (rt:assert (rt:|| (rt:! (rt:= l INT_MIN))
+                                                 (rt:! (rt:= r -1))))))))
+  (define ({safe-binary-op-swap/symbolic unsafe-version safety-pred} n)
+    ;; safety-pred is a predicate on two symbolic values
+    (define l (ast-child 'l n))
+    (define r (ast-child 'r n))
+    (define l-result (att-value 'symbolic-interp (ast-child 'l n)))
+    (define r-result (att-value 'symbolic-interp (ast-child 'r n)))
+    (if (member 'dead (list l-result r-result))
+        #f
+        (if (safety-pred l-result r-result)
+            unsafe-version
+            #f)))
 
   (define {symbolic-binary-op #:safety-clause [make-violation-condition #f]
                               #:result-clause make-normal-result}
@@ -1562,6 +1531,117 @@ Types can be:
   (define symbolic-gte-result
     (λ (l r) (rt:>= l r)))
 
+
+
+  (ag-rule
+   ;;; Return #f if the unsafe op can't be safely used,
+   ;;; otherwise return the name of the unsafe type to be used
+   ;;; as a refinement.
+   unsafe-op-if-possible/range
+   [AdditionExpression
+    {safe-binary-op-swap/range
+     'UnsafeAdditionExpression
+     {result-in-bounds/range addition-op/range INT_MIN INT_MAX}}]
+   [SubtractionExpression
+    {safe-binary-op-swap/range
+     'UnsafeSubtractionExpression
+     {result-in-bounds/range subtraction-op/range INT_MIN INT_MAX}}]
+   [MultiplicationExpression
+    {safe-binary-op-swap/range
+     'UnsafeMultiplicationExpression
+     {result-in-bounds/range multiplication-op/range INT_MIN INT_MAX}}]
+   [DivisionExpression
+    {safe-binary-op-swap/range
+     'UnsafeDivisionExpression
+     division-safety-check/range}]
+   [ModulusExpression
+    {safe-binary-op-swap/range
+     'UnsafeModulusExpression
+     division-safety-check/range}]
+   [Node (λ (n) (error 'unsafe-op-if-possible/range "No default implementation"))])
+
+  (ag-rule
+   unsafe-op-if-possible/symbolic
+   [AdditionExpression
+    {safe-binary-op-swap/symbolic
+     'UnsafeAdditionExpression
+     {result-in-bounds/symbolic symbolic-addition-result INT_MIN INT_MAX}}]
+   [SubtractionExpression
+    {safe-binary-op-swap/symbolic
+     'UnsafeSubtractionExpression
+     {result-in-bounds/symbolic symbolic-subtraction-result INT_MIN INT_MAX}}]
+   [MultiplicationExpression
+    {safe-binary-op-swap/symbolic
+     'UnsafeMultiplicationExpression
+     {result-in-bounds/symbolic symbolic-multiplication-result INT_MIN INT_MAX}}]
+   [DivisionExpression
+    {safe-binary-op-swap/symbolic
+     'UnsafeDivisionExpression
+     division-safety-check/symbolic}]
+   [ModulusExpression
+    {safe-binary-op-swap/symbolic
+     'UnsafeModulusExpression
+     division-safety-check/symbolic}]
+   [Node (λ (n) (error 'unsafe-op-if-possible/symbolic "No default implementation"))])
+
+  (define (symbolic-store-merge s1 pc1 s2 pc2)
+    (for/hash ([k (set-union (hash-keys s1) (hash-keys s2))])
+      (define v1 (hash-ref s1 k 'not-found))
+      (define v2 (hash-ref s2 k 'not-found))
+      (cond [(equal? v1 'not-found) (values k v2)]
+            [(equal? v2 'not-found) (values k v1)]
+            [(equal? v1 v2) (values k v1)]
+            [else
+             (define fv (fresh-symbolic-var (dict-ref (binding-bound k) 'type)))
+             (rt:assert (rt:=> (apply rt:&& pc1) (rt:= fv v1)))
+             (rt:assert (rt:=> (apply rt:&& pc2) (rt:= fv v2)))
+             (values k fv)])))
+
+  (define {symbolic-if-interp one-sided? type}
+    (λ (n store path-condition return-variable)
+      (match-define (list test-val test-store test-always-ret)
+        (symbolic-interp-wrap (ast-child n 'test)
+                              store path-condition return-variable))
+
+      (match-define-values
+       ((list then-v then-store then-always-rets) then-asserts+)
+       (rt:with-asserts (begin (rt:assert test-val)
+                               (symbolic-interp-wrap (ast-child n 'then)
+                                                     test-store
+                                                     (cons test-val path-condition)
+                                                     return-variable))))
+      (define then-asserts (set-subtract then-asserts+ (rt:asserts)))
+      (rt:assert (rt:=> test-val (apply rt:&& then-asserts)))
+
+      (if one-sided?
+          (list #t
+                (symbolic-store-merge test-store (rt:not test-val) then-store test-val)
+                #f)
+          (let ()
+            (match-define-values
+             ((list else-v else-store else-always-rets) else-asserts+)
+             (rt:with-asserts
+              (begin (rt:assert (rt:not test-val))
+                     (symbolic-interp-wrap (ast-child n 'else)
+                                           test-store
+                                           (cons (rt:not test-val) path-condition)
+                                           return-variable))))
+            (define else-asserts (set-subtract else-asserts+ (rt:asserts)))
+            (rt:assert (rt:=> (rt:not test-val) (apply rt:&& else-asserts)))
+            (define always-ret? (and then-always-rets else-always-rets))
+            (if (not type)
+                (list #t
+                      (symbolic-store-merge else-store (rt:not test-val)
+                                            then-store test-val)
+                      always-ret?)
+                (let ([v (fresh-symbolic-var type)])
+                  (rt:assert (rt:&& (rt:=> test-val (rt:= then-v v))
+                                    (rt:=> (rt:not test-val) (rt:= else-v v))))
+                  (list v
+                        (symbolic-store-merge else-store (rt:not test-val)
+                                              then-store test-val)
+                        always-ret?)))))))
+
   (ag-rule
    symbolic-interp-do
    ;; This rule adds rosette assertions, so it should only be called when
@@ -1596,16 +1676,11 @@ Types can be:
    [FunctionDefinition
     (λ (n store path-condition return-variable)
       (define ret-var (fresh-symbolic-var (ast-child 'typename n)))
-      (match (symbolic-interp-wrap
+      (symbolic-interp-wrap
               (ast-child 'Block n)
               symbolic-store-top
               '()
-              ret-var)
-        [(list v s always-ret)
-         (define result-hash (att-value 'symbolic-interp-result-hash n))
-         (hash-set! result-hash node-id
-                    (cons v (hash-ref result-hash node-id '())))
-         (list v s always-ret)]))]
+              ret-var))]
    [VariableDeclaration
     (λ (n store path-condition return-variable)
       (let* ([name (ast-child n 'name)]
@@ -2264,13 +2339,13 @@ Types can be:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-syntax-rule (fresh-node type attr-val ...)
-  (create-ast spec type (list empty empty (node-id) attr-val ...)))
+  (create-ast spec type (list empty empty (fresh-int!) attr-val ...)))
 
-(define node-id-counter 0)
-(define (node-id)
+(define fresh-int-counter 0)
+(define (fresh-int!)
   (begin0
-      node-id-counter
-    (set! node-id-counter (add1 node-id-counter))))
+      fresh-int-counter
+    (set! fresh-int-counter (add1 fresh-int-counter))))
 
 (define (node-type n)
   (and (not (ast-list-node? n)) (not (ast-bud-node? n)) (ast-node-type n)))
@@ -2398,7 +2473,7 @@ Types can be:
                   DivisionExpression
                   ModulusExpression
                   ))
-        (let ([refined-type (att-value 'unsafe-op-if-possible n)])
+        (let ([refined-type (att-value 'unsafe-op-if-possible/range n)])
           (and refined-type
                (begin
                  (rewrite-refine n refined-type)
