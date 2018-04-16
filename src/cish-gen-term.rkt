@@ -148,6 +148,8 @@
 (define (make-generator-state)
   (generator-state 1))
 
+(define ident (λ(x)x))
+
 (struct hint
   (weight-multiplier)
   #:transparent)
@@ -178,7 +180,7 @@ Types can be:
 (define (type-satisfies? given-t constraint-t)
   (match constraint-t
     ;; TODO - arrow types
-    ;;        But I don't think I'm every comparing two arrow types directly,
+    ;;        But I don't think I'm ever comparing two arrow types directly,
     ;;        just comparing return values and argument types...
     [(basic-type cname cconst)
      (match given-t
@@ -369,11 +371,12 @@ Types can be:
                                       'type))
                           (define ret-type (first (reverse node-type)))
                           (define v (fresh-symbolic-var ret-type))
-                          (list v store #f))))
+                          (list v store #f assertions))))
 
 (define (fresh-symbolic-var type)
   (define type-pred (cond [(int-type? type) rt:integer?]
                           [(float-type? type) rt:real?]
+                          [(member type (list rt:boolean? rt:real? rt:integer?)) type]
                           [else (error 'fresh-symbolic-var "can't handle type: ~a" type)]))
   (rt:define-symbolic* var type-pred)
   var)
@@ -771,26 +774,26 @@ Types can be:
    scope-graph-scope
    [Program
     (λ (n) (scope #f
-                  (filter (λ(x)x)
+                  (filter ident
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
                                (cons (ast-child 'main n)
                                      (ast-children (ast-child 'Declaration* n)))))
                   '()))]
    [FunctionDefinition
     (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
-                  (filter (λ(x)x)
+                  (filter ident
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
                                (ast-children (ast-child 'FormalParam* n))))
                   '()))]
    [Block
     (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
-                  (filter (λ(x)x)
+                  (filter ident
                           (map (λ (cn) (att-value 'scope-graph-binding cn))
                                (ast-children (ast-child 'Declaration* n))))
                   '()))]
    [ForStatement
     (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
-                  (filter (λ(x)x)
+                  (filter ident
                           (list (att-value 'scope-graph-binding (ast-child 'init n))))
                   '()))]
    [Node
@@ -1462,12 +1465,14 @@ Types can be:
             #f)))
 
   (define {symbolic-binary-op #:safety-clause [make-violation-condition #f]
-                              #:result-clause make-normal-result}
+                              #:result-clause make-normal-result
+                              #:bool-result? [bool-result? #f]}
     ;; safety-clause and result-clause are both functions that take a
     ;; left and right rosette clause and returns a new clause.
     ;; The safety-clause should be true if undefined behavior would be tripped,
     ;; the result-clause should be the result of the unsafe operation.
     (λ (n store path-condition return-variable assertions)
+      (define type (att-value 'type-context n))
       (match-let* ([(list v-l s-l ar-l asserts-l)
                     (symbolic-interp-wrap
                      (ast-child 'l n)
@@ -1476,16 +1481,37 @@ Types can be:
                     (symbolic-interp-wrap
                      (ast-child 'r n)
                      s-l path-condition return-variable asserts-l)]
-                   [normal-result (make-normal-result v-l v-r)])
-        (if make-violation-condition
-            (let* ([fv (fresh-symbolic-var (att-value 'type-context n))]
-                   [violation-condition (make-violation-condition v-l v-r)]
-                   [new-assertion (rt:&& (rt:=> violation-condition
-                                                (rt:= fv v-l))
-                                         (rt:=> (rt:! violation-condition)
-                                                (rt:= fv normal-result)))])
-              (list fv s-r #f (set-add asserts-r new-assertion)))
-            (list normal-result s-r #f asserts-r)))))
+                   ;; rt:/ errors if the right hand arg is known to be 0...
+                   ;; So even though I'm going to check it later, I can't allow
+                   ;; it here either.
+                   [div-guard? (member make-normal-result (list rt:/ rt:modulo))]
+                   [fresh-r (if div-guard? (fresh-symbolic-var type) #f)]
+                   [normal-result (if div-guard?
+                                      (make-normal-result v-l fresh-r)
+                                      (make-normal-result v-l v-r))]
+                   [div-guard-assert (if div-guard?
+                                         (rt:=> (rt:! (rt:= 0 v-r))
+                                                (rt:= v-r fresh-r))
+                                         #t)]
+                   [fv (fresh-symbolic-var (att-value 'type-context n))])
+        (cond [make-violation-condition
+               (let* ([violation-condition (make-violation-condition v-l v-r)]
+                      [safety-assertion (rt:&& (rt:=> violation-condition
+                                                      (rt:= fv v-l))
+                                               (rt:=> (rt:! violation-condition)
+                                                      (rt:= fv normal-result)))])
+                 (list fv s-r #f (set-union asserts-r
+                                            (list safety-assertion div-guard-assert))))]
+              [bool-result?
+               (list fv s-r #f (set-union asserts-r
+                                          (list (rt:=> (rt:! normal-result)
+                                                       (rt:= 0 fv))
+                                                (rt:=> normal-result
+                                                       (rt:= 1 fv))
+                                                div-guard-assert)))]
+              [else (list fv s-r #f (set-union asserts-r
+                                               (list (rt:= fv normal-result)
+                                                     div-guard-assert)))]))))
 
   (define {make-normal-symbolic-safety-func op}
     (λ (l r) (rt:|| (rt:> (op l r) INT_MAX)
@@ -1498,29 +1524,6 @@ Types can be:
       (rt:|| (rt:= r 0)
              (rt:&& (rt:= l INT_MIN)
                     (rt:= r -1)))))
-
-  (define symbolic-addition-result
-    (λ (l r) (rt:+ l r)))
-  (define symbolic-multiplication-result
-    (λ (l r) (rt:* l r)))
-  (define symbolic-subtraction-result
-    (λ (l r) (rt:- l r)))
-  (define symbolic-division-result
-    (λ (l r) (rt:/ l r)))
-  (define symbolic-modulus-result
-    (λ (l r) (rt:modulo l r)))
-  (define symbolic-equality-result
-    (λ (l r) (rt:= l r)))
-  (define symbolic-inequality-result
-    (λ (l r) (rt:! (rt:= l r))))
-  (define symbolic-less-than-result
-    (λ (l r) (rt:< l r)))
-  (define symbolic-greater-than-result
-    (λ (l r) (rt:> l r)))
-  (define symbolic-lte-result
-    (λ (l r) (rt:<= l r)))
-  (define symbolic-gte-result
-    (λ (l r) (rt:>= l r)))
 
 
 
@@ -1556,15 +1559,15 @@ Types can be:
    [AdditionExpression
     {safe-binary-op-swap/symbolic
      'UnsafeAdditionExpression
-     {result-in-bounds/symbolic symbolic-addition-result INT_MIN INT_MAX}}]
+     {result-in-bounds/symbolic rt:+ INT_MIN INT_MAX}}]
    [SubtractionExpression
     {safe-binary-op-swap/symbolic
      'UnsafeSubtractionExpression
-     {result-in-bounds/symbolic symbolic-subtraction-result INT_MIN INT_MAX}}]
+     {result-in-bounds/symbolic rt:- INT_MIN INT_MAX}}]
    [MultiplicationExpression
     {safe-binary-op-swap/symbolic
      'UnsafeMultiplicationExpression
-     {result-in-bounds/symbolic symbolic-multiplication-result INT_MIN INT_MAX}}]
+     {result-in-bounds/symbolic rt:* INT_MIN INT_MAX}}]
    [DivisionExpression
     {safe-binary-op-swap/symbolic
      'UnsafeDivisionExpression
@@ -1576,17 +1579,25 @@ Types can be:
    [Node (λ (n) (error 'unsafe-op-if-possible/symbolic "No default implementation"))])
 
   (define (symbolic-store-merge s1 pc1 s2 pc2)
-    (for/hash ([k (set-union (hash-keys s1) (hash-keys s2))])
-      (define v1 (hash-ref s1 k 'not-found))
-      (define v2 (hash-ref s2 k 'not-found))
-      (cond [(equal? v1 'not-found) (values k v2)]
-            [(equal? v2 'not-found) (values k v1)]
-            [(equal? v1 v2) (values k v1)]
-            [else
-             (define fv (fresh-symbolic-var (dict-ref (binding-bound k) 'type)))
-             (rt:assert (rt:=> (apply rt:&& pc1) (rt:= fv v1)))
-             (rt:assert (rt:=> (apply rt:&& pc2) (rt:= fv v2)))
-             (values k fv)])))
+    (define new-asserts '())
+    (define new-store
+      (for/hash ([k (set-union (hash-keys s1) (hash-keys s2))])
+        (define v1 (hash-ref s1 k 'not-found))
+        (define v2 (hash-ref s2 k 'not-found))
+        (cond [(equal? v1 'not-found) (values k v2)]
+              [(equal? v2 'not-found) (values k v1)]
+              [(equal? v1 v2) (values k v1)]
+              [else
+               (define fv (fresh-symbolic-var (dict-ref (binding-bound k) 'type)))
+               (set! new-asserts (set-add new-asserts (rt:=> (asserts->condition pc1)
+                                                             (rt:= fv v1))))
+               (set! new-asserts (set-add new-asserts (rt:=> (asserts->condition pc2)
+                                                             (rt:= fv v2))))
+               (values k fv)])))
+    (values new-store new-asserts))
+
+  (define (asserts->condition asserts)
+    (apply rt:&& (set->list asserts)))
 
   (define {symbolic-if-interp one-sided? type}
     (λ (n store path-condition return-variable assertions)
@@ -1608,13 +1619,16 @@ Types can be:
       (define then-asserts-unique (set-subtract then-asserts-pre assertions-with-test))
       (define asserts-with-then
         (set-add assertions-with-test
-                 (rt:=> pc-true (apply rt:&& then-asserts-unique))))
+                 (rt:=> (asserts->condition pc-true)
+                        (asserts->condition then-asserts-unique))))
 
       (if one-sided?
-          (list #t
-                (symbolic-store-merge test-store pc-false then-store pc-true)
-                #f
-                asserts-with-then)
+          (let-values ([(merged-store merge-asserts)
+                        (symbolic-store-merge test-store pc-false then-store pc-true)])
+            (list #t
+                  merged-store
+                  #f
+                  (set-union asserts-with-then merge-asserts)))
           (let ()
             (match-define
               (list else-v else-store else-always-rets else-asserts-pre)
@@ -1627,22 +1641,27 @@ Types can be:
               (set-subtract else-asserts-pre assertions-with-test))
             (define asserts-with-else
               (set-add asserts-with-then
-                       (rt:=> pc-false (apply rt:&& else-asserts-unique))))
+                       (rt:=> (asserts->condition pc-false)
+                              (asserts->condition else-asserts-unique))))
             (define always-ret? (and then-always-rets else-always-rets))
+            (define-values (merged-store merge-asserts)
+              (symbolic-store-merge else-store pc-false then-store pc-true))
+            (define asserts-post-merge
+              (set-union asserts-with-else merge-asserts))
             (if (not type)
                 (list #t
-                      (symbolic-store-merge else-store (rt:not assert-test)
-                                            then-store assert-test)
+                      merged-store
                       always-ret?
-                      asserts-with-else)
+                      asserts-post-merge)
                 (let ([v (fresh-symbolic-var type)])
                   (list v
-                        (symbolic-store-merge else-store (rt:not assert-test)
-                                              then-store assert-test)
+                        merged-store
                         always-ret?
-                        (set-add asserts-with-else
-                                 (rt:&& (rt:=> pc-true (rt:= then-v v))
-                                        (rt:=> pc-false (rt:= else-v v)))))))))))
+                        (set-add asserts-post-merge
+                                 (rt:&& (rt:=> (asserts->condition pc-true)
+                                               (rt:= then-v v))
+                                        (rt:=> (asserts->condition pc-false)
+                                               (rt:= else-v v)))))))))))
 
   (ag-rule
    symbolic-interp-do
@@ -1689,8 +1708,8 @@ Types can be:
               assertions))]
    [VariableDeclaration
     (λ (n store path-condition return-variable assertions)
-      (let* ([name (ast-child n 'name)]
-             [type (ast-child n 'typename)]
+      (let* ([name (ast-child 'name n)]
+             [type (ast-child 'typename n)]
              [sym-var (fresh-symbolic-var type)]
              [ref (resolve-variable-reference-node n)])
         (define-values (v n-store always-rets n-asserts)
@@ -1780,7 +1799,7 @@ Types can be:
       ({symbolic-if-interp #f
                            (or (att-value 'type-context n)
                                (att-value 'type-context
-                                          (ast-child n 'then)))}
+                                          (ast-child 'then n)))}
        n store path-condition return-variable assertions))]
    [VariableReference
     (λ (n store path-condition return-variable assertions)
@@ -1809,32 +1828,47 @@ Types can be:
       (list (ast-child 'val n) store #f assertions))]
    [AdditionExpression
     {symbolic-binary-op #:safety-clause symbolic-addition-safety
-                        #:result-clause symbolic-addition-result}]
+                        #:result-clause rt:+}]
    [SubtractionExpression
     {symbolic-binary-op #:safety-clause symbolic-subtraction-safety
-                        #:result-clause symbolic-subtraction-result}]
+                        #:result-clause rt:-}]
    [MultiplicationExpression
     {symbolic-binary-op #:safety-clause symbolic-multiplication-safety
-                        #:result-clause symbolic-multiplication-result}]
+                        #:result-clause rt:*}]
    [DivisionExpression
     {symbolic-binary-op #:safety-clause symbolic-division-safety
-                        #:result-clause symbolic-division-result}]
+                        #:result-clause rt:/}]
    [ModulusExpression
     {symbolic-binary-op #:safety-clause symbolic-division-safety
-                        #:result-clause symbolic-modulus-result}]
+                        #:result-clause rt:modulo}]
 
-   [UnsafeAdditionExpression {symbolic-binary-op #:result-clause symbolic-addition-result}]
-   [UnsafeSubtractionExpression {symbolic-binary-op #:result-clause symbolic-subtraction-result}]
-   [UnsafeMultiplicationExpression {symbolic-binary-op #:result-clause symbolic-multiplication-result}]
-   [UnsafeDivisionExpression {symbolic-binary-op #:result-clause symbolic-division-result}]
-   [UnsafeModulusExpression {symbolic-binary-op #:result-clause symbolic-modulus-result}]
-   [EqualityExpression {symbolic-binary-op #:result-clause symbolic-equality-result}]
-   ;[InequalityExpression {symbolic-binary-op #:result-clause symbolic-inequality-result}]
-   [LessThanExpression {symbolic-binary-op #:result-clause symbolic-less-than-result}]
-   [GreaterThanExpression {symbolic-binary-op #:result-clause symbolic-greater-than-result}]
+   [UnsafeAdditionExpression
+    {symbolic-binary-op #:result-clause rt:+}]
+   [UnsafeSubtractionExpression
+    {symbolic-binary-op #:result-clause rt:-}]
+   [UnsafeMultiplicationExpression
+    {symbolic-binary-op #:result-clause rt:*}]
+   [UnsafeDivisionExpression
+    {symbolic-binary-op #:result-clause rt:/}]
+   [UnsafeModulusExpression
+    {symbolic-binary-op #:result-clause rt:modulo}]
 
-   [LessOrEqualExpression {symbolic-binary-op #:result-clause symbolic-lte-result}]
-   [GreaterOrEqualExpression {symbolic-binary-op #:result-clause symbolic-gte-result}]
+   [EqualityExpression
+    {symbolic-binary-op #:result-clause rt:=
+                        #:bool-result? #t}]
+   [LessThanExpression
+    {symbolic-binary-op #:result-clause rt:<
+                        #:bool-result? #t}]
+   [GreaterThanExpression
+    {symbolic-binary-op #:result-clause rt:>
+                        #:bool-result? #t}]
+
+   [LessOrEqualExpression
+    {symbolic-binary-op #:result-clause rt:<=
+                        #:bool-result? #t}]
+   [GreaterOrEqualExpression
+    {symbolic-binary-op #:result-clause rt:>=
+                        #:bool-result? #t}]
 
    [Node (λ (n store path-condition return-variable assertions)
            (error 'symbolic-interp "No default implementation"))])
