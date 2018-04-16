@@ -354,15 +354,15 @@ Types can be:
                         (λ (n store flow-returns)
                           (list abstract-value/range/top store flow-returns))))
 (define symbolic-interp-wrap
-  (abstract-interp-wrap (λ (n store path-condition return-variable)
+  (abstract-interp-wrap (λ (n store path-condition return-variable assertions)
                           (att-value 'symbolic-interp-do
-                                     n store path-condition return-variable))
+                                     n store path-condition return-variable assertions))
                         (λ (store key)
                           (define t (dict-ref (binding-bound key) 'type))
                           (dict-set store key (fresh-symbolic-var t)))
                         (λ (n)
                           (att-value 'symbolic-interp-result-hash n))
-                        (λ (n store path-condition return-variable)
+                        (λ (n store path-condition return-variable assertions)
                           (define node-type
                             (dict-ref (binding-bound
                                        (resolve-variable-reference-node n))
@@ -1109,7 +1109,8 @@ Types can be:
               (att-value 'get-containing-function-definition n)
               symbolic-store-top
               '()
-              #f))
+              #f
+              '()))
            ;; If the code is unreachable then it will have no result here.
            (match (hash-ref
                    (att-value 'symbolic-interp-result-hash n)
@@ -1466,25 +1467,25 @@ Types can be:
     ;; left and right rosette clause and returns a new clause.
     ;; The safety-clause should be true if undefined behavior would be tripped,
     ;; the result-clause should be the result of the unsafe operation.
-    (λ (n store path-condition return-variable)
-      (match-let* ([(list v-l s-l ar-l)
+    (λ (n store path-condition return-variable assertions)
+      (match-let* ([(list v-l s-l ar-l asserts-l)
                     (symbolic-interp-wrap
                      (ast-child 'l n)
-                     store path-condition return-variable)]
-                   [(list v-r s-r ar-r)
+                     store path-condition return-variable assertions)]
+                   [(list v-r s-r ar-r asserts-r)
                     (symbolic-interp-wrap
                      (ast-child 'r n)
-                     s-l path-condition return-variable)]
+                     s-l path-condition return-variable asserts-l)]
                    [normal-result (make-normal-result v-l v-r)])
         (if make-violation-condition
-            (let ([fv (fresh-symbolic-var (att-value 'type-context n))]
-                  [violation-condition (make-violation-condition v-l v-r)])
-              (rt:assert (rt:&& (rt:=> violation-condition
-                                       (rt:= fv v-l))
-                                (rt:=> (rt:! violation-condition)
-                                       (rt:= fv normal-result))))
-              (list fv s-r #f))
-            (list normal-result s-r #f)))))
+            (let* ([fv (fresh-symbolic-var (att-value 'type-context n))]
+                   [violation-condition (make-violation-condition v-l v-r)]
+                   [new-assertion (rt:&& (rt:=> violation-condition
+                                                (rt:= fv v-l))
+                                         (rt:=> (rt:! violation-condition)
+                                                (rt:= fv normal-result)))])
+              (list fv s-r #f (set-add asserts-r new-assertion)))
+            (list normal-result s-r #f asserts-r)))))
 
   (define {make-normal-symbolic-safety-func op}
     (λ (l r) (rt:|| (rt:> (op l r) INT_MAX)
@@ -1588,52 +1589,60 @@ Types can be:
              (values k fv)])))
 
   (define {symbolic-if-interp one-sided? type}
-    (λ (n store path-condition return-variable)
-      (match-define (list test-val test-store test-always-ret)
+    (λ (n store path-condition return-variable assertions)
+      (match-define (list test-val test-store test-always-ret assertions-with-test)
         (symbolic-interp-wrap (ast-child 'test n)
-                              store path-condition return-variable))
-      (define-values (then-result then-asserts+)
-        (rt:with-asserts (begin (rt:assert test-val)
-                                (symbolic-interp-wrap (ast-child 'then n)
-                                                      test-store
-                                                      (cons test-val path-condition)
-                                                      return-variable))))
-      (match-define (list then-v then-store then-always-rets) then-result)
-      (define then-asserts (set-subtract then-asserts+ (rt:asserts)))
+                              store path-condition return-variable assertions))
       (define assert-test
         (if (rt:boolean? test-val)
             test-val
             (rt:! (rt:= 0 test-val))))
-      (rt:assert (rt:=> assert-test (apply rt:&& then-asserts)))
+      (define pc-true (set-add path-condition assert-test))
+      (define pc-false (set-add path-condition (rt:! assert-test)))
+      (match-define (list then-v then-store then-always-rets then-asserts-pre)
+        (symbolic-interp-wrap (ast-child 'then n)
+                              test-store
+                              pc-true
+                              return-variable
+                              (set-add assertions-with-test assert-test)))
+      (define then-asserts-unique (set-subtract then-asserts-pre assertions-with-test))
+      (define asserts-with-then
+        (set-add assertions-with-test
+                 (rt:=> pc-true (apply rt:&& then-asserts-unique))))
 
       (if one-sided?
           (list #t
-                (symbolic-store-merge test-store (rt:not assert-test) then-store assert-test)
-                #f)
+                (symbolic-store-merge test-store pc-false then-store pc-true)
+                #f
+                asserts-with-then)
           (let ()
-            (match-define-values
-             ((list else-v else-store else-always-rets) else-asserts+)
-             (rt:with-asserts
-              (begin (rt:assert (rt:not assert-test))
-                     (symbolic-interp-wrap (ast-child 'else n)
-                                           test-store
-                                           (cons (rt:not assert-test) path-condition)
-                                           return-variable))))
-            (define else-asserts (set-subtract else-asserts+ (rt:asserts)))
-            (rt:assert (rt:=> (rt:not assert-test) (apply rt:&& else-asserts)))
+            (match-define
+              (list else-v else-store else-always-rets else-asserts-pre)
+              (symbolic-interp-wrap (ast-child 'else n)
+                                    test-store
+                                    pc-false
+                                    return-variable
+                                    (set-add assertions-with-test (rt:! assert-test))))
+            (define else-asserts-unique
+              (set-subtract else-asserts-pre assertions-with-test))
+            (define asserts-with-else
+              (set-add asserts-with-then
+                       (rt:=> pc-false (apply rt:&& else-asserts-unique))))
             (define always-ret? (and then-always-rets else-always-rets))
             (if (not type)
                 (list #t
                       (symbolic-store-merge else-store (rt:not assert-test)
                                             then-store assert-test)
-                      always-ret?)
+                      always-ret?
+                      asserts-with-else)
                 (let ([v (fresh-symbolic-var type)])
-                  (rt:assert (rt:&& (rt:=> assert-test (rt:= then-v v))
-                                    (rt:=> (rt:not assert-test) (rt:= else-v v))))
                   (list v
                         (symbolic-store-merge else-store (rt:not assert-test)
                                               then-store assert-test)
-                        always-ret?)))))))
+                        always-ret?
+                        (set-add asserts-with-else
+                                 (rt:&& (rt:=> pc-true (rt:= then-v v))
+                                        (rt:=> pc-false (rt:= else-v v)))))))))))
 
   (ag-rule
    symbolic-interp-do
@@ -1645,46 +1654,52 @@ Types can be:
 
    ;;; Declarations
    [Program
-    (λ (n store path-condition return-variable)
-      (define init-store
-        (for/fold ([store store])
+    (λ (n store path-condition return-variable assertions)
+      (define-values (init-store init-asserts)
+        (for/fold ([store store]
+                   [assertions assertions])
                   ([global (filter (λ (cn) (node-subtype? cn 'VariableDeclaration))
                                    (ast-children (ast-child 'Declaration* n)))])
-          (match-let* ([(list v n-store n-rets)
+          (match-let* ([(list v n-store n-rets n-asserts)
                         (symbolic-interp-wrap
                          global
                          store
                          path-condition
-                         return-variable)])
-            n-store)))
+                         return-variable
+                         assertions)])
+            (values n-store n-asserts))))
       (define main (ast-child 'main n))
       (define main-ret (fresh-symbolic-var int-type))
       (symbolic-interp-wrap
        main
        init-store
        path-condition
-       main-ret))]
+       main-ret
+       init-asserts))]
    ;; Function Definitions will be evaluated with store and arguments as top for
    ;; analyzing for potential code transformations.
    [FunctionDefinition
-    (λ (n store path-condition return-variable)
+    (λ (n store path-condition return-variable assertions)
       (define ret-var (fresh-symbolic-var (ast-child 'typename n)))
       (symbolic-interp-wrap
               (ast-child 'Block n)
               symbolic-store-top
               '()
-              ret-var))]
+              ret-var
+              assertions))]
    [VariableDeclaration
-    (λ (n store path-condition return-variable)
+    (λ (n store path-condition return-variable assertions)
       (let* ([name (ast-child n 'name)]
              [type (ast-child n 'typename)]
              [sym-var (fresh-symbolic-var type)]
              [ref (resolve-variable-reference-node n)])
-        (define-values (v n-store always-rets)
+        (define-values (v n-store always-rets n-asserts)
           (symbolic-interp-wrap (ast-child 'Expression n)
-                                store path-condition return-variable))
-        (rt:assert (rt:= sym-var v))
-        (list v (dict-set n-store ref sym-var) #f)))]
+                                store path-condition return-variable assertions))
+        (list v
+              (dict-set n-store ref sym-var)
+              #f
+              (set-add n-asserts (rt:= sym-var v)))))]
 
    ;;; Statements
    ;; TODO
@@ -1693,37 +1708,43 @@ Types can be:
    ;;(ast-rule 'DoWhileStatement:LoopStatement->)
    ;;(ast-rule 'ForStatement:LoopStatement->Declaration<init-Expression<update)
    [Block
-    (λ (n store path-condition return-variable)
-      (define (rec store children-left)
+    (λ (n store path-condition return-variable assertions)
+      (define (rec store asserts children-left)
         (if (null? children-left)
             (list #f store #f)
-            (match-let ([(list v n-store always-rets)
+            (match-let ([(list v n-store always-rets n-asserts)
                          (symbolic-interp-wrap (car children-left)
-                                               store path-condition return-variable)])
+                                               store
+                                               path-condition
+                                               return-variable
+                                               asserts)])
               (if always-rets
-                  (list #f n-store always-rets)
-                  (rec n-store (cdr children-left))))))
-      (rec store (ast-children (ast-child 'Statement* n))))]
+                  (list #f n-store always-rets n-asserts)
+                  (rec n-store n-asserts (cdr children-left))))))
+      (rec store assertions (ast-children (ast-child 'Statement* n))))]
    [ValueReturnStatement
-    (λ (n store path-condition return-variable)
-      (define-values (v n-store always-rets)
+    (λ (n store path-condition return-variable assertions)
+      (define-values (v n-store always-rets n-asserts)
         (symbolic-interp-wrap (ast-child 'Expression n)
-                              store path-condition return-variable))
-      (rt:assert (rt:=> (apply rt:&& path-condition) (rt:= v return-variable)))
-      (list v n-store #t))]
+                              store path-condition return-variable assertions))
+      (list v
+            n-store
+            #t
+            (set-add n-asserts (rt:=> (apply rt:&& path-condition)
+                                      (rt:= v return-variable)))))]
    [IfStatement {symbolic-if-interp #t #f}]
    [IfElseStatement {symbolic-if-interp #f #f}]
    [ExpressionStatement
-    (λ (n store path-condition return-variable)
+    (λ (n store path-condition return-variable assertions)
       (symbolic-interp-wrap (ast-child 'Expression n)
-                            store path-condition return-variable))]
+                            store path-condition return-variable assertions))]
    [NullStatement
-    (λ (n store path-condition return-variable)
-      (list #f store #f))]
+    (λ (n store path-condition return-variable assertions)
+      (list #f store #f assertions))]
 
    ;;; Expressions
    [FunctionApplicationExpression
-    (λ (n store path-condition return-variable)
+    (λ (n store path-condition return-variable assertions)
       ;; TODO - this is almost the same as the one for abstract-interp/range
       ;; I should abstract over them somehow.
       (define ref-node (resolve-variable-reference-node n))
@@ -1731,14 +1752,15 @@ Types can be:
                                  'declaration-node))
       (define func-block (ast-child 'Block def-node))
       (define func-params (ast-children (ast-child 'FormalParam* def-node)))
-      (match-define (list reversed-args store-post-arguments)
+      (match-define (list reversed-args store-post-arguments asserts-post-arguments)
         (values->list
          (for/fold ([args-so-far '()]
-                    [store store])
+                    [store store]
+                    [asserts assertions])
                    ([expr (ast-children (ast-child 'Expression* n))])
-           (match-define (list v s ar)
-             (symbolic-interp-wrap expr store return-variable))
-           (values (cons v args-so-far) s))))
+           (match-define (list v s ar n-asserts)
+             (symbolic-interp-wrap expr store return-variable asserts))
+           (values (cons v args-so-far) s n-asserts))))
       (define store-for-func (for/fold ([store store-post-arguments])
                                        ([fp func-params]
                                         [arg (reverse reversed-args)])
@@ -1747,39 +1769,44 @@ Types can be:
       (define ret-type (ast-child 'typename def-node))
       (define return-var-for-func (fresh-symbolic-var ret-type))
 
-      (match (symbolic-interp-wrap func-block store-for-func return-var-for-func)
-        [(list v s always-rets)
-         (list v s #f)]))]
+      (match (symbolic-interp-wrap func-block
+                                   store-for-func
+                                   return-var-for-func
+                                   asserts-post-arguments)
+        [(list v s always-rets as)
+         (list v s #f as)]))]
    [IfExpression
-    (λ (n store path-condition return-variable)
+    (λ (n store path-condition return-variable assertions)
       ({symbolic-if-interp #f
                            (or (att-value 'type-context n)
                                (att-value 'type-context
                                           (ast-child n 'then)))}
-       n store path-condition return-variable))]
+       n store path-condition return-variable assertions))]
    [VariableReference
-    (λ (n store path-condition return-variable)
+    (λ (n store path-condition return-variable assertions)
       (define ref (resolve-variable-reference-node n))
       (list (hash-ref store ref
                       (λ () (fresh-symbolic-var (hash-ref (binding-bound ref) 'type))))
             store
-            #f))]
+            #f
+            assertions))]
    [AssignmentExpression
-    (λ (n store path-condition return-variable)
-      (match-let ([(list val new-store always-rets)
+    (λ (n store path-condition return-variable assertions)
+      (match-let ([(list val new-store always-rets n-asserts)
                    (symbolic-interp-wrap
                     (ast-child 'Expression n)
                     store
                     path-condition
-                    return-variable)]
+                    return-variable
+                    assertions)]
                   [ref-node (resolve-variable-reference-node n)])
-        (list val (dict-set new-store ref-node val) #f)))]
+        (list val (dict-set new-store ref-node val) #f n-asserts)))]
    [LiteralInt
-    (λ (n store path-condition return-variable)
-      (list (ast-child 'val n) store #f))]
+    (λ (n store path-condition return-variable assertions)
+      (list (ast-child 'val n) store #f assertions))]
    [LiteralFloat
-    (λ (n store path-condition return-variable)
-      (list (ast-child 'val n) store #f))]
+    (λ (n store path-condition return-variable assertions)
+      (list (ast-child 'val n) store #f assertions))]
    [AdditionExpression
     {symbolic-binary-op #:safety-clause symbolic-addition-safety
                         #:result-clause symbolic-addition-result}]
@@ -1809,7 +1836,7 @@ Types can be:
    [LessOrEqualExpression {symbolic-binary-op #:result-clause symbolic-lte-result}]
    [GreaterOrEqualExpression {symbolic-binary-op #:result-clause symbolic-gte-result}]
 
-   [Node (λ (n store path-condition return-variable)
+   [Node (λ (n store path-condition return-variable assertions)
            (error 'symbolic-interp "No default implementation"))])
 
   (ag-rule
