@@ -214,7 +214,9 @@ Types can be:
         [else (error 'constrain-type "bad case")]))
 
 (define int-type (specify-type empty-basic-type "int"))
+(define (int-type? x) (and (basic-type? x) (equal? (basic-type-name x) "int")))
 (define float-type (specify-type empty-basic-type "float"))
+(define (float-type? x) (and (basic-type? x) (equal? (basic-type-name x) "float")))
 (define nonzero-type (constrain-type empty-basic-type 'nonzero))
 (define nonzero-int-type (constrain-type int-type 'nonzero))
 (define nonzero-float-type (constrain-type float-type 'nonzero))
@@ -361,43 +363,21 @@ Types can be:
                         (λ (n)
                           (att-value 'symbolic-interp-result-hash n))
                         (λ (n store path-condition return-variable)
-                          (define v (fresh-symbolic-var
-                                     (dict-ref (binding-bound
-                                                (resolve-variable-reference-node n))
-                                               'type)))
-                          (list v store path-condition return-variable))))
+                          (define node-type
+                            (dict-ref (binding-bound
+                                       (resolve-variable-reference-node n))
+                                      'type))
+                          (define ret-type (first (reverse node-type)))
+                          (define v (fresh-symbolic-var ret-type))
+                          (list v store #f))))
 
 (define (fresh-symbolic-var type)
-  (define type-pred (cond [(equal? type "int") rt:integer?]
-                          [(equal? type "float") rt:real?]))
+  (define type-pred (cond [(int-type? type) rt:integer?]
+                          [(float-type? type) rt:real?]
+                          [else (error 'fresh-symbolic-var "can't handle type: ~a" type)]))
   (rt:define-symbolic* var type-pred)
   var)
 (define symbolic-store-top (hash))
-
-;(define (abstract-interp-wrap/range n store flow-returns)
-;  (let* ([result
-;          (if (member (ast-node-type n) '(FunctionApplicationExpression
-;                                          FunctionDefinition))
-;              (let ([name (ast-child 'name n)])
-;                (if (member name (current-abstract-interp-call-stack))
-;                    (let* ([assignments
-;                            (att-value 'find-transitive-assignments
-;                             (if (node-subtype? n 'FunctionDefinition)
-;                                 n
-;                                 (let ([ref (resolve-variable-reference-node n)])
-;                                   (dict-ref (binding-bound ref) 'declaration-node))))]
-;                           [new-store (for/fold ([store store])
-;                                            ([a assignments])
-;                                    (dict-set store a abstract-value/range/top))])
-;                      (list abstract-value/range/top new-store flow-returns))
-;                    (parameterize ([current-abstract-interp-call-stack
-;                                    (cons name (current-abstract-interp-call-stack))])
-;                      (att-value 'abstract-interp-do/range n store flow-returns))))
-;              (att-value 'abstract-interp-do/range n store flow-returns))]
-;         [result-hash (att-value 'abstract-interp-result-hash/range n)]
-;         [node-id (ast-child 'serialnumber n)])
-;    (hash-set! result-hash node-id (cons result (hash-ref result-hash node-id '())))
-;    result))
 
 (define-syntax (values->list stx)
   (syntax-parse stx
@@ -1169,6 +1149,17 @@ Types can be:
    [Node (λ (n) (att-value 'get-containing-function-definition (ast-parent n)))])
 
   (ag-rule
+   ;; This is essentially the same as abstract-interp-result-hash/range
+   symbolic-interp-result-hash
+   [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main"))
+                                  (make-hasheq)
+                                  (att-value 'symbolic-interp-result-hash
+                                             (ast-parent n))))]
+   [Program (λ (n) (make-hasheq))]
+   [Node (λ (n) (att-value 'symbolic-interp-result-hash (ast-parent n)))]
+   )
+
+  (ag-rule
    ;; To get a general interp result for any given node, we need to cache
    ;; the results of evaluation when we interpret the whole function it is in.
    ;; We collect results in this hash, then merge if there are multiple results.
@@ -1492,7 +1483,7 @@ Types can be:
               (rt:assert (rt:&& (rt:=> violation-condition
                                        (rt:= fv v-l))
                                 (rt:=> (rt:! violation-condition)
-                                       normal-result)))
+                                       (rt:= fv normal-result))))
               (list fv s-r #f))
             (list normal-result s-r #f)))))
 
@@ -1600,46 +1591,49 @@ Types can be:
   (define {symbolic-if-interp one-sided? type}
     (λ (n store path-condition return-variable)
       (match-define (list test-val test-store test-always-ret)
-        (symbolic-interp-wrap (ast-child n 'test)
+        (symbolic-interp-wrap (ast-child 'test n)
                               store path-condition return-variable))
-
-      (match-define-values
-       ((list then-v then-store then-always-rets) then-asserts+)
-       (rt:with-asserts (begin (rt:assert test-val)
-                               (symbolic-interp-wrap (ast-child n 'then)
-                                                     test-store
-                                                     (cons test-val path-condition)
-                                                     return-variable))))
+      (define-values (then-result then-asserts+)
+        (rt:with-asserts (begin (rt:assert test-val)
+                                (symbolic-interp-wrap (ast-child 'then n)
+                                                      test-store
+                                                      (cons test-val path-condition)
+                                                      return-variable))))
+      (match-define (list then-v then-store then-always-rets) then-result)
       (define then-asserts (set-subtract then-asserts+ (rt:asserts)))
-      (rt:assert (rt:=> test-val (apply rt:&& then-asserts)))
+      (define assert-test
+        (if (rt:boolean? test-val)
+            test-val
+            (rt:! (rt:= 0 test-val))))
+      (rt:assert (rt:=> assert-test (apply rt:&& then-asserts)))
 
       (if one-sided?
           (list #t
-                (symbolic-store-merge test-store (rt:not test-val) then-store test-val)
+                (symbolic-store-merge test-store (rt:not assert-test) then-store assert-test)
                 #f)
           (let ()
             (match-define-values
              ((list else-v else-store else-always-rets) else-asserts+)
              (rt:with-asserts
-              (begin (rt:assert (rt:not test-val))
-                     (symbolic-interp-wrap (ast-child n 'else)
+              (begin (rt:assert (rt:not assert-test))
+                     (symbolic-interp-wrap (ast-child 'else n)
                                            test-store
-                                           (cons (rt:not test-val) path-condition)
+                                           (cons (rt:not assert-test) path-condition)
                                            return-variable))))
             (define else-asserts (set-subtract else-asserts+ (rt:asserts)))
-            (rt:assert (rt:=> (rt:not test-val) (apply rt:&& else-asserts)))
+            (rt:assert (rt:=> (rt:not assert-test) (apply rt:&& else-asserts)))
             (define always-ret? (and then-always-rets else-always-rets))
             (if (not type)
                 (list #t
-                      (symbolic-store-merge else-store (rt:not test-val)
-                                            then-store test-val)
+                      (symbolic-store-merge else-store (rt:not assert-test)
+                                            then-store assert-test)
                       always-ret?)
                 (let ([v (fresh-symbolic-var type)])
-                  (rt:assert (rt:&& (rt:=> test-val (rt:= then-v v))
-                                    (rt:=> (rt:not test-val) (rt:= else-v v))))
+                  (rt:assert (rt:&& (rt:=> assert-test (rt:= then-v v))
+                                    (rt:=> (rt:not assert-test) (rt:= else-v v))))
                   (list v
-                        (symbolic-store-merge else-store (rt:not test-val)
-                                              then-store test-val)
+                        (symbolic-store-merge else-store (rt:not assert-test)
+                                              then-store assert-test)
                         always-ret?)))))))
 
   (ag-rule
@@ -1665,7 +1659,7 @@ Types can be:
                          return-variable)])
             n-store)))
       (define main (ast-child 'main n))
-      (define main-ret (fresh-symbolic-var "int"))
+      (define main-ret (fresh-symbolic-var int-type))
       (symbolic-interp-wrap
        main
        init-store
@@ -1704,13 +1698,13 @@ Types can be:
       (define (rec store children-left)
         (if (null? children-left)
             (list #f store #f)
-            (let-values ([(v n-store always-rets)
-                          (symbolic-interp-wrap (car children-left)
-                                                store path-condition return-variable)])
+            (match-let ([(list v n-store always-rets)
+                         (symbolic-interp-wrap (car children-left)
+                                               store path-condition return-variable)])
               (if always-rets
                   (list #f n-store always-rets)
                   (rec n-store (cdr children-left))))))
-      (rec store (ast-children (ast-children (ast-child 'Expression* n)))))]
+      (rec store (ast-children (ast-child 'Statement* n))))]
    [ValueReturnStatement
     (λ (n store path-condition return-variable)
       (define-values (v n-store always-rets)
@@ -1766,7 +1760,11 @@ Types can be:
        n store path-condition return-variable))]
    [VariableReference
     (λ (n store path-condition return-variable)
-      (list (hash-ref store (resolve-variable-reference-node n)) store #f))]
+      (define ref (resolve-variable-reference-node n))
+      (list (hash-ref store ref
+                      (λ () (fresh-symbolic-var (hash-ref (binding-bound ref) 'type))))
+            store
+            #f))]
    [AssignmentExpression
     (λ (n store path-condition return-variable)
       (match-let ([(list val new-store always-rets)
@@ -2432,7 +2430,7 @@ Types can be:
                                       (make-list (random 7) #f)))
                 (fresh-node 'FunctionDefinitionHole
                             "main"
-                            "int"
+                            int-type
                             (create-ast-list '())
                             (fresh-block-hole))))
   (rewrite-terminal 'precomment p
@@ -2473,7 +2471,7 @@ Types can be:
                   DivisionExpression
                   ModulusExpression
                   ))
-        (let ([refined-type (att-value 'unsafe-op-if-possible/range n)])
+        (let ([refined-type (att-value 'unsafe-op-if-possible/symbolic n)])
           (and refined-type
                (begin
                  (rewrite-refine n refined-type)
