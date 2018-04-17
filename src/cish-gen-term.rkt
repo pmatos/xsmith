@@ -1448,9 +1448,11 @@ Types can be:
     (rt:solver-push (rt:current-solver))
     (rt:solver-assert (rt:current-solver) other-asserts)
     (rt:solver-assert (rt:current-solver) (list (rt:! assert-to-verify)))
-    (eprintf "about to start a solver check\n")
-    (define result (rt:solver-check (rt:current-solver)))
-    (eprintf "finished a solver check\n")
+    (define result
+      (with-handlers ([(λ _ #t) (λ _ #f)])
+        ;; TODO - sometimes I get what looks like a Rosette error:
+        ;; “solution: unrecognized solver output: (error line 19 column 10: model is not available)”
+        (rt:solver-check (rt:current-solver))))
     (rt:solver-pop (rt:current-solver))
     (rt:unsat? result))
 
@@ -1630,8 +1632,6 @@ Types can be:
                               pc-true
                               return-variable
                               (set-add assertions-with-test assert-test)))
-      (eprintf "Len then-rets: ~a, then-rets ~a\n" (length then-rets) then-rets)
-      (eprintf "\n\n\nThen node: ~a\n" (ast-node-type (ast-child 'then n)))
       (match-define (list then-v then-store then-always-rets then-asserts-pre)
         then-rets)
       (define then-asserts-unique (set-subtract then-asserts-pre assertions-with-test))
@@ -2558,19 +2558,15 @@ Types can be:
           (and refined-type
                (begin
                  (rewrite-refine n refined-type)
-                 (eprintf "Making math safer.\n")
+                 (eprintf "Removing a safe math op.\n")
                  #t)))
         #f))
   (perform-rewrites ast 'bottom-up transformer)
   ast)
 (define ast-add-unsafe-math/range
-  {ast-add-unsafe-math (λ (n)
-                         (eprintf "Starting range analysis...\n")
-                         (att-value 'unsafe-op-if-possible/range n))})
+  {ast-add-unsafe-math (λ (n) (att-value 'unsafe-op-if-possible/range n))})
 (define ast-add-unsafe-math/symbolic
-  {ast-add-unsafe-math (λ (n)
-                         (eprintf "Starting symbolic analysis...\n")
-                         (att-value 'unsafe-op-if-possible/symbolic n))})
+  {ast-add-unsafe-math (λ (n) (att-value 'unsafe-op-if-possible/symbolic n))})
 
 (define (do-it options)
   (let ((state (make-generator-state)))
@@ -2597,8 +2593,20 @@ Types can be:
   (parameterize ((xsmith-state state)
                  (xsmith-options options))
     (let* ([ast (generate-random-prog (fresh-Prog))]
-           [ast (ast-add-unsafe-math/range ast)]
-           [ast (ast-add-unsafe-math/symbolic ast)]
+           [pre-analysis-print (eprintf "/*\n")]
+           [ast (if (hash-ref (xsmith-option 'features-disabled)
+                              'unsafe-math/range #t)
+                    ast
+                    (begin
+                      (eprintf "Starting range analysis...\n")
+                      (ast-add-unsafe-math/range ast)))]
+           [ast (if (hash-ref (xsmith-option 'features-disabled)
+                              'unsafe-math/symbolic #t)
+                    ast
+                    (begin
+                      (eprintf "Starting symbolic analysis...\n")
+                      (ast-add-unsafe-math/symbolic ast)))]
+           [post-analysis-print (eprintf "*/\n")]
            )
       (if (dict-has-key? (xsmith-options) 'output-filename)
           (call-with-output-file (xsmith-option 'output-filename)
