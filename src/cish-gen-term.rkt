@@ -414,15 +414,29 @@ Types can be:
                         op-sym
                         (att-value 'pretty-print (ast-child 'r n)))
              rparen)))
-(define ({binary-expression-print/function f-name} n)
+(define ({binary-expression-print/function type->f-name} n)
   (h-comment
    n
-   (h-append f-name
+   (h-append (type->f-name (att-value 'type-context n))
              lparen
              (hs-append (att-value 'pretty-print (ast-child 'l n))
                         comma
                         (att-value 'pretty-print (ast-child 'r n)))
              rparen)))
+
+(define-syntax (def-type->print stx)
+  (syntax-parse stx
+    [(_ printer-name int-name float-name)
+     #'(define (printer-name t)
+         (cond [(int-type? t) (text int-name)]
+               [(float-type? t) (text float-name)]
+               [else (error 'printer-name "bad type")]))]))
+
+(def-type->print type->print-add "safe_add_func_int32_t_s_s" "safe_add_func_float_f_f")
+(def-type->print type->print-sub "safe_sub_func_int32_t_s_s" "safe_sub_func_float_f_f")
+(def-type->print type->print-mul "safe_mul_func_int32_t_s_s" "safe_mul_func_float_f_f")
+(def-type->print type->print-div "safe_div_func_int32_t_s_s" "safe_div_func_float_f_f")
+(def-type->print type->print-mod "safe_mod_func_int32_t_s_s" "safe_mod_func_float_f_f")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -542,8 +556,10 @@ Types can be:
                (v-comment
                 n
                 (vb-concat
-                 (map (λ (cn) (att-value 'pretty-print cn))
-                      (append global-vars functions))))
+                 (cons
+                  (text "#include \"xsmith_safe_math.h\"\n")
+                  (map (λ (cn) (att-value 'pretty-print cn))
+                       (append global-vars functions)))))
                ;; Hack to get a newline...
                (text "")))]
    [FunctionDefinition
@@ -725,11 +741,11 @@ Types can be:
                  rparen)))]
 
    ;; TODO -- gen the name of the safe op function from the type of the operator
-   [AdditionExpression {binary-expression-print/function (text "safe_add")}]
-   [SubtractionExpression {binary-expression-print/function (text "safe_sub")}]
-   [MultiplicationExpression {binary-expression-print/function (text "safe_mul")}]
-   [DivisionExpression {binary-expression-print/function (text "safe_div")}]
-   [ModulusExpression {binary-expression-print/function (text "safe_mod")}]
+   [AdditionExpression {binary-expression-print/function type->print-add}]
+   [SubtractionExpression {binary-expression-print/function type->print-sub}]
+   [MultiplicationExpression {binary-expression-print/function type->print-mul}]
+   [DivisionExpression {binary-expression-print/function type->print-div}]
+   [ModulusExpression {binary-expression-print/function type->print-mod}]
 
    [UnsafeAdditionExpression {binary-expression-print/infix plus}]
    [UnsafeSubtractionExpression {binary-expression-print/infix minus}]
