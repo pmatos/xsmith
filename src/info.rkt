@@ -6,4 +6,5 @@
 (define deps '("base"
                "pprint"
                "racr"
+               "rosette"
                ))

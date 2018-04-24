@@ -1,0 +1,20 @@
+Before running, xsmith requires various dependencies.  To install
+them, either `cd` to the `xsmith/src` directory and run
+`raco pkg install` to install xsmith as a racket package (which will
+automatically install dependencies), or run
+`raco pkg install pprint racr rosette`
+to install dependencies manually.
+
+To run Xsmith's C program generator, run `racket xsmith.rkt`.
+Add the `--help` flag to see options.
+
+Importantly, to use range domain analysis to remove safe math
+operations, use `--with unsafe-math/range`, and similarly for symbolic
+interpretation use `--with unsafe-math/symbolic`.  If both are used,
+the range domain will be used first.
+
+To compile generated programs, some Csmith headers are required for
+the safe math functions used.  Get Csmith from
+`https://github.com/csmith-project/csmith/`, build it, and then add
+the csmith/runtime directory to your CPATH while compiling.
+
