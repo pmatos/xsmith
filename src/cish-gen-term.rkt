@@ -1697,6 +1697,43 @@ Types can be:
                                         (rt:=> (asserts->condition pc-false)
                                                (rt:= else-v v)))))))))))
 
+  (define (symbolic-interp-loop/body n store path-condition return-variable assertions)
+    (define altered-refs (att-value 'find-transitive-assignments n))
+    (define new-store
+      (for/fold ([s store])
+                ([a altered-refs])
+        (dict-set s a (fresh-symbolic-var (dict-ref (binding-bound a) 'type)))))
+    (define has-return?
+      (att-value 'find-a-descendant
+                 n
+                 (λ (node)
+                   (and (ast-node? node)
+                        (node-subtype? node 'ReturnStatement)))))
+    (match-define (list test-val t-store t-always-rets t-asserts)
+      (symbolic-interp-wrap (ast-child 'test n)
+                            new-store
+                            path-condition
+                            return-variable
+                            assertions))
+
+    (define assert-test
+      (if (rt:boolean? test-val)
+          test-val
+          (rt:! (rt:= 0 test-val))))
+    (define pc-true (set-add path-condition assert-test))
+    (define pc-false (set-add path-condition (rt:! assert-test)))
+    ;; TODO - I'm not sure right now what I want to do with the loop body.
+    ;;        I don't want to try some sort of unrolling, so for now I'll
+    ;;        just punt any assigned variables to fresh variables.
+    ;;        I really should capture potential returns.  I'll do that later.
+    (match-define (list b-v b-store b-always-rets n-asserts)
+      (symbolic-interp-wrap (ast-child 'body n)
+                            t-store
+                            (set-add path-condition assert-test)
+                            return-variable
+                            assertions))
+    (list #f b-store #f t-asserts))
+
   (ag-rule
    symbolic-interp-do
    ;; This rule adds rosette assertions, so it should only be called when
@@ -1755,11 +1792,22 @@ Types can be:
               (set-add n-asserts (rt:= sym-var v)))))]
 
    ;;; Statements
-   ;; TODO
-   ;;(ast-rule 'LoopStatement:Statement->Expression<test-Statement<body)
-   ;;(ast-rule 'WhileStatement:LoopStatement->)
-   ;;(ast-rule 'DoWhileStatement:LoopStatement->)
-   ;;(ast-rule 'ForStatement:LoopStatement->Declaration<init-Expression<update)
+   [WhileStatement
+    (λ (n store path-condition return-variable assertions)
+      (symbolic-interp-loop/body n store path-condition return-variable assertions))]
+   [DoWhileStatement
+    (λ (n store path-condition return-variable assertions)
+      (symbolic-interp-loop/body n store path-condition return-variable assertions))]
+   [ForStatement
+    (λ (n store path-condition return-variable assertions)
+      (match-define (list i-v i-store always-rets i-asserts)
+        (symbolic-interp-wrap (ast-child 'init n)
+                              store path-condition return-variable assertions))
+      (define u-store
+        (for/fold ([s i-store])
+                  ([a (att-value 'find-transitive-assignments (ast-child 'update n))])
+          (dict-set s a (fresh-symbolic-var (dict-ref (binding-bound a) 'type)))))
+      (symbolic-interp-loop/body n u-store path-condition return-variable i-asserts))]
    [Block
     (λ (n store path-condition return-variable assertions)
       (define (rec store asserts children-left)
