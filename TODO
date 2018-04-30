@@ -1,0 +1,13 @@
+Initial goals for specification DSL:
+
+* syntactic segmentation
+* specifying grammar and getting things for free (ast holes, choice objects)
+* also getting ag-rule stuff for free (ast depth, top-level)
+* ability to declare info about grammar pieces -- eg the body of the for loop doesn't increase the depth (or only under certain circumstances), probability skewing for different nodes
+* scope graphs for free -- declare that X in the grammar is a binding form, which forms add new scopes, etc
+
+
+* inline vs separate declarations
+** inline makes the grammar definition harder because you have everything up-front, reduced compositionality
+** essential stuff wants to be inline, the footnotes want to be separate
+
