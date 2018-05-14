@@ -20,6 +20,7 @@
  "scope-graph.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
+ syntax/parse/define
  (for-syntax
   racket/base
   syntax/parse

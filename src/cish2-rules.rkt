@@ -6,7 +6,6 @@
 
  racr
  racr/testing ;; racr/testing is needed for print-ast
- pprint
  racket/random
  racket/string
  racket/dict
@@ -21,6 +20,7 @@
  "scope-graph.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
+ syntax/parse/define
  (for-syntax
   racket/base
   syntax/parse
@@ -645,7 +645,8 @@
     (set! rosette-last-ast-serial-number current-ast-serial)
     (rt:clear-asserts!)))
 
-(ag-cish2
+(add-ag
+ cish2
  symbolic-interp
  ;; Get the single global result
  [Node (λ (n)

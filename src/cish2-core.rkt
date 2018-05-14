@@ -33,6 +33,7 @@
 
 
 (assemble-spec-parts
+ cish2
  "cish2-grammar.rkt"
  "cish2-rules.rkt"
  "cish2-cms.rkt"

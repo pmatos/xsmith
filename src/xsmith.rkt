@@ -34,7 +34,7 @@
 ;(require "gen-term.rkt")
 (require
  racket/dict
- "cish-gen-term.rkt"
+ "cish2-core.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
  )
