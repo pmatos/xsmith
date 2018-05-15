@@ -2,10 +2,10 @@
 
 (require
  "grammar-macros.rkt"
+ "cish2-utils.rkt"
 
  racr
  racr/testing ;; racr/testing is needed for print-ast
- pprint
  racket/random
  racket/string
  racket/dict

@@ -6,10 +6,16 @@
  add-ag
  add-cm
  assemble-spec-parts
+ current-xsmith-grammar
  )
 
 (require
  syntax/parse/define
+ racr
+ racket/class
+ racket/stxparam
+ racket/splicing
+ "choice.rkt"
  (for-syntax
   racket/base
   racket/syntax
@@ -18,6 +24,8 @@
   racket/string
   ))
 
+
+(define-syntax-parameter current-xsmith-grammar #f)
 
 (define-for-syntax (spec->export-name spec-name-stx)
   (format-id spec-name-stx "%%~a-grammar-info-hash" spec-name-stx))
@@ -35,19 +43,6 @@
                                      'cm-info (hash)
                                      'prop-infos (hash))))))])
 
-
-(define-for-syntax (stuff-export-hash export-hash-name subhash-key keys-stx infos-stx)
-  (syntax-parse #`(#,keys-stx #,infos-stx #,export-hash-name #,subhash-key)
-    [((key ...) (info ...) export-hash-name subhash-key)
-     #'(begin-for-syntax
-         (let* ([new-sub-hash
-                 (for/fold ([phash (hash-ref export-hash-name subhash-key (hash))])
-                           ([k '(key ...)]
-                            [ifo (list (quote-syntax (info ...)))])
-                   ;; TODO - check duplicates
-                   (hash-set phash k ifo))])
-           (set! export-hash-name
-                 (hash-set export-hash-name subhash-key new-sub-hash))))]))
 
 
 (begin-for-syntax
@@ -93,6 +88,19 @@
                 base-name
                 (string-join fields "-"))]))
 
+(define-for-syntax (stuff-export-hash export-hash-name subhash-key keys-stx infos-stx)
+  (syntax-parse #`(#,keys-stx #,infos-stx #,export-hash-name #,subhash-key)
+    [((key ...) (info ...) export-hash-name subhash-key)
+     #'(begin-for-syntax
+         (let* ([new-sub-hash
+                 (for/fold ([phash (hash-ref export-hash-name subhash-key (hash))])
+                           ([k '(key ...)]
+                            [ifo (list (quote-syntax info) ...)])
+                   ;; TODO - check duplicates
+                   (hash-set phash k ifo))])
+           (set! export-hash-name
+                 (hash-set export-hash-name subhash-key new-sub-hash))))]))
+
 (define-syntax-parser add-to-grammar
   [(_ grammar-name:id
       clause:grammar-clause
@@ -122,6 +130,20 @@
 #;(define-syntax-parser add-prop
   [(_ arg ...) #'(add-prop-generic 'prop-infos arg ...)])
 
+(define-for-syntax (spec-hash-merge part-hashes)
+  (for/fold ([bighash (hash)])
+            ([subhash-key '(grammar-info ag-info cm-info)])
+    (define subhash
+      (for/fold ([h (hash)])
+                ([p (map (λ (x) (hash-ref x subhash-key))
+                         part-hashes)])
+        (for/fold ([h h])
+                  ([k (hash-keys p)])
+          (when (hash-ref h k #f)
+            (error 'assemble-spec-parts
+                   "spec duplicated: ~a" k))
+          (hash-set h k (hash-ref p k)))))
+    (hash-set bighash subhash-key subhash)))
 
 (define-syntax-parser assemble-spec-parts
   [(_ spec require-path ...)
@@ -167,13 +189,16 @@
    (eprintf "starting stage 3 ...\n")
    (define (node->choice node-name-stx)
      (format-id node-name-stx "~aChoice%" node-name-stx))
-   (define base-node-name (format-id #'spec "BaseNode~a"))
+   (define base-node-name (format-id #'spec "BaseNode~a" #'spec))
    (with-syntax* ([(ast-rule-sym ...) (map {make-ast-rule-id base-node-name}
                                            (syntax->list #'(g-part ...)))]
                   [base-node-spec (format-id #'spec "~a->" base-node-name)]
                   [base-node-choice (node->choice base-node-name)]
                   [(choice-name ...) (map node->choice
                                           (syntax->list #'(g-part.node-name ...)))]
+                  [(choice-method-name ...) (remove-duplicates
+                                             (syntax->datum
+                                              #'(cm-clause.prop-name ...)))]
                   [(choice-parent ...)
                    (map (syntax-parser [#f #'base-node-choice]
                                        [p (node->choice #'p)])
@@ -198,7 +223,8 @@
                                      (syntax->list #'(cm-clause ...))))
                            (syntax->list #'(g-part.node-name ...)))
           [((c-method:prop-clause ...) ...)
-           #`(begin
+           #`(splicing-syntax-parameterize
+                 ([current-xsmith-grammar (syntax-rules () [(_) spec])])
                ;; Define RACR spec and ag-rules
                (define spec (create-specification))
                (with-specification spec
@@ -216,11 +242,16 @@
                ;; Define choice objects mirroring grammar
                (define base-node-choice
                  (class ast-choice%
+                   (define/public choice-method-name
+                     (λ args (error 'choice-method-name "no default implementation")))
+                   ...
                    (super-new)))
                (define choice-name
                  (class choice-parent
                    (define c-method.prop-name
                      c-method.prop-val)
+                   ...
+                   (override c-method.prop-name)
                    ...
                    (super-new)))
                ...

@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require
+ "grammar-macros.rkt"
  racr
  racr/testing ;; racr/testing is needed for print-ast
  pprint
@@ -428,7 +429,7 @@ Types can be:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-syntax-rule (fresh-node type attr-val ...)
-  (create-ast spec type (list empty empty (fresh-int!) attr-val ...)))
+  (create-ast (current-xsmith-grammar) type (list empty empty (fresh-int!) attr-val ...)))
 
 (define fresh-int-counter 0)
 (define (fresh-int!)
