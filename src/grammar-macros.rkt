@@ -84,8 +84,8 @@
   (syntax-parse grammar-part-stx
     [gc:grammar-clause
      (define base-name
-       (format "~a:~a" #'gc.node-name (or (attribute gc.parent-name)
-                                          (syntax->datum base-node-name-stx))))
+       (format-id #f "~a:~a" #'gc.node-name (or (attribute gc.parent-name)
+                                                (syntax->datum base-node-name-stx))))
      (define fields (map grammar-component->ast-rule-component-part
                          (syntax->list #'(gc.component ...))))
      (format-id #f "~a->~a"
@@ -193,11 +193,11 @@
    (eprintf "starting stage 3 ...\n")
    (define (node->choice node-name-stx)
      (format-id node-name-stx "~aChoice%" node-name-stx))
-   (define base-node-name (format-id #'spec "BaseNode~a" #'spec))
-   (with-syntax* ([(ast-rule-sym ...) (map {make-ast-rule-id base-node-name}
+   (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
+                  [(ast-rule-sym ...) (map {make-ast-rule-id #'base-node-name}
                                            (syntax->list #'(g-part ...)))]
-                  [base-node-spec (format-id #'spec "~a->" base-node-name)]
-                  [base-node-choice (node->choice base-node-name)]
+                  [base-node-spec (format-id #'spec "~a->" #'base-node-name)]
+                  [base-node-choice (node->choice #'base-node-name)]
                   [(choice-name ...) (map node->choice
                                           (syntax->list #'(g-part.node-name ...)))]
                   [(choice-method-name ...) (remove-duplicates
