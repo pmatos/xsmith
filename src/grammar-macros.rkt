@@ -203,6 +203,24 @@
                   [(choice-method-name ...) (remove-duplicates
                                              (syntax->datum
                                               #'(cm-clause.prop-name ...)))]
+                  ;; When defining methods to the base choice for the grammar,
+                  ;; I need to define them as public, *except* the ones in the
+                  ;; choice base class, which I have to override.
+                  [(cdef-pub-or-override-for-base ...)
+                   (map (λ (name) (if (member (syntax->datum name)
+                                              '(fresh
+                                                choice-weight
+                                                features))
+                                      #'define/override
+                                      #'define/public))
+                        (syntax->list #'(choice-method-name ...)))]
+                  [(cdef-body-for-base ...)
+                   (map (λ (name)
+                          (if (equal? (syntax->datum name) 'features)
+                              #'(λ () (super features))
+                              #`(λ args (error '#,name
+                                               "no default implementation"))))
+                        (syntax->list #'(choice-method-name ...)))]
                   [(choice-parent ...)
                    (map (syntax-parser [#f #'base-node-choice]
                                        [p (node->choice #'p)])
@@ -247,8 +265,7 @@
                ;; Define choice objects mirroring grammar
                (define base-node-choice
                  (class ast-choice%
-                   (define/public choice-method-name
-                     (λ args (error 'choice-method-name "no default implementation")))
+                   (cdef-pub-or-override-for-base choice-method-name cdef-body-for-base)
                    ...
                    (super-new)))
                (define choice-name
