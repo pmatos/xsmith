@@ -1564,3 +1564,41 @@
  find-transitive-variable-references
  [Node (λ (n) (att-value 'find-transitive-resolved n 'VariableReference))])
 
+
+
+(ag-cish2
+ hole-choices
+ [StatementHole
+  (λ () '(NullStatement
+          ExpressionStatement
+          Block
+          IfStatement
+          IfElseStatement
+          WhileStatement
+          DoWhileStatement
+          ForStatement
+          ValueReturnStatement))]
+ [ExpressionHole
+  (λ () '(LiteralInt
+          LiteralFloat
+          FunctionApplicationExpression
+          AdditionExpression
+          SubtractionExpression
+          MultiplicationExpression
+          DivisionExpression
+          ModulusExpression
+          VariableReference
+          EqualityExpression
+          LessThanExpression
+          GreaterThanExpression
+          LessOrEqualExpression
+          GreaterOrEqualExpression
+          IfExpression
+          AssignmentExpression))]
+ [DeclarationHole
+  (λ () '(VariableDeclaration
+          FunctionDefinition))]
+ [BlockHole
+  (λ () '(Block))]
+ [FunctionDefinitionHole
+  (λ () '(FunctionDefinition))])

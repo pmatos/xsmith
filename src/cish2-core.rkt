@@ -42,83 +42,29 @@
 
 
 
-(define (statement-choices hole)
-  (list (new NullStatementChoice [hole hole])
-        (new ExpressionStatementChoice [hole hole])
-        (new BlockChoice [hole hole])
-        (new IfStatementChoice [hole hole])
-        (new IfElseStatementChoice [hole hole])
-        ;; TODO - loop statements need to have some analysis so they at least sometimes terminate...
-        (new WhileStatementChoice [hole hole])
-        (new DoWhileStatementChoice [hole hole])
-        (new ForStatementChoice [hole hole])
-        (new ValueReturnStatementChoice [hole hole])))
-
-(define (expression-choices hole)
-  (list (new LiteralIntChoice [hole hole])
-        (new LiteralFloatChoice [hole hole])
-        (new FunctionApplicationExpressionChoice [hole hole])
-        (new AdditionExpressionChoice [hole hole])
-        (new SubtractionExpressionChoice [hole hole])
-        (new MultiplicationExpressionChoice [hole hole])
-        (new DivisionExpressionChoice [hole hole])
-        (new ModulusExpressionChoice [hole hole])
-        (new VariableReferenceChoice [hole hole])
-        (new EqualityExpressionChoice [hole hole])
-        (new LessThanExpressionChoice [hole hole])
-        (new GreaterThanExpressionChoice [hole hole])
-        (new LessOrEqualExpressionChoice [hole hole])
-        (new GreaterOrEqualExpressionChoice [hole hole])
-        (new IfExpressionChoice [hole hole])
-        (new AssignmentExpressionChoice [hole hole])
-        ))
-
-(define (declaration-choices hole)
-  (list (new VariableDeclarationChoice [hole hole])
-        (new FunctionDefinitionChoice [hole hole])))
-
-
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(define (replace-with-expression n)
-  (let ([o (choose-ast (apply-choice-filters (expression-choices n)))])
-    (rewrite-subtree n (send o fresh))))
-
-(define (replace-with-statement n)
-  (let ([o (choose-ast (apply-choice-filters (statement-choices n)))])
-    (rewrite-subtree n (send o fresh))))
-
-(define (replace-with-declaration n)
-  (let ([o (choose-ast (apply-choice-filters (declaration-choices n)))])
+(define (replace-hole n)
+  (let ([o (choose-ast (apply-choice-filters
+                        (map (λ (choice-sym)
+                               (new (hash-ref cish2-choice-hash choice-sym)
+                                    [hole n]))
+                             (att-value 'hole-choices n))))])
     (rewrite-subtree n (send o fresh))))
 
 (define (generate-random-prog n)
   (let ([fill-in
          (λ (n)
-           (if (ast-list-node? n)
-               #f
-               (case (node-type n)
-                 ((ExpressionHole)
-                  (replace-with-expression n)
-                  #t)
-                 ((StatementHole)
-                  (replace-with-statement n)
-                  #t)
-                 ((DeclarationHole)
-                  (replace-with-declaration n)
-                  #t)
-                 ((BlockHole)
-                  (rewrite-subtree n (send (new BlockChoice [hole n]) fresh))
-                  #t)
-                 ((FunctionDefinitionHole)
-                  (rewrite-subtree n (send (new FunctionDefinitionChoice [hole n])
-                                           fresh))
-                  #t)
-                 (else #f))))])
+           (cond
+             [(ast-list-node? n) #f]
+             [(member (node-type n)
+                      '(ExpressionHole StatementHole DeclarationHole
+                                       BlockHole FunctionDefinitionHole))
+              (begin (replace-hole n)
+                     #t)]
+             [else #f]))])
     (perform-rewrites n 'top-down fill-in))
   n)
 

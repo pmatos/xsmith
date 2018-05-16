@@ -25,7 +25,11 @@
   ))
 
 
-(define-syntax-parameter current-xsmith-grammar #f)
+(define-syntax-parameter current-xsmith-grammar
+  (syntax-parser [stx (raise-syntax-error
+                       'current-xsmith-grammar
+                       "current-xsmith-grammar used without being parameterized"
+                       #'stx)]))
 
 (define-for-syntax (spec->export-name spec-name-stx)
   (format-id spec-name-stx "%%~a-grammar-info-hash" spec-name-stx))
@@ -162,7 +166,7 @@
          ...
          ;; define a new macro to use the req-names...
          (define-syntax-parser assemble-spec-parts_stage2
-           [(_)
+           [(_ spec-name)
             (eprintf "starting stage 2 ...\n")
             (define parts (list req-name ...))
             (define combined (spec-hash-merge parts))
@@ -175,11 +179,11 @@
             (define cm-parts (parts->stx 'cm-info))
 
             #`(assemble-spec-parts_stage3
-               spec
+               spec-name
                #,g-parts
                #,ag-parts
                #,cm-parts)])
-         (assemble-spec-parts_stage2)))])
+         (assemble-spec-parts_stage2 spec)))])
 
 (define-syntax-parser assemble-spec-parts_stage3
   [(_ spec
@@ -205,6 +209,7 @@
                         (syntax->list #'(g-part.parent ...)))]
                   [(ag-rule-name ...) (remove-duplicates
                                        (syntax->datum #'(ag-clause.prop-name ...)))]
+                  [choice-hash-name (format-id #'spec "~a-choice-hash" #'spec)]
                   )
      ;; capture a couple names with syntax-parse (to have stx classes/attributes)
      (syntax-parse (map (λ (rule-name)
@@ -232,7 +237,7 @@
                  (ast-rule 'ast-rule-sym)
                  ...
                  ;; TODO - define hole nodes
-                 (compile-ast-specifications 'Node)
+                 (compile-ast-specifications 'base-node-name)
                  (ag-rule ag-rule-name
                           [ag-rule-node.node-name ag-rule-node.prop-val]
                           ...)
@@ -255,6 +260,9 @@
                    ...
                    (super-new)))
                ...
+               (define choice-hash-name
+                 (make-immutable-hash
+                  (cons 'g-part.node-name choice-name) ...))
 
                ;; TODO - fresh method for free -- use default init values and types from grammar definition
                ;; TODO - other ag-rules and choice-methods for free
