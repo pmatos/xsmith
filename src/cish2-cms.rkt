@@ -98,8 +98,12 @@
 (cm choice-weight [IfElseStatement (top-heavy-choice 5)])
 (cm fresh [IfElseStatement (fresh-node 'IfElseStatement
                                        (fresh-node 'ExpressionHole)
-                                       (fresh-block-hole)
-                                       (fresh-block-hole))])
+                                       (fresh-node 'BlockHole
+                                                   (create-ast-list '())
+                                                   (create-ast-list '()))
+                                       (fresh-node 'BlockHole
+                                                   (create-ast-list '())
+                                                   (create-ast-list '())))])
 (cm respect-return-position [IfElseStatement this])
 (cm features [LoopStatement '(loop)])
 (cm choice-weight [WhileStatement (top-heavy-choice 2)])
@@ -395,7 +399,9 @@ few of these methods.
                                                                 (fresh-var-type)
                                                                 (fresh-var-name "arg_")))
                                              (make-list (random 5) #f))))
-                   (fresh-block-hole)))])
+                   (fresh-node 'BlockHole
+                               (create-ast-list '())
+                               (create-ast-list '()))))])
 
 
 

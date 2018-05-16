@@ -6,6 +6,10 @@
 
  racr
  racr/testing ;; racr/testing is needed for print-ast
+ (except-in pprint
+            semi rparen rbrace lparen lbrace comma
+            colon
+            )
  racket/random
  racket/string
  racket/dict
@@ -73,15 +77,21 @@
 
 (define (fresh-Prog)
   (define p
-    (fresh-node 'Program
-                (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
+    (fresh-node #:spec cish2
+                'Program
+                (create-ast-list (map (λ (x) (fresh-node #:spec cish2
+                                                         'DeclarationHole
                                                          "standin-name"))
                                       (make-list (random 7) #f)))
-                (fresh-node 'FunctionDefinitionHole
+                (fresh-node #:spec cish2
+                            'FunctionDefinitionHole
                             "main"
                             int-type
                             (create-ast-list '())
-                            (fresh-block-hole))))
+                            (fresh-node #:spec cish2
+                                        'BlockHole
+                                        (create-ast-list '())
+                                        (create-ast-list '())))))
   (rewrite-terminal 'precomment p
                     (h-append
                      line

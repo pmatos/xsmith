@@ -429,12 +429,12 @@ Types can be:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-syntax-rule (fresh-node type attr-val ...)
-  (create-ast (current-xsmith-grammar) type (list empty empty (fresh-int!) attr-val ...)))
-(define-syntax-parser fresh-block-hole
-  [(_) #'(fresh-node 'BlockHole
-                     (create-ast-list '())
-                     (create-ast-list '()))])
+(define-syntax-parser fresh-node
+  [(_ (~optional (~seq #:spec spec:id)) type attr-val ...)
+   (with-syntax ([use-spec (or (attribute spec) #'(current-xsmith-grammar))])
+     #'(create-ast use-spec
+                   type
+                   (list empty empty (fresh-int!) attr-val ...)))])
 
 (define fresh-int-counter 0)
 (define (fresh-int!)
