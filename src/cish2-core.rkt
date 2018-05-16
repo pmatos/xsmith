@@ -124,10 +124,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (fresh-block-hole)
-  (fresh-node 'BlockHole
-              (create-ast-list '())
-              (create-ast-list '())))
 
 (define (fresh-Prog)
   (define p

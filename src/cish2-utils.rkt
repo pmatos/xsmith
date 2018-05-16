@@ -16,6 +16,7 @@
  racket/class
  (prefix-in rt: rosette)
  (except-in racket/list empty)
+ syntax/parse/define
  "random.rkt"
  "choice.rkt"
  "scope-graph.rkt"
@@ -430,6 +431,10 @@ Types can be:
 
 (define-syntax-rule (fresh-node type attr-val ...)
   (create-ast (current-xsmith-grammar) type (list empty empty (fresh-int!) attr-val ...)))
+(define-syntax-parser fresh-block-hole
+  [(_) #'(fresh-node 'BlockHole
+                     (create-ast-list '())
+                     (create-ast-list '()))])
 
 (define fresh-int-counter 0)
 (define (fresh-int!)

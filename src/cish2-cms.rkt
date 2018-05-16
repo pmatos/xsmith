@@ -37,16 +37,18 @@
 
 (define-syntax (hinted-choice-weight stx)
   (syntax-parse stx
-    [(_ node base-weight hint-name)
+    [(_ base-weight hint-name)
      #'(begin
          (define bw base-weight)
-         (define w (or bw (super choice-weight)))
+         ;(define w (or bw (super choice-weight)))
+         ;; TODO - use super choice-weight, not 5.  This is a temporary fix to move debugging along.
+         (define w (or bw 5))
          (if (member hint-name (att-value 'hints current-hole))
              (* (hint-weight-multiplier hint-name)
                 w)
              w))]
-    [(rec node hint-name)
-     #'(rec node #f hint-name)]))
+    [(rec hint-name)
+     #'(rec #f hint-name)]))
 
 (define-syntax (top-heavy-choice stx)
   ;; TODO - this should take into account the max depth, because higher max-depths
@@ -186,11 +188,20 @@
                                                                      current-hole)))
                                this)])
 
+#|
+Apparently class definitions don't let public methods be defined with
+let-over-lambda (maybe the class macro rewrites the lambdas...).
+So let's have a weak hash table store the mutable state we need in a
+few of these methods.
+|#
+
+(define ref-choices-filtered-hash (make-weak-hasheq))
+
 (add-cm
  cish2 constrain-type
  [AssignmentExpression
-  (let ([ref-choices-filtered #f])
-    (λ ()
+  (λ ()
+    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
       (if ref-choices-filtered
           ref-choices-filtered
           (let ()
@@ -211,7 +222,7 @@
                                                   type-needed))
                           not-functions)
                   not-functions))
-            (set! ref-choices-filtered legal-with-type)
+            (hash-set! ref-choices-filtered-hash this legal-with-type)
             (and (not (null? legal-with-type)) this)))))])
 (cm fresh
     [AssignmentExpression
@@ -222,8 +233,8 @@
 (add-cm
  cish2 constrain-type
  [VariableReference
-  (let ([ref-choices-filtered #f])
-    (λ ()
+  (λ ()
+    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
       (if ref-choices-filtered
           ref-choices-filtered
           (let ()
@@ -242,7 +253,7 @@
                   (filter (λ (b) (not (function-type?
                                        (dict-ref (binding-bound b) 'type))))
                           legal-refs)))
-            (set! ref-choices-filtered legal-with-type)
+            (hash-set! ref-choices-filtered-hash this legal-with-type)
             (and (not (null? legal-with-type)) this)))))])
 (cm fresh
     [VariableReference (fresh-node 'VariableReference
@@ -255,8 +266,8 @@
  cish2
  constrain-type
  [FunctionApplicationExpression
-  (let ([ref-choices-filtered #f])
-    (λ ()
+  (λ ()
+    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
       (if ref-choices-filtered
           ref-choices-filtered
           (let ()
@@ -278,7 +289,7 @@
                   legal-refs))
             (define final-choices (filter (λ (b) (not (equal? "main" (binding-name b))))
                                           legal-with-type))
-            (set! ref-choices-filtered final-choices)
+            (hash-set! ref-choices-filtered-hash this final-choices)
             (and (not (null? final-choices)) this)))))])
 (cm fresh [FunctionApplicationExpression
            (let ([chosen-func (random-ref (send this constrain-type))])
