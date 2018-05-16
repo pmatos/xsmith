@@ -50,6 +50,9 @@
 
 
 (begin-for-syntax
+  (define-syntax-class prop-clause
+    (pattern
+     (node-name:id prop-name:id prop-val:expr)))
   (define-syntax-class grammar-component
     (pattern
      (~or name:id
@@ -60,9 +63,24 @@
     (pattern
      [node-name:id (~and parent (~or parent-name:id #f))
                    (component:grammar-component ...)]))
-  (define-syntax-class prop-clause
-    (pattern
-     (node-name:id prop-name:id prop-val:expr)))
+
+  (define (grammar-clause->parent-chain clause clause-hash)
+    (syntax-parse clause
+      [c:grammar-clause
+       (define parent (and (attribute c.parent-name)
+                           (syntax->datum (attribute c.parent-name))))
+       (if parent
+           (cons parent
+                 (grammar-clause->parent-chain (hash-ref clause-hash parent)
+                                               clause-hash))
+           '())]))
+
+  (define grammar-clauses-stx->clause-hash
+    (syntax-parser [(c:grammar-clause ...)
+                    (for/hash ([name (syntax->datum #'(c.node-name ...))]
+                               [clause (syntax->list #'(c ...))])
+                      (values name clause))]))
+
   )
 
 (define-for-syntax (grammar-component->ast-rule-component-part gcomp-stx)
@@ -191,6 +209,26 @@
       (ag-clause:prop-clause ...)
       (cm-clause:prop-clause ...))
    (eprintf "starting stage 3 ...\n")
+   (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
+   (define (grammar-part-n-parents gp)
+     (length (grammar-clause->parent-chain gp all-g-part-hash)))
+   (with-syntax ([(g-part-sorted ...)
+                  (sort (syntax->list #'(g-part ...))
+                        <
+                        #:key grammar-part-n-parents
+                        #:cache-keys? #t)])
+     #'(assemble-spec-parts_stage4
+        spec
+        (g-part-sorted ...)
+        (ag-clause ...)
+        (cm-clause ...)))])
+
+(define-syntax-parser assemble-spec-parts_stage4
+  [(_ spec
+      (g-part:grammar-clause ...)
+      (ag-clause:prop-clause ...)
+      (cm-clause:prop-clause ...))
+   (eprintf "starting stage 4 ...\n")
    (define (node->choice node-name-stx)
      (format-id node-name-stx "~aChoice%" node-name-stx))
    (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
@@ -263,23 +301,26 @@
                  (compile-ag-specifications))
 
                ;; Define choice objects mirroring grammar
-               (define base-node-choice
-                 (class ast-choice%
-                   (cdef-pub-or-override-for-base choice-method-name cdef-body-for-base)
-                   ...
-                   (super-new)))
-               (define choice-name
-                 (class choice-parent
-                   (define c-method.prop-name
-                     c-method.prop-val)
-                   ...
-                   (override c-method.prop-name)
-                   ...
-                   (super-new)))
-               ...
                (define choice-hash-name
-                 (make-immutable-hash
-                  (cons 'g-part.node-name choice-name) ...))
+                 (letrec
+                     ([base-node-choice
+                       (class ast-choice%
+                         (cdef-pub-or-override-for-base
+                          choice-method-name
+                          cdef-body-for-base)
+                         ...
+                         (super-new))]
+                      [choice-name
+                       (class choice-parent
+                         (define c-method.prop-name
+                           c-method.prop-val)
+                         ...
+                         (override c-method.prop-name)
+                         ...
+                         (super-new))]
+                      ...)
+                   (make-immutable-hash
+                    (list (cons 'g-part.node-name choice-name) ...))))
 
                ;; TODO - fresh method for free -- use default init values and types from grammar definition
                ;; TODO - other ag-rules and choice-methods for free
