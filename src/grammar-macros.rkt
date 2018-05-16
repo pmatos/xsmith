@@ -169,7 +169,6 @@
 
 (define-syntax-parser assemble-spec-parts
   [(_ spec require-path ...)
-   (eprintf "starting stage 1 ...\n")
    (with-syntax ([(req-name ...) (map (λ (rp-stx)
                                          (format-id #'spec
                                                     "~a__~a"
@@ -185,7 +184,6 @@
          ;; define a new macro to use the req-names...
          (define-syntax-parser assemble-spec-parts_stage2
            [(_ spec-name)
-            (eprintf "starting stage 2 ...\n")
             (define parts (list req-name ...))
             (define combined (spec-hash-merge parts))
             (define (parts->stx key)
@@ -208,7 +206,6 @@
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
       (cm-clause:prop-clause ...))
-   (eprintf "starting stage 3 ...\n")
    (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
    (define (grammar-part-n-parents gp)
      (length (grammar-clause->parent-chain gp all-g-part-hash)))
@@ -228,7 +225,6 @@
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
       (cm-clause:prop-clause ...))
-   (eprintf "starting stage 4 ...\n")
    (define (node->choice node-name-stx)
      (format-id node-name-stx "~aChoice%" node-name-stx))
    (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
