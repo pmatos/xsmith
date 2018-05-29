@@ -52,10 +52,7 @@
 
 (define (replace-hole n)
   (let ([o (choose-ast (apply-choice-filters
-                        (map (λ (choice-sym)
-                               (new (hash-ref cish2-choice-hash choice-sym)
-                                    [hole n]))
-                             (att-value 'hole-choices n))))])
+                        (att-value 'hole->choice-list n)))])
     (rewrite-subtree n (send o fresh))))
 
 (define (generate-random-prog n)

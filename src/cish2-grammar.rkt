@@ -35,10 +35,10 @@
  [Program Node ([Declaration *] [main : FunctionDefinition])]
 
  [Declaration Node (name)]
- [DeclarationHole Declaration ()]
+ ;[DeclarationHole Declaration ()]
  [VariableDeclaration Declaration (typename Expression)]
  [FunctionDefinition Declaration (typename [FormalParam *] Block)]
- [FunctionDefinitionHole FunctionDefinition ()]
+ ;[FunctionDefinitionHole FunctionDefinition ()]
  [FormalParam Node (typename name)]
 
 
@@ -51,8 +51,8 @@
  [ReturnStatement Statement ()]
  [VoidReturnStatement ReturnStatement ()]
  [ValueReturnStatement ReturnStatement (Expression)]
- [StatementHole Statement ()]
- [BlockHole Block ()]
+ ;[StatementHole Statement ()]
+ ;[BlockHole Block ()]
 
  [LoopStatement Statement ([test : Expression] [body : Statement])]
  [WhileStatement LoopStatement ()]
@@ -60,7 +60,7 @@
  [ForStatement LoopStatement ([init : Declaration] [update : Expression])]
 
  [Expression Node ()]
- [ExpressionHole Expression ()]
+ ;[ExpressionHole Expression ()]
 
  [AssignmentExpression Expression (name Expression)]
  [FunctionApplicationExpression Expression (name [Expression *])]

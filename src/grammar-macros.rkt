@@ -110,6 +110,31 @@
                 base-name
                 (string-join fields "-"))]))
 
+(define-for-syntax (get-ast-immediate-subtypes name-stx grammar-parts-stx)
+  (syntax-parse grammar-parts-stx
+    [(gc:grammar-clause ...)
+     (for/fold ([subs '()])
+               ([name+parent (map syntax->list
+                                  (syntax->list #'([gc.node-name gc.parent] ...)))])
+       (if (and (syntax->datum (cadr name+parent))
+                (free-identifier=? (cadr name+parent)
+                                   name-stx))
+           (cons (car name+parent) subs)
+           subs))]))
+
+(define-for-syntax ({get-non-abstract-ast-subtypes grammar-parts-stx} name-stx)
+  (define (get-subs/work done-subs work-subs)
+    (if (null? work-subs)
+        done-subs
+        (get-subs/work (cons (car work-subs) done-subs)
+                       (append (get-ast-immediate-subtypes (car work-subs)
+                                                           grammar-parts-stx)
+                               (cdr work-subs)))))
+  (define (get-subs node)
+    (get-subs/work '() (list node)))
+  ;; TODO - filter abstracts
+  (get-subs name-stx))
+
 (define-for-syntax (stuff-export-hash export-hash-name subhash-key keys-stx infos-stx)
   (syntax-parse #`(#,keys-stx #,infos-stx #,export-hash-name #,subhash-key)
     [((key ...) (info ...) export-hash-name subhash-key)
@@ -228,8 +253,28 @@
    (define (node->choice node-name-stx)
      (format-id node-name-stx "~aChoice%" node-name-stx))
    (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
+                  [([subtype-name ...] ...)
+                   (map {get-non-abstract-ast-subtypes #'(g-part ...)}
+                        (syntax->list #'(g-part.node-name ...)))]
+                  [([subtype-choice-name ...] ...)
+                   (map (λ (subtypes-stx)
+                          (map node->choice (syntax->list subtypes-stx)))
+                        (syntax->list #'([subtype-name ...] ...)))]
                   [(ast-rule-sym ...) (map {make-ast-rule-id #'base-node-name}
                                            (syntax->list #'(g-part ...)))]
+                  [(ast-hole-name ...)
+                   ;; It would be nice to make the hole nodes hygienically named,
+                   ;; but they have to be passed to `make-ast-rule` encoded with
+                   ;; their parent and such, and the name will basically be taken
+                   ;; from the string representation of the symbol.  So gensym
+                   ;; won't help.
+                   (map (λ (name-stx) (format-id name-stx "~aHole" name-stx))
+                        (syntax->list #'(g-part.node-name ...)))]
+                  [(ast-hole-rule-sym ...)
+                   (map (syntax-parser
+                          [(hole parent) (format-id #f "~a:~a->"
+                                                    #'hole #'parent)])
+                        (syntax->list #'([ast-hole-name g-part.node-name] ...)))]
                   [base-node-spec (format-id #'spec "~a->" #'base-node-name)]
                   [base-node-choice (node->choice #'base-node-name)]
                   [(choice-name ...) (map node->choice
@@ -252,8 +297,10 @@
                    (map (λ (name)
                           (if (equal? (syntax->datum name) 'features)
                               #'(λ () (super features))
-                              #`(λ args (error '#,name
-                                               "no default implementation"))))
+                              #`(λ args (error
+                                         '#,name
+                                         "no default implementation (called on ~a)"
+                                         this))))
                         (syntax->list #'(choice-method-name ...)))]
                   [(choice-parent ...)
                    (map (syntax-parser [#f #'base-node-choice]
@@ -288,35 +335,41 @@
                  (ast-rule 'base-node-spec)
                  (ast-rule 'ast-rule-sym)
                  ...
-                 ;; TODO - define hole nodes
+                 (ast-rule 'ast-hole-rule-sym)
+                 ...
                  (compile-ast-specifications 'base-node-name)
                  (ag-rule ag-rule-name
                           [ag-rule-node.node-name ag-rule-node.prop-val]
                           ...)
                  ...
+
+                 ;; Define choice objects mirroring grammar
+                 (define base-node-choice
+                   (class ast-choice%
+                     (cdef-pub-or-override-for-base
+                      choice-method-name
+                      cdef-body-for-base)
+                     ...
+                     (super-new)))
+                 (define choice-name
+                   (class choice-parent
+                     (define c-method.prop-name
+                       c-method.prop-val)
+                     ...
+                     (override c-method.prop-name)
+                     ...
+                     (super-new)))
+                 ...
+
+                 (ag-rule hole->choice-list
+                          [base-node-name
+                           (λ (n) (error 'hole->choice-list
+                                         "only implemented for grammar hole nodes"))]
+                          [ast-hole-name
+                           (λ (n) (list (new subtype-choice-name [hole n]) ...))]
+                          ...)
                  (compile-ag-specifications))
 
-               ;; Define choice objects mirroring grammar
-               (define choice-hash-name
-                 (letrec
-                     ([base-node-choice
-                       (class ast-choice%
-                         (cdef-pub-or-override-for-base
-                          choice-method-name
-                          cdef-body-for-base)
-                         ...
-                         (super-new))]
-                      [choice-name
-                       (class choice-parent
-                         (define c-method.prop-name
-                           c-method.prop-val)
-                         ...
-                         (override c-method.prop-name)
-                         ...
-                         (super-new))]
-                      ...)
-                   (make-immutable-hash
-                    (list (cons 'g-part.node-name choice-name) ...))))
 
                ;; TODO - fresh method for free -- use default init values and types from grammar definition
                ;; TODO - other ag-rules and choice-methods for free

@@ -62,6 +62,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (cm misc-constraints [Node this])
+
 (cm choice-weight [Node 10])
 (cm features-enabled
     [Node (let ((disabled (xsmith-option 'features-disabled)))

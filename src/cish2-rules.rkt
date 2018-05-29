@@ -1566,39 +1566,3 @@
 
 
 
-(ag-cish2
- hole-choices
- [StatementHole
-  (λ (n) '(NullStatement
-           ExpressionStatement
-           Block
-           IfStatement
-           IfElseStatement
-           WhileStatement
-           DoWhileStatement
-           ForStatement
-           ValueReturnStatement))]
- [ExpressionHole
-  (λ (n) '(LiteralInt
-           LiteralFloat
-           FunctionApplicationExpression
-           AdditionExpression
-           SubtractionExpression
-           MultiplicationExpression
-           DivisionExpression
-           ModulusExpression
-           VariableReference
-           EqualityExpression
-           LessThanExpression
-           GreaterThanExpression
-           LessOrEqualExpression
-           GreaterOrEqualExpression
-           IfExpression
-           AssignmentExpression))]
- [DeclarationHole
-  (λ (n) '(VariableDeclaration
-           FunctionDefinition))]
- [BlockHole
-  (λ (n) '(Block))]
- [FunctionDefinitionHole
-  (λ (n) '(FunctionDefinition))])
