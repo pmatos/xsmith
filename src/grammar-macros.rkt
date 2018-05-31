@@ -173,6 +173,8 @@
   [(_ arg ...) #'(add-prop-generic 'cm-info arg ...)])
 
 ;; TODO - maybe add-prop should be different -- I could have hygienic names for properties, for example...
+;;        Probably I should have some `define-property` form for hygienic definition and reference.
+;;        The `define-property` form can also include some sort of transformer function for other properties and grammar info, though I'm not sure exactly how that should work yet.
 (define-syntax-parser add-prop
   [(_ arg ...) #'(add-prop-generic 'props-info arg ...)])
 
