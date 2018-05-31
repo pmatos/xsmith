@@ -52,7 +52,7 @@
 (begin-for-syntax
   (define-syntax-class prop-clause
     (pattern
-     (node-name:id prop-name:id prop-val:expr)))
+     (prop-name:id node-name:id prop-val:expr)))
   (define-syntax-class grammar-component
     (pattern
      (~or name:id
@@ -164,8 +164,8 @@
       [node-name:id prop:expr] ...+)
    (stuff-export-hash (spec->export-name #'grammar-name)
                       #'prop/ag/cm-type
-                      #'((node-name prop/ag/cm-name) ...)
-                      #'([node-name prop/ag/cm-name prop] ...))])
+                      #'((prop/ag/cm-name node-name) ...)
+                      #'([prop/ag/cm-name node-name prop] ...))])
 
 (define-syntax-parser add-ag
   [(_ arg ...) #'(add-prop-generic 'ag-info arg ...)])
