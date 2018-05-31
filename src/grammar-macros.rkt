@@ -45,7 +45,7 @@
            (define export-name (hash 'grammar-info (hash)
                                      'ag-info (hash)
                                      'cm-info (hash)
-                                     'prop-infos (hash))))))])
+                                     'props-info (hash))))))])
 
 
 
@@ -143,8 +143,7 @@
                  (for/fold ([phash (hash-ref export-hash-name subhash-key (hash))])
                            ([k '(key ...)]
                             [ifo (list (quote-syntax info) ...)])
-                   ;; TODO - check duplicates
-                   (hash-set phash k ifo))])
+                   (hash-set phash k (cons ifo (hash-ref phash k '()))))])
            (set! export-hash-name
                  (hash-set export-hash-name subhash-key new-sub-hash))))]))
 
@@ -179,17 +178,15 @@
 
 (define-for-syntax (spec-hash-merge part-hashes)
   (for/fold ([bighash (hash)])
-            ([subhash-key '(grammar-info ag-info cm-info)])
+            ([subhash-key '(grammar-info ag-info cm-info props-info)])
     (define subhash
       (for/fold ([h (hash)])
                 ([p (map (λ (x) (hash-ref x subhash-key))
                          part-hashes)])
         (for/fold ([h h])
                   ([k (hash-keys p)])
-          (when (hash-ref h k #f)
-            (error 'assemble-spec-parts
-                   "spec duplicated: ~a" k))
-          (hash-set h k (hash-ref p k)))))
+          (hash-set h k (append (hash-ref p k)
+                                (hash-ref h k '()))))))
     (hash-set bighash subhash-key subhash)))
 
 (define-syntax-parser assemble-spec-parts
@@ -218,19 +215,43 @@
             (define g-parts (parts->stx 'grammar-info))
             (define ag-parts (parts->stx 'ag-info))
             (define cm-parts (parts->stx 'cm-info))
+            (define props-parts (parts->stx 'props-info))
 
             #`(assemble-spec-parts_stage3
                spec-name
                #,g-parts
                #,ag-parts
-               #,cm-parts)])
+               #,cm-parts
+               #,props-parts)])
          (assemble-spec-parts_stage2 spec)))])
 
 (define-syntax-parser assemble-spec-parts_stage3
   [(_ spec
-      (g-part:grammar-clause ...)
-      (ag-clause:prop-clause ...)
-      (cm-clause:prop-clause ...))
+      (pre ... (g-part1:grammar-clause g-part2:grammar-clause c ...) post ...)
+      ag-clauses
+      cm-clauses
+      prop-clauses)
+   (raise-syntax-error #f "duplicate definitions for grammar clause"
+                       #'g-part1 #f #'g-part2)]
+  [(_ spec
+      grammar-clauses
+      (pre ... (ag1:prop-clause ag2:prop-clause c ...) post ...)
+      cm-clauses
+      prop-clauses)
+   (raise-syntax-error #f "duplicate definitions for ag-rule"
+                       #'ag1 #f #'ag2)]
+  [(_ spec
+      grammar-clauses
+      ag-clauses
+      (pre ... (cm1:prop-clause cm2:prop-clause c ...) post ...)
+      prop-clauses)
+   (raise-syntax-error #f "duplicate definitions for choice method"
+                       #'ag1 #f #'ag2)]
+  [(_ spec
+      ((g-part:grammar-clause) ...)
+      ((ag-clause:prop-clause) ...)
+      ((cm-clause:prop-clause) ...)
+      ((p-clause+:prop-clause ...) ...))
    (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
    (define (grammar-part-n-parents gp)
      (length (grammar-clause->parent-chain gp all-g-part-hash)))
@@ -243,13 +264,15 @@
         spec
         (g-part-sorted ...)
         (ag-clause ...)
-        (cm-clause ...)))])
+        (cm-clause ...)
+        ((p-clause+ ...) ...)))])
 
 (define-syntax-parser assemble-spec-parts_stage4
   [(_ spec
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
-      (cm-clause:prop-clause ...))
+      (cm-clause:prop-clause ...)
+      ((p-clause+:prop-clause ...) ...))
    (define (node->choice node-name-stx)
      (format-id node-name-stx "~aChoice%" node-name-stx))
    (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
