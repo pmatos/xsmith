@@ -173,8 +173,8 @@
   [(_ arg ...) #'(add-prop-generic 'cm-info arg ...)])
 
 ;; TODO - maybe add-prop should be different -- I could have hygienic names for properties, for example...
-#;(define-syntax-parser add-prop
-  [(_ arg ...) #'(add-prop-generic 'prop-infos arg ...)])
+(define-syntax-parser add-prop
+  [(_ arg ...) #'(add-prop-generic 'props-info arg ...)])
 
 (define-for-syntax (spec-hash-merge part-hashes)
   (for/fold ([bighash (hash)])
