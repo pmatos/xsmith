@@ -228,6 +228,7 @@
          (assemble-spec-parts_stage2 spec)))])
 
 (define-syntax-parser assemble-spec-parts_stage3
+  ;; Check for duplicates, then run transformers
   [(_ spec
       (pre ... (g-part1:grammar-clause g-part2:grammar-clause c ...) post ...)
       ag-clauses
@@ -254,6 +255,24 @@
       ((ag-clause:prop-clause) ...)
       ((cm-clause:prop-clause) ...)
       ((p-clause+:prop-clause ...) ...))
+   ;; TODO - run property transformers
+   ;;      -- make a property name canonicalization function -- actually that should be done before here
+   ;;      -- sort with grammar-property-less-than
+   ;;      -- fold over properties with grammar-property-transform
+   #'(assemble-spec-parts_stage4
+      spec
+      (g-part ...)
+      (ag-clause ...)
+      (cm-clause ...)
+      ((p-clause+ ...) ...))])
+
+(define-syntax-parser assemble-spec-parts_stage4
+  ;; Sort the grammar clauses
+  [(_ spec
+      ((g-part:grammar-clause) ...)
+      ((ag-clause:prop-clause) ...)
+      ((cm-clause:prop-clause) ...)
+      ((p-clause+:prop-clause ...) ...))
    (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
    (define (grammar-part-n-parents gp)
      (length (grammar-clause->parent-chain gp all-g-part-hash)))
@@ -262,14 +281,15 @@
                         <
                         #:key grammar-part-n-parents
                         #:cache-keys? #t)])
-     #'(assemble-spec-parts_stage4
+     #'(assemble-spec-parts_stage5
         spec
         (g-part-sorted ...)
         (ag-clause ...)
         (cm-clause ...)
         ((p-clause+ ...) ...)))])
 
-(define-syntax-parser assemble-spec-parts_stage4
+(define-syntax-parser assemble-spec-parts_stage5
+  ;; Assemble everything!
   [(_ spec
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
@@ -403,3 +423,42 @@
 
                ;; TODO - add default erroring case to every ag-rule (on the base node)
                )])]))])
+
+
+(define-syntax (define-property stx)
+  (syntax-parse stx
+    [(_ name:id
+        (~or
+         (~optional (~seq #:reads read-arg:property-arg ...+))
+         (~optional (~seq #:rewrites rewrite-arg:property-arg ...+))
+         (~optional (~seq #:appends append-arg:property-arg ...+))
+         (~optional (~seq #:transformer transformer-func:expr))))
+     (when (and (not (attribute transformer-func))
+                (or (attribute read-arg)
+                    (attribute rewrite-arg)
+                    (attribute append-arg)))
+       (raise-syntax-error
+        'define-property
+        "transformer function needed for read, rewrite, or append arguments to make sense"
+        stx))
+     (when (and (attribute transformer-func)
+                (not (or (attribute read-arg)
+                         (attribute rewrite-arg)
+                         (attribute append-arg))))
+       (raise-syntax-error
+        'define-property
+        "transformer function must declare read, rewrite, or append arguments"
+        stx))
+     ;; TODO - check for duplicates or conflicts in read/rewrite/append specs
+     #`(define-syntax name
+         (grammar-property #,(or (attribute transformer-func)
+                                 #'#f)
+                           #,(if (attribute read-arg)
+                                 #'#'(read-arg ...)
+                                 #'#'())
+                           #,(if (attribute rewrite-arg)
+                                 #'#'(rewrite-arg ...)
+                                 #'#'())
+                           #,(if (attribute append-arg)
+                                 #'#'(append-arg ...)
+                                 #'#'())))]))
