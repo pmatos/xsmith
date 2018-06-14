@@ -2,6 +2,7 @@
 
 (require
  "grammar-macros.rkt"
+ "cish2-properties.rkt"
 
  racr
  racr/testing ;; racr/testing is needed for print-ast
@@ -94,7 +95,8 @@
 
  )
 
-(add-prop may-be-generated
+(add-prop cish2
+          may-be-generated
           ;; abstract nodes
           [Declaration #f]
           [Statement #f]

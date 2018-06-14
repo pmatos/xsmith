@@ -1,10 +1,15 @@
 #lang racket/base
 
+(provide
+ may-be-generated
+ )
+
 (require
  "grammar-macros.rkt"
  (for-syntax
-  racket/dict
+  racket/base
   syntax/parse
+  racket/dict
   ))
 
 ;; This is a lot to say "this property maps to a non-inheriting choice-rule".
@@ -34,5 +39,5 @@
            [bad-stx (raise-syntax-error
                      'may-be-generated
                      "bad value for may-be-generated property, should be #t or #f"
-                     bad-stx)]))))
+                     #'bad-stx)]))))
     (list may-be-generated-choice-rule-info)))

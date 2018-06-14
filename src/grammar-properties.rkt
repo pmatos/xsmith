@@ -17,7 +17,11 @@
 
  )
 
-(require syntax/parse)
+(require
+ syntax/parse
+ racket/dict
+ racket/list
+ )
 
 
 (define-syntax-class grammar-property-stx
@@ -49,15 +53,13 @@
                                   (grammar-property-appends p1))])
      (syntax-parse write-target
        [p:property-arg-property
-        (free-identifier=? #'p.name
-                           (grammar-property-name p2))]
+        (equal? p2 (syntax-local-value #'p.name))]
        [_ #f]))
    ;; is-read?
    (for/or ([read-target (grammar-property-reads p2)])
      (syntax-parse read-target
        [p:property-arg-property
-        (free-identifier=? #'p.name
-                           (grammar-property-name p1))]
+        (equal? p1 (syntax-local-value #'p.name))]
        [_ #f]))))
 
 
@@ -122,7 +124,7 @@
                                      [bad-stx (raise-syntax-error
                                                (syntax->datum #'p.name)
                                                "bad return from property transformer"
-                                               bad-stx
+                                               #'bad-stx
                                                #'p.name)]))
                                  (hash-set combined k (append old-val
                                                               new-val)))

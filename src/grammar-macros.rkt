@@ -5,14 +5,16 @@
  add-to-grammar
  add-ag
  add-cm
+ add-prop
  assemble-spec-parts
  current-xsmith-grammar
  define-property
 
- prop-clause
- grammar-component
- grammar-clause
- )
+ (for-syntax
+  prop-clause
+  grammar-component
+  grammar-clause
+  ))
 
 (require
  syntax/parse/define
@@ -27,6 +29,8 @@
   syntax/parse
   racket/list
   racket/string
+  racket/dict
+  racket/match
   "grammar-properties.rkt"
   ))
 
@@ -277,15 +281,15 @@
                ([pl p-lists])
        (match pl
          [(list prop-stx node-name-stx val-stx)
-          (define prop (syntax-local-value prop-stx))
-          (define node-hash (dict-ref h prop (hash)))
-          (define node-name (syntax->datum node-name-stx))
-          (define current-node-name-list (dict-ref node-hash node-name '()))
-          (dict-set h
-                    prop
-                    (dict-set node-hash
-                              node-name
-                              (cons val-stx current-node-name-list)))])))
+          (let* ([prop (syntax-local-value prop-stx)]
+                 [node-hash (dict-ref h prop (hash))]
+                 [node-name (syntax->datum node-name-stx)]
+                 [current-node-name-list (dict-ref node-hash node-name '())])
+            (dict-set h
+                      prop
+                      (dict-set node-hash
+                                node-name
+                                (cons val-stx current-node-name-list))))])))
    ;; Switch from a list of syntax objects to a syntax object wrapping a list.
    ;; For easier parsing on the receiving side.
    (define prop-hash
@@ -310,8 +314,8 @@
                                  (syntax->datum #'pc.node-name)
                                  #'pc.prop-val))
           (dict-set h (syntax->datum #'pc.prop) new-rule-hash)])))
-   (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clauses ...))))
-   (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clauses ...))))
+   (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clause ...))))
+   (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
 
    (define prop-structs (sort (dict-keys prop-hash) grammar-property-less-than))
    (define pre-transform-infos-hash
@@ -327,12 +331,12 @@
    ;; TODO - check duplicates again?  Other checks?
    (with-syntax ([(n-g-part ...) (dict-values (dict-ref infos-hash 'grammar-info))]
                  [(n-ag-clause ...) (dict-values (dict-ref infos-hash 'ag-info))]
-                 [(n-cm-clause ...) (dict-values (dict-ref infos-hash 'cm-info))]))
-   #'(assemble-spec-parts_stage4
-      spec
-      (n-g-part ...)
-      (n-ag-clause ...)
-      (n-cm-clause ...))])
+                 [(n-cm-clause ...) (dict-values (dict-ref infos-hash 'cm-info))])
+     #'(assemble-spec-parts_stage4
+        spec
+        (n-g-part ...)
+        (n-ag-clause ...)
+        (n-cm-clause ...)))])
 
 (define-syntax-parser assemble-spec-parts_stage4
   ;; Sort the grammar clauses
@@ -497,7 +501,8 @@
          (~optional (~seq #:reads read-arg:property-arg ...+))
          (~optional (~seq #:rewrites rewrite-arg:property-arg ...+))
          (~optional (~seq #:appends append-arg:property-arg ...+))
-         (~optional (~seq #:transformer transformer-func:expr))))
+         (~optional (~seq #:transformer transformer-func:expr)))
+        ...)
      (when (and (not (attribute transformer-func))
                 (or (attribute read-arg)
                     (attribute rewrite-arg)
