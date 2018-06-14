@@ -63,13 +63,11 @@
 
 ;;; Run the transformer for a grammar property.
 (define (grammar-property-transform grammar-prop-name-stx
-                                    infos-hash
-                                    ;; because I don't have a hash-free-identifier=?
-                                    canonicalize-prop-name)
+                                    infos-hash)
   (define (infos->section infos-hash pa)
     (syntax-parse pa
       [p:property-arg-property (hash-ref (hash-ref infos-hash 'props-info)
-                                         (canonicalize-prop-name #'p.name)
+                                         (syntax-local-value #'p.name)
                                          (hash))]
       [p:property-arg-ag-rule (hash-ref (hash-ref infos-hash 'ag-info)
                                         (syntax->datum #'p.name)
@@ -102,10 +100,10 @@
       [p:property-arg-property
        (define props-hash (hash-ref infos 'props-info))
        (define this-prop-hash
-         (hash-ref props-hash (canonicalize-prop-name #'p.name) (hash)))
+         (hash-ref props-hash (syntax-local-value #'p.name) (hash)))
        (hash-set infos 'props-info
                  (hash-set props-hash
-                           (canonicalize-prop-name #'p.name)
+                           (syntax-local-value #'p.name)
                            (if append?
                                (for/fold ([combined this-prop-hash])
                                          ([k (dict-keys new-hash)])
@@ -136,7 +134,8 @@
           (define (i->s pa)
             (infos->section infos-hash pa))
           ;; TODO - do double local-intro+custom-intro for hygiene
-          (define ret-list (apply transform (append (map i->s rewrites)
+          (define ret-list (apply transform (append (list (i->s slv))
+                                                    (map i->s rewrites)
                                                     (map i->s reads))))
           ;; Re-combine infos-hash.
           ;; The return list should be a hash for each rewrite
@@ -157,6 +156,16 @@
 
 
 (struct grammar-property
+  #|
+  * reads, rewrites, and appends are all lists of property-args, specifically
+    they refer to grammar-property instances, the grammar, or ag-rule
+    or choice-rule names.
+  * transformer is a function that receives as arguments a hash for the
+    property values of the property it is a transformer for, a hash for each
+    property in the rewrite list, then a hash for each property in the read
+    list.  It must return a list of hashes, one for each property in the
+    rewrite list, then one for each property in the appends list.
+  |#
   (transformer reads rewrites appends)
   #:property prop:procedure (λ (stx) (raise-syntax-error
                                       'grammar-property

@@ -255,24 +255,81 @@
       ((ag-clause:prop-clause) ...)
       ((cm-clause:prop-clause) ...)
       ((p-clause+:prop-clause ...) ...))
-   ;; TODO - run property transformers
-   ;;      -- make a property name canonicalization function -- actually that should be done before here
-   ;;      -- sort with grammar-property-less-than
-   ;;      -- fold over properties with grammar-property-transform
+   (define p-clauses (flatten (map syntax->list
+                                   (syntax->list #'((p-clause+ ...) ...)))))
+   (define (clause->list p-c-stx)
+     (syntax-parse p-c-stx
+       [p:prop-clause (list #'p.prop-name
+                            #'p.node-name
+                            #'p.prop-val)]))
+   (define p-lists (map clause->list p-clauses))
+   ;; I want one syntax object to point to for each property.
+   (define prop->prop-stx
+     (for/fold ([h (hash)])
+               ([pl p-lists])
+       (dict-set h (syntax-local-value (car pl)) (car pl))))
+   (define prop-hash
+     ;; a tiered hash from prop-struct->node-name->val-stx-list
+     (for/fold ([h (hash)])
+               ([pl p-lists])
+       (match pl
+         [(list prop-stx node-name-stx val-stx)
+          (define prop (syntax-local-value prop-stx))
+          (define node-hash (dict-ref h prop (hash)))
+          (define node-name (syntax->datum node-name-stx))
+          (define current-node-name-list (dict-ref node-hash node-name '()))
+          (dict-set h
+                    prop
+                    (dict-set node-hash
+                              node-name
+                              (cons val-stx current-node-name-list)))])))
+
+   (define g-parts (syntax->list #'(g-part ...)))
+   ;; g-hash is a single-level hash node-name->node-spec-stx
+   (define g-hash (for/hash ([g g-parts])
+                    (syntax-parse g
+                      [gc:grammar-clause (values (syntax->datum #'gc.name) g)])))
+   (define (ag/cm-list->hash xs)
+     ;; Makes a tiered hash from rule->node->val-stx
+     (for/fold ([h (hash)])
+               ([x xs])
+       (syntax-parse xs
+         [pc:prop-clause
+          (define new-rule-hash (dict-set
+                                 (dict-ref h (syntax->datum #'pc.prop) (hash))
+                                 (syntax->datum #'pc.node-name)
+                                 #'pc.prop-val))
+          (dict-set h (syntax->datum #'pc.prop) new-rule-hash)])))
+   (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clauses ...))))
+   (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clauses ...))))
+
+   (define prop-structs (sort (dict-keys prop-hash) grammar-property-less-than))
+   (define pre-transform-infos-hash
+     (hash 'ag-info ag-hash
+           'cm-info cm-hash
+           'grammar-info g-hash
+           'props-info prop-hash))
+   (define infos-hash
+     (for/fold ([ih pre-transform-infos-hash])
+               ([prop-struct prop-structs])
+       (grammar-property-transform (hash-ref prop->prop-stx prop-struct)
+                                   ih)))
+   ;; TODO - check duplicates again?  Other checks?
+   (with-syntax ([(n-g-part ...) (dict-values (dict-ref infos-hash 'grammar-info))]
+                 [(n-ag-clause ...) (dict-values (dict-ref infos-hash 'ag-info))]
+                 [(n-cm-clause ...) (dict-values (dict-ref infos-hash 'cm-info))]))
    #'(assemble-spec-parts_stage4
       spec
-      (g-part ...)
-      (ag-clause ...)
-      (cm-clause ...)
-      ((p-clause+ ...) ...))])
+      (n-g-part ...)
+      (n-ag-clause ...)
+      (n-cm-clause ...))])
 
 (define-syntax-parser assemble-spec-parts_stage4
   ;; Sort the grammar clauses
   [(_ spec
       ((g-part:grammar-clause) ...)
       ((ag-clause:prop-clause) ...)
-      ((cm-clause:prop-clause) ...)
-      ((p-clause+:prop-clause ...) ...))
+      ((cm-clause:prop-clause) ...))
    (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
    (define (grammar-part-n-parents gp)
      (length (grammar-clause->parent-chain gp all-g-part-hash)))
@@ -285,16 +342,14 @@
         spec
         (g-part-sorted ...)
         (ag-clause ...)
-        (cm-clause ...)
-        ((p-clause+ ...) ...)))])
+        (cm-clause ...)))])
 
 (define-syntax-parser assemble-spec-parts_stage5
   ;; Assemble everything!
   [(_ spec
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
-      (cm-clause:prop-clause ...)
-      ((p-clause+:prop-clause ...) ...))
+      (cm-clause:prop-clause ...))
    (define (node->choice node-name-stx)
      (format-id node-name-stx "~aChoice%" node-name-stx))
    (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
