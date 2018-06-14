@@ -7,6 +7,11 @@
  add-cm
  assemble-spec-parts
  current-xsmith-grammar
+ define-property
+
+ prop-clause
+ grammar-component
+ grammar-clause
  )
 
 (require
@@ -22,6 +27,7 @@
   syntax/parse
   racket/list
   racket/string
+  "grammar-properties.rkt"
   ))
 
 
@@ -172,9 +178,6 @@
 (define-syntax-parser add-cm
   [(_ arg ...) #'(add-prop-generic 'cm-info arg ...)])
 
-;; TODO - maybe add-prop should be different -- I could have hygienic names for properties, for example...
-;;        Probably I should have some `define-property` form for hygienic definition and reference.
-;;        The `define-property` form can also include some sort of transformer function for other properties and grammar info, though I'm not sure exactly how that should work yet.
 (define-syntax-parser add-prop
   [(_ arg ...) #'(add-prop-generic 'props-info arg ...)])
 
@@ -268,7 +271,7 @@
      (for/fold ([h (hash)])
                ([pl p-lists])
        (dict-set h (syntax-local-value (car pl)) (car pl))))
-   (define prop-hash
+   (define prop-hash-with-lists
      ;; a tiered hash from prop-struct->node-name->val-stx-list
      (for/fold ([h (hash)])
                ([pl p-lists])
@@ -283,6 +286,13 @@
                     (dict-set node-hash
                               node-name
                               (cons val-stx current-node-name-list)))])))
+   ;; Switch from a list of syntax objects to a syntax object wrapping a list.
+   ;; For easier parsing on the receiving side.
+   (define prop-hash
+     (for/hash ([pk (dict-keys prop-hash-with-lists)])
+       (define subhash (dict-ref prop-hash-with-lists pk))
+       (values pk (for/hash ([nk (dict-keys subhash)])
+                    (values nk (datum->syntax #f (dict-ref subhash nk)))))))
 
    (define g-parts (syntax->list #'(g-part ...)))
    ;; g-hash is a single-level hash node-name->node-spec-stx

@@ -92,7 +92,15 @@
                                   (raise-syntax-error 'grammar-property-transform
                                                       "duplicate rule"
                                                       ag/cm-name-stx))
-                                (hash-set combined k (dict-ref new-hash k)))))
+                                (define new-val (dict-ref new-hash k))
+                                ;; TODO - Do some error checking on new-val.
+                                ;;        It should be a valid syntax object
+                                ;;        for a rule right-hand-side.
+                                (define new-val-prop-clause
+                                  #`(#,ag/cm-name-stx
+                                     #,(datum->syntax #f k)
+                                     #,new-val))
+                                (hash-set combined k new-val-prop-clause))))
           (raise-syntax-error 'grammar-property-transform
                               "rewrite is not supported for ag-rules or choice-rules"
                               grammar-prop-name-stx)))
@@ -108,8 +116,16 @@
                                (for/fold ([combined this-prop-hash])
                                          ([k (dict-keys new-hash)])
                                  (define old-val (dict-ref combined k '()))
+                                 (define new-val
+                                   (syntax-parse (dict-ref new-hash k)
+                                     [(nv ...) (syntax->list #'(nv ...))]
+                                     [bad-stx (raise-syntax-error
+                                               (syntax->datum #'p.name)
+                                               "bad return from property transformer"
+                                               bad-stx
+                                               #'p.name)]))
                                  (hash-set combined k (append old-val
-                                                              (dict-ref new-hash k))))
+                                                              new-val)))
                                new-hash)))]
       [p:property-arg-ag-rule
        (ag/cm-branch #'p.name 'ag-info)]
@@ -165,6 +181,14 @@
     property in the rewrite list, then a hash for each property in the read
     list.  It must return a list of hashes, one for each property in the
     rewrite list, then one for each property in the appends list.
+
+    The hashes that are returned for ag-rules or choice-rules must be
+    hashes of grammar-node-name->rule-stx (IE syntax for a lambda),
+    the hashes that are returned for properties must be
+    grammar-node-name->(val-stx-list-as-stx) (IE a syntax object encapsulating
+    a list of property values), and the hash returned for the grammar
+    must be grammar-node-name->grammar-clause (where grammar-clause is
+    the syntax class).
   |#
   (transformer reads rewrites appends)
   #:property prop:procedure (λ (stx) (raise-syntax-error

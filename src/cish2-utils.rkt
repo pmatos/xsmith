@@ -466,6 +466,7 @@ Types can be:
 
 (define (apply-choice-filters choice-list)
   (filter (λ (choice) (maybe-send+ choice
+                                   (may-be-generated)
                                    (features-enabled)
                                    (top-level-declaration-at-top-level)
                                    (wont-over-deepen)
