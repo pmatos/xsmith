@@ -81,7 +81,7 @@
                            (syntax->datum (attribute c.parent-name))))
        (if parent
            (cons parent
-                 (grammar-clause->parent-chain (hash-ref clause-hash parent)
+                 (grammar-clause->parent-chain (dict-ref clause-hash parent)
                                                clause-hash))
            '())]))
 
@@ -302,12 +302,12 @@
    ;; g-hash is a single-level hash node-name->node-spec-stx
    (define g-hash (for/hash ([g g-parts])
                     (syntax-parse g
-                      [gc:grammar-clause (values (syntax->datum #'gc.name) g)])))
+                      [gc:grammar-clause (values (syntax->datum #'gc.node-name) g)])))
    (define (ag/cm-list->hash xs)
      ;; Makes a tiered hash from rule->node->val-stx
      (for/fold ([h (hash)])
                ([x xs])
-       (syntax-parse xs
+       (syntax-parse x
          [pc:prop-clause
           (define new-rule-hash (dict-set
                                  (dict-ref h (syntax->datum #'pc.prop) (hash))
@@ -329,9 +329,22 @@
        (grammar-property-transform (hash-ref prop->prop-stx prop-struct)
                                    ih)))
    ;; TODO - check duplicates again?  Other checks?
+   (define (rule-hash->clause-list rules-hash)
+     (for/fold ([clauses '()])
+               ([rule-name (dict-keys rules-hash)])
+       (define nodes-hash (dict-ref rules-hash rule-name))
+       (append (for/list ([node-name (dict-keys nodes-hash)])
+                 #`(#,(datum->syntax #f rule-name)
+                    #,(datum->syntax #f node-name)
+                    #,(dict-ref nodes-hash node-name)))
+               clauses)))
+   (define ag-prop-clauses
+     (rule-hash->clause-list (dict-ref infos-hash 'ag-info)))
    (with-syntax ([(n-g-part ...) (dict-values (dict-ref infos-hash 'grammar-info))]
-                 [(n-ag-clause ...) (dict-values (dict-ref infos-hash 'ag-info))]
-                 [(n-cm-clause ...) (dict-values (dict-ref infos-hash 'cm-info))])
+                 [(n-ag-clause ...) (rule-hash->clause-list
+                                     (dict-ref infos-hash 'ag-info))]
+                 [(n-cm-clause ...) (rule-hash->clause-list
+                                     (dict-ref infos-hash 'cm-info))])
      #'(assemble-spec-parts_stage4
         spec
         (n-g-part ...)
@@ -341,9 +354,9 @@
 (define-syntax-parser assemble-spec-parts_stage4
   ;; Sort the grammar clauses
   [(_ spec
-      ((g-part:grammar-clause) ...)
-      ((ag-clause:prop-clause) ...)
-      ((cm-clause:prop-clause) ...))
+      (g-part:grammar-clause ...)
+      (ag-clause:prop-clause ...)
+      (cm-clause:prop-clause ...))
    (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
    (define (grammar-part-n-parents gp)
      (length (grammar-clause->parent-chain gp all-g-part-hash)))
@@ -521,14 +534,15 @@
         stx))
      ;; TODO - check for duplicates or conflicts in read/rewrite/append specs
      #`(define-syntax name
-         (grammar-property #,(or (attribute transformer-func)
+         (grammar-property #,(if (attribute transformer-func)
+                                 #'(quote-syntax transformer-func)
                                  #'#f)
                            #,(if (attribute read-arg)
-                                 #'#'(read-arg ...)
+                                 #'(quote-syntax (read-arg ...))
                                  #'#'())
                            #,(if (attribute rewrite-arg)
-                                 #'#'(rewrite-arg ...)
+                                 #'(quote-syntax (rewrite-arg ...))
                                  #'#'())
                            #,(if (attribute append-arg)
-                                 #'#'(append-arg ...)
+                                 #'(quote-syntax (append-arg ...))
                                  #'#'())))]))
