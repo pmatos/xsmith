@@ -98,11 +98,7 @@
                                 ;; TODO - Do some error checking on new-val.
                                 ;;        It should be a valid syntax object
                                 ;;        for a rule right-hand-side.
-                                (define new-val-prop-clause
-                                  #`(#,ag/cm-name-stx
-                                     #,(datum->syntax #f k)
-                                     #,new-val))
-                                (hash-set combined k new-val-prop-clause))))
+                                (hash-set combined k new-val))))
           (raise-syntax-error 'grammar-property-transform
                               "rewrite is not supported for ag-rules or choice-rules"
                               grammar-prop-name-stx)))
@@ -152,7 +148,7 @@
           (define (i->s pa)
             (infos->section infos-hash pa))
           ;; TODO - do double local-intro+custom-intro for hygiene
-          (define ret-list (apply transform (append (list (i->s slv))
+          (define ret-list (apply transform (append (list (i->s #'(property gp)))
                                                     (map i->s rewrites)
                                                     (map i->s reads))))
           ;; Re-combine infos-hash.

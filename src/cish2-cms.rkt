@@ -330,7 +330,9 @@ few of these methods.
                                          (fresh-node 'ExpressionHole)
                                          (fresh-node 'ExpressionHole))])
          (cm features [nodename '(feature)])
-         (cm choice-weight
+         ;; TODO - this broke at some point when I switched to using all the macros.
+         ;;        Commenting it out is quicker than fixing it.
+         #;(cm choice-weight
              [nodename (if (and bool-like (member bool-hint
                                                   (att-value 'hints current-hole)))
                            (* (hint-weight-multiplier bool-hint)

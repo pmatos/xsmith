@@ -6,6 +6,7 @@
 
 (require
  "grammar-macros.rkt"
+ racket/class
  (for-syntax
   racket/base
   syntax/parse
@@ -17,7 +18,7 @@
 ;; macros to have some easy shorthands for simple cases.
 (define-property may-be-generated
   #:reads (grammar)
-  #:appends (choice-rule may-be-generated)
+  #:appends (choice-rule may-be-generated-method)
   #:transformer
   (λ (may-be-generated-prop-info grammar-info)
     (define may-be-generated-choice-rule-info
@@ -27,8 +28,8 @@
         (values
          node-name
          (syntax-parse prop-vals
-           [(#t) #'(λ (n) #t)]
-           [(#f) #'(λ (n) #f)]
+           [(#t) #'(λ () this)]
+           [(#f) #'(λ () #f)]
            [(a b ...+)
             (raise-syntax-error
              'may-be-generated

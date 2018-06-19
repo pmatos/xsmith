@@ -310,10 +310,10 @@
        (syntax-parse x
          [pc:prop-clause
           (define new-rule-hash (dict-set
-                                 (dict-ref h (syntax->datum #'pc.prop) (hash))
+                                 (dict-ref h (syntax->datum #'pc.prop-name) (hash))
                                  (syntax->datum #'pc.node-name)
                                  #'pc.prop-val))
-          (dict-set h (syntax->datum #'pc.prop) new-rule-hash)])))
+          (dict-set h (syntax->datum #'pc.prop-name) new-rule-hash)])))
    (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clause ...))))
    (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
 
@@ -535,7 +535,7 @@
      ;; TODO - check for duplicates or conflicts in read/rewrite/append specs
      #`(define-syntax name
          (grammar-property #,(if (attribute transformer-func)
-                                 #'(quote-syntax transformer-func)
+                                 #'transformer-func
                                  #'#f)
                            #,(if (attribute read-arg)
                                  #'(quote-syntax (read-arg ...))

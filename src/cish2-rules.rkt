@@ -778,7 +778,7 @@
  TODO - there are no void functions yet, so once there are this (and all
  non-return statements) should return void.
  |#
- [VoidReturnStatement
+ #;[VoidReturnStatement
   (λ (n store flow-returns)
     (list abstract-value/range/top store
           (must-return flow-returns abstract-value/range/top store)))]
