@@ -1,0 +1,19 @@
+This is a quick-and-dirty overview explanation of the macro design as it currently is.  Eventually there should be a proper overview and API documentation in Scribble, but this is quicker for today's purposes.
+
+The design of Xsmith's grammar macros so far is as follows:
+
+There are forms for defining a grammar, ag-rules, choice-rules, and properties.  Specifically, `declare-spec` defines a new grammar specification that can be added to, `add-to-grammar` appends nodes to the spec, `add-ag` adds ag-rules, `add-cm` adds choice-rules, `add-prop` adds properties.  The `add-*` forms can be used in any module that can reference the declared spec.
+
+Ag-rules are the attribute grammar rules -- they are methods that nodes in an AST have after they are constructed.
+Choice-rules are methods on choice objects which are created when the generator must make a choice about what node to generate.  They act as filters to remove choices from the running, provide an AST node constructor, and constrain the way the choice of node can be created.
+Properties are transformers for creating abstractions over ag-rules and choice-rules, and will be explained more later.
+
+To use the specification, a module must use `assemble-spec-parts`, specifying which modules to get the pieces of the specification from.  This is the main macro that does all the heavy lifting (either by itself or by chaining to helper macros).
+
+`assemble-spec-parts` gathers the specification pieces from all the other modules and combines them into a big table of data.  It (or its helper macros) does some validation of the table (eg. error if there are multiple definitions of a grammar production, etc), then it runs property transformers.  After running property transformers, it does some final validation (to check that the property transformers produced valid output) and generates the RACR grammar specification (both grammar and ag-rules) and a parallel set of choice-objects with their choice-rules.  It also extends the grammar with production holes, adds a base node (with an implementation for each ag-rule and choice-rule that gives a better error message than would otherwise exist for methods called on nodes that don't implement or have a parent that implements the method), and generates a method for the generator to get a choice list for each type of hole node.
+
+Each property is declared with a transformer function and a set of dependencies and outputs.  Properties may read the grammar or values of other properties to produce their output, and may extend other properties, ag-rules, or choice-rules.  The property transformers are run in an order based on their dependencies.  Properties are the mechanism for creating higher-level abstractions for declaring things about a grammar rather than using ag-rules and choice-rules.  (Though not much higher-level abstraction has yet been done, and common types of properties should have an easier way to be declared than what currently exists.)
+
+Property names are hygienic, but the names of grammar productions, ag-rules, and choice-rules are just symbols.  Spec names are also not hygienic right now, but probably should be changed to be.
+
+The `declare-spec`, `define-property` `add-*`, and `assemble-spec-parts` macros are in grammar-macros.rkt.  Infrastructure for properties is in grammar-properties.rkt.  An example implementation using the macros is in cish2-*.rkt, with the main part being cish2-core.rkt (which uses assemble-spec-parts).

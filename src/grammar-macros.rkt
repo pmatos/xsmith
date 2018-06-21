@@ -208,6 +208,12 @@
                                        (syntax->datum #'(require-path ...)))]
                  [export-name-original (spec->export-name #'spec)]
                  [next-macro (format-id #'spec "assemble-spec-parts-next_~a" #'spec)])
+     ;; We now have the require specifications for the grammar parts as syntax,
+     ;; and the easiest way to retrieve and use them is by having the output
+     ;; of this macro include the require specifications as well as the
+     ;; definition of a new macro that uses the new names required.
+     ;; So the rest of the processing is done by the macro we define (and call)
+     ;; in the output here.
      #'(begin
          (require (rename-in (only-in require-path export-name-original)
                              [export-name-original req-name]))
