@@ -41,6 +41,7 @@
 
 (ag-cish2 ast-serial-number
           ;; This is basically just a hack to signal stale state for the Rosette assertion stack.
+          ;; I don't think this is really necessary -- checking eq? on the top-ancestor-node should be equivalent to checking this serial number.
           [Program (λ (n) (fresh-int!))]
           [Node (λ (n) (att-value 'ast-serial-number (parent-node n)))])
 
