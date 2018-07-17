@@ -42,7 +42,6 @@
  #:properties (depth-increase-predicate)
  "cish2-grammar.rkt"
  "cish2-rules.rkt"
- "cish2-choice-rules.rkt"
  )
 
 
