@@ -448,10 +448,17 @@ Types can be:
   ;; I've had several bugs where I used a parent node that was a list-node
   ;; thinking it was the grandparent node.  The list nodes are generally
   ;; useless, so this function gets the non-list parent node.
-  (let ([p (ast-parent n)])
-    (if (ast-list-node? p)
-        (ast-parent p)
-        p)))
+  (let ([p (with-handlers ([(λ _ #t) (λ _ #f)])
+             ;; ast-parent raises an exception if there is no parent, I want #f
+             (ast-parent n))])
+    (cond [(not p) #f]
+          [(ast-list-node? p) (ast-parent p)]
+          [else p])))
+
+(define (top-ancestor-node n)
+  (let ([p (parent-node n)])
+    (if p (parent-node p) n)))
+
 (define (node-subtype? n t)
   (when (not (ast-node? n))
     (error 'node-subtype "called on non-ast-node.  Arguments: ~a ~a" n t))
@@ -468,7 +475,6 @@ Types can be:
   (filter (λ (choice) (maybe-send+ choice
                                    (may-be-generated-method)
                                    (features-enabled)
-                                   (top-level-declaration-at-top-level)
                                    (wont-over-deepen)
                                    (respect-return-position)
                                    (misc-constraints)

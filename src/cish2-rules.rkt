@@ -63,17 +63,6 @@
  ;; By default increase
  [Node (λ (n) (add1 (att-value 'ast-depth (parent-node n))))])
 
-;; IE are declarations here global?
-(ag-cish2 at-top-level?
-          [Program (λ (n) #t)]
-          [Node (λ (n) (let ([p (parent-node n)])
-                         (or (equal? (node-type p) 'Program)
-                             (and (ast-list-node? p)
-                                  (equal? (node-type (parent-node p)) 'Program)))))])
-
-(ag-cish2 top-level-node
-          [Program (λ (n) n)]
-          [Node (λ (n) (att-value 'top-level-node (parent-node n)))])
 
 (ag-cish2
  pretty-print

@@ -75,7 +75,6 @@
               this
               #f)])
 (cm constrain-type [Node this])
-(cm top-level-declaration-at-top-level [Node this])
 (cm respect-return-position [Node this])
 
 (cm respect-return-position
@@ -375,7 +374,7 @@ few of these methods.
 (cm wont-over-deepen [VariableDeclaration this])
 (cm choice-weight [VariableDeclaration 20])
 (cm fresh [VariableDeclaration
-           (let ([name (if (equal? (att-value 'top-level-node current-hole)
+           (let ([name (if (equal? (top-ancestor-node current-hole)
                                    (parent-node current-hole))
                            (fresh-var-name "global_")
                            (fresh-var-name "local_"))])
@@ -383,8 +382,8 @@ few of these methods.
                          name
                          (fresh-var-type)
                          (fresh-node 'ExpressionHole)))])
-(cm top-level-declaration-at-top-level
-    [FunctionDefinition (if (att-value 'at-top-level? current-hole)
+(cm misc-constraints
+    [FunctionDefinition (if (equal? (node-type (parent-node current-hole)) 'Program)
                             this
                             #f)])
 (cm fresh
