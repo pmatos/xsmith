@@ -1,30 +1,13 @@
-#lang racket
+#lang racket/base
 
 (require
  "grammar-macros.rkt"
  "cish2-properties.rkt"
-
+ "cish2-utils.rkt"
  racr
- racr/testing ;; racr/testing is needed for print-ast
- pprint
- racket/random
- racket/string
- racket/dict
- racket/set
- racket/match
- racket/math
- racket/class
- (prefix-in rt: rosette)
- (except-in racket/list empty)
- "random.rkt"
- "choice.rkt"
- "scope-graph.rkt"
- "xsmith-options.rkt"
- "xsmith-version.rkt"
  (for-syntax
   racket/base
   syntax/parse
-  racket/syntax
   ))
 
 
@@ -116,7 +99,7 @@
           [UnsafeModulusExpression #f]
           )
 
-#;(add-prop cish2
+(add-prop cish2
           depth-increase-predicate
           [Block (λ (n) (if (member (node-type (parent-node n))
                                     '(IfStatement
