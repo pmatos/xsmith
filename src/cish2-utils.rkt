@@ -434,7 +434,7 @@ Types can be:
    (with-syntax ([use-spec (or (attribute spec) #'(current-xsmith-grammar))])
      #'(create-ast use-spec
                    type
-                   (list empty empty (fresh-int!) attr-val ...)))])
+                   (list empty empty attr-val ...)))])
 
 (define fresh-int-counter 0)
 (define (fresh-int!)

@@ -32,7 +32,7 @@
 
 (add-to-grammar
  cish2
- [Node #f (precomment postcomment serialnumber)]
+ [Node #f (precomment postcomment)]
  [Program Node ([Declaration *] [main : FunctionDefinition])]
 
  [Declaration Node (name)]
