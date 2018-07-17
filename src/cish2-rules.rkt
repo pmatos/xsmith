@@ -1548,6 +1548,16 @@
   [(_ method [node-name lambda-body] ...+)
    #'(add-choice-rule cish2 method [node-name (λ () lambda-body)] ...)])
 
+#|
+Apparently class definitions don't let public methods be defined with
+let-over-lambda (maybe the class macro rewrites the lambdas...).
+So let's have a weak hash table store the mutable state we need in a
+few of these methods.
+|#
+
+(define ref-choices-filtered-hash (make-weak-hasheq))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-syntax (hinted-choice-weight stx)
@@ -1576,70 +1586,184 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(cm misc-constraints [Node this])
+(cm misc-constraints
+    [Node this]
+    [AssignmentExpression
+     (and (set-empty? (set-intersect '(constant no-assignment)
+                                     (att-value 'misc-constraints
+                                                current-hole)))
+          this)]
+    [FunctionDefinition
+     (if (equal? (node-type (parent-node current-hole)) 'Program)
+         this
+         #f)])
 
-(cm choice-weight [Node 10])
+(cm choice-weight
+    [Node 10]
+    [NullStatement 1]
+    [ExpressionStatement 70]
+    [IfStatement (top-heavy-choice 5)]
+    [IfElseStatement (top-heavy-choice 5)]
+    [WhileStatement (top-heavy-choice 2)]
+    [DoWhileStatement (top-heavy-choice 2)]
+    [ForStatement (top-heavy-choice 7)]
+    [Block (hinted-choice-weight 1 block-hint)]
+    [ReturnStatement 1]
+    [ValueReturnStatement 1]
+    [AssignmentExpression (hinted-choice-weight assignment-hint)]
+    [FunctionApplicationExpression
+     (hinted-choice-weight application-hint)]
+    [VariableDeclaration 20]
+    [VariableReference 15]
+    )
+
+
+(cm wont-over-deepen
+    [Node (if (<= (att-value 'ast-depth current-hole) (xsmith-option 'max-depth))
+              this
+              #f)]
+    [NullStatement this]
+    [ExpressionStatement this]
+    [ReturnStatement this]
+    [AssignmentExpression this]
+    [VariableReference this]
+    [VariableDeclaration this]
+    )
+
+(cm respect-return-position
+    [Node this]
+    )
+(cm respect-return-position
+    [Statement
+     (and (not (att-value 'in-return-position? current-hole))
+          this)]
+    [IfElseStatement this]
+    [Block this]
+    [ReturnStatement this]
+    [ValueReturnStatement this]
+    )
+
 (cm features-enabled
     [Node (let ((disabled (xsmith-option 'features-disabled)))
             (if (ormap (λ (f) (dict-ref disabled f #f))
                        (send this features))
                 #f
                 this))])
-(cm wont-over-deepen
-    [Node (if (<= (att-value 'ast-depth current-hole) (xsmith-option 'max-depth))
-              this
-              #f)])
-(cm constrain-type [Node this])
-(cm respect-return-position [Node this])
+(cm features
+    [NullStatement '(null)]
+    [IfStatement '(if-statement)]
+    [LoopStatement '(loop)]
+    [IfExpression '(if-expression)]
+    )
 
-(cm respect-return-position
-    [Statement
-     (and (not (att-value 'in-return-position? current-hole))
-          this)])
-(cm fresh [NullStatement (fresh-node 'NullStatement)])
-(cm features [NullStatement '(null)])
-(cm wont-over-deepen [NullStatement this])
-(cm choice-weight [NullStatement 1])
-(cm choice-weight [ExpressionStatement 70])
-(cm fresh [ExpressionStatement (fresh-node 'ExpressionStatement
-                                           (fresh-node 'ExpressionHole))])
-(cm wont-over-deepen [ExpressionStatement this])
-(cm choice-weight [IfStatement (top-heavy-choice 5)])
-(cm features [IfStatement '(if-statement)])
-(cm fresh [IfStatement (fresh-node 'IfStatement
-                                   (fresh-node 'ExpressionHole)
-                                   (fresh-node 'StatementHole))])
+(add-choice-rule
+ cish2
+ constrain-type
+ [Node (λ () this)]
+ [AssignmentExpression
+  (λ ()
+    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
+      (if ref-choices-filtered
+          ref-choices-filtered
+          (let ()
+            (define visibles (att-value 'visible-bindings current-hole))
+            (define legal-refs
+              (filter (λ (b) (not (member (binding-name b)
+                                          (att-value 'illegal-variable-names
+                                                     current-hole))))
+                      visibles))
+            (define type-needed (att-value 'type-context current-hole))
+            (define not-functions (filter (λ (b) (not (function-type?
+                                                       (dict-ref (binding-bound b)
+                                                                 'type))))
+                                          legal-refs))
+            (define legal-with-type
+              (if type-needed
+                  (filter (λ (b) (type-satisfies? (dict-ref (binding-bound b) 'type)
+                                                  type-needed))
+                          not-functions)
+                  not-functions))
+            (hash-set! ref-choices-filtered-hash this legal-with-type)
+            (and (not (null? legal-with-type)) this)))))]
+ [VariableReference
+  (λ ()
+    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
+      (if ref-choices-filtered
+          ref-choices-filtered
+          (let ()
+            (define visibles (att-value 'visible-bindings current-hole))
+            (define legal-refs
+              (filter (λ (b) (not (member (binding-name b)
+                                          (att-value 'illegal-variable-names
+                                                     current-hole))))
+                      visibles))
+            (define type-needed (att-value 'type-context current-hole))
+            (define legal-with-type
+              (if type-needed
+                  (filter (λ (b) (type-satisfies? (dict-ref (binding-bound b) 'type)
+                                                  type-needed))
+                          legal-refs)
+                  (filter (λ (b) (not (function-type?
+                                       (dict-ref (binding-bound b) 'type))))
+                          legal-refs)))
+            (hash-set! ref-choices-filtered-hash this legal-with-type)
+            (and (not (null? legal-with-type)) this)))))]
+ [FunctionApplicationExpression
+  (λ ()
+    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
+      (if ref-choices-filtered
+          ref-choices-filtered
+          (let ()
+            (define visibles (filter (λ (b) (function-type?
+                                             (dict-ref (binding-bound b) 'type)))
+                                     (att-value 'visible-bindings current-hole)))
+            (define legal-refs
+              (filter (λ (b) (not (member (binding-name b)
+                                          (att-value 'illegal-variable-names
+                                                     current-hole))))
+                      visibles))
+            (define type-needed (att-value 'type-context current-hole))
+            (define legal-with-type
+              (if type-needed
+                  (filter (λ (b) (type-satisfies?
+                                  (car (reverse (dict-ref (binding-bound b) 'type)))
+                                  type-needed))
+                          legal-refs)
+                  legal-refs))
+            (define final-choices (filter (λ (b) (not (equal? "main" (binding-name b))))
+                                          legal-with-type))
+            (hash-set! ref-choices-filtered-hash this final-choices)
+            (and (not (null? final-choices)) this)))))]
+ )
 
-(cm choice-weight [IfElseStatement (top-heavy-choice 5)])
-(cm fresh [IfElseStatement (fresh-node 'IfElseStatement
-                                       (fresh-node 'ExpressionHole)
-                                       (fresh-node 'BlockHole
-                                                   (create-ast-list '())
-                                                   (create-ast-list '()))
-                                       (fresh-node 'BlockHole
-                                                   (create-ast-list '())
-                                                   (create-ast-list '())))])
-(cm respect-return-position [IfElseStatement this])
-(cm features [LoopStatement '(loop)])
-(cm choice-weight [WhileStatement (top-heavy-choice 2)])
-(cm choice-weight [DoWhileStatement (top-heavy-choice 2)])
-(cm choice-weight [ForStatement (top-heavy-choice 7)])
-(cm fresh [WhileStatement (fresh-node 'WhileStatement
-                                      (fresh-node 'ExpressionHole)
-                                      (fresh-node 'StatementHole))])
-(cm fresh [DoWhileStatement (fresh-node 'DoWhileStatement
-                                        (fresh-node 'ExpressionHole)
-                                        (fresh-node 'StatementHole))])
-(cm fresh [ForStatement (fresh-node 'ForStatement
-                                    (fresh-node 'ExpressionHole)
-                                    (fresh-node 'StatementHole)
-                                    ;; init, update
-                                    (fresh-node 'DeclarationHole "standin-name")
-                                    (fresh-node 'ExpressionHole))])
-
-(cm choice-weight [Block (hinted-choice-weight 1 block-hint)])
 
 (cm fresh
+    [NullStatement (fresh-node 'NullStatement)]
+    [ExpressionStatement (fresh-node 'ExpressionStatement
+                                     (fresh-node 'ExpressionHole))]
+    [IfStatement (fresh-node 'IfStatement
+                             (fresh-node 'ExpressionHole)
+                             (fresh-node 'StatementHole))]
+    [IfElseStatement (fresh-node 'IfElseStatement
+                                 (fresh-node 'ExpressionHole)
+                                 (fresh-node 'BlockHole
+                                             (create-ast-list '())
+                                             (create-ast-list '()))
+                                 (fresh-node 'BlockHole
+                                             (create-ast-list '())
+                                             (create-ast-list '())))]
+    [WhileStatement (fresh-node 'WhileStatement
+                                (fresh-node 'ExpressionHole)
+                                (fresh-node 'StatementHole))]
+    [DoWhileStatement (fresh-node 'DoWhileStatement
+                                  (fresh-node 'ExpressionHole)
+                                  (fresh-node 'StatementHole))]
+    [ForStatement (fresh-node 'ForStatement
+                              (fresh-node 'ExpressionHole)
+                              (fresh-node 'StatementHole)
+                              ;; init, update
+                              (fresh-node 'DeclarationHole "standin-name")
+                              (fresh-node 'ExpressionHole))]
     [Block (fresh-node 'Block
                        ;; declarations
                        (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
@@ -1652,15 +1776,61 @@
                                (if (att-value 'in-return-position? current-hole)
                                    ;; don't allow an empty block in return position
                                    (cons #f l)
-                                   l)))))])
-(cm respect-return-position [Block this])
-(cm choice-weight [ReturnStatement 1])
-(cm wont-over-deepen [ReturnStatement this])
-(cm respect-return-position [ReturnStatement this])
-(cm choice-weight [ValueReturnStatement 1])
-(cm fresh [ValueReturnStatement (fresh-node 'ValueReturnStatement
-                                            (fresh-node 'ExpressionHole))])
-(cm respect-return-position [ValueReturnStatement this])
+                                   l)))))]
+    [ValueReturnStatement (fresh-node 'ValueReturnStatement
+                                      (fresh-node 'ExpressionHole))]
+    [AssignmentExpression
+     (fresh-node 'AssignmentExpression
+                 (binding-name (random-ref (send this constrain-type)))
+                 (fresh-node 'ExpressionHole))]
+    [VariableReference (fresh-node 'VariableReference
+                                   (binding-name (random-ref
+                                                  (send this constrain-type))))]
+    [FunctionApplicationExpression
+     (let ([chosen-func (random-ref (send this constrain-type))])
+       (fresh-node 'FunctionApplicationExpression
+                   (binding-name chosen-func)
+                   (create-ast-list
+                    (map (λ (x) (fresh-node 'ExpressionHole))
+                         (make-list (- (length (dict-ref (binding-bound
+                                                          chosen-func)
+                                                         'type))
+                                       2)
+                                    #f)))))]
+    [IfExpression (fresh-node 'IfExpression
+                              (fresh-node 'ExpressionHole)
+                              (fresh-node 'ExpressionHole)
+                              (fresh-node 'ExpressionHole))]
+    [VariableDeclaration
+     (let ([name (if (equal? (top-ancestor-node current-hole)
+                             (parent-node current-hole))
+                     (fresh-var-name "global_")
+                     (fresh-var-name "local_"))])
+       (fresh-node 'VariableDeclaration
+                   name
+                   (fresh-var-type)
+                   (fresh-node 'ExpressionHole)))]
+    [FunctionDefinition
+     (let* ([p (parent-node current-hole)]
+            [main? (and (eq? (node-type p) 'Program)
+                        (eq? (ast-child 'main p) current-hole))])
+       (fresh-node 'FunctionDefinition
+                   (if main? "main" (fresh-var-name "func_"))
+                   (if main? int-type (fresh-var-type))
+                   ;; parameters
+                   (if main?
+                       (create-ast-list '())
+                       (create-ast-list (map (λ (x) (fresh-node 'FormalParam
+                                                                (fresh-var-type)
+                                                                (fresh-var-name "arg_")))
+                                             (make-list (random 5) #f))))
+                   (fresh-node 'BlockHole
+                               (create-ast-list '())
+                               (create-ast-list '()))))]
+    )
+
+
+
 
 
 (define-syntax (define-basic-literal-choice stx)
@@ -1699,136 +1869,6 @@
   (* (random) (random 10))
   (+ .1 (random)))
 
-(cm choice-weight [AssignmentExpression (hinted-choice-weight assignment-hint)])
-(cm wont-over-deepen [AssignmentExpression this])
-(cm misc-constraints
-    [AssignmentExpression (and (set-empty? (set-intersect '(constant no-assignment)
-                                                          (att-value 'misc-constraints
-                                                                     current-hole)))
-                               this)])
-
-#|
-Apparently class definitions don't let public methods be defined with
-let-over-lambda (maybe the class macro rewrites the lambdas...).
-So let's have a weak hash table store the mutable state we need in a
-few of these methods.
-|#
-
-(define ref-choices-filtered-hash (make-weak-hasheq))
-
-(add-choice-rule
- cish2 constrain-type
- [AssignmentExpression
-  (λ ()
-    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
-      (if ref-choices-filtered
-          ref-choices-filtered
-          (let ()
-            (define visibles (att-value 'visible-bindings current-hole))
-            (define legal-refs
-              (filter (λ (b) (not (member (binding-name b)
-                                          (att-value 'illegal-variable-names
-                                                     current-hole))))
-                      visibles))
-            (define type-needed (att-value 'type-context current-hole))
-            (define not-functions (filter (λ (b) (not (function-type?
-                                                       (dict-ref (binding-bound b)
-                                                                 'type))))
-                                          legal-refs))
-            (define legal-with-type
-              (if type-needed
-                  (filter (λ (b) (type-satisfies? (dict-ref (binding-bound b) 'type)
-                                                  type-needed))
-                          not-functions)
-                  not-functions))
-            (hash-set! ref-choices-filtered-hash this legal-with-type)
-            (and (not (null? legal-with-type)) this)))))])
-(cm fresh
-    [AssignmentExpression
-     (fresh-node 'AssignmentExpression
-                 (binding-name (random-ref (send this constrain-type)))
-                 (fresh-node 'ExpressionHole))])
-
-(add-choice-rule
- cish2 constrain-type
- [VariableReference
-  (λ ()
-    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
-      (if ref-choices-filtered
-          ref-choices-filtered
-          (let ()
-            (define visibles (att-value 'visible-bindings current-hole))
-            (define legal-refs
-              (filter (λ (b) (not (member (binding-name b)
-                                          (att-value 'illegal-variable-names
-                                                     current-hole))))
-                      visibles))
-            (define type-needed (att-value 'type-context current-hole))
-            (define legal-with-type
-              (if type-needed
-                  (filter (λ (b) (type-satisfies? (dict-ref (binding-bound b) 'type)
-                                                  type-needed))
-                          legal-refs)
-                  (filter (λ (b) (not (function-type?
-                                       (dict-ref (binding-bound b) 'type))))
-                          legal-refs)))
-            (hash-set! ref-choices-filtered-hash this legal-with-type)
-            (and (not (null? legal-with-type)) this)))))])
-(cm fresh
-    [VariableReference (fresh-node 'VariableReference
-                                   (binding-name (random-ref
-                                                  (send this constrain-type))))])
-(cm choice-weght [VariableReference 15])
-(cm wont-over-deepen [VariableReference this])
-
-(add-choice-rule
- cish2
- constrain-type
- [FunctionApplicationExpression
-  (λ ()
-    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
-      (if ref-choices-filtered
-          ref-choices-filtered
-          (let ()
-            (define visibles (filter (λ (b) (function-type?
-                                             (dict-ref (binding-bound b) 'type)))
-                                     (att-value 'visible-bindings current-hole)))
-            (define legal-refs
-              (filter (λ (b) (not (member (binding-name b)
-                                          (att-value 'illegal-variable-names
-                                                     current-hole))))
-                      visibles))
-            (define type-needed (att-value 'type-context current-hole))
-            (define legal-with-type
-              (if type-needed
-                  (filter (λ (b) (type-satisfies?
-                                  (car (reverse (dict-ref (binding-bound b) 'type)))
-                                  type-needed))
-                          legal-refs)
-                  legal-refs))
-            (define final-choices (filter (λ (b) (not (equal? "main" (binding-name b))))
-                                          legal-with-type))
-            (hash-set! ref-choices-filtered-hash this final-choices)
-            (and (not (null? final-choices)) this)))))])
-(cm fresh [FunctionApplicationExpression
-           (let ([chosen-func (random-ref (send this constrain-type))])
-             (fresh-node 'FunctionApplicationExpression
-                         (binding-name chosen-func)
-                         (create-ast-list
-                          (map (λ (x) (fresh-node 'ExpressionHole))
-                               (make-list (- (length (dict-ref (binding-bound
-                                                                chosen-func)
-                                                               'type))
-                                             2)
-                                          #f)))))])
-(cm choice-weight [FunctionApplicationExpression
-                   (hinted-choice-weight application-hint)])
-
-(cm fresh [IfExpression (fresh-node 'IfExpression
-                                    (fresh-node 'ExpressionHole)
-                                    (fresh-node 'ExpressionHole)
-                                    (fresh-node 'ExpressionHole))])
-(cm features [IfExpression '(if-expression)])
 
 
 (define-syntax (define-binary-op-choice stx)
@@ -1886,36 +1926,3 @@ few of these methods.
 (define-binary-op-choice GreaterOrEqualExpression comparisons
   (list int-type float-type) int-type #t)
 
-(cm wont-over-deepen [VariableDeclaration this])
-(cm choice-weight [VariableDeclaration 20])
-(cm fresh [VariableDeclaration
-           (let ([name (if (equal? (top-ancestor-node current-hole)
-                                   (parent-node current-hole))
-                           (fresh-var-name "global_")
-                           (fresh-var-name "local_"))])
-             (fresh-node 'VariableDeclaration
-                         name
-                         (fresh-var-type)
-                         (fresh-node 'ExpressionHole)))])
-(cm misc-constraints
-    [FunctionDefinition (if (equal? (node-type (parent-node current-hole)) 'Program)
-                            this
-                            #f)])
-(cm fresh
-    [FunctionDefinition
-     (let* ([p (parent-node current-hole)]
-            [main? (and (eq? (node-type p) 'Program)
-                        (eq? (ast-child 'main p) current-hole))])
-       (fresh-node 'FunctionDefinition
-                   (if main? "main" (fresh-var-name "func_"))
-                   (if main? int-type (fresh-var-type))
-                   ;; parameters
-                   (if main?
-                       (create-ast-list '())
-                       (create-ast-list (map (λ (x) (fresh-node 'FormalParam
-                                                                (fresh-var-type)
-                                                                (fresh-var-name "arg_")))
-                                             (make-list (random 5) #f))))
-                   (fresh-node 'BlockHole
-                               (create-ast-list '())
-                               (create-ast-list '()))))])
