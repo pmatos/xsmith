@@ -199,7 +199,9 @@
     (hash-set bighash subhash-key subhash)))
 
 (define-syntax-parser assemble-spec-parts
-  [(_ spec require-path ...)
+  [(_ spec
+      (~optional (~seq #:properties (~and extra-props (prop-name:id ...))))
+      require-path ...)
    (with-syntax ([(req-name ...) (map (λ (rp-stx)
                                          (format-id #'spec
                                                     "~a__~a"
@@ -207,6 +209,7 @@
                                                     rp-stx))
                                        (syntax->datum #'(require-path ...)))]
                  [export-name-original (spec->export-name #'spec)]
+                 [extra-props (or (attribute extra-props) #'())]
                  [next-macro (format-id #'spec "assemble-spec-parts-next_~a" #'spec)])
      ;; We now have the require specifications for the grammar parts as syntax,
      ;; and the easiest way to retrieve and use them is by having the output
@@ -234,6 +237,7 @@
 
             #`(assemble-spec-parts_stage3
                spec-name
+               extra-props
                #,g-parts
                #,ag-parts
                #,cm-parts
@@ -243,6 +247,7 @@
 (define-syntax-parser assemble-spec-parts_stage3
   ;; Check for duplicates, then run transformers
   [(_ spec
+      extra-props
       (pre ... (g-part1:grammar-clause g-part2:grammar-clause c ...) post ...)
       ag-clauses
       cm-clauses
@@ -250,6 +255,7 @@
    (raise-syntax-error #f "duplicate definitions for grammar clause"
                        #'g-part1 #f #'g-part2)]
   [(_ spec
+      extra-props
       grammar-clauses
       (pre ... (ag1:prop-clause ag2:prop-clause c ...) post ...)
       cm-clauses
@@ -257,6 +263,7 @@
    (raise-syntax-error #f "duplicate definitions for ag-rule"
                        #'ag1 #f #'ag2)]
   [(_ spec
+      extra-props
       grammar-clauses
       ag-clauses
       (pre ... (cm1:prop-clause cm2:prop-clause c ...) post ...)
@@ -264,6 +271,7 @@
    (raise-syntax-error #f "duplicate definitions for choice method"
                        #'ag1 #f #'ag2)]
   [(_ spec
+      extra-props
       ((g-part:grammar-clause) ...)
       ((ag-clause:prop-clause) ...)
       ((cm-clause:prop-clause) ...)
@@ -276,14 +284,18 @@
                             #'p.node-name
                             #'p.prop-val)]))
    (define p-lists (map clause->list p-clauses))
-   ;; I want one syntax object to point to for each property.
+   ;; I want one syntax object to point to for each property object.
    (define prop->prop-stx
-     (for/fold ([h (hash)])
-               ([pl p-lists])
-       (dict-set h (syntax-local-value (car pl)) (car pl))))
+     (for/fold ([h (for/fold ([h (hash)])
+                             ([pl p-lists])
+                     (dict-set h (syntax-local-value (car pl)) (car pl)))])
+               ([prop (syntax->list #'extra-props)])
+       (dict-set h (syntax-local-value prop) prop)))
+   (define starter-prop-hash (for/hash ([k (dict-keys prop->prop-stx)])
+                               (values k (hash))))
    (define prop-hash-with-lists
      ;; a tiered hash from prop-struct->node-name->val-stx-list
-     (for/fold ([h (hash)])
+     (for/fold ([h starter-prop-hash])
                ([pl p-lists])
        (match pl
          [(list prop-stx node-name-stx val-stx)
@@ -332,7 +344,7 @@
    (define infos-hash
      (for/fold ([ih pre-transform-infos-hash])
                ([prop-struct prop-structs])
-       (grammar-property-transform (hash-ref prop->prop-stx prop-struct)
+       (grammar-property-transform (hash-ref prop->prop-stx prop-struct prop-struct)
                                    ih)))
    ;; TODO - check duplicates again?  Other checks?
    (define (rule-hash->clause-list rules-hash)
@@ -545,10 +557,10 @@
                                  #'#f)
                            #,(if (attribute read-arg)
                                  #'(quote-syntax (read-arg ...))
-                                 #'#'())
+                                 #'(quote-syntax ()))
                            #,(if (attribute rewrite-arg)
                                  #'(quote-syntax (rewrite-arg ...))
-                                 #'#'())
+                                 #'(quote-syntax ()))
                            #,(if (attribute append-arg)
                                  #'(quote-syntax (append-arg ...))
-                                 #'#'())))]))
+                                 #'(quote-syntax ()))))]))

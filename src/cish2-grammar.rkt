@@ -116,7 +116,7 @@
           [UnsafeModulusExpression #f]
           )
 
-(add-prop cish2
+#;(add-prop cish2
           depth-increase-predicate
           [Block (λ (n) (if (member (node-type (parent-node n))
                                     '(IfStatement

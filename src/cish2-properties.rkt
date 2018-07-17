@@ -2,10 +2,13 @@
 
 (provide
  may-be-generated
+ depth-increase-predicate
  )
 
 (require
  "grammar-macros.rkt"
+ "cish2-utils.rkt"
+ racr
  racket/class
  (for-syntax
   racket/base
@@ -55,6 +58,7 @@
 (define-non-inheriting-rule-property
   may-be-generated
   choice-rule
+  #:rule-name may-be-generated-method
   #:default #t
   #:transformer (syntax-parser [#t #'(λ () this)]
                                [#f #'(λ () #f)]))

@@ -3,6 +3,7 @@
 (require
  "grammar-macros.rkt"
  "cish2-utils.rkt"
+ "cish2-properties.rkt"
 
  racr
  racr/testing ;; racr/testing is needed for print-ast
@@ -38,6 +39,7 @@
 
 (assemble-spec-parts
  cish2
+ #:properties (depth-increase-predicate)
  "cish2-grammar.rkt"
  "cish2-rules.rkt"
  "cish2-cms.rkt"

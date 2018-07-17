@@ -49,14 +49,14 @@
 (define (grammar-property-less-than p1 p2)
   (or
    ;; writes?
-   (for/or ([write-target (append (grammar-property-rewrites p1)
-                                  (grammar-property-appends p1))])
+   (for/or ([write-target (append (syntax->list (grammar-property-rewrites p1))
+                                  (syntax->list (grammar-property-appends p1)))])
      (syntax-parse write-target
        [p:property-arg-property
         (equal? p2 (syntax-local-value #'p.name))]
        [_ #f]))
    ;; is-read?
-   (for/or ([read-target (grammar-property-reads p2)])
+   (for/or ([read-target (syntax->list (grammar-property-reads p2))])
      (syntax-parse read-target
        [p:property-arg-property
         (equal? p1 (syntax-local-value #'p.name))]
