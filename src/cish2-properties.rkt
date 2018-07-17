@@ -71,6 +71,8 @@
   #:transformer (syntax-parser
                   [pred:expr
                    #'(λ (n)
-                       (cond [(equal? n (top-ancestor-node n)) 0]
-                             [(pred n) (att-value 'ast-depth (parent-node n))]
-                             [else (add1 (att-value 'ast-depth (parent-node n)))]))]))
+                       (cond [(pred n) (let ([p (parent-node n)])
+                                         (if p
+                                             (add1 (att-value 'ast-depth p))
+                                             0))]
+                             [else (att-value 'ast-depth (parent-node n))]))]))

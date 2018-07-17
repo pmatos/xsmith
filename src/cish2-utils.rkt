@@ -457,7 +457,7 @@ Types can be:
 
 (define (top-ancestor-node n)
   (let ([p (parent-node n)])
-    (if p (parent-node p) n)))
+    (if p (top-ancestor-node p) n)))
 
 (define (node-subtype? n t)
   (when (not (ast-node? n))
