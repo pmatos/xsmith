@@ -31,7 +31,7 @@
 
 (define-syntax-parser cm
   [(_ method [node-name lambda-body] ...+)
-   #'(add-cm cish2 method [node-name (λ () lambda-body)] ...)])
+   #'(add-choice-rule cish2 method [node-name (λ () lambda-body)] ...)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -201,7 +201,7 @@ few of these methods.
 
 (define ref-choices-filtered-hash (make-weak-hasheq))
 
-(add-cm
+(add-choice-rule
  cish2 constrain-type
  [AssignmentExpression
   (λ ()
@@ -234,7 +234,7 @@ few of these methods.
                  (binding-name (random-ref (send this constrain-type)))
                  (fresh-node 'ExpressionHole))])
 
-(add-cm
+(add-choice-rule
  cish2 constrain-type
  [VariableReference
   (λ ()
@@ -266,7 +266,7 @@ few of these methods.
 (cm choice-weght [VariableReference 15])
 (cm wont-over-deepen [VariableReference this])
 
-(add-cm
+(add-choice-rule
  cish2
  constrain-type
  [FunctionApplicationExpression

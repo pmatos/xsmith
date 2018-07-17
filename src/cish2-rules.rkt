@@ -36,7 +36,7 @@
 
 (define-syntax-parser ag-cish2
   [(_ arg ...)
-   #'(add-ag cish2 arg ...)])
+   #'(add-ag-rule cish2 arg ...)])
 
 
 (ag-cish2 ast-serial-number
@@ -620,7 +620,7 @@
     (set! rosette-last-ast-serial-number current-ast-serial)
     (rt:clear-asserts!)))
 
-(add-ag
+(add-ag-rule
  cish2
  symbolic-interp
  ;; Get the single global result

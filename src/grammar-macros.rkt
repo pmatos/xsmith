@@ -3,8 +3,8 @@
 (provide
  declare-spec
  add-to-grammar
- add-ag
- add-cm
+ add-ag-rule
+ add-choice-rule
  add-prop
  assemble-spec-parts
  current-xsmith-grammar
@@ -177,9 +177,9 @@
                       #'((prop/ag/cm-name node-name) ...)
                       #'([prop/ag/cm-name node-name prop] ...))])
 
-(define-syntax-parser add-ag
+(define-syntax-parser add-ag-rule
   [(_ arg ...) #'(add-prop-generic 'ag-info arg ...)])
-(define-syntax-parser add-cm
+(define-syntax-parser add-choice-rule
   [(_ arg ...) #'(add-prop-generic 'cm-info arg ...)])
 
 (define-syntax-parser add-prop
@@ -268,7 +268,7 @@
       ag-clauses
       (pre ... (cm1:prop-clause cm2:prop-clause c ...) post ...)
       prop-clauses)
-   (raise-syntax-error #f "duplicate definitions for choice method"
+   (raise-syntax-error #f "duplicate definitions for choice rule"
                        #'ag1 #f #'ag2)]
   [(_ spec
       extra-props
