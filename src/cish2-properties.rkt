@@ -13,32 +13,39 @@
   racket/dict
   ))
 
-;; This is a lot to say "this property maps to a non-inheriting choice-rule".
-;; The define-property macro should be abstracted over with some more
-;; macros to have some easy shorthands for simple cases.
-(define-property may-be-generated
-  #:reads (grammar)
-  #:appends (choice-rule may-be-generated-method)
-  #:transformer
-  (λ (may-be-generated-prop-info grammar-info)
-    (define may-be-generated-choice-rule-info
-      (for/hash ([node-name (dict-keys grammar-info)])
-        (define prop-vals
-          (dict-ref may-be-generated-prop-info node-name #'(#t)))
-        (values
-         node-name
-         (syntax-parse prop-vals
-           [(#t) #'(λ () this)]
-           [(#f) #'(λ () #f)]
-           [(a b ...+)
-            (raise-syntax-error
-             'may-be-generated
-             (format
-              "duplicate definition of may-be-generated property for node: ~a"
-              node-name)
-             #'a)]
-           [bad-stx (raise-syntax-error
-                     'may-be-generated
-                     "bad value for may-be-generated property, should be #t or #f"
-                     #'bad-stx)]))))
-    (list may-be-generated-choice-rule-info)))
+(define-syntax (define-non-inheriting-rule-property stx)
+  (define-syntax-class rule-type
+    (pattern (~or (~datum choice-rule) (~datum ag-rule))))
+  (syntax-parse stx
+    [(_ rt:rule-type name:id default-value:expr value-transformer:expr)
+     #'(define-property name
+         #:reads (grammar)
+         #:appends (rt name)
+         #:transformer
+         (λ (this-prop-info grammar-info)
+           (define rule-info
+             (for/hash ([node-name (dict-keys grammar-info)])
+               (define prop-vals
+                 (dict-ref this-prop-info node-name #f))
+               (values node-name
+                       (value-transformer
+                        (if prop-vals
+                            (syntax-parse prop-vals
+                              [(a) #'a]
+                              [(a b ...+)
+                               (raise-syntax-error
+                                #f
+                                (format
+                                 "duplicate definition of ~a property for node ~a."
+                                 'name
+                                 node-name)
+                                #'a)])
+                            (quote-syntax default-value))))))
+           (list rule-info)))]))
+
+(define-non-inheriting-rule-property
+  choice-rule
+  may-be-generated
+  #t
+  (syntax-parser [#t #'(λ () this)]
+                 [#f #'(λ () #f)]))
