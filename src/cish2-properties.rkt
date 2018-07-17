@@ -59,3 +59,14 @@
   #:transformer (syntax-parser [#t #'(λ () this)]
                                [#f #'(λ () #f)]))
 
+(define-non-inheriting-rule-property
+  depth-increase-predicate
+  ag-rule
+  #:rule-name ast-depth
+  #:default (λ (n) #t)
+  #:transformer (syntax-parser
+                  [pred:expr
+                   #'(λ (n)
+                       (cond [(equal? n (top-ancestor-node n)) 0]
+                             [(pred n) (att-value 'ast-depth (parent-node n))]
+                             [else (add1 (att-value 'ast-depth (parent-node n)))]))]))

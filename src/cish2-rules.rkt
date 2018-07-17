@@ -45,25 +45,6 @@
           [Program (λ (n) (fresh-int!))]
           [Node (λ (n) (att-value 'ast-serial-number (parent-node n)))])
 
-(ag-cish2
- ast-depth
- [Program (λ (n) 0)]
- [Block (λ (n) (if (member (node-type (parent-node n))
-                           '(IfStatement
-                             IfElseStatement
-                             FunctionDefinition
-                             ForStatement
-                             WhileStatement
-                             DoWhileStatement))
-                   (att-value 'ast-depth (parent-node n))
-                   (add1 (att-value 'ast-depth (parent-node n)))))]
- ;; Some nodes shouldn't really increase depth
- [ExpressionStatement (λ (n) (att-value 'ast-depth (parent-node n)))]
- [AssignmentExpression (λ (n) (att-value 'ast-depth (parent-node n)))]
- [Declaration (λ (n) (att-value 'ast-depth (parent-node n)))]
- ;; By default increase
- [Node (λ (n) (add1 (att-value 'ast-depth (parent-node n))))])
-
 
 (ag-cish2
  pretty-print
