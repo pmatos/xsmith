@@ -3,6 +3,7 @@
 (provide
  may-be-generated
  depth-increase-predicate
+ fresh
  )
 
 (require
@@ -14,6 +15,7 @@
   racket/base
   syntax/parse
   racket/dict
+  racket/list
   ))
 
 (define-syntax (define-non-inheriting-rule-property stx)
@@ -105,11 +107,11 @@ hole for the type.
       (for/hash ([node nodes])
         (define fields (dict-ref field-info-hash node))
         (define field-hash (for/hash ([field fields])
-                             (values (field-info-struct-name field)
+                             (values (grammar-node-field-struct-name field)
                                      field)))
-        (define field-names (map field-info-struct-name fields))
-        (define field-types (map field-info-struct-type fields))
-        (define field-seq?s (map field-info-struct-kleene-star? fields))
+        (define field-names (map grammar-node-field-struct-name fields))
+        (define field-types (map grammar-node-field-struct-type fields))
+        (define field-seq?s (map grammar-node-field-struct-kleene-star? fields))
         (define (sym->quoted-sym-stx s)
           #`(quote #,(datum->syntax #f s)))
         (with-syntax ([fresh-expr (dict-ref this-prop-info node #'(hash))]
@@ -129,11 +131,11 @@ hole for the type.
                           #`(λ ()
                               #,(let* ([fstruct (dict-ref field-hash
                                                           fname)]
-                                       [init-e (field-info-struct-init-expr
+                                       [init-e (grammar-node-field-struct-init-expr
                                                 fstruct)]
-                                       [field-type (field-info-struct-type
+                                       [field-type (grammar-node-field-struct-type
                                                     fstruct)]
-                                       [seq? (field-info-struct-kleene-star?
+                                       [seq? (grammar-node-field-struct-kleene-star?
                                               fstruct)])
                                   (cond
                                     [init-e init-e]

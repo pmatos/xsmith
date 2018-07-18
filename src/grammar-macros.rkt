@@ -340,7 +340,15 @@
    (define prop->prop-stx
      (for/fold ([h (for/fold ([h (hash)])
                              ([pl p-lists])
-                     (dict-set h (syntax-local-value (car pl)) (car pl)))])
+                     (dict-set h
+                               (syntax-local-value
+                                (car pl)
+                                (λ ()
+                                  (raise-syntax-error
+                                   #f
+                                   "Identifier not defined as a property."
+                                   (car pl))))
+                               (car pl)))])
                ([prop (syntax->list #'extra-props)])
        (dict-set h (syntax-local-value prop) prop)))
    (define starter-prop-hash (for/hash ([k (dict-keys prop->prop-stx)])
@@ -624,7 +632,7 @@
        (length
         (grammar-node-name->field-info
          (syntax->datum #'node-type)
-         (grammar-clauses-stx->clause-hash grammar-clause-hash))))
+         (grammar-clauses-stx->clause-hash cur-grammar-clauses))))
      (with-syntax ([hole-name (ast-node-name-stx->hole-name-stx #'node-type)])
        #`(create-ast current-xsmith-grammar
                      'hole-name
