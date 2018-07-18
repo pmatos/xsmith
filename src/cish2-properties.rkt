@@ -76,3 +76,22 @@
                                              (add1 (att-value 'ast-depth p))
                                              0))]
                              [else (att-value 'ast-depth (parent-node n))]))]))
+
+
+#;(define-property read-grammar-info-temp
+           #:reads (grammar)
+           #:appends (choice-rule temp-rule-name)
+           #:transformer
+           (λ (this-prop-info grammar-info)
+             (define nodes (dict-keys grammar-info))
+             (define parent-chain-hash
+               (for/hash ([node-name nodes])
+                 (values node-name
+                         (grammar-clause->parent-chain node-name
+                                                       grammar-info))))
+
+             (define field-info-hash
+               (for/hash ([node-name nodes])
+                 (values node-name
+                         (grammar-clause->field-info))))
+             aoeu))
