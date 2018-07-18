@@ -107,10 +107,15 @@ hole for the type.
         (define field-hash (for/hash ([field fields])
                              (values (field-info-struct-name field)
                                      field)))
-        (define field-names (map (λ (f) (field-info-struct-name f))
-                                 fields))
+        (define field-names (map field-info-struct-name fields))
+        (define field-types (map field-info-struct-type fields))
+        (define field-seq?s (map field-info-struct-kleene-star? fields))
+        (define (sym->quoted-sym-stx s)
+          #`(quote #,(datum->syntax #f s)))
         (with-syntax ([fresh-expr (dict-ref this-prop-info node #'(hash))]
-                      [(field-name ...) (map (λ (fn) #`(quote #,fn)) field-names)])
+                      [(field-name ...) (map sym->quoted-sym-stx field-names)]
+                      [(field-type ...) (map sym->quoted-sym-stx field-types)]
+                      [(field-seq? ...) (map sym->quoted-sym-stx field-seq?s)])
           (values
            node
            #`(λ ()
@@ -131,19 +136,7 @@ hole for the type.
                                        [seq? (field-info-struct-kleene-star?
                                               fstruct)])
                                   (cond
-                                    [init-e
-                                     ;; If the init value is a number and a list
-                                     ;; of hole nodes is required, make an appropriate
-                                     ;; list of that length.
-                                     (with-syntax ([f-type
-                                                    (datum->syntax #f field-type)])
-                                       #`(let ([init-v #,init-e])
-                                           (if (and 'f-type
-                                                    (number? init-v))
-                                               (create-ast-list
-                                                (map (λ (x) (make-hole f-type))
-                                                     (make-list init-v #f)))
-                                               init-v)))]
+                                    [init-e init-e]
                                     [seq? #'(create-ast-list (list))]
                                     [field-type #'(make-hole
                                                    #,(datum->syntax #f field-type))]
@@ -157,6 +150,23 @@ hole for the type.
                     (dict-ref given-values
                               f-name
                               ((dict-ref thunk-hash f-name))))))
+               (define all-values-hash/num-transformed
+                 (for/hash ([f-name (list field-name ...)]
+                            [f-type (list field-type ...)]
+                            [f-seq? (list field-seq? ...)])
+                   (values
+                    f-name
+                    (let ([v (dict-ref all-values-hash f-name)])
+                      (if (and f-seq? (number? v))
+                          ;; If the init value is a number and a list
+                          ;; of hole nodes is required, make an appropriate
+                          ;; list of that length.
+                          (create-ast-list
+                           (map (if f-type
+                                    (make-hole f-type)
+                                    (λ (x) x))
+                                (make-list v #f)))
+                          v)))))
                (define all-values-in-order
                  (map (λ (name) (dict-ref all-values-hash name))
                       (list field-name ...)))

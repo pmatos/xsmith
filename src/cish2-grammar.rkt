@@ -15,40 +15,48 @@
 
 (add-to-grammar
  cish2
- [Node #f (precomment postcomment)]
- [Program Node ([Declaration *] [main : FunctionDefinition])]
+ [Node #f ([precomment = empty]
+           [postcomment = empty])]
+ [Program Node ([Declaration *]
+                [main : FunctionDefinition])]
 
- [Declaration Node (name)]
- ;[DeclarationHole Declaration ()]
- [VariableDeclaration Declaration (typename Expression)]
- [FunctionDefinition Declaration (typename [FormalParam *] Block)]
- ;[FunctionDefinitionHole FunctionDefinition ()]
- [FormalParam Node (typename name)]
+ [Declaration Node ([name = "standin-name"])]
+ [VariableDeclaration Declaration ([typename = "standin-name"]
+                                   Expression)]
+ [FunctionDefinition Declaration ([typename = "standin-name"]
+                                  [FormalParam *]
+                                  Block)]
+ [FormalParam Node ([typename = (fresh-var-type)]
+                    [name = (fresh-var-name "arg_")])]
 
 
  [Statement Node ()]
  [NullStatement Statement ()]
- [Block Statement ([Declaration *] [Statement *])]
+ [Block Statement ([Declaration * = (random 2)]
+                   [Statement * = (random 5)])]
  [ExpressionStatement Statement (Expression)]
- [IfStatement Statement ([test : Expression] [then : Statement])]
+ [IfStatement Statement ([test : Expression]
+                         [then : Statement])]
  [IfElseStatement IfStatement ([else : Statement])]
  [ReturnStatement Statement ()]
  ;[VoidReturnStatement ReturnStatement ()]
  [ValueReturnStatement ReturnStatement (Expression)]
- ;[StatementHole Statement ()]
- ;[BlockHole Block ()]
 
- [LoopStatement Statement ([test : Expression] [body : Statement])]
+ [LoopStatement Statement ([test : Expression]
+                           [body : Statement])]
  [WhileStatement LoopStatement ()]
  [DoWhileStatement LoopStatement ()]
- [ForStatement LoopStatement ([init : Declaration] [update : Expression])]
+ [ForStatement LoopStatement ([init : Declaration]
+                              [update : Expression])]
 
  [Expression Node ()]
- ;[ExpressionHole Expression ()]
 
- [AssignmentExpression Expression (name Expression)]
- [FunctionApplicationExpression Expression (name [Expression *])]
- [BinaryExpression Expression ([l : Expression] [r : Expression])]
+ [AssignmentExpression Expression ([name = "standin-name"]
+                                   Expression)]
+ [FunctionApplicationExpression Expression ([name = "standin-name"]
+                                            [Expression *])]
+ [BinaryExpression Expression ([l : Expression]
+                               [r : Expression])]
  [AdditionExpression BinaryExpression ()]
  [UnsafeAdditionExpression AdditionExpression ()]
  [SubtractionExpression BinaryExpression ()]
@@ -114,3 +122,47 @@
           [ExpressionStatement (λ(n)#f)]
           [AssignmentExpression (λ(n)#f)]
           [Declaration (λ(n)#f)])
+
+(add-prop cish2
+          fresh
+          [IfElseStatement (hash
+                            'then
+                            (create-hole Block)
+                            'else
+                            (create-hole Block))]
+          [AssignmentExpression
+           (hash
+            'name
+            (binding-name (random-ref (send this constrain-type))))]
+          [VariableReference
+           (hash 'name (binding-name (random-ref
+                                      (send this constrain-type))))]
+          [FunctionApplicationExpression
+           (let ([chosen-func (random-ref (send this constrain-type))])
+             (hash 'name
+                   (binding-name chosen-func)
+                   'Expression
+                   (- (length (dict-ref (binding-bound chosen-func)
+                                        'type))
+                      2)))]
+          [VariableDeclaration
+           (let ([name (if (equal? (top-ancestor-node current-hole)
+                                   (parent-node current-hole))
+                           (fresh-var-name "global_")
+                           (fresh-var-name "local_"))])
+             (hash 'name name
+                   'typename (fresh-var-type)))]
+          [FunctionDefinition
+           (let* ([p (parent-node current-hole)]
+                  [main? (and (eq? (node-type p) 'Program)
+                              (eq? (ast-child 'main p) current-hole))])
+             (hash
+              'name
+              (if main? "main" (fresh-var-name "func_"))
+              'typename
+              (if main? int-type (fresh-var-type))
+              'FormalParam
+              (if main?
+                  0
+                  (random 5))))]
+          )

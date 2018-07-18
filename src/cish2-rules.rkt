@@ -1737,7 +1737,7 @@ few of these methods.
  )
 
 
-(cm fresh
+#;(cm fresh
     [NullStatement (fresh-node 'NullStatement)]
     [ExpressionStatement (fresh-node 'ExpressionStatement
                                      (fresh-node 'ExpressionHole))]

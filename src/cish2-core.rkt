@@ -39,7 +39,7 @@
 
 (assemble-spec-parts
  cish2
- #:properties (depth-increase-predicate)
+ #:properties (depth-increase-predicate fresh)
  "cish2-grammar.rkt"
  "cish2-rules.rkt"
  )
