@@ -125,6 +125,7 @@ hole for the type.
                                node)
                               (car prop-for-this-node)))
         (with-syntax ([fresh-expr (car prop-for-this-node)]
+                      [node-name node]
                       [(field-name ...) (map sym->quoted-sym-stx field-names)]
                       [(field-type ...) (map sym->quoted-sym-stx field-types)]
                       [(field-seq? ...) (map sym->quoted-sym-stx field-seq?s)])
@@ -175,7 +176,7 @@ hole for the type.
                           ;; list of that length.
                           (create-ast-list
                            (map (if f-type
-                                    (make-hole-dynamic f-type)
+                                    (λ (x) (make-hole-dynamic f-type))
                                     (λ (x) x))
                                 (make-list v #f)))
                           v)))))

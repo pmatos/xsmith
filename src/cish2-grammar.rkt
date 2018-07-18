@@ -6,10 +6,12 @@
  "cish2-utils.rkt"
  "scope-graph.rkt"
  "choice.rkt"
+ (only-in pprint [empty empty-doc])
  racr
  racket/random
  racket/class
  racket/dict
+ racket/list
  (for-syntax
   racket/base
   syntax/parse
@@ -20,15 +22,15 @@
 
 (add-to-grammar
  cish2
- [Node #f ([precomment = '()]
-           [postcomment = '()])]
+ [Node #f ([precomment = empty-doc]
+           [postcomment = empty-doc])]
  [Program Node ([Declaration *]
                 [main : FunctionDefinition])]
 
- [Declaration Node ([name = "standin-name"])]
- [VariableDeclaration Declaration ([typename = "standin-name"]
+ [Declaration Node ([name = (fresh-var-name "x_")])]
+ [VariableDeclaration Declaration ([typename = (fresh-var-type)]
                                    Expression)]
- [FunctionDefinition Declaration ([typename = "standin-name"]
+ [FunctionDefinition Declaration ([typename = (fresh-var-type)]
                                   [FormalParam *]
                                   Block)]
  [FormalParam Node ([typename = (fresh-var-type)]
@@ -169,5 +171,19 @@
               'FormalParam
               (if main?
                   0
-                  (random 5))))]
+                  ;; This wants to be "make a fresh FormalParam with defaults",
+                  ;; which could probably be done by (send fresh (new FormalParamChoice%)),
+                  ;; but I wanted the choices to be invisible...  Maybe that's not the
+                  ;; best choice.
+                  ;; Or I could make a `make-fresh-node` macro like the `make-hole`
+                  ;; macro, which could see the choices even though they are otherwise
+                  ;; invisible.
+                  (create-ast-list
+                   (map (λ (x)
+                          (create-ast (current-xsmith-grammar)
+                                      'FormalParam
+                                      (list empty-doc empty-doc
+                                            (fresh-var-type)
+                                            (fresh-var-name "arg_"))))
+                        (make-list (random 5) #f))))))]
           )

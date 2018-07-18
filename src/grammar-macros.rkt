@@ -130,8 +130,11 @@
       (grammar-clause->parent-chain (dict-ref grammar-clause-hash name)
                                     grammar-clause-hash))
     (define field-info-lists
-      (map name->field-info/direct (append parent-list (list name))))
-    (apply append field-info-lists))
+      (map name->field-info/direct (append (reverse parent-list) (list name))))
+    (define field-info
+      (apply append field-info-lists))
+
+    field-info)
 
   (define grammar-clauses-stx->clause-hash
     (syntax-parser [(c:grammar-clause ...)

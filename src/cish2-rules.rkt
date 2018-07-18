@@ -324,7 +324,8 @@
 
 (ag-cish2
  visible-bindings
- [Node (λ (n) (visible-bindings (att-value 'scope-graph-scope n)))])
+ [Node (λ (n)
+         (visible-bindings (att-value 'scope-graph-scope n)))])
 (ag-cish2
  illegal-variable-names
  [Node (λ (n) '())]
@@ -1685,7 +1686,7 @@ few of these methods.
                           not-functions)
                   not-functions))
             (hash-set! ref-choices-filtered-hash this legal-with-type)
-            (and (not (null? legal-with-type)) this)))))]
+            (and (not (null? legal-with-type)) legal-with-type)))))]
  [VariableReference
   (λ ()
     (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
@@ -1861,7 +1862,7 @@ few of these methods.
                                                 (equal? 0 v1))
                                            if-zero-generator-e
                                            v1)])
-                               v)])
+                               (hash 'val v))])
          (cm features [nodename '(feature)])
          (cm wont-over-deepen [nodename this])
          (cm choice-weight [nodename 3])
