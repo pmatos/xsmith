@@ -14,6 +14,14 @@
   prop-clause
   grammar-component
   grammar-clause
+
+  grammar-node-name->field-info
+
+  grammar-node-field-struct
+  grammar-node-field-struct-name
+  grammar-node-field-struct-type
+  grammar-node-field-struct-kleene-star?
+  grammar-node-field-struct-init-expr
   ))
 
 (require
@@ -68,7 +76,7 @@
      (~or name:id
           [name:id (~optional (~seq (~datum :) type:id))
                    (~optional (~and (~datum *) kleene-star))
-                   (~optional (~seq (~datum =) init-val:expr))])))
+                   (~optional (~seq (~datum =) init-expr:expr))])))
   (define-syntax-class grammar-clause
     (pattern
      [node-name:id (~and parent (~or parent-name:id #f))
@@ -84,6 +92,32 @@
                  (grammar-clause->parent-chain (dict-ref clause-hash parent)
                                                clause-hash))
            '())]))
+
+  (struct grammar-node-field-struct
+    (name type kleene-star? init-expr)
+    #:transparent)
+
+  (define (grammar-node-name->field-info name grammar-clause-hash)
+    (define (name->field-info/direct name)
+      (syntax-parse (dict-ref grammar-clause-hash name)
+        [gcl:grammar-clause
+         (map (syntax-parser
+                [gco:grammar-component
+                 (define n (syntax->datum #'gco.name))
+                 (grammar-node-field-struct
+                  n
+                  (or (attribute gco.type)
+                      (and (dict-ref grammar-clause-hash n #f)
+                           n))
+                  (and (attribute gco.kleene-star) #t)
+                  (attribute gco.init-expr))])
+              (syntax->list #'(gcl.component ...)))]))
+    (define parent-list
+      (grammar-clause->parent-chain (dict-ref grammar-clause-hash name)
+                                    grammar-clause-hash))
+    (define field-info-lists
+      (map name->field-info/direct (append parent-list (list name))))
+    (apply append field-info-lists))
 
   (define grammar-clauses-stx->clause-hash
     (syntax-parser [(c:grammar-clause ...)
