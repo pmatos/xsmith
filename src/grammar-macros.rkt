@@ -15,6 +15,7 @@
   grammar-component
   grammar-clause
 
+  grammar-clause->parent-chain
   grammar-node-name->field-info
 
   grammar-node-field-struct

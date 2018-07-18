@@ -78,20 +78,74 @@
                              [else (att-value 'ast-depth (parent-node n))]))]))
 
 
-#;(define-property read-grammar-info-temp
-           #:reads (grammar)
-           #:appends (choice-rule temp-rule-name)
-           #:transformer
-           (λ (this-prop-info grammar-info)
-             (define nodes (dict-keys grammar-info))
-             (define parent-chain-hash
-               (for/hash ([node-name nodes])
-                 (values node-name
-                         (grammar-clause->parent-chain node-name
-                                                       grammar-info))))
+#|
+The fresh property will take an expression (to be the body of a method
+-- so `this` can be used to access the current choice method) that
+must return a list of field specifications.
 
-             (define field-info-hash
-               (for/hash ([node-name nodes])
-                 (values node-name
-                         (grammar-clause->field-info))))
-             aoeu))
+Each field specification is a dict mapping field names (as symbols) to values.
+
+All other fields will receive the default value (by evaluating the
+default value expression specified in the grammar), #f if no default
+is specified and no type is known for the field, or an appropriate
+hole for the type.
+|#
+(define-property fresh
+  #:reads (grammar)
+  #:appends (choice-rule fresh)
+  #:transformer
+  (λ (this-prop-info grammar-info)
+    (define nodes (dict-keys grammar-info))
+    (define field-info-hash
+      (for/hash ([node-name nodes])
+        (values node-name
+                (grammar-node-name->field-info node-name grammar-info))))
+    ;; I need to create a lambda (of zero args) that evaluates the given expression (if it exists), then calls a thunk to get the default value for any fields not specified in the list received.
+    (define rule-info
+      (for/hash ([node nodes])
+        (define fields (dict-ref field-info-hash node))
+        (define field-hash (for/hash ([field fields])
+                             (values (field-info-struct-name field)
+                                     field)))
+        (define field-names (map (λ (f) (field-info-struct-name f))
+                                 fields))
+        (with-syntax ([fresh-expr (dict-ref this-prop-info node #'(hash))]
+                      [(field-name ...) (map (λ (fn) #`(quote #,fn)) field-names)])
+          (values
+           node
+           #`(λ ()
+               (define thunk-hash
+                 (hash #,@(flatten
+                           (map
+                            (λ (fname)
+                              (list
+                               #`(quote #,fname)
+                               #`(λ ()
+                                   #,(let* ([fstruct (dict-ref field-hash
+                                                               fname)]
+                                            [init-e (field-info-struct-init-expr
+                                                     fstruct)]
+                                            [field-type (field-info-struct-type
+                                                         fstruct)])
+                                       (cond
+                                         [init-e init-e]
+                                         [field-type (error 'xsmith
+                                                            "can't currently generate a default value for node fields that have a type -- specify a default expression in the grammar or give a fresh property that specifies it.")]
+                                         [else #'#f])))))
+                            field-names))))
+               (define given-values fresh-expr)
+               (define all-values-hash
+                 (for/hash ([f-name (list field-name ...)])
+                   (values
+                    f-name
+                    (dict-ref given-values
+                              f-name
+                              ((dict-ref thunk-hash f-name))))))
+               (define all-values-in-order
+                 (map (λ (name) (dict-ref all-values-hash name))
+                      (list field-name ...)))
+
+               (create-ast current-xsmith-grammar
+                           '#,node
+                           all-values-in-order))))))
+    (list rule-info)))
