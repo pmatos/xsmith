@@ -9,6 +9,7 @@
  assemble-spec-parts
  current-xsmith-grammar
  define-property
+ make-hole
 
  (for-syntax
   prop-clause
@@ -49,6 +50,12 @@
                        'current-xsmith-grammar
                        "current-xsmith-grammar used without being parameterized"
                        #'stx)]))
+(define-syntax-parameter current-xsmith-grammar-clauses
+  (syntax-parser [stx (raise-syntax-error
+                       'xsmith
+                       "current-xsmith-grammar-clauses used without parameterization"
+                       #'stx)]))
+
 
 (define-for-syntax (spec->export-name spec-name-stx)
   (format-id spec-name-stx "%%~a-grammar-info-hash" spec-name-stx))
@@ -125,6 +132,16 @@
                     (for/hash ([name (syntax->datum #'(c.node-name ...))]
                                [clause (syntax->list #'(c ...))])
                       (values name clause))]))
+
+  (define (ast-node-name-stx->hole-name-stx n)
+    ;; It would be nice to make the hole nodes hygienically named,
+    ;; but they have to be passed to `make-ast-rule` encoded with
+    ;; their parent and such, and the name will basically be taken
+    ;; from the string representation of the symbol.
+    ;; But it could be a gensym if all of the machinery for
+    ;; creating holes or dealing with them is handled automatically
+    ;; by macros from this file.
+    (format-id n "~aHole" n))
 
   )
 
@@ -443,12 +460,7 @@
                   [(ast-rule-sym ...) (map {make-ast-rule-id #'base-node-name}
                                            (syntax->list #'(g-part ...)))]
                   [(ast-hole-name ...)
-                   ;; It would be nice to make the hole nodes hygienically named,
-                   ;; but they have to be passed to `make-ast-rule` encoded with
-                   ;; their parent and such, and the name will basically be taken
-                   ;; from the string representation of the symbol.  So gensym
-                   ;; won't help.
-                   (map (λ (name-stx) (format-id name-stx "~aHole" name-stx))
+                   (map ast-node-name-stx->hole-name-stx
                         (syntax->list #'(g-part.node-name ...)))]
                   [(ast-hole-rule-sym ...)
                    (map (syntax-parser
@@ -508,7 +520,8 @@
                            (syntax->list #'(g-part.node-name ...)))
           [((c-method:prop-clause ...) ...)
            #`(splicing-syntax-parameterize
-                 ([current-xsmith-grammar (syntax-rules () [(_) spec])])
+                 ([current-xsmith-grammar (syntax-rules () [(_) spec])]
+                  [current-xsmith-grammar-clauses (quote-syntax (g-part ...))])
                ;; Define RACR spec and ag-rules
                (define spec (create-specification))
                (with-specification spec
@@ -599,3 +612,22 @@
                            #,(if (attribute append-arg)
                                  #'(quote-syntax (append-arg ...))
                                  #'(quote-syntax ()))))]))
+
+(define-syntax (make-hole stx)
+  ;; Make a node of the type of the hole of the node-type.
+  ;; Fill all attributes with ast-bud nodes.
+  (syntax-parse stx
+    [(_ node-type:id)
+     (define cur-grammar-clauses
+       (syntax-parameter-value #'current-xsmith-grammar-clauses))
+     (define node-attribute-length
+       (length
+        (grammar-node-name->field-info
+         (syntax->datum #'node-type)
+         (grammar-clauses-stx->clause-hash grammar-clause-hash))))
+     (with-syntax ([hole-name (ast-node-name-stx->hole-name-stx #'node-type)])
+       #`(create-ast current-xsmith-grammar
+                     'hole-name
+                     (map (λ (x) (create-ast-bud))
+                          (make-list #,(datum->syntax #f node-attribute-length)
+                                     #f))))]))

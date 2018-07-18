@@ -115,24 +115,40 @@ hole for the type.
            node
            #`(λ ()
                (define thunk-hash
-                 (hash #,@(flatten
-                           (map
-                            (λ (fname)
-                              (list
-                               #`(quote #,fname)
-                               #`(λ ()
-                                   #,(let* ([fstruct (dict-ref field-hash
-                                                               fname)]
-                                            [init-e (field-info-struct-init-expr
-                                                     fstruct)]
-                                            [field-type (field-info-struct-type
-                                                         fstruct)])
-                                       (cond
-                                         [init-e init-e]
-                                         [field-type (error 'xsmith
-                                                            "can't currently generate a default value for node fields that have a type -- specify a default expression in the grammar or give a fresh property that specifies it.")]
-                                         [else #'#f])))))
-                            field-names))))
+                 (hash
+                  #,@(flatten
+                      (map
+                       (λ (fname)
+                         (list
+                          #`(quote #,fname)
+                          #`(λ ()
+                              #,(let* ([fstruct (dict-ref field-hash
+                                                          fname)]
+                                       [init-e (field-info-struct-init-expr
+                                                fstruct)]
+                                       [field-type (field-info-struct-type
+                                                    fstruct)]
+                                       [seq? (field-info-struct-kleene-star?
+                                              fstruct)])
+                                  (cond
+                                    [init-e
+                                     ;; If the init value is a number and a list
+                                     ;; of hole nodes is required, make an appropriate
+                                     ;; list of that length.
+                                     (with-syntax ([f-type
+                                                    (datum->syntax #f field-type)])
+                                       #`(let ([init-v #,init-e])
+                                           (if (and 'f-type
+                                                    (number? init-v))
+                                               (create-ast-list
+                                                (map (λ (x) (make-hole f-type))
+                                                     (make-list init-v #f)))
+                                               init-v)))]
+                                    [seq? #'(create-ast-list (list))]
+                                    [field-type #'(make-hole
+                                                   #,(datum->syntax #f field-type))]
+                                    [else #'#f])))))
+                       field-names))))
                (define given-values fresh-expr)
                (define all-values-hash
                  (for/hash ([f-name (list field-name ...)])
