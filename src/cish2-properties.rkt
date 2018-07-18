@@ -11,6 +11,8 @@
  "cish2-utils.rkt"
  racr
  racket/class
+ racket/dict
+ racket/list
  (for-syntax
   racket/base
   syntax/parse
@@ -113,8 +115,16 @@ hole for the type.
         (define field-types (map grammar-node-field-struct-type fields))
         (define field-seq?s (map grammar-node-field-struct-kleene-star? fields))
         (define (sym->quoted-sym-stx s)
-          #`(quote #,(datum->syntax #f s)))
-        (with-syntax ([fresh-expr (dict-ref this-prop-info node #'(hash))]
+          #`(quote #,(datum->syntax #'here s)))
+        (define prop-for-this-node
+          (syntax->list (dict-ref this-prop-info node #'((hash)))))
+        (when (> (length prop-for-this-node) 1)
+          (raise-syntax-error 'fresh
+                              (format
+                               "duplicate definition of fresh property for node ~a"
+                               node)
+                              (car prop-for-this-node)))
+        (with-syntax ([fresh-expr (car prop-for-this-node)]
                       [(field-name ...) (map sym->quoted-sym-stx field-names)]
                       [(field-type ...) (map sym->quoted-sym-stx field-types)]
                       [(field-seq? ...) (map sym->quoted-sym-stx field-seq?s)])
@@ -133,15 +143,15 @@ hole for the type.
                                                           fname)]
                                        [init-e (grammar-node-field-struct-init-expr
                                                 fstruct)]
-                                       [field-type (grammar-node-field-struct-type
-                                                    fstruct)]
+                                       [f-type (grammar-node-field-struct-type
+                                                fstruct)]
                                        [seq? (grammar-node-field-struct-kleene-star?
                                               fstruct)])
                                   (cond
                                     [init-e init-e]
                                     [seq? #'(create-ast-list (list))]
-                                    [field-type #'(make-hole
-                                                   #,(datum->syntax #f field-type))]
+                                    [f-type #`(make-hole
+                                                   #,(datum->syntax #'here f-type))]
                                     [else #'#f])))))
                        field-names))))
                (define given-values fresh-expr)
@@ -165,15 +175,15 @@ hole for the type.
                           ;; list of that length.
                           (create-ast-list
                            (map (if f-type
-                                    (make-hole f-type)
+                                    (make-hole-dynamic f-type)
                                     (λ (x) x))
                                 (make-list v #f)))
                           v)))))
                (define all-values-in-order
-                 (map (λ (name) (dict-ref all-values-hash name))
+                 (map (λ (name) (dict-ref all-values-hash/num-transformed name))
                       (list field-name ...)))
 
-               (create-ast current-xsmith-grammar
+               (create-ast (current-xsmith-grammar)
                            '#,node
                            all-values-in-order))))))
     (list rule-info)))

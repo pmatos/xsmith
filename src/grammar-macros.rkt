@@ -9,7 +9,9 @@
  assemble-spec-parts
  current-xsmith-grammar
  define-property
+
  make-hole
+ make-hole-dynamic
 
  (for-syntax
   prop-clause
@@ -30,6 +32,8 @@
  syntax/parse/define
  racr
  racket/class
+ racket/dict
+ racket/list
  racket/stxparam
  racket/splicing
  "choice.rkt"
@@ -107,7 +111,9 @@
 
   (define (grammar-node-name->field-info name grammar-clause-hash)
     (define (name->field-info/direct name)
-      (syntax-parse (dict-ref grammar-clause-hash name)
+      (syntax-parse (dict-ref grammar-clause-hash name
+                              (λ () (error 'xsmith
+                                           "internal error - no field name in hash")))
         [gcl:grammar-clause
          (map (syntax-parser
                 [gco:grammar-component
@@ -412,8 +418,8 @@
                ([rule-name (dict-keys rules-hash)])
        (define nodes-hash (dict-ref rules-hash rule-name))
        (append (for/list ([node-name (dict-keys nodes-hash)])
-                 #`(#,(datum->syntax #f rule-name)
-                    #,(datum->syntax #f node-name)
+                 #`(#,(datum->syntax #'here rule-name)
+                    #,(datum->syntax #'here node-name)
                     #,(dict-ref nodes-hash node-name)))
                clauses)))
    (define ag-prop-clauses
@@ -628,14 +634,62 @@
     [(_ node-type:id)
      (define cur-grammar-clauses
        (syntax-parameter-value #'current-xsmith-grammar-clauses))
+     (define grammar-hash
+       (grammar-clauses-stx->clause-hash cur-grammar-clauses))
      (define node-attribute-length
        (length
         (grammar-node-name->field-info
          (syntax->datum #'node-type)
-         (grammar-clauses-stx->clause-hash cur-grammar-clauses))))
+         grammar-hash)))
      (with-syntax ([hole-name (ast-node-name-stx->hole-name-stx #'node-type)])
-       #`(create-ast current-xsmith-grammar
+       #`(create-ast (current-xsmith-grammar)
                      'hole-name
                      (map (λ (x) (create-ast-bud))
-                          (make-list #,(datum->syntax #f node-attribute-length)
+                          (make-list #,(datum->syntax #'here node-attribute-length)
                                      #f))))]))
+(define-syntax (make-hole-dynamic stx)
+  ;; Probably there should only be the static OR dynamic version, but I don't like the
+  ;; dynamic version... but I need it...
+  (syntax-parse stx
+    [(_ node-type-arg:expr)
+     (define cur-grammar-clauses
+       (syntax-parameter-value #'current-xsmith-grammar-clauses))
+     (define grammar-hash
+       (grammar-clauses-stx->clause-hash cur-grammar-clauses))
+     (define node-names
+       (dict-keys grammar-hash))
+     (define node-attribute-length-hash
+       (for/hash ([node-name node-names])
+         (values node-name
+                 (length (grammar-node-name->field-info
+                          node-name
+                          grammar-hash)))))
+     (with-syntax ([(hole-name ...) (map ast-node-name-stx->hole-name-stx
+                                         (syntax->list
+                                          (datum->syntax #'here node-names)))]
+                   [(node-name ...) (datum->syntax #'here node-names)]
+                   [(node-attr-length ...)
+                    (datum->syntax
+                     #'here
+                     (map (λ (x) (dict-ref node-attribute-length-hash x))
+                          node-names))])
+       #`(let ([len-hash (make-immutable-hash
+                          (list
+                           (cons 'node-name 'node-attr-length) ...))]
+               [hole-name-hash (make-immutable-hash
+                                (list
+                                 (cons 'node-name 'hole-name) ...))]
+               [node-type node-type-arg])
+           ;; do a dict-ref here just for error checking.
+           (dict-ref hole-name-hash node-type
+                     (λ ()
+                       (error
+                        'make-hole
+                        "Not in the defined grammar: ~a, expected one of: ~a"
+                        node-type
+                        (dict-keys hole-name-hash))))
+           (create-ast
+            (current-xsmith-grammar)
+            (dict-ref hole-name-hash node-type)
+            (map (λ (x) (create-ast-bud))
+                 (make-list (dict-ref len-hash node-type) #f)))))]))

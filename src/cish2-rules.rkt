@@ -3,6 +3,7 @@
 (require
  "grammar-macros.rkt"
  "cish2-utils.rkt"
+ "cish2-properties.rkt"
 
  racr
  racr/testing ;; racr/testing is needed for print-ast
@@ -1840,7 +1841,7 @@ few of these methods.
     ;; if-zero-generator-e is used if nonzero is required and the first generator gives 0
     [(_ nodename btype feature generator-e if-zero-generator-e)
      #'(begin
-         (cm fresh [nodename (let* ([t (att-value 'type-context current-hole)]
+         #;(cm fresh [nodename (let* ([t (att-value 'type-context current-hole)]
                                     [v1 generator-e]
                                     [constraints (if (basic-type? t)
                                                      (basic-type-constraints t)
@@ -1850,6 +1851,17 @@ few of these methods.
                                            if-zero-generator-e
                                            v1)])
                                (fresh-node 'nodename v))])
+         (add-prop cish2 fresh
+                   [nodename (let* ([t (att-value 'type-context current-hole)]
+                                    [v1 generator-e]
+                                    [constraints (if (basic-type? t)
+                                                     (basic-type-constraints t)
+                                                     '())]
+                                    [v (if (and (member 'nonzero constraints)
+                                                (equal? 0 v1))
+                                           if-zero-generator-e
+                                           v1)])
+                               v)])
          (cm features [nodename '(feature)])
          (cm wont-over-deepen [nodename this])
          (cm choice-weight [nodename 3])
@@ -1880,7 +1892,7 @@ few of these methods.
         bool-like ;; #t if the operator returns something bool-y, otherwise #f
         )
      #'(begin
-         (cm fresh [nodename (fresh-node 'nodename
+         #;(cm fresh [nodename (fresh-node 'nodename
                                          (fresh-node 'ExpressionHole)
                                          (fresh-node 'ExpressionHole))])
          (cm features [nodename '(feature)])

@@ -4,7 +4,12 @@
  "grammar-macros.rkt"
  "cish2-properties.rkt"
  "cish2-utils.rkt"
+ "scope-graph.rkt"
+ "choice.rkt"
  racr
+ racket/random
+ racket/class
+ racket/dict
  (for-syntax
   racket/base
   syntax/parse
@@ -15,8 +20,8 @@
 
 (add-to-grammar
  cish2
- [Node #f ([precomment = empty]
-           [postcomment = empty])]
+ [Node #f ([precomment = '()]
+           [postcomment = '()])]
  [Program Node ([Declaration *]
                 [main : FunctionDefinition])]
 
@@ -127,9 +132,9 @@
           fresh
           [IfElseStatement (hash
                             'then
-                            (create-hole Block)
+                            (make-hole Block)
                             'else
-                            (create-hole Block))]
+                            (make-hole Block))]
           [AssignmentExpression
            (hash
             'name
