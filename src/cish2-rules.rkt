@@ -1589,16 +1589,13 @@ few of these methods.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (cm misc-constraints
-    [Node this]
+    [Node #t]
     [AssignmentExpression
-     (and (set-empty? (set-intersect '(constant no-assignment)
-                                     (att-value 'misc-constraints
-                                                current-hole)))
-          this)]
+     (set-empty? (set-intersect '(constant no-assignment)
+                                (att-value 'misc-constraints
+                                           current-hole)))]
     [FunctionDefinition
-     (if (equal? (node-type (parent-node current-hole)) 'Program)
-         this
-         #f)])
+     (equal? (node-type (parent-node current-hole)) 'Program)])
 
 (cm choice-weight
     [Node 10]
@@ -1621,36 +1618,30 @@ few of these methods.
 
 
 (cm wont-over-deepen
-    [Node (if (<= (att-value 'ast-depth current-hole) (xsmith-option 'max-depth))
-              this
-              #f)]
-    [NullStatement this]
-    [ExpressionStatement this]
-    [ReturnStatement this]
-    [AssignmentExpression this]
-    [VariableReference this]
-    [VariableDeclaration this]
+    [Node (<= (att-value 'ast-depth current-hole) (xsmith-option 'max-depth))]
+    [NullStatement #t]
+    [ExpressionStatement #t]
+    [ReturnStatement #t]
+    [AssignmentExpression #t]
+    [VariableReference #t]
+    [VariableDeclaration #t]
     )
 
 (cm respect-return-position
-    [Node this]
+    [Node #t]
     )
 (cm respect-return-position
-    [Statement
-     (and (not (att-value 'in-return-position? current-hole))
-          this)]
-    [IfElseStatement this]
-    [Block this]
-    [ReturnStatement this]
-    [ValueReturnStatement this]
+    [Statement (not (att-value 'in-return-position? current-hole))]
+    [IfElseStatement #t]
+    [Block #t]
+    [ReturnStatement #t]
+    [ValueReturnStatement #t]
     )
 
 (cm features-enabled
     [Node (let ((disabled (xsmith-option 'features-disabled)))
-            (if (ormap (λ (f) (dict-ref disabled f #f))
-                       (send this features))
-                #f
-                this))])
+            (not (ormap (λ (f) (dict-ref disabled f #f))
+                        (send this features))))])
 (cm features
     [NullStatement '(null)]
     [IfStatement '(if-statement)]
@@ -1661,7 +1652,7 @@ few of these methods.
 (add-choice-rule
  cish2
  constrain-type
- [Node (λ () this)]
+ [Node (λ () #t)]
  [AssignmentExpression
   (λ ()
     (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
@@ -1709,7 +1700,7 @@ few of these methods.
                                        (dict-ref (binding-bound b) 'type))))
                           legal-refs)))
             (hash-set! ref-choices-filtered-hash this legal-with-type)
-            (and (not (null? legal-with-type)) this)))))]
+            (and (not (null? legal-with-type)) legal-with-type)))))]
  [FunctionApplicationExpression
   (λ ()
     (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
@@ -1735,7 +1726,7 @@ few of these methods.
             (define final-choices (filter (λ (b) (not (equal? "main" (binding-name b))))
                                           legal-with-type))
             (hash-set! ref-choices-filtered-hash this final-choices)
-            (and (not (null? final-choices)) this)))))]
+            (and (not (null? final-choices)) final-choices)))))]
  )
 
 
@@ -1804,7 +1795,7 @@ few of these methods.
                                     (ormap (λ (avail-type)
                                              (type-satisfies? avail-type t))
                                            input-typelist))
-                                this]
+                                #t]
                                [else #f]))])
          )]))
 

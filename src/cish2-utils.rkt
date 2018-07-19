@@ -464,20 +464,23 @@ Types can be:
     (error 'node-subtype "called on non-ast-node.  Arguments: ~a ~a" n t))
   (and (ast-node? n) (ast-subtype? n t)))
 
-(define-syntax-rule (maybe-send obj method arg ...)
-  (and obj (send obj method arg ...)))
-(define-syntax-rule (maybe-send+ obj (method arg ...) ...)
+(define-syntax-rule (filtering-maybe-send obj method arg ...)
+  (and obj
+       (let ([result (send obj method arg ...)])
+         (and result obj))))
+(define-syntax-rule (filtering-maybe-send+ obj (method arg ...) ...)
   (let* ([tmp obj]
-         [tmp (maybe-send tmp method arg ...)] ...)
+         [tmp (filtering-maybe-send tmp method arg ...)] ...)
     tmp))
 
 (define (apply-choice-filters choice-list)
-  (filter (λ (choice) (maybe-send+ choice
-                                   (may-be-generated-method)
-                                   (features-enabled)
-                                   (wont-over-deepen)
-                                   (respect-return-position)
-                                   (misc-constraints)
-                                   (constrain-type)))
+  (filter (λ (choice) (filtering-maybe-send+
+                       choice
+                       (may-be-generated-method)
+                       (features-enabled)
+                       (wont-over-deepen)
+                       (respect-return-position)
+                       (misc-constraints)
+                       (constrain-type)))
           choice-list))
 
