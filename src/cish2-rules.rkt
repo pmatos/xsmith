@@ -1739,101 +1739,6 @@ few of these methods.
  )
 
 
-#;(cm fresh
-    [NullStatement (fresh-node 'NullStatement)]
-    [ExpressionStatement (fresh-node 'ExpressionStatement
-                                     (fresh-node 'ExpressionHole))]
-    [IfStatement (fresh-node 'IfStatement
-                             (fresh-node 'ExpressionHole)
-                             (fresh-node 'StatementHole))]
-    [IfElseStatement (fresh-node 'IfElseStatement
-                                 (fresh-node 'ExpressionHole)
-                                 (fresh-node 'BlockHole
-                                             (create-ast-list '())
-                                             (create-ast-list '()))
-                                 (fresh-node 'BlockHole
-                                             (create-ast-list '())
-                                             (create-ast-list '())))]
-    [WhileStatement (fresh-node 'WhileStatement
-                                (fresh-node 'ExpressionHole)
-                                (fresh-node 'StatementHole))]
-    [DoWhileStatement (fresh-node 'DoWhileStatement
-                                  (fresh-node 'ExpressionHole)
-                                  (fresh-node 'StatementHole))]
-    [ForStatement (fresh-node 'ForStatement
-                              (fresh-node 'ExpressionHole)
-                              (fresh-node 'StatementHole)
-                              ;; init, update
-                              (fresh-node 'DeclarationHole "standin-name")
-                              (fresh-node 'ExpressionHole))]
-    [Block (fresh-node 'Block
-                       ;; declarations
-                       (create-ast-list (map (λ (x) (fresh-node 'DeclarationHole
-                                                                "standin-name"))
-                                             (make-list (random 2) #f)))
-                       ;; statements
-                       (create-ast-list
-                        (map (λ (x) (fresh-node 'StatementHole))
-                             (let ([l (make-list (random 5) #f)])
-                               (if (att-value 'in-return-position? current-hole)
-                                   ;; don't allow an empty block in return position
-                                   (cons #f l)
-                                   l)))))]
-    [ValueReturnStatement (fresh-node 'ValueReturnStatement
-                                      (fresh-node 'ExpressionHole))]
-    [AssignmentExpression
-     (fresh-node 'AssignmentExpression
-                 (binding-name (random-ref (send this constrain-type)))
-                 (fresh-node 'ExpressionHole))]
-    [VariableReference (fresh-node 'VariableReference
-                                   (binding-name (random-ref
-                                                  (send this constrain-type))))]
-    [FunctionApplicationExpression
-     (let ([chosen-func (random-ref (send this constrain-type))])
-       (fresh-node 'FunctionApplicationExpression
-                   (binding-name chosen-func)
-                   (create-ast-list
-                    (map (λ (x) (fresh-node 'ExpressionHole))
-                         (make-list (- (length (dict-ref (binding-bound
-                                                          chosen-func)
-                                                         'type))
-                                       2)
-                                    #f)))))]
-    [IfExpression (fresh-node 'IfExpression
-                              (fresh-node 'ExpressionHole)
-                              (fresh-node 'ExpressionHole)
-                              (fresh-node 'ExpressionHole))]
-    [VariableDeclaration
-     (let ([name (if (equal? (top-ancestor-node current-hole)
-                             (parent-node current-hole))
-                     (fresh-var-name "global_")
-                     (fresh-var-name "local_"))])
-       (fresh-node 'VariableDeclaration
-                   name
-                   (fresh-var-type)
-                   (fresh-node 'ExpressionHole)))]
-    [FunctionDefinition
-     (let* ([p (parent-node current-hole)]
-            [main? (and (eq? (node-type p) 'Program)
-                        (eq? (ast-child 'main p) current-hole))])
-       (fresh-node 'FunctionDefinition
-                   (if main? "main" (fresh-var-name "func_"))
-                   (if main? int-type (fresh-var-type))
-                   ;; parameters
-                   (if main?
-                       (create-ast-list '())
-                       (create-ast-list (map (λ (x) (fresh-node 'FormalParam
-                                                                (fresh-var-type)
-                                                                (fresh-var-name "arg_")))
-                                             (make-list (random 5) #f))))
-                   (fresh-node 'BlockHole
-                               (create-ast-list '())
-                               (create-ast-list '()))))]
-    )
-
-
-
-
 
 (define-syntax (define-basic-literal-choice stx)
   (syntax-parse stx
@@ -1842,16 +1747,6 @@ few of these methods.
     ;; if-zero-generator-e is used if nonzero is required and the first generator gives 0
     [(_ nodename btype feature generator-e if-zero-generator-e)
      #'(begin
-         #;(cm fresh [nodename (let* ([t (att-value 'type-context current-hole)]
-                                    [v1 generator-e]
-                                    [constraints (if (basic-type? t)
-                                                     (basic-type-constraints t)
-                                                     '())]
-                                    [v (if (and (member 'nonzero constraints)
-                                                (equal? 0 v1))
-                                           if-zero-generator-e
-                                           v1)])
-                               (fresh-node 'nodename v))])
          (add-prop cish2 fresh
                    [nodename (let* ([t (att-value 'type-context current-hole)]
                                     [v1 generator-e]
@@ -1893,9 +1788,6 @@ few of these methods.
         bool-like ;; #t if the operator returns something bool-y, otherwise #f
         )
      #'(begin
-         #;(cm fresh [nodename (fresh-node 'nodename
-                                         (fresh-node 'ExpressionHole)
-                                         (fresh-node 'ExpressionHole))])
          (cm features [nodename '(feature)])
          ;; TODO - this broke at some point when I switched to using all the macros.
          ;;        Commenting it out is quicker than fixing it.
