@@ -74,22 +74,7 @@
 
 
 (define (fresh-Prog)
-  (define p
-    (fresh-node #:spec cish2
-                'Program
-                (expr->ast-list (random 7)
-                                (fresh-node #:spec cish2
-                                            'DeclarationHole
-                                            "standin-name"))
-                (fresh-node #:spec cish2
-                            'FunctionDefinitionHole
-                            "main"
-                            int-type
-                            (create-ast-list '())
-                            (fresh-node #:spec cish2
-                                        'BlockHole
-                                        (create-ast-list '())
-                                        (create-ast-list '())))))
+  (define p (cish2-fresh-node 'Program))
   (rewrite-terminal 'precomment p
                     (h-append
                      line

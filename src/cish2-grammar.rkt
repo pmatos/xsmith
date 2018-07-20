@@ -24,7 +24,7 @@
  cish2
  [Node #f ([precomment = empty-doc]
            [postcomment = empty-doc])]
- [Program Node ([Declaration *]
+ [Program Node ([Declaration * = (random 7)]
                 [main : FunctionDefinition])]
 
  [Declaration Node ([name = (fresh-var-name "x_")])]

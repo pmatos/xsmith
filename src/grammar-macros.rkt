@@ -568,6 +568,7 @@
           [((c-method:prop-clause ...) ...)
            #`(begin
                (define spec (create-specification))
+               (define fresh-node-func #f)
                (splicing-letrec
                    ([node-attr-length-hash
                      (make-immutable-hash
@@ -643,8 +644,7 @@
                         (list
                          (cons 'g-part.node-name choice-name)
                          ...)))
-                     (define (fresh-node-func node-type [field-dict (hash)])
-                       ;; TODO -- also allow hash-style args to specify custom fields
+                     (define (fresh-node-func-impl node-type [field-dict (hash)])
                        (dict-ref hole-name-hash node-type
                                  (λ ()
                                    (error
@@ -656,6 +656,10 @@
                                   [hole (make-hole node-type)])
                              fresh
                              field-dict))
+                     ;; since with-specification creates a new scope,
+                     ;; fresh-node-func can't be defined here and visible
+                     ;; outside.  So we `set!` it in place.
+                     (set! fresh-node-func fresh-node-func-impl)
 
                      (ag-rule hole->choice-list
                               [base-node-name
