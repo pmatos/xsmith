@@ -265,14 +265,11 @@
  [LessThanExpression {binary-expression-print/infix less}]
  [GreaterOrEqualExpression {binary-expression-print/infix (h-append greater eqsign)}]
  [LessOrEqualExpression {binary-expression-print/infix (h-append less eqsign)}]
-
- [Node (λ (n) (error 'pretty-print "no default ag-rule"))]
  )
 
 
 (ag-cish2
  scope-graph-binding
- [Node (λ (n) (error 'scope-graph-binding "no default ag-rule"))]
  [FunctionDefinition
   (λ (n) (binding (ast-child 'name n)
                   ;; TODO - decide what should really go here
@@ -342,14 +339,12 @@
 
 (ag-cish2
  current-function-return-type
- [Node (λ (n) (error 'current-function-return-type "no default ag-rule"))]
  [Statement (λ (n) (att-value 'current-function-return-type (parent-node n)))]
  [FunctionDefinition (λ (n) (ast-child 'typename n))])
 
 (ag-cish2
  children-type-dict
  ;; For eg. functions to associate a child node with the type it must be
- [Node (λ (n) (error 'children-type-dict "no default ag-rule"))]
  [ExpressionStatement (λ (n) (hasheq (ast-child 'Expression n) #f))]
  [ValueReturnStatement (λ (n) (hasheq (ast-child 'Expression n)
                                       (att-value 'current-function-return-type n)))]
@@ -393,7 +388,6 @@
  )
 (ag-cish2
  type-context
- [Node (λ (n) (error 'type-context "no default ag-rule"))]
  [BinaryExpression (λ (n) (let ([t (or (dict-ref (att-value 'children-type-dict
                                                             (parent-node n))
                                                  n))])
@@ -405,8 +399,7 @@
 (ag-cish2
  block-last-statement
  [Block (λ (n) (let ([ns (ast-children (ast-child 'Statement* n))])
-                 (and (not (null? ns)) (car (reverse ns)))))]
- [Node (λ (n) (error 'block-last-statement "no default ag-rule"))])
+                 (and (not (null? ns)) (car (reverse ns)))))])
 (ag-cish2
  children-return-position-dict
  ;; Dictionary that will contain true for children that are in return position.
@@ -419,8 +412,7 @@
                                      (ast-child 'else n) #t)
                              (hasheq)))]
  [Statement (λ (n) (hasheq))]
- [FunctionDefinition (λ (n) (hasheq (ast-child 'Block n) #t))]
- [Node (λ (n) (error 'children-return-position-dict "no default ag-rule"))])
+ [FunctionDefinition (λ (n) (hasheq (ast-child 'Block n) #t))])
 (ag-cish2
  in-return-position?
  [Statement (λ (n) (let ([rp-dict (att-value 'children-return-position-dict
@@ -937,9 +929,7 @@
  [GreaterThanExpression {abstract-comparison-op/range > <=}]
  [LessOrEqualExpression {abstract-comparison-op/range <= >}]
  [GreaterOrEqualExpression {abstract-comparison-op/range >= <}]
-
- [Node (λ (n store flow-returns)
-         (error 'abstract-interp-do/range "no default ag-rule"))])
+ )
 
 ;;; safety-pred is a function of (l-l l-h r-l r-h -> bool)
 (define ({safe-binary-op-swap/range unsafe-version safety-pred} n)
@@ -1092,8 +1082,7 @@
  [ModulusExpression
   {safe-binary-op-swap/range
    'UnsafeModulusExpression
-   division-safety-check/range}]
- [Node (λ (n) (error 'unsafe-op-if-possible/range "No default implementation"))])
+   division-safety-check/range}])
 
 (ag-cish2
  unsafe-op-if-possible/symbolic
@@ -1116,8 +1105,7 @@
  [ModulusExpression
   {safe-binary-op-swap/symbolic
    'UnsafeModulusExpression
-   division-safety-check/symbolic}]
- [Node (λ (n) (error 'unsafe-op-if-possible/symbolic "No default implementation"))])
+   division-safety-check/symbolic}])
 
 (define (symbolic-store-merge s1 pc1 s2 pc2)
   (define new-asserts '())
@@ -1465,9 +1453,7 @@
  [GreaterOrEqualExpression
   {symbolic-binary-op #:result-clause rt:>=
                       #:bool-result? #t}]
-
- [Node (λ (n store path-condition return-variable assertions)
-         (error 'symbolic-interp "No default implementation"))])
+ )
 
 (ag-cish2
  ;;; Find all children satisfying the predicate (the given node included)
