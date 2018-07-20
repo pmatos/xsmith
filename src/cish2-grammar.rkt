@@ -180,10 +180,6 @@
                   ;; invisible.
                   (create-ast-list
                    (map (λ (x)
-                          (create-ast (current-xsmith-grammar)
-                                      'FormalParam
-                                      (list empty-doc empty-doc
-                                            (fresh-var-type)
-                                            (fresh-var-name "arg_"))))
+                          (make-fresh-node 'FormalParam))
                         (make-list (random 5) #f))))))]
           )

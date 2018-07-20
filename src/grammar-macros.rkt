@@ -11,6 +11,7 @@
  define-property
 
  make-hole
+ make-fresh-node
 
  (for-syntax
   prop-clause
@@ -65,6 +66,12 @@
                        'make-hole
                        "Not in a context where make-hole is parameterized"
                        #'stx)]))
+(define-syntax-parameter make-fresh-node
+  (syntax-parser [stx (raise-syntax-error
+                       'make-fresh-node
+                       "Not in a context where make-fresh-node is parameterized"
+                       #'stx)]))
+
 
 (define-for-syntax (spec->export-name spec-name-stx)
   (format-id spec-name-stx "%%~a-grammar-info-hash" spec-name-stx))
@@ -470,7 +477,7 @@
       (ag-clause:prop-clause ...)
       (cm-clause:prop-clause ...))
    (define (node->choice node-name-stx)
-     (format-id node-name-stx "~aChoice%" node-name-stx))
+     (format-id #'here "~aChoice%" node-name-stx))
 
    (define grammar-hash
      (grammar-clauses-stx->clause-hash #'(g-part ...)))
@@ -484,6 +491,7 @@
                         grammar-hash)))))
 
    (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
+                  [fresh-node-func (format-id #'spec "~a-fresh-node" #'spec)]
                   [([subtype-name ...] ...)
                    (map {get-non-abstract-ast-subtypes #'(g-part ...)}
                         (syntax->list #'(g-part.node-name ...)))]
@@ -600,28 +608,51 @@
                      (ast-rule 'ast-hole-rule-sym)
                      ...
                      (compile-ast-specifications 'base-node-name)
-                     (ag-rule ag-rule-name
-                              [ag-rule-node.node-name ag-rule-node.prop-val]
-                              ...)
-                     ...
+                     (splicing-syntax-parameterize
+                         ([make-fresh-node
+                           (syntax-parser [(_ node-sym:expr)
+                                           ;; TODO - accept arguments
+                                           #'(fresh-node-func node-sym)])])
+                       (ag-rule ag-rule-name
+                                [ag-rule-node.node-name ag-rule-node.prop-val]
+                                ...)
+                       ...
 
-                     ;; Define choice objects mirroring grammar
-                     (define base-node-choice
-                       (class ast-choice%
-                         (cdef-pub-or-override-for-base
-                          choice-method-name
-                          cdef-body-for-base)
-                         ...
-                         (super-new)))
-                     (define choice-name
-                       (class choice-parent
-                         (define c-method.prop-name
-                           c-method.prop-val)
-                         ...
-                         (override c-method.prop-name)
-                         ...
-                         (super-new)))
-                     ...
+                       ;; Define choice objects mirroring grammar
+                       (define base-node-choice
+                         (class ast-choice%
+                           (cdef-pub-or-override-for-base
+                            choice-method-name
+                            cdef-body-for-base)
+                           ...
+                           (super-new)))
+                       (define choice-name
+                         (class choice-parent
+                           (define c-method.prop-name
+                             c-method.prop-val)
+                           ...
+                           (override c-method.prop-name)
+                           ...
+                           (super-new)))
+                       ...)
+
+                     (define choice-object-hash
+                       (make-immutable-hash
+                        (list
+                         (cons 'g-part.node-name choice-name)
+                         ...)))
+                     (define (fresh-node-func node-type)
+                       ;; TODO -- also allow hash-style args to specify custom fields
+                       (dict-ref hole-name-hash node-type
+                                 (λ ()
+                                   (error
+                                    'fresh-node-func
+                                    "Not in the defined grammar: ~a, expected one of: ~a"
+                                    node-type
+                                    (dict-keys hole-name-hash))))
+                       (send (new (dict-ref choice-object-hash node-type)
+                                  [hole (make-hole node-type)])
+                             fresh))
 
                      (ag-rule hole->choice-list
                               [base-node-name
