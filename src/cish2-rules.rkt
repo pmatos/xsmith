@@ -1617,15 +1617,14 @@ few of these methods.
     )
 
 
-(cm wont-over-deepen
-    [Node (<= (att-value 'ast-depth current-hole) (xsmith-option 'max-depth))]
-    [NullStatement #t]
-    [ExpressionStatement #t]
-    [ReturnStatement #t]
-    [AssignmentExpression #t]
-    [VariableReference #t]
-    [VariableDeclaration #t]
-    )
+(add-prop
+ cish2
+ wont-over-deepen
+ [ExpressionStatement #t]
+ [ReturnStatement #t]
+ [AssignmentExpression #t]
+ [VariableDeclaration #t]
+ )
 
 (cm respect-return-position
     [Node #t]
@@ -1750,7 +1749,6 @@ few of these methods.
                                            v1)])
                                (hash 'val v))])
          (cm features [nodename '(feature)])
-         (cm wont-over-deepen [nodename this])
          (cm choice-weight [nodename 3])
          (cm constrain-type
              [nodename (let ([t (att-value 'type-context current-hole)])

@@ -4,11 +4,14 @@
  may-be-generated
  depth-increase-predicate
  fresh
+ wont-over-deepen
  )
 
 (require
  "grammar-macros.rkt"
+ "choice.rkt"
  "cish2-utils.rkt"
+ "xsmith-options.rkt"
  racr
  racket/class
  racket/dict
@@ -187,4 +190,43 @@ hole for the type.
                (create-ast (current-xsmith-grammar)
                            '#,node
                            all-values-in-order))))))
+    (list rule-info)))
+
+(define-property wont-over-deepen
+  #:reads (grammar)
+  #:appends (choice-rule wont-over-deepen)
+  #:transformer
+  (λ (this-prop-info grammar-info)
+    (define nodes (dict-keys grammar-info))
+    (define field-info-hash
+      (for/hash ([node-name nodes])
+        (values node-name
+                (grammar-node-name->field-info node-name grammar-info))))
+    ;; If a node in the grammar has fields that are also nodes, it will make
+    ;; the tree deeper.
+    (define rule-info-defaults
+      (for/hash ([node nodes])
+        (values node
+                (if (ormap (λ (x) (grammar-node-field-struct-type x))
+                           (dict-ref field-info-hash node))
+                    #'#f
+                    #'#t))))
+    ;; But we'll let the user override if they want.
+    (define rule-info
+      (for/hash ([node nodes])
+        (values node
+                #`(λ ()
+                    (or (<= (att-value 'ast-depth current-hole)
+                            (xsmith-option 'max-depth))
+                        #,(syntax-parse (dict-ref
+                                         this-prop-info
+                                         node
+                                         #`(#,(dict-ref rule-info-defaults node)))
+                            [(a) #'a]
+                            [(a b ...) (raise-syntax-error
+                                        #f
+                                        (format
+                                         "Multiple definitions of property for node ~a"
+                                         node)
+                                        #'a)]))))))
     (list rule-info)))
