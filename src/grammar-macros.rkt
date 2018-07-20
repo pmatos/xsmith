@@ -94,7 +94,7 @@
 (begin-for-syntax
   (define-syntax-class prop-clause
     (pattern
-     (prop-name:id node-name:id prop-val:expr)))
+     (prop-name:id (~and node-name (~or node-name-id:id #f)) prop-val:expr)))
   (define-syntax-class grammar-component
     (pattern
      (~or name:id
@@ -153,6 +153,25 @@
                     (for/hash ([name (syntax->datum #'(c.node-name ...))]
                                [clause (syntax->list #'(c ...))])
                       (values name clause))]))
+
+  (define (ag/cm-list->hash xs)
+    ;; Makes a tiered hash from rule->node->val-stx
+    (for/fold ([h (hash)])
+              ([x xs])
+      (syntax-parse x
+        [pc:prop-clause
+         (define new-rule-hash (dict-set
+                                (dict-ref h (syntax->datum #'pc.prop-name) (hash))
+                                (syntax->datum #'pc.node-name)
+                                #'pc.prop-val))
+         (dict-set h (syntax->datum #'pc.prop-name) new-rule-hash)])))
+
+  (define ((prop-clause-false-to-default base-node-name) prop-clause-stx)
+    (syntax-parse prop-clause-stx
+      [pc:prop-clause
+       (syntax-parse #'pc.node-name
+         [#f #`(pc.prop-name #,base-node-name pc.prop-val)]
+         [_ prop-clause-stx])]))
 
   (define (ast-node-name-stx->hole-name-stx n)
     ;; It would be nice to make the hole nodes hygienically named,
@@ -402,17 +421,7 @@
    (define g-hash (for/hash ([g g-parts])
                     (syntax-parse g
                       [gc:grammar-clause (values (syntax->datum #'gc.node-name) g)])))
-   (define (ag/cm-list->hash xs)
-     ;; Makes a tiered hash from rule->node->val-stx
-     (for/fold ([h (hash)])
-               ([x xs])
-       (syntax-parse x
-         [pc:prop-clause
-          (define new-rule-hash (dict-set
-                                 (dict-ref h (syntax->datum #'pc.prop-name) (hash))
-                                 (syntax->datum #'pc.node-name)
-                                 #'pc.prop-val))
-          (dict-set h (syntax->datum #'pc.prop-name) new-rule-hash)])))
+
    (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clause ...))))
    (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
 
@@ -472,6 +481,8 @@
 
 (define-syntax-parser assemble-spec-parts_stage5
   ;; Assemble everything!
+  ;; First we use with-syntax and syntax-parse to bind a bunch of names
+  ;; that are needed in the template.  Then there is a giant template.
   [(_ spec
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
@@ -489,8 +500,16 @@
                (length (grammar-node-name->field-info
                         node-name
                         grammar-hash)))))
+   (define choice-rule-name->node-name->rule-body
+     (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
 
    (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
+                  [base-node-choice (node->choice #'base-node-name)]
+                  ;; Replace the ag-clauses with versions where
+                  ;; #f node names are replaced with base-node-name
+                  [(ag-clause ...)
+                   (map (prop-clause-false-to-default #'base-node-name)
+                        (syntax->list #'(ag-clause ...)))]
                   [fresh-node-func (format-id #'spec "~a-fresh-node" #'spec)]
                   [([subtype-name ...] ...)
                    (map {get-non-abstract-ast-subtypes #'(g-part ...)}
@@ -515,7 +534,6 @@
                     (map (λ (x) (dict-ref node-attribute-length-hash x))
                          node-names))]
                   [base-node-spec (format-id #'spec "~a->" #'base-node-name)]
-                  [base-node-choice (node->choice #'base-node-name)]
                   [(choice-name ...) (map node->choice
                                           (syntax->list #'(g-part.node-name ...)))]
                   [(choice-method-name ...) (remove-duplicates
@@ -532,7 +550,7 @@
                                       #'define/override
                                       #'define/public))
                         (syntax->list #'(choice-method-name ...)))]
-                  [(cdef-body-for-base ...)
+                  [(cdef-body-for-base/default ...)
                    (map (λ (name)
                           (if (equal? (syntax->datum name) 'features)
                               #'(λ () (super features))
@@ -557,6 +575,7 @@
                                              rule-name)])
                                   (syntax->list #'(ag-clause ...))))
                         (syntax->datum #'(ag-rule-name ...)))
+       ;; ag-rule-node is now grouped by rule name
        [((ag-rule-node:prop-clause ...) ...)
         (syntax-parse (map (λ (node-name)
                              (filter (syntax-parser
@@ -564,110 +583,132 @@
                                         (equal? (syntax->datum #'c.node-name)
                                                 (syntax->datum node-name))])
                                      (syntax->list #'(cm-clause ...))))
-                           (syntax->list #'(g-part.node-name ...)))
-          [((c-method:prop-clause ...) ...)
-           #`(begin
-               (define spec (create-specification))
-               (define fresh-node-func #f)
-               (splicing-letrec
-                   ([node-attr-length-hash
-                     (make-immutable-hash
-                      (list
-                       (cons 'g-part.node-name 'node-attr-length)
-                       ...))]
-                    [hole-name-hash
-                     (make-immutable-hash
-                      (list
-                       (cons 'g-part.node-name 'ast-hole-name)
-                       ...))]
-                    [make-hole-function
-                     (λ (node-type)
-                       ;; do a dict-ref here just for error checking.
-                       (dict-ref hole-name-hash node-type
-                                 (λ ()
-                                   (error
-                                    'make-hole
-                                    "Not in the defined grammar: ~a, expected one of: ~a"
-                                    node-type
-                                    (dict-keys hole-name-hash))))
-                       (create-ast
-                        spec
-                        (dict-ref hole-name-hash node-type)
-                        (map (λ (x) (create-ast-bud))
-                             (make-list (dict-ref node-attr-length-hash
-                                                  node-type)
-                                        #f))))])
-                 (splicing-syntax-parameterize
-                     ([current-xsmith-grammar (syntax-rules () [(_) spec])]
-                      [make-hole (syntax-parser
-                                   [(_ node-type-sym:expr)
-                                    #'(make-hole-function node-type-sym)])])
-                   (with-specification spec
-                     (ast-rule 'base-node-spec)
-                     (ast-rule 'ast-rule-sym)
-                     ...
-                     (ast-rule 'ast-hole-rule-sym)
-                     ...
-                     (compile-ast-specifications 'base-node-name)
-                     (splicing-syntax-parameterize
-                         ([make-fresh-node
-                           (syntax-parser [(_ node-sym:expr (~optional dict-expr:expr))
-                                           #`(fresh-node-func
-                                              node-sym
-                                              #,(or (attribute dict-expr)
-                                                    #'(hash)))])])
-                       (ag-rule ag-rule-name
-                                [ag-rule-node.node-name ag-rule-node.prop-val]
-                                ...)
-                       ...
-
-                       ;; Define choice objects mirroring grammar
-                       (define base-node-choice
-                         (class ast-choice%
-                           (cdef-pub-or-override-for-base
-                            choice-method-name
-                            cdef-body-for-base)
-                           ...
-                           (super-new)))
-                       (define choice-name
-                         (class choice-parent
-                           (define c-method.prop-name
-                             c-method.prop-val)
-                           ...
-                           (override c-method.prop-name)
-                           ...
-                           (super-new)))
-                       ...)
-
-                     (define choice-object-hash
+                           (syntax->list #'(base-node-name g-part.node-name ...)))
+          ;; c-method is now grouped by node name
+          [((base-node-c-method:prop-clause ...) (c-method:prop-clause ...) ...)
+           (with-syntax*
+             ([(cdef-body-for-base ...)
+               ;; choice rule methods for the implicit parent node can be
+               ;; specified but otherwise need to inherit a default.
+               (map (λ (rule-name rule-default-impl)
+                      (dict-ref (dict-ref choice-rule-name->node-name->rule-body
+                                          rule-name)
+                                #f
+                                rule-default-impl))
+                    (syntax->datum #'(choice-method-name ...))
+                    (syntax->list #'(cdef-body-for-base/default ...)))])
+             ;; Here finally is the master template
+             #`(begin
+                 (define spec (create-specification))
+                 ;; This is set!-ed later, since it is defined inside the
+                 ;; `with-specification` to see things there, but definitions
+                 ;; in that scope are not available.
+                 (define fresh-node-func #f)
+                 (splicing-letrec
+                     ;; The bindings in this splicing-letrec are needed for
+                     ;; the `make-hole` macro
+                     ([node-attr-length-hash
                        (make-immutable-hash
                         (list
-                         (cons 'g-part.node-name choice-name)
-                         ...)))
-                     (define (fresh-node-func-impl node-type [field-dict (hash)])
-                       (dict-ref hole-name-hash node-type
-                                 (λ ()
-                                   (error
-                                    'fresh-node-func
-                                    "Not in the defined grammar: ~a, expected one of: ~a"
-                                    node-type
-                                    (dict-keys hole-name-hash))))
-                       (send (new (dict-ref choice-object-hash node-type)
-                                  [hole (make-hole node-type)])
-                             fresh
-                             field-dict))
-                     ;; since with-specification creates a new scope,
-                     ;; fresh-node-func can't be defined here and visible
-                     ;; outside.  So we `set!` it in place.
-                     (set! fresh-node-func fresh-node-func-impl)
+                         (cons 'g-part.node-name 'node-attr-length)
+                         ...))]
+                      [hole-name-hash
+                       (make-immutable-hash
+                        (list
+                         (cons 'g-part.node-name 'ast-hole-name)
+                         ...))]
+                      [make-hole-function
+                       (λ (node-type)
+                         ;; do a dict-ref here just for error checking.
+                         (dict-ref hole-name-hash node-type
+                                   (λ ()
+                                     (error
+                                      'make-hole
+                                      "Not in the defined grammar: ~a, expected one of: ~a"
+                                      node-type
+                                      (dict-keys hole-name-hash))))
+                         (create-ast
+                          spec
+                          (dict-ref hole-name-hash node-type)
+                          (map (λ (x) (create-ast-bud))
+                               (make-list (dict-ref node-attr-length-hash
+                                                    node-type)
+                                          #f))))])
+                   (splicing-syntax-parameterize
+                       ([current-xsmith-grammar (syntax-rules () [(_) spec])]
+                        [make-hole (syntax-parser
+                                     [(_ node-type-sym:expr)
+                                      #'(make-hole-function node-type-sym)])])
+                     (with-specification spec
+                       ;; Define the grammar nodes
+                       (ast-rule 'base-node-spec)
+                       (ast-rule 'ast-rule-sym)
+                       ...
+                       (ast-rule 'ast-hole-rule-sym)
+                       ...
+                       (compile-ast-specifications 'base-node-name)
 
-                     (ag-rule hole->choice-list
-                              [base-node-name
-                               (λ (n) (error 'hole->choice-list
-                                             "only implemented for grammar hole nodes"))]
-                              [ast-hole-name
-                               (λ (n) (list (new subtype-choice-name [hole n]) ...))]
-                              ...)
-                     (compile-ag-specifications)))))])]))])
+                       ;; Define the ag-rules for the grammar nodes
+                       (splicing-syntax-parameterize
+                           ([make-fresh-node
+                             (syntax-parser [(_ node-sym:expr (~optional dict-expr:expr))
+                                             #`(fresh-node-func
+                                                node-sym
+                                                #,(or (attribute dict-expr)
+                                                      #'(hash)))])])
+                         (ag-rule ag-rule-name
+                                  [ag-rule-node.node-name ag-rule-node.prop-val]
+                                  ...)
+                         ...
+
+                         ;; Define choice objects mirroring grammar.
+                         ;; Choice rules are methods within the choice objects.
+                         (define base-node-choice
+                           (class ast-choice%
+                             (cdef-pub-or-override-for-base
+                              choice-method-name
+                              cdef-body-for-base)
+                             ...
+                             (super-new)))
+                         (define choice-name
+                           (class choice-parent
+                             (define c-method.prop-name
+                               c-method.prop-val)
+                             ...
+                             (override c-method.prop-name)
+                             ...
+                             (super-new)))
+                         ...)
+
+                       (define choice-object-hash
+                         (make-immutable-hash
+                          (list
+                           (cons 'g-part.node-name choice-name)
+                           ...)))
+                       (define (fresh-node-func-impl node-type [field-dict (hash)])
+                         (dict-ref hole-name-hash node-type
+                                   (λ ()
+                                     (error
+                                      'fresh-node-func
+                                      "Not in the defined grammar: ~a, expected one of: ~a"
+                                      node-type
+                                      (dict-keys hole-name-hash))))
+                         (send (new (dict-ref choice-object-hash node-type)
+                                    [hole (make-hole node-type)])
+                               fresh
+                               field-dict))
+                       ;; Since with-specification creates a new scope,
+                       ;; fresh-node-func can't be defined here and visible
+                       ;; outside.  So we `set!` it in place.
+                       (set! fresh-node-func fresh-node-func-impl)
+
+                       (ag-rule hole->choice-list
+                                [base-node-name
+                                 (λ (n) (error 'hole->choice-list
+                                               "only implemented for grammar hole nodes"))]
+                                [ast-hole-name
+                                 (λ (n) (list (new subtype-choice-name [hole n]) ...))]
+                                ...)
+                       (compile-ag-specifications))))))])]))])
 
 
