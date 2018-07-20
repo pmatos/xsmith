@@ -630,15 +630,6 @@
                               [ast-hole-name
                                (λ (n) (list (new subtype-choice-name [hole n]) ...))]
                               ...)
-                     (compile-ag-specifications))
-
-
-                   ;; TODO - fresh method for free -- use default init values and types from grammar definition
-                   ;; TODO - other ag-rules and choice-methods for free
-
-                   ;; TODO - define choice% lists (IE for a hole of type X make a list of ponential choice objects)
-
-                   ;; TODO - add default erroring case to every ag-rule (on the base node)
-                   )))])]))])
+                     (compile-ag-specifications)))))])]))])
 
 
