@@ -53,7 +53,7 @@
 (ag-cish2
  pretty-print
  [Program (λ (n)
-            (define children (append (ast-children (ast-child 'Declaration* n))
+            (define children (append (ast-children (ast-child 'declarations n))
                                      (list (ast-child 'main n))))
             (define global-vars (filter (λ (d) (node-subtype? d 'VariableDeclaration))
                                         children))
@@ -84,7 +84,7 @@
                (h-append (text (basic-type-name (ast-child 'typename fp)))
                          space
                          (text (ast-child 'name fp))))
-             (ast-children (ast-child 'FormalParam* n)))
+             (ast-children (ast-child 'params n)))
         (h-append comma space)))
       rparen
       line
@@ -168,9 +168,9 @@
              (v-concat
               (append
                (map (λ (cn) (att-value 'pretty-print cn))
-                    (ast-children (ast-child 'Declaration* n)))
+                    (ast-children (ast-child 'declarations n)))
                (map (λ (cn) (att-value 'pretty-print cn))
-                    (ast-children (ast-child 'Statement* n)))))))
+                    (ast-children (ast-child 'statements n)))))))
       line
       rbrace)))]
  [ExpressionStatement
@@ -232,7 +232,7 @@
       lparen
       (h-concat
        (add-between (map (λ (a) (att-value 'pretty-print a))
-                         (ast-children (ast-child 'Expression* n)))
+                         (ast-children (ast-child 'args n)))
                     (h-append comma space)))
       rparen)))]
  [IfExpression
@@ -276,7 +276,7 @@
                   (hash 'declaration-node n
                         'type (append (list '->)
                                       (map (λ (fp) (ast-child 'typename fp))
-                                           (ast-children (ast-child 'FormalParam* n)))
+                                           (ast-children (ast-child 'params n)))
                                       (list (ast-child 'typename n))))))]
  [VariableDeclaration
   (λ (n) (binding (ast-child 'name n)
@@ -298,19 +298,19 @@
                 (filter ident
                         (map (λ (cn) (att-value 'scope-graph-binding cn))
                              (cons (ast-child 'main n)
-                                   (ast-children (ast-child 'Declaration* n)))))
+                                   (ast-children (ast-child 'declarations n)))))
                 '()))]
  [FunctionDefinition
   (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
                 (filter ident
                         (map (λ (cn) (att-value 'scope-graph-binding cn))
-                             (ast-children (ast-child 'FormalParam* n))))
+                             (ast-children (ast-child 'params n))))
                 '()))]
  [Block
   (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
                 (filter ident
                         (map (λ (cn) (att-value 'scope-graph-binding cn))
-                             (ast-children (ast-child 'Declaration* n))))
+                             (ast-children (ast-child 'declarations n))))
                 '()))]
  [ForStatement
   (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
@@ -328,9 +328,9 @@
  illegal-variable-names
  [Node (λ (n) '())]
  [Program (λ (n) (map (λ (cn) (ast-child 'name cn))
-                      (ast-children (ast-child 'Declaration* n))))]
+                      (ast-children (ast-child 'declarations n))))]
  [Block (λ (n) (map (λ (cn) (ast-child 'name cn))
-                    (ast-children (ast-child 'Declaration* n))))]
+                    (ast-children (ast-child 'declarations n))))]
  [Declaration (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
  [AssignmentExpression
   (λ (n) (cons (ast-child 'name n)
@@ -365,7 +365,7 @@
   (λ (n)
     (let ([f-bind (resolve-variable-reference-node n)])
       (for/fold ([h (hasheq)])
-                ([cn (ast-children (ast-child 'Expression* n))]
+                ([cn (ast-children (ast-child 'args n))]
                  [t (reverse (cdr (reverse (cdr (hash-ref (binding-bound f-bind)
                                                           'type)))))])
         (hash-set h cn t))))]
@@ -399,7 +399,7 @@
 
 (ag-cish2
  block-last-statement
- [Block (λ (n) (let ([ns (ast-children (ast-child 'Statement* n))])
+ [Block (λ (n) (let ([ns (ast-children (ast-child 'statements n))])
                  (and (not (null? ns)) (car (reverse ns)))))])
 (ag-cish2
  children-return-position-dict
@@ -712,7 +712,7 @@
     (define init-store
       (for/fold ([store range-store-top])
                 ([global (filter (λ (cn) (node-subtype? cn 'VariableDeclaration))
-                                 (ast-children (ast-child 'Declaration* n)))])
+                                 (ast-children (ast-child 'declarations n)))])
         (match-let* ([(list v n-store n-rets)
                       (abstract-interp-wrap/range
                        global
@@ -766,7 +766,7 @@
     (define-values (store-with-decls ret-with-decls)
       (for/fold ([s store]
                  [r flow-returns])
-                ([decl (ast-children (ast-child 'Declaration* n))])
+                ([decl (ast-children (ast-child 'declarations n))])
         ;; There are declaration holes and such, so check that it is a variable decl.
         (if (equal? (ast-node-type decl) 'VariableDeclaration)
             (match-let* ([(list v n-store n-rets)
@@ -776,7 +776,7 @@
     (define-values (store-after-statements rets-after-statements)
       (for/fold ([s store-with-decls]
                  [r ret-with-decls])
-                ([statement (ast-children (ast-child 'Statement* n))])
+                ([statement (ast-children (ast-child 'statements n))])
         #:break (abstract-flow-control-return-must r)
         (match-let ([(list v n-store n-rets) (abstract-interp-wrap/range
                                               statement
@@ -851,13 +851,13 @@
                  [bound (binding-bound binding)]
                  [func-def-node (dict-ref bound 'declaration-node)]
                  [func-block (ast-child 'Block func-def-node)]
-                 [func-params (ast-children (ast-child 'FormalParam* func-def-node))]
+                 [func-params (ast-children (ast-child 'params func-def-node))]
                  [(list reversed-args store rets)
                   (values->list
                    (for/fold ([args-so-far '()]
                               [store store]
                               [rets flow-returns])
-                             ([expr (ast-children (ast-child 'Expression* n))])
+                             ([expr (ast-children (ast-child 'args n))])
                      (match-define (list v s r)
                        (abstract-interp-wrap/range expr store rets))
                      (values (cons v args-so-far) s r)))]
@@ -1247,7 +1247,7 @@
       (for/fold ([store store]
                  [assertions assertions])
                 ([global (filter (λ (cn) (node-subtype? cn 'VariableDeclaration))
-                                 (ast-children (ast-child 'Declaration* n)))])
+                                 (ast-children (ast-child 'declarations n)))])
         (match-let* ([(list v n-store n-rets n-asserts)
                       (symbolic-interp-wrap
                        global
@@ -1320,7 +1320,7 @@
             (if always-rets
                 (list #f n-store always-rets n-asserts)
                 (rec n-store n-asserts (cdr children-left))))))
-    (rec store assertions (ast-children (ast-child 'Statement* n))))]
+    (rec store assertions (ast-children (ast-child 'statements n))))]
  [ValueReturnStatement
   (λ (n store path-condition return-variable assertions)
     (match-define (list v n-store always-rets n-asserts)
@@ -1350,13 +1350,13 @@
     (define def-node (dict-ref (binding-bound ref-node)
                                'declaration-node))
     (define func-block (ast-child 'Block def-node))
-    (define func-params (ast-children (ast-child 'FormalParam* def-node)))
+    (define func-params (ast-children (ast-child 'params def-node)))
     (match-define (list reversed-args store-post-arguments asserts-post-arguments)
       (values->list
        (for/fold ([args-so-far '()]
                   [store store]
                   [asserts assertions])
-                 ([expr (ast-children (ast-child 'Expression* n))])
+                 ([expr (ast-children (ast-child 'args n))])
          (match-define (list v s ar n-asserts)
            (symbolic-interp-wrap expr store path-condition return-variable asserts))
          (values (cons v args-so-far) s n-asserts))))

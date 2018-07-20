@@ -130,12 +130,22 @@
          (map (syntax-parser
                 [gco:grammar-component
                  (define n (syntax->datum #'gco.name))
+                 (define type (or (attribute gco.type)
+                                  (and (dict-ref grammar-clause-hash n #f)
+                                       n)))
+                 (define kstar? (and (attribute gco.kleene-star) #t))
+                 (when (and (equal? n type) kstar?)
+                   (raise-syntax-error
+                    #f
+                    (format
+                     "Nonterminal ~a in grammar includes field ~a that includes a kleene star but no name besides its type.  When the Kleene star is used, an explicit name is required."
+                     name
+                     n)
+                    #'gco.name))
                  (grammar-node-field-struct
                   n
-                  (or (attribute gco.type)
-                      (and (dict-ref grammar-clause-hash n #f)
-                           n))
-                  (and (attribute gco.kleene-star) #t)
+                  type
+                  kstar?
                   (attribute gco.init-expr))])
               (syntax->list #'(gcl.component ...)))]))
     (define parent-list
