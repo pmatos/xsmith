@@ -288,9 +288,10 @@
                   (hash 'declaration-node n
                         'type (ast-child 'typename n))))]
  [DeclarationHole
-  (λ (n) #f)])
+  (λ (n) #f)]
+ [Node (λ (n) #f)])
 
-(ag-cish2
+#;(ag-cish2
  scope-graph-scope
  [Program
   (λ (n) (scope #f

@@ -39,7 +39,7 @@
 
 (assemble-spec-parts
  cish2
- #:properties (depth-increase-predicate fresh wont-over-deepen)
+ #:properties (depth-increase-predicate fresh wont-over-deepen introduces-scope)
  "cish2-grammar.rkt"
  "cish2-rules.rkt"
  )

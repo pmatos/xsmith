@@ -660,6 +660,10 @@
                                   [ag-rule-node.node-name ag-rule-node.prop-val]
                                   ...)
                          ...
+                         (ag-rule is-hole?
+                                  [base-node-name (λ (n) #f)]
+                                  [ast-hole-name (λ (n) #t)]
+                                  ...)
 
                          ;; Define choice objects mirroring grammar.
                          ;; Choice rules are methods within the choice objects.

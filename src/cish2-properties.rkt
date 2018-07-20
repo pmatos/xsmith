@@ -5,6 +5,7 @@
  depth-increase-predicate
  fresh
  wont-over-deepen
+ introduces-scope
  )
 
 (require
@@ -12,6 +13,7 @@
  "choice.rkt"
  "cish2-utils.rkt"
  "xsmith-options.rkt"
+ "scope-graph.rkt"
  racr
  racket/class
  racket/dict
@@ -221,10 +223,91 @@ hole for the type.
                                          node
                                          #`(#,(dict-ref rule-info-defaults node)))
                             [(a) #'a]
-                            [(a b ...) (raise-syntax-error
-                                        #f
-                                        (format
-                                         "Multiple definitions of property for node ~a"
-                                         node)
-                                        #'a)]))))))
+                            [(a b ...)
+                             (raise-syntax-error
+                              #f
+                              (format
+                               "Multiple definitions of `wont-over-deepen` property for node ~a"
+                               node)
+                              #'a)]))))))
     (list rule-info)))
+
+(define-property introduces-scope
+  #:reads (grammar)
+  #:appends (ag-rule scope-graph-scope) (ag-rule scope-graph-descendant-bindings)
+  #:transformer
+  (λ (this-prop-info grammar-info)
+    (define nodes (dict-keys grammar-info))
+    (define field-info-hash
+      (for/hash ([node-name nodes])
+        (values node-name
+                (grammar-node-name->field-info node-name grammar-info))))
+    (define scope-graph-scope-info
+      (for/fold ([rule-info (hash #f #'(λ (n)
+                                  ;; If a node does not introduce a scope,
+                                  ;; its ag-rule should just check its parent
+                                  (att-value 'scope-graph-scope (parent-node n))))])
+                ([node nodes])
+        (define prop-for-node (dict-ref this-prop-info node #'(#f)))
+        (syntax-parse prop-for-node
+          [(#f) rule-info]
+          [(#t)
+           (dict-set
+            rule-info
+            node
+            #'(λ (n)
+                (scope
+                 ;; parent scope -- this should be #f for the top-level scope
+                 (if (parent-node n)
+                     (att-value 'scope-graph-scope (parent-node n))
+                     #f)
+                 ;; bindings
+                 (att-value 'scope-graph-descendant-bindings n)
+                 ;; imports -- this exists in the scope graphs impl, but is unused...
+                 '())))]
+          [(a b ...)
+           (raise-syntax-error
+            #f
+            (format
+             "Multiple definitions of `introduces-scope` property for node: ~a"
+             node)
+            #'a)])))
+    (define scope-graph-descendant-bindings-info
+      (for/hash ([node nodes])
+        (define field-info (dict-ref field-info-hash node))
+        (values
+         node
+         #`(λ (n)
+             (if (att-value 'is-hole? n)
+                 '()
+                 (let ([this-node-binding (att-value 'scope-graph-binding n)]
+                       [children-bindings
+                        (apply
+                         append
+                         #,@(map (λ (fi)
+                                   (cond
+                                     [(not (grammar-node-field-struct-type fi))
+                                      #'(list)]
+                                     [(grammar-node-field-struct-kleene-star? fi)
+                                      #`(map (λ (c) (att-value
+                                                     'scope-graph-descendant-bindings
+                                                     c))
+                                             (ast-children
+                                              (ast-child
+                                               '#,(datum->syntax
+                                                   #f
+                                                   (grammar-node-field-struct-name fi))
+                                               n)))]
+                                     [else
+                                      #`(att-value
+                                         'scope-graph-descendant-bindings
+                                         (ast-child
+                                          '#,(datum->syntax
+                                              #f
+                                              (grammar-node-field-struct-name fi))
+                                          n))]))
+                                 field-info))])
+                   (if this-node-binding
+                       (cons this-node-binding children-bindings)
+                       children-bindings)))))))
+    (list scope-graph-scope-info scope-graph-descendant-bindings-info)))

@@ -172,3 +172,10 @@
               (expr->ast-list (if main? 0 (random 5))
                               (make-fresh-node 'FormalParam))))]
           )
+
+(add-prop cish2
+          introduces-scope
+          [Program #t]
+          [FunctionDefinition #t]
+          [Block #t]
+          [ForStatement #t])
