@@ -610,9 +610,11 @@
                      (compile-ast-specifications 'base-node-name)
                      (splicing-syntax-parameterize
                          ([make-fresh-node
-                           (syntax-parser [(_ node-sym:expr)
-                                           ;; TODO - accept arguments
-                                           #'(fresh-node-func node-sym)])])
+                           (syntax-parser [(_ node-sym:expr (~optional dict-expr:expr))
+                                           #`(fresh-node-func
+                                              node-sym
+                                              #,(or (attribute dict-expr)
+                                                    #'(hash)))])])
                        (ag-rule ag-rule-name
                                 [ag-rule-node.node-name ag-rule-node.prop-val]
                                 ...)
@@ -641,7 +643,7 @@
                         (list
                          (cons 'g-part.node-name choice-name)
                          ...)))
-                     (define (fresh-node-func node-type)
+                     (define (fresh-node-func node-type [field-dict (hash)])
                        ;; TODO -- also allow hash-style args to specify custom fields
                        (dict-ref hole-name-hash node-type
                                  (λ ()
@@ -652,7 +654,8 @@
                                     (dict-keys hole-name-hash))))
                        (send (new (dict-ref choice-object-hash node-type)
                                   [hole (make-hole node-type)])
-                             fresh))
+                             fresh
+                             field-dict))
 
                      (ag-rule hole->choice-list
                               [base-node-name

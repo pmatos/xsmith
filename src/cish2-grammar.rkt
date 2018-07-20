@@ -169,17 +169,6 @@
               'typename
               (if main? int-type (fresh-var-type))
               'FormalParam
-              (if main?
-                  0
-                  ;; This wants to be "make a fresh FormalParam with defaults",
-                  ;; which could probably be done by (send fresh (new FormalParamChoice%)),
-                  ;; but I wanted the choices to be invisible...  Maybe that's not the
-                  ;; best choice.
-                  ;; Or I could make a `make-fresh-node` macro like the `make-hole`
-                  ;; macro, which could see the choices even though they are otherwise
-                  ;; invisible.
-                  (create-ast-list
-                   (map (λ (x)
-                          (make-fresh-node 'FormalParam))
-                        (make-list (random 5) #f))))))]
+              (expr->ast-list (if main? 0 (random 5))
+                              (make-fresh-node 'FormalParam))))]
           )

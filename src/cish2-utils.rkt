@@ -429,6 +429,12 @@ Types can be:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define-syntax-parser expr->ast-list
+  [(_ length:expr e:expr)
+   #'(create-ast-list
+      (map (λ (x) e)
+           (make-list length #f)))])
+
 (define-syntax-parser fresh-node
   [(_ (~optional (~seq #:spec spec:id)) type attr-val ...)
    (with-syntax ([use-spec (or (attribute spec) #'(current-xsmith-grammar))])

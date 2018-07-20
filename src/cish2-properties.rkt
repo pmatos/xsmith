@@ -134,7 +134,7 @@ hole for the type.
                       [(field-seq? ...) (map sym->quoted-sym-stx field-seq?s)])
           (values
            node
-           #`(λ ()
+           #`(λ ([field-dict (hash)])
                (define thunk-hash
                  (hash
                   #,@(flatten
@@ -158,14 +158,16 @@ hole for the type.
                                                '#,(datum->syntax #'here f-type))]
                                     [else #'#f])))))
                        field-names))))
-               (define given-values fresh-expr)
+               (define prop-given-values fresh-expr)
                (define all-values-hash
                  (for/hash ([f-name (list field-name ...)])
                    (values
                     f-name
-                    (dict-ref given-values
+                    (dict-ref field-dict
                               f-name
-                              ((dict-ref thunk-hash f-name))))))
+                              (dict-ref prop-given-values
+                                        f-name
+                                        ((dict-ref thunk-hash f-name)))))))
                (define all-values-hash/num-transformed
                  (for/hash ([f-name (list field-name ...)]
                             [f-type (list field-type ...)]
@@ -177,11 +179,7 @@ hole for the type.
                           ;; If the init value is a number and a list
                           ;; of hole nodes is required, make an appropriate
                           ;; list of that length.
-                          (create-ast-list
-                           (map (if f-type
-                                    (λ (x) (make-hole f-type))
-                                    (λ (x) x))
-                                (make-list v #f)))
+                          (expr->ast-list v (and f-type (make-hole f-type)))
                           v)))))
                (define all-values-in-order
                  (map (λ (name) (dict-ref all-values-hash/num-transformed name))

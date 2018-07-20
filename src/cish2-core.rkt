@@ -77,10 +77,10 @@
   (define p
     (fresh-node #:spec cish2
                 'Program
-                (create-ast-list (map (λ (x) (fresh-node #:spec cish2
-                                                         'DeclarationHole
-                                                         "standin-name"))
-                                      (make-list (random 7) #f)))
+                (expr->ast-list (random 7)
+                                (fresh-node #:spec cish2
+                                            'DeclarationHole
+                                            "standin-name"))
                 (fresh-node #:spec cish2
                             'FunctionDefinitionHole
                             "main"
