@@ -134,9 +134,9 @@
           fresh
           [IfElseStatement (hash
                             'then
-                            (make-hole Block)
+                            (make-hole 'Block)
                             'else
-                            (make-hole Block))]
+                            (make-hole 'Block))]
           [AssignmentExpression
            (hash
             'name

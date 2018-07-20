@@ -155,7 +155,7 @@ hole for the type.
                                     [init-e init-e]
                                     [seq? #'(create-ast-list (list))]
                                     [f-type #`(make-hole
-                                                   #,(datum->syntax #'here f-type))]
+                                               '#,(datum->syntax #'here f-type))]
                                     [else #'#f])))))
                        field-names))))
                (define given-values fresh-expr)
@@ -179,7 +179,7 @@ hole for the type.
                           ;; list of that length.
                           (create-ast-list
                            (map (if f-type
-                                    (λ (x) (make-hole-dynamic f-type))
+                                    (λ (x) (make-hole f-type))
                                     (λ (x) x))
                                 (make-list v #f)))
                           v)))))

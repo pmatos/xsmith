@@ -11,7 +11,6 @@
  define-property
 
  make-hole
- make-hole-dynamic
 
  (for-syntax
   prop-clause
@@ -60,6 +59,11 @@
                        "current-xsmith-grammar-clauses used without parameterization"
                        #'stx)]))
 
+(define-syntax-parameter make-hole
+  (syntax-parser [stx (raise-syntax-error
+                       'make-hole
+                       "Not in a context where make-hole is parameterized"
+                       #'stx)]))
 
 (define-for-syntax (spec->export-name spec-name-stx)
   (format-id spec-name-stx "%%~a-grammar-info-hash" spec-name-stx))
@@ -466,6 +470,18 @@
       (cm-clause:prop-clause ...))
    (define (node->choice node-name-stx)
      (format-id node-name-stx "~aChoice%" node-name-stx))
+
+   (define grammar-hash
+     (grammar-clauses-stx->clause-hash #'(g-part ...)))
+   (define node-names
+     (syntax->datum #'(g-part.node-name ...)))
+   (define node-attribute-length-hash
+     (for/hash ([node-name node-names])
+       (values node-name
+               (length (grammar-node-name->field-info
+                        node-name
+                        grammar-hash)))))
+
    (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
                   [([subtype-name ...] ...)
                    (map {get-non-abstract-ast-subtypes #'(g-part ...)}
@@ -484,6 +500,11 @@
                           [(hole parent) (format-id #f "~a:~a->"
                                                     #'hole #'parent)])
                         (syntax->list #'([ast-hole-name g-part.node-name] ...)))]
+                  [(node-attr-length ...)
+                   (datum->syntax
+                    #'here
+                    (map (λ (x) (dict-ref node-attribute-length-hash x))
+                         node-names))]
                   [base-node-spec (format-id #'spec "~a->" #'base-node-name)]
                   [base-node-choice (node->choice #'base-node-name)]
                   [(choice-name ...) (map node->choice
@@ -536,58 +557,88 @@
                                      (syntax->list #'(cm-clause ...))))
                            (syntax->list #'(g-part.node-name ...)))
           [((c-method:prop-clause ...) ...)
-           #`(splicing-syntax-parameterize
-                 ([current-xsmith-grammar (syntax-rules () [(_) spec])]
-                  [current-xsmith-grammar-clauses (quote-syntax (g-part ...))])
-               ;; Define RACR spec and ag-rules
+           #`(begin
                (define spec (create-specification))
-               (with-specification spec
-                 (ast-rule 'base-node-spec)
-                 (ast-rule 'ast-rule-sym)
-                 ...
-                 (ast-rule 'ast-hole-rule-sym)
-                 ...
-                 (compile-ast-specifications 'base-node-name)
-                 (ag-rule ag-rule-name
-                          [ag-rule-node.node-name ag-rule-node.prop-val]
-                          ...)
-                 ...
-
-                 ;; Define choice objects mirroring grammar
-                 (define base-node-choice
-                   (class ast-choice%
-                     (cdef-pub-or-override-for-base
-                      choice-method-name
-                      cdef-body-for-base)
+               (splicing-letrec
+                   ([node-attr-length-hash
+                     (make-immutable-hash
+                      (list
+                       (cons 'g-part.node-name 'node-attr-length)
+                       ...))]
+                    [hole-name-hash
+                     (make-immutable-hash
+                      (list
+                       (cons 'g-part.node-name 'ast-hole-name)
+                       ...))]
+                    [make-hole-function
+                     (λ (node-type)
+                       ;; do a dict-ref here just for error checking.
+                       (dict-ref hole-name-hash node-type
+                                 (λ ()
+                                   (error
+                                    'make-hole
+                                    "Not in the defined grammar: ~a, expected one of: ~a"
+                                    node-type
+                                    (dict-keys hole-name-hash))))
+                       (create-ast
+                        spec
+                        (dict-ref hole-name-hash node-type)
+                        (map (λ (x) (create-ast-bud))
+                             (make-list (dict-ref node-attr-length-hash
+                                                  node-type)
+                                        #f))))])
+                 (splicing-syntax-parameterize
+                     ([current-xsmith-grammar (syntax-rules () [(_) spec])]
+                      [make-hole (syntax-parser
+                                   [(_ node-type-sym:expr)
+                                    #'(make-hole-function node-type-sym)])])
+                   (with-specification spec
+                     (ast-rule 'base-node-spec)
+                     (ast-rule 'ast-rule-sym)
                      ...
-                     (super-new)))
-                 (define choice-name
-                   (class choice-parent
-                     (define c-method.prop-name
-                       c-method.prop-val)
+                     (ast-rule 'ast-hole-rule-sym)
                      ...
-                     (override c-method.prop-name)
+                     (compile-ast-specifications 'base-node-name)
+                     (ag-rule ag-rule-name
+                              [ag-rule-node.node-name ag-rule-node.prop-val]
+                              ...)
                      ...
-                     (super-new)))
-                 ...
 
-                 (ag-rule hole->choice-list
-                          [base-node-name
-                           (λ (n) (error 'hole->choice-list
-                                         "only implemented for grammar hole nodes"))]
-                          [ast-hole-name
-                           (λ (n) (list (new subtype-choice-name [hole n]) ...))]
-                          ...)
-                 (compile-ag-specifications))
+                     ;; Define choice objects mirroring grammar
+                     (define base-node-choice
+                       (class ast-choice%
+                         (cdef-pub-or-override-for-base
+                          choice-method-name
+                          cdef-body-for-base)
+                         ...
+                         (super-new)))
+                     (define choice-name
+                       (class choice-parent
+                         (define c-method.prop-name
+                           c-method.prop-val)
+                         ...
+                         (override c-method.prop-name)
+                         ...
+                         (super-new)))
+                     ...
+
+                     (ag-rule hole->choice-list
+                              [base-node-name
+                               (λ (n) (error 'hole->choice-list
+                                             "only implemented for grammar hole nodes"))]
+                              [ast-hole-name
+                               (λ (n) (list (new subtype-choice-name [hole n]) ...))]
+                              ...)
+                     (compile-ag-specifications))
 
 
-               ;; TODO - fresh method for free -- use default init values and types from grammar definition
-               ;; TODO - other ag-rules and choice-methods for free
+                   ;; TODO - fresh method for free -- use default init values and types from grammar definition
+                   ;; TODO - other ag-rules and choice-methods for free
 
-               ;; TODO - define choice% lists (IE for a hole of type X make a list of ponential choice objects)
+                   ;; TODO - define choice% lists (IE for a hole of type X make a list of ponential choice objects)
 
-               ;; TODO - add default erroring case to every ag-rule (on the base node)
-               )])]))])
+                   ;; TODO - add default erroring case to every ag-rule (on the base node)
+                   )))])]))])
 
 
 (define-syntax (define-property stx)
@@ -630,69 +681,4 @@
                                  #'(quote-syntax (append-arg ...))
                                  #'(quote-syntax ()))))]))
 
-(define-syntax (make-hole stx)
-  ;; Make a node of the type of the hole of the node-type.
-  ;; Fill all attributes with ast-bud nodes.
-  (syntax-parse stx
-    [(_ node-type:id)
-     (define cur-grammar-clauses
-       (syntax-parameter-value #'current-xsmith-grammar-clauses))
-     (define grammar-hash
-       (grammar-clauses-stx->clause-hash cur-grammar-clauses))
-     (define node-attribute-length
-       (length
-        (grammar-node-name->field-info
-         (syntax->datum #'node-type)
-         grammar-hash)))
-     (with-syntax ([hole-name (ast-node-name-stx->hole-name-stx #'node-type)])
-       #`(create-ast (current-xsmith-grammar)
-                     'hole-name
-                     (map (λ (x) (create-ast-bud))
-                          (make-list #,(datum->syntax #'here node-attribute-length)
-                                     #f))))]))
-(define-syntax (make-hole-dynamic stx)
-  ;; Probably there should only be the static OR dynamic version, but I don't like the
-  ;; dynamic version... but I need it...
-  (syntax-parse stx
-    [(_ node-type-arg:expr)
-     (define cur-grammar-clauses
-       (syntax-parameter-value #'current-xsmith-grammar-clauses))
-     (define grammar-hash
-       (grammar-clauses-stx->clause-hash cur-grammar-clauses))
-     (define node-names
-       (dict-keys grammar-hash))
-     (define node-attribute-length-hash
-       (for/hash ([node-name node-names])
-         (values node-name
-                 (length (grammar-node-name->field-info
-                          node-name
-                          grammar-hash)))))
-     (with-syntax ([(hole-name ...) (map ast-node-name-stx->hole-name-stx
-                                         (syntax->list
-                                          (datum->syntax #'here node-names)))]
-                   [(node-name ...) (datum->syntax #'here node-names)]
-                   [(node-attr-length ...)
-                    (datum->syntax
-                     #'here
-                     (map (λ (x) (dict-ref node-attribute-length-hash x))
-                          node-names))])
-       #`(let ([len-hash (make-immutable-hash
-                          (list
-                           (cons 'node-name 'node-attr-length) ...))]
-               [hole-name-hash (make-immutable-hash
-                                (list
-                                 (cons 'node-name 'hole-name) ...))]
-               [node-type node-type-arg])
-           ;; do a dict-ref here just for error checking.
-           (dict-ref hole-name-hash node-type
-                     (λ ()
-                       (error
-                        'make-hole
-                        "Not in the defined grammar: ~a, expected one of: ~a"
-                        node-type
-                        (dict-keys hole-name-hash))))
-           (create-ast
-            (current-xsmith-grammar)
-            (dict-ref hole-name-hash node-type)
-            (map (λ (x) (create-ast-bud))
-                 (make-list (dict-ref len-hash node-type) #f)))))]))
+
