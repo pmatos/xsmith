@@ -234,7 +234,10 @@ hole for the type.
 
 (define-property introduces-scope
   #:reads (grammar)
-  #:appends (ag-rule scope-graph-scope) (ag-rule scope-graph-descendant-bindings)
+  #:appends
+  (ag-rule scope-graph-introduces-scope?)
+  (ag-rule scope-graph-scope)
+  (ag-rule scope-graph-descendant-bindings)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -242,11 +245,27 @@ hole for the type.
       (for/hash ([node-name nodes])
         (values node-name
                 (grammar-node-name->field-info node-name grammar-info))))
+
+    (define scope-graph-introduces-scope?-info
+      (for/fold ([rule-info (hash #f #'(λ (n) #f))])
+                ([node nodes])
+        (syntax-parse (dict-ref this-prop-info node #'(#f))
+          [(#f) rule-info]
+          [(#t) (dict-set rule-info node #'(λ (n) #t))]
+          [(a b ...)
+           (raise-syntax-error
+            #f
+            (format
+             "Multiple definitions of `introduces-scope` property for node: ~a"
+             node)
+            #'a)])))
+
     (define scope-graph-scope-info
       (for/fold ([rule-info (hash #f #'(λ (n)
-                                  ;; If a node does not introduce a scope,
-                                  ;; its ag-rule should just check its parent
-                                  (att-value 'scope-graph-scope (parent-node n))))])
+                                         ;; If a node does not introduce a scope,
+                                         ;; its ag-rule should just check its parent
+                                         (att-value 'scope-graph-scope
+                                                    (parent-node n))))])
                 ([node nodes])
         (define prop-for-node (dict-ref this-prop-info node #'(#f)))
         (syntax-parse prop-for-node
@@ -265,25 +284,22 @@ hole for the type.
                  (att-value 'scope-graph-descendant-bindings n)
                  ;; imports -- this exists in the scope graphs impl, but is unused...
                  '())))]
-          [(a b ...)
-           (raise-syntax-error
-            #f
-            (format
-             "Multiple definitions of `introduces-scope` property for node: ~a"
-             node)
-            #'a)])))
+          ;; I would do error handling here, but it's handled building the
+          ;; previous hash.
+          )))
+
     (define scope-graph-descendant-bindings-info
       (for/hash ([node nodes])
         (define field-info (dict-ref field-info-hash node))
         (values
          node
          #`(λ (n)
-             (if (att-value 'is-hole? n)
+             (if (or (att-value 'is-hole? n)
+                     (att-value 'scope-graph-introduces-scope? n))
                  '()
                  (let ([this-node-binding (att-value 'scope-graph-binding n)]
-                       [children-bindings
-                        (apply
-                         append
+                       [children-binding-lists
+                        (list
                          #,@(map (λ (fi)
                                    (cond
                                      [(not (grammar-node-field-struct-type fi))
@@ -307,7 +323,10 @@ hole for the type.
                                               (grammar-node-field-struct-name fi))
                                           n))]))
                                  field-info))])
+                   (define children-bindings (flatten children-binding-lists))
                    (if this-node-binding
                        (cons this-node-binding children-bindings)
                        children-bindings)))))))
-    (list scope-graph-scope-info scope-graph-descendant-bindings-info)))
+    (list scope-graph-introduces-scope?-info
+          scope-graph-scope-info
+          scope-graph-descendant-bindings-info)))

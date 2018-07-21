@@ -171,10 +171,12 @@
                                (resolution-path r)))
 
 (define (generic-max #:gt-comparator gt arg1 . args)
-  (cond [(empty? args) arg1]
-        [(gt arg1 (car args))
-         (max #:gt-comparator gt arg1 (cdr args))]
-        [else (max #:gt-comparator gt (car args) (cdr args))]))
+  (define (gmax arg1 . args)
+    (cond [(empty? args) arg1]
+          [(gt arg1 (car args))
+           (apply gmax arg1 (cdr args))]
+          [else (apply gmax (car args) (cdr args))]))
+  (apply gmax arg1 args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
