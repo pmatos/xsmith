@@ -52,8 +52,14 @@
 
 
 (define (replace-hole n)
-  (let ([o (choose-ast (apply-choice-filters
-                        (att-value 'hole->choice-list n)))])
+  (let* ([all-choices (att-value 'hole->choice-list n)]
+         [filtered-choices (apply-choice-filters all-choices)]
+         [maybe-error (when (null? filtered-choices)
+                        (error 'xsmith
+                               "Choice filters filtered out all choices!  Choices were for node type ~a, and original choices were ~a."
+                               (node-type n)
+                               all-choices))]
+         [o (choose-ast filtered-choices)])
     (rewrite-subtree n (send o fresh))))
 
 (define (generate-random-prog n)
