@@ -179,3 +179,14 @@
           [FunctionDefinition #t]
           [Block #t]
           [ForStatement #t])
+
+(add-prop
+ cish2
+ choice-filters-to-apply
+ [#f (may-be-generated-method
+      features-enabled
+      wont-over-deepen
+      respect-return-position
+      misc-constraints
+      constrain-type
+      )])

@@ -50,28 +50,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-(define (replace-hole n)
-  (let* ([all-choices (att-value 'hole->choice-list n)]
-         [filtered-choices (apply-choice-filters all-choices)]
-         [maybe-error (when (null? filtered-choices)
-                        (error 'xsmith
-                               "Choice filters filtered out all choices!  Choices were for node type ~a, and original choices were ~a."
-                               (node-type n)
-                               all-choices))]
-         [o (choose-ast filtered-choices)])
-    (rewrite-subtree n (send o fresh))))
-
 (define (generate-random-prog n)
   (let ([fill-in
          (λ (n)
            (cond
              [(ast-list-node? n) #f]
-             [(member (node-type n)
-                      '(ExpressionHole StatementHole DeclarationHole
-                                       BlockHole FunctionDefinitionHole))
-              (begin (replace-hole n)
-                     #t)]
+             [(att-value 'is-hole? n)
+              (begin
+                (rewrite-subtree n (att-value 'hole->replacement n))
+                #t)]
              [else #f]))])
     (perform-rewrites n 'top-down fill-in))
   n)

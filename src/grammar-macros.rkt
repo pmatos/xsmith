@@ -34,6 +34,7 @@
  racket/class
  racket/dict
  racket/list
+ racket/string
  racket/stxparam
  racket/splicing
  "choice.rkt"
@@ -273,7 +274,7 @@
   [(_ prop/ag/cm-type
       grammar-name:id
       prop/ag/cm-name:id
-      [node-name:id prop:expr] ...+)
+      [(~and node-name (~or node-name-id:id #f)) prop:expr] ...+)
    (stuff-export-hash (spec->export-name #'grammar-name)
                       #'prop/ag/cm-type
                       #'((prop/ag/cm-name node-name) ...)
@@ -670,10 +671,6 @@
                                   [ag-rule-node.node-name ag-rule-node.prop-val]
                                   ...)
                          ...
-                         (ag-rule is-hole?
-                                  [base-node-name (λ (n) #f)]
-                                  [ast-hole-name (λ (n) #t)]
-                                  ...)
 
                          ;; Define choice objects mirroring grammar.
                          ;; Choice rules are methods within the choice objects.
@@ -716,6 +713,7 @@
                        ;; outside.  So we `set!` it in place.
                        (set! fresh-node-func fresh-node-func-impl)
 
+                       ;; define some core ag-rules
                        (ag-rule hole->choice-list
                                 [base-node-name
                                  (λ (n) (error 'hole->choice-list
@@ -723,6 +721,32 @@
                                 [ast-hole-name
                                  (λ (n) (list (new subtype-choice-name [hole n]) ...))]
                                 ...)
+                       (ag-rule is-hole?
+                                [base-node-name (λ (n) #f)]
+                                [ast-hole-name (λ (n) #t)]
+                                ...)
+                       (ag-rule
+                        hole->replacement
+                        [base-node-name
+                         (λ (n)
+                           (if (att-value 'is-hole? n)
+                               (let* ([choices (att-value 'hole->choice-list n)]
+                                      [choices-or-reasons
+                                       (map (λ (c) (send c apply-choice-filters))
+                                            choices)]
+                                      [filtered (filter (λ (x) (is-a? x ast-choice%))
+                                                        choices-or-reasons)])
+                                 (if (null? filtered)
+                                     (error 'replace-hole
+                                            (string-append
+                                             "All choices for filling in a "
+                                             (symbol->string (ast-node-type n))
+                                             " hole were filtered out.\n"
+                                             (string-join choices-or-reasons
+                                                          "\n")))
+                                     (send (choose-ast filtered) fresh)))
+                               (error 'hole->replacement
+                                      "called on non-hole node")))])
                        (compile-ag-specifications))))))])]))])
 
 

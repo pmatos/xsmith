@@ -6,6 +6,7 @@
  fresh
  wont-over-deepen
  introduces-scope
+ choice-filters-to-apply
  )
 
 (require
@@ -330,3 +331,50 @@ hole for the type.
     (list scope-graph-introduces-scope?-info
           scope-graph-scope-info
           scope-graph-descendant-bindings-info)))
+
+(define-property choice-filters-to-apply
+  #:appends (choice-rule apply-choice-filters)
+  #:transformer
+  (λ (this-prop-info)
+
+    (define-syntax-class filtering-method
+      (pattern method-name:id
+               #:attr func #'(λ (o) (send o method-name)))
+      (pattern (method-name:id arg:expr ...)
+               #:attr func #'(λ (o) (send o method-name arg ...))))
+    (define (helper filter-method-stx filter-failure-set!-id)
+      (syntax-parse filter-method-stx
+        [(filt1:filtering-method filt:filtering-method ...)
+         #`(let ([result (filt1.func this)])
+             (if result
+                 #,(syntax-parse #'(filt ...)
+                     [() #'this]
+                     [(f ...) (helper #'(filt ...)
+                                      filter-failure-set!-id)])
+                 (begin
+                   (set! #,filter-failure-set!-id 'filt1.method-name)
+                   #f)))]))
+    (define rule-info
+      (for/hash ([node-name (dict-keys this-prop-info)])
+        (syntax-parse (dict-ref this-prop-info node-name)
+          [(a)
+           (values
+            node-name
+            (with-syntax ([failure-set!-id #'failed-on])
+              #`(λ ()
+                  (define failure-set!-id #f)
+                  (define result #,(helper #'a #'failure-set!-id))
+                  (if result
+                      this
+                      (format "Choice ~a: filtered out by ~a method."
+                              this%
+                              failure-set!-id)))))]
+          [(a b ...)
+           (raise-syntax-error
+            #f
+            (format
+             "duplicate definition of ~a property for node ~a."
+             'filters-to-apply
+             node-name)
+            #'a)])))
+    (list rule-info)))
