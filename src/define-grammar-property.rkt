@@ -36,6 +36,7 @@
         stx))
      (define transformer-func-use
        (if (attribute transformer-func)
+           ;; TODO - this disallows duplicates when the transformer for this property is run.  But if a property reads another property then it will still have to do duplicate checking itself.  This should be implemented in a way where the macro that runs transformers first checks for duplicates itself based on this duplicate setting.
            (syntax-parse (or (attribute allow-duplicates?) #'#f)
              [#t (attribute transformer-func)]
              [#f #`(λ (this-prop-info . other-args)
