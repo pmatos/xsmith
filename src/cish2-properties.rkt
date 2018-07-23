@@ -41,7 +41,6 @@
      (with-syntax ([transformer (or (attribute value-transformer) #'(λ (x) x))]
                    [rule-name (or (attribute rule-name) #'property-name)])
        #'(define-property property-name
-           #:allow-duplicates? #t
            #:reads (grammar)
            #:appends (rt rule-name)
            #:transformer
@@ -52,18 +51,7 @@
                    (dict-ref this-prop-info node-name #f))
                  (values node-name
                          (transformer
-                          (if prop-vals
-                              (syntax-parse prop-vals
-                                [(a) #'a]
-                                [(a b ...+)
-                                 (raise-syntax-error
-                                  #f
-                                  (format
-                                   "duplicate definition of ~a property for node ~a."
-                                   'property-name
-                                   node-name)
-                                  #'a)])
-                              (quote-syntax default-value))))))
+                          (or prop-vals (quote-syntax default-value))))))
              (list rule-info))))]))
 
 (define-non-inheriting-rule-property
@@ -102,7 +90,6 @@ is specified and no type is known for the field, or an appropriate
 hole for the type.
 |#
 (define-property fresh
-  #:allow-duplicates? #t
   #:reads (grammar)
   #:appends (choice-rule fresh)
   #:transformer
@@ -125,14 +112,8 @@ hole for the type.
         (define (sym->quoted-sym-stx s)
           #`(quote #,(datum->syntax #'here s)))
         (define prop-for-this-node
-          (syntax->list (dict-ref this-prop-info node #'((hash)))))
-        (when (> (length prop-for-this-node) 1)
-          (raise-syntax-error 'fresh
-                              (format
-                               "duplicate definition of fresh property for node ~a"
-                               node)
-                              (car prop-for-this-node)))
-        (with-syntax ([fresh-expr (car prop-for-this-node)]
+          (syntax->list (dict-ref this-prop-info node #'(hash))))
+        (with-syntax ([fresh-expr prop-for-this-node]
                       [node-name node]
                       [(field-name ...) (map sym->quoted-sym-stx field-names)]
                       [(field-type ...) (map sym->quoted-sym-stx field-types)]
@@ -196,7 +177,6 @@ hole for the type.
     (list rule-info)))
 
 (define-property wont-over-deepen
-  #:allow-duplicates? #t
   #:reads (grammar)
   #:appends (choice-rule wont-over-deepen)
   #:transformer
@@ -222,22 +202,13 @@ hole for the type.
                 #`(λ ()
                     (or (<= (att-value 'ast-depth current-hole)
                             (xsmith-option 'max-depth))
-                        #,(syntax-parse (dict-ref
-                                         this-prop-info
-                                         node
-                                         #`(#,(dict-ref rule-info-defaults node)))
-                            [(a) #'a]
-                            [(a b ...)
-                             (raise-syntax-error
-                              #f
-                              (format
-                               "Multiple definitions of `wont-over-deepen` property for node ~a"
-                               node)
-                              #'a)]))))))
+                        #,(dict-ref
+                           this-prop-info
+                           node
+                           (dict-ref rule-info-defaults node)))))))
     (list rule-info)))
 
 (define-property introduces-scope
-  #:allow-duplicates? #t
   #:reads (grammar)
   #:appends
   (ag-rule scope-graph-introduces-scope?)
@@ -254,16 +225,9 @@ hole for the type.
     (define scope-graph-introduces-scope?-info
       (for/fold ([rule-info (hash #f #'(λ (n) #f))])
                 ([node nodes])
-        (syntax-parse (dict-ref this-prop-info node #'(#f))
-          [(#f) rule-info]
-          [(#t) (dict-set rule-info node #'(λ (n) #t))]
-          [(a b ...)
-           (raise-syntax-error
-            #f
-            (format
-             "Multiple definitions of `introduces-scope` property for node: ~a"
-             node)
-            #'a)])))
+        (syntax-parse (dict-ref this-prop-info node #'#f)
+          [#f rule-info]
+          [#t (dict-set rule-info node #'(λ (n) #t))])))
 
     (define scope-graph-scope-info
       (for/fold ([rule-info (hash #f #'(λ (n)
@@ -272,10 +236,10 @@ hole for the type.
                                          (att-value 'scope-graph-scope
                                                     (parent-node n))))])
                 ([node nodes])
-        (define prop-for-node (dict-ref this-prop-info node #'(#f)))
+        (define prop-for-node (dict-ref this-prop-info node #'#f))
         (syntax-parse prop-for-node
-          [(#f) rule-info]
-          [(#t)
+          [#f rule-info]
+          [#t
            (dict-set
             rule-info
             node
@@ -337,7 +301,6 @@ hole for the type.
           scope-graph-descendant-bindings-info)))
 
 (define-property choice-filters-to-apply
-  #:allow-duplicates? #t
   #:appends (choice-rule apply-choice-filters)
   #:transformer
   (λ (this-prop-info)
@@ -361,25 +324,16 @@ hole for the type.
                    #f)))]))
     (define rule-info
       (for/hash ([node-name (dict-keys this-prop-info)])
-        (syntax-parse (dict-ref this-prop-info node-name)
-          [(a)
-           (values
-            node-name
-            (with-syntax ([failure-set!-id #'failed-on])
-              #`(λ ()
-                  (define failure-set!-id #f)
-                  (define result #,(helper #'a #'failure-set!-id))
-                  (if result
-                      this
-                      (format "Choice ~a: filtered out by ~a method."
-                              this%
-                              failure-set!-id)))))]
-          [(a b ...)
-           (raise-syntax-error
-            #f
-            (format
-             "duplicate definition of ~a property for node ~a."
-             'filters-to-apply
-             node-name)
-            #'a)])))
+        (values
+         node-name
+         (with-syntax ([failure-set!-id #'failed-on])
+           #`(λ ()
+               (define failure-set!-id #f)
+               (define result #,(helper (dict-ref this-prop-info node-name)
+                                        #'failure-set!-id))
+               (if result
+                   this
+                   (format "Choice ~a: filtered out by ~a method."
+                           this%
+                           failure-set!-id)))))))
     (list rule-info)))
