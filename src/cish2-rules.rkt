@@ -1608,7 +1608,7 @@ few of these methods.
  cish2
  wont-over-deepen
  [ExpressionStatement #t]
- [ReturnStatement #t]
+ [ValueReturnStatement #t]
  [AssignmentExpression #t]
  [VariableDeclaration #t]
  )
