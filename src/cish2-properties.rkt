@@ -41,6 +41,7 @@
      (with-syntax ([transformer (or (attribute value-transformer) #'(λ (x) x))]
                    [rule-name (or (attribute rule-name) #'property-name)])
        #'(define-property property-name
+           #:allow-duplicates? #t
            #:reads (grammar)
            #:appends (rt rule-name)
            #:transformer
@@ -101,6 +102,7 @@ is specified and no type is known for the field, or an appropriate
 hole for the type.
 |#
 (define-property fresh
+  #:allow-duplicates? #t
   #:reads (grammar)
   #:appends (choice-rule fresh)
   #:transformer
@@ -194,6 +196,7 @@ hole for the type.
     (list rule-info)))
 
 (define-property wont-over-deepen
+  #:allow-duplicates? #t
   #:reads (grammar)
   #:appends (choice-rule wont-over-deepen)
   #:transformer
@@ -234,6 +237,7 @@ hole for the type.
     (list rule-info)))
 
 (define-property introduces-scope
+  #:allow-duplicates? #t
   #:reads (grammar)
   #:appends
   (ag-rule scope-graph-introduces-scope?)
@@ -333,6 +337,7 @@ hole for the type.
           scope-graph-descendant-bindings-info)))
 
 (define-property choice-filters-to-apply
+  #:allow-duplicates? #t
   #:appends (choice-rule apply-choice-filters)
   #:transformer
   (λ (this-prop-info)
