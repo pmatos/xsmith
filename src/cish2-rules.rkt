@@ -291,35 +291,6 @@
   (λ (n) #f)]
  [Node (λ (n) #f)])
 
-#;(ag-cish2
- scope-graph-scope
- [Program
-  (λ (n) (scope #f
-                (filter ident
-                        (map (λ (cn) (att-value 'scope-graph-binding cn))
-                             (cons (ast-child 'main n)
-                                   (ast-children (ast-child 'declarations n)))))
-                '()))]
- [FunctionDefinition
-  (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
-                (filter ident
-                        (map (λ (cn) (att-value 'scope-graph-binding cn))
-                             (ast-children (ast-child 'params n))))
-                '()))]
- [Block
-  (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
-                (filter ident
-                        (map (λ (cn) (att-value 'scope-graph-binding cn))
-                             (ast-children (ast-child 'declarations n))))
-                '()))]
- [ForStatement
-  (λ (n) (scope (att-value 'scope-graph-scope (parent-node n))
-                (filter ident
-                        (list (att-value 'scope-graph-binding (ast-child 'init n))))
-                '()))]
- [Node
-  (λ (n) (att-value 'scope-graph-scope (parent-node n)))])
-
 (ag-cish2
  visible-bindings
  [Node (λ (n)
