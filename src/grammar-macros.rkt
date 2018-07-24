@@ -372,8 +372,29 @@
         (error 'hole->replacement
                "called on non-hole node"))))
 
+
+#|
+`assemble-spec-components` is the main macro that generates everything.
+It takes:
+* an identifier for a spec name
+* (optional) a list of properties to expand (IE use their transformer function).  All properties referenced in spec components are automatically expanded and don't need to be listed.
+* a list of spec components
+
+It defines:
+* the spec name as a RACR spec
+* spec-generate-ast (with `spec` replaced for the id given as spec), which is a function that accepts the symbol name of a node and generates an AST starting at that node.  IE you give it the top level node name and it gives you a program.
+
+Additionally, it defines the following ag-rules within the RACR spec:
+* hole->choice-list
+* is-hole?
+* hole->replacement
+* find-descendants
+* find-a-descendant
+
+It also defines within the RACR spec all ag-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
+|#
 (define-syntax-parser assemble-spec-components
-  [(_ spec
+  [(_ spec:id
       (~optional (~seq #:properties (~and extra-props (prop-name:id ...))))
       component:spec-component ...)
    (with-syntax ([extra-props (or (attribute extra-props) #'())]
