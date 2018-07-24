@@ -300,9 +300,8 @@ Types can be:
                                       (cons name (current-abstract-interp-call-stack))])
                         (apply do-function n store rest))))
                 (apply do-function n store rest))]
-           [result-hash (get-result-hash-func n)]
-           [node-id (ast-child 'serialnumber n)])
-      (hash-set! result-hash node-id (cons result (hash-ref result-hash node-id '())))
+           [result-hash (get-result-hash-func n)])
+      (hash-set! result-hash n (cons result (hash-ref result-hash n '())))
       result)))
 
 (define abstract-interp-wrap/range

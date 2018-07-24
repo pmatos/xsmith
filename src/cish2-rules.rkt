@@ -606,7 +606,7 @@
          ;; If the code is unreachable then it will have no result here.
          (match (hash-ref
                  (att-value 'symbolic-interp-result-hash n)
-                 (ast-child 'serialnumber n)
+                 n
                  'dead)
            ['dead (list 'dead 'dead)]
            [(list (list vals stores always-rets assert-sets) ...)
@@ -626,7 +626,7 @@
          ;; If the code is unreachable then it will have no result here.
          (match (hash-ref
                  (att-value 'abstract-interp-result-hash/range n)
-                 (ast-child 'serialnumber n)
+                 n
                  'dead)
            ['dead 'dead]
            [(list (list vs ss rs) ...)
