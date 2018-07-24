@@ -97,7 +97,7 @@
             (response/xexpr
              `(html (head (title "Random C Program"))
                     (body (pre ,(get-output-string out)))))))
-        (eprintf "starting server...\n")
+        (eprintf "Starting server...\n")
         (eprintf "Visit: http://localhost:~a/servlets/standalone.rkt\n" port)
         (serve/servlet servlet-start #:port port #:command-line? #t))
       (generate-and-print!))
