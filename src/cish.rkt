@@ -3,6 +3,9 @@
 
 (require
  "grammar-macros.rkt"
+ "cish2-grammar.rkt"
+ "cish2-rules.rkt"
+
  "cish2-utils.rkt"
  "cish2-properties.rkt"
 
@@ -12,27 +15,10 @@
             semi rparen rbrace lparen lbrace comma
             colon
             )
- racket/random
- racket/string
  racket/dict
- racket/set
- racket/match
- racket/math
- racket/class
- (prefix-in rt: rosette)
- (except-in racket/list empty)
- "random.rkt"
- "choice.rkt"
- "scope-graph.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
- "cish2-grammar.rkt"
- "cish2-rules.rkt"
- (for-syntax
-  racket/base
-  syntax/parse
-  racket/syntax
-  ))
+ )
 
 
 (assemble-spec-components
