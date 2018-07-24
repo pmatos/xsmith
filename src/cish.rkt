@@ -96,59 +96,45 @@
 (define ast-add-unsafe-math/symbolic
   {ast-add-unsafe-math (λ (n) (att-value 'unsafe-op-if-possible/symbolic n))})
 
-(define (make-do-it options)
-  (let ((state (make-generator-state)))
-    ;; Initialize the state from the options.
-    ;; Pretty lame to use `parameterize` just for this.  XXX Fix options API.
-    (parameterize ((xsmith-options options))
-      (random-seed (xsmith-option 'random-seed)))
-    (λ ()
-      (parameterize ((xsmith-options options))
-        ;; XXX also need to reset the seed, or increase a generation counter,
-        ;; or something.  Right now, the seed printed in output program is
-        ;; wrong!
-        (do-one state options)))))
 
-(define (do-one state options)
-  (parameterize ((xsmith-state state)
-                 (xsmith-options options))
-    (let* ([ast (cish2-generate-ast 'Program)]
-           [nothing (add-precomment! ast)]
-           [pre-analysis-print (printf "/*\n")]
-           [ast (if (hash-ref (xsmith-option 'features-disabled)
-                              'unsafe-math/range #t)
-                    ast
-                    (begin
-                      (printf "Starting range analysis...\n")
-                      (ast-add-unsafe-math/range ast)))]
-           [ast (if (hash-ref (xsmith-option 'features-disabled)
-                              'unsafe-math/symbolic #t)
-                    ast
-                    (begin
-                      (printf "Starting symbolic analysis...\n")
-                      (ast-add-unsafe-math/symbolic ast)))]
-           [post-analysis-print (printf "*/\n")]
-           )
-      (if (dict-has-key? (xsmith-options) 'output-filename)
-          (call-with-output-file (xsmith-option 'output-filename)
-            #:exists 'replace
-            (lambda (out)
-              (pretty-print (att-value 'pretty-print ast)
-                            out
-                            page-width)))
-          (begin
+(define (cish-generate-and-print)
+  (let* ([ast (cish2-generate-ast 'Program)]
+         [nothing (add-precomment! ast)]
+         [pre-analysis-print (printf "/*\n")]
+         [ast (if (hash-ref (xsmith-option 'features-disabled)
+                            'unsafe-math/range #t)
+                  ast
+                  (begin
+                    (printf "Starting range analysis...\n")
+                    (ast-add-unsafe-math/range ast)))]
+         [ast (if (hash-ref (xsmith-option 'features-disabled)
+                            'unsafe-math/symbolic #t)
+                  ast
+                  (begin
+                    (printf "Starting symbolic analysis...\n")
+                    (ast-add-unsafe-math/symbolic ast)))]
+         [post-analysis-print (printf "*/\n")]
+         )
+    (if (dict-has-key? (xsmith-options) 'output-filename)
+        (call-with-output-file (xsmith-option 'output-filename)
+          #:exists 'replace
+          (lambda (out)
             (pretty-print (att-value 'pretty-print ast)
-                          (current-output-port)
-                          page-width)
-            #;(printf "\n\n/*\nabstract return: ~a\n*/\n"
+                          out
+                          page-width)))
+        (begin
+          (pretty-print (att-value 'pretty-print ast)
+                        (current-output-port)
+                        page-width)
+          #;(printf "\n\n/*\nabstract return: ~a\n*/\n"
                     (car
                      (abstract-interp-wrap/range ast range-store-top
                                                  empty-abstract-flow-control-return)))))
-      )))
+    ))
 
 (module+ main
   (require "xsmith-command-line.rkt")
-  (xsmith-command-line make-do-it))
+  (xsmith-command-line cish-generate-and-print))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

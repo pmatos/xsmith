@@ -3,6 +3,7 @@
 
 (require
  racket/dict
+ "xsmith-utils.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
  )
@@ -13,7 +14,7 @@
 
 (require racket/cmdline)
 
-(define (xsmith-command-line make-generator)
+(define (xsmith-command-line generate-and-print-func)
   (define features-disabled (dict-ref options 'features-disabled))
   (define port 8080)
   (define given-seed #f)
@@ -73,8 +74,18 @@
   (unless (dict-has-key? options 'random-seed)
     (dict-set! options 'random-seed (random (expt 2 31))))
 
-  (define generate-and-print (make-generator options))
-
+  (define (generate-and-print!)
+    (parameterize ([xsmith-options options]
+                   [xsmith-state (make-generator-state)])
+      ;; XXX also need to reset the seed, or increase a generation counter,
+      ;; or something.  Right now, the seed printed in output program is
+      ;; wrong!
+      (let ([seed (xsmith-option 'random-seed)])
+        (random-seed seed)
+        (generate-and-print-func)
+        (dict-set! (xsmith-options)
+                   'random-seed
+                   (add1 seed)))))
 
   (if server?
       (let ([serve/servlet (dynamic-require 'web-server/servlet-env 'serve/servlet)]
@@ -82,14 +93,14 @@
         (define (servlet-start req)
           (let ((out (open-output-string)))
             (parameterize ((current-output-port out))
-              (generate-and-print))
+              (generate-and-print!))
             (response/xexpr
              `(html (head (title "Random C Program"))
                     (body (pre ,(get-output-string out)))))))
         (eprintf "starting server...\n")
         (eprintf "Visit: http://localhost:~a/servlets/standalone.rkt\n" port)
         (serve/servlet servlet-start #:port port #:command-line? #t))
-      (generate-and-print))
+      (generate-and-print!))
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
