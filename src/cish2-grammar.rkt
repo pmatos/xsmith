@@ -42,7 +42,7 @@
  [Statement Node ()]
  [NullStatement Statement ()]
  [Block Statement ([declarations : Declaration * = (random 2)]
-                   [statements : Statement * = (random 5)])]
+                   [statements : Statement * = (add1 (random 4))])]
  [ExpressionStatement Statement (Expression)]
  [IfStatement Statement ([test : Expression]
                          [then : Statement])]
