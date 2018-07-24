@@ -1,5 +1,8 @@
 #lang racket/base
-(provide define-property)
+(provide
+ define-property
+ define-non-inheriting-rule-property
+ )
 (require
  (for-syntax
   racket/base
@@ -70,3 +73,31 @@
                            #,(if (attribute append-arg)
                                  #'(quote-syntax (append-arg ...))
                                  #'(quote-syntax ()))))]))
+
+(define-syntax (define-non-inheriting-rule-property stx)
+  (define-syntax-class rule-type
+    (pattern (~or (~datum choice-rule) (~datum ag-rule))))
+  (syntax-parse stx
+    [(_ property-name:id
+        rt:rule-type
+        (~or
+         (~optional (~seq #:rule-name rule-name:id))
+         (~once (~seq #:default default-value:expr))
+         (~optional (~seq #:transformer value-transformer:expr))
+         )
+        ...)
+     (with-syntax ([transformer (or (attribute value-transformer) #'(λ (x) x))]
+                   [rule-name (or (attribute rule-name) #'property-name)])
+       #'(define-property property-name
+           #:reads (grammar)
+           #:appends (rt rule-name)
+           #:transformer
+           (λ (this-prop-info grammar-info)
+             (define rule-info
+               (for/hash ([node-name (dict-keys grammar-info)])
+                 (define prop-vals
+                   (dict-ref this-prop-info node-name #f))
+                 (values node-name
+                         (transformer
+                          (or prop-vals (quote-syntax default-value))))))
+             (list rule-info))))]))

@@ -5,7 +5,7 @@
 (require
  "grammar-macros.rkt"
  "cish2-utils.rkt"
- "cish2-properties.rkt"
+ "core-properties.rkt"
 
  racr
  racr/testing ;; racr/testing is needed for print-ast

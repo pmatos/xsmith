@@ -8,7 +8,7 @@
  add-prop
  assemble-spec-components
  current-xsmith-grammar
- define-property
+ (all-from-out "define-grammar-property.rkt")
 
  make-hole
  make-fresh-node
