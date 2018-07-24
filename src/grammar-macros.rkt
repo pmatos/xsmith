@@ -187,14 +187,11 @@
          [_ prop-clause-stx])]))
 
   (define (ast-node-name-stx->hole-name-stx n)
-    ;; It would be nice to make the hole nodes hygienically named,
-    ;; but they have to be passed to `make-ast-rule` encoded with
-    ;; their parent and such, and the name will basically be taken
-    ;; from the string representation of the symbol.
-    ;; But it could be a gensym if all of the machinery for
-    ;; creating holes or dealing with them is handled automatically
-    ;; by macros from this file.
-    (format-id n "~aHole" n))
+    ;; Because they have to be passed to `make-ast-rule`, hole
+    ;; names can't be hygienic.  So this name is meant to be
+    ;; long and not likely to conflict with anything a user would
+    ;; actually use.
+    (format-id n "~aXsmithAstHole" n))
 
   )
 
