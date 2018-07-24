@@ -697,11 +697,6 @@
  ;;; Statements
  ;;; Statements return a store but aside from return statements the
  ;;; result value is meaningless
- [StatementHole
-  (λ (n store flow-returns)
-    (list abstract-value/range/top range-store-top
-          (maybe-return abstract-value/range/top range-store-top)))]
-
  [NullStatement (λ (n store flow-returns)
                   (list abstract-value/range/top store flow-returns))]
  #|
@@ -778,10 +773,6 @@
     (abstract-interp-loop/body n store flow-returns))]
 
  ;;; Expressions
- [ExpressionHole
-  (λ (n store flow-returns)
-    (list abstract-value/range/top range-store-top flow-returns))]
-
  [LiteralInt
   (λ (n store flow-returns)
     (list (abstract-value/range (ast-child 'val n) (ast-child 'val n))
