@@ -5,8 +5,6 @@
  (struct-out generator-state)
  make-generator-state
 
- fresh-int!
-
  ast-children/flat
  expr->ast-list
  node-type
@@ -42,14 +40,6 @@
 
 
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Fresh ints... this is likely not necessary in xsmith-utils...
-(define fresh-int-counter 0)
-(define (fresh-int!)
-  (begin0
-      fresh-int-counter
-    (set! fresh-int-counter (add1 fresh-int-counter))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; RACR convenience functions
