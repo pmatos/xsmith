@@ -2,11 +2,11 @@
 
 (provide
  (all-defined-out)
- (all-from-out "xsmith-utils.rkt")
+ (all-from-out "../xsmith-utils.rkt")
  )
 
 (require
- "xsmith-utils.rkt"
+ "../xsmith-utils.rkt"
  racr
  pprint
  racket/random
@@ -15,8 +15,8 @@
  racket/math
  (prefix-in rt: rosette)
  (except-in racket/list empty)
- "scope-graph.rkt"
- "xsmith-options.rkt"
+ "../scope-graph.rkt"
+ "../xsmith-options.rkt"
  (for-syntax
   racket/base
   syntax/parse

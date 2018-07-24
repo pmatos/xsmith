@@ -11,7 +11,7 @@
 
 (require
  "grammar-macros.rkt"
- "cish2-utils.rkt"
+ "xsmith-utils.rkt"
  "xsmith-options.rkt"
  "scope-graph.rkt"
  racr

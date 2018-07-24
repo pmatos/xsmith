@@ -8,7 +8,7 @@
  add-prop
  assemble-spec-components
  current-xsmith-grammar
- (all-from-out "define-grammar-property.rkt")
+ (all-from-out "private/define-grammar-property.rkt")
 
  current-hole
  
@@ -39,8 +39,8 @@
  racket/string
  racket/stxparam
  racket/splicing
- "choice.rkt"
- "define-grammar-property.rkt"
+ "private/choice.rkt"
+ "private/define-grammar-property.rkt"
  "xsmith-utils.rkt"
  (for-syntax
   racket/base
@@ -50,8 +50,8 @@
   racket/string
   racket/dict
   racket/match
-  "grammar-properties.rkt"
-  "spec-component-struct.rkt"
+  "private/grammar-properties.rkt"
+  "private/spec-component-struct.rkt"
   ))
 
 
