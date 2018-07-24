@@ -413,30 +413,22 @@
  ;; dictionary will contain a set of constraints (or nothing) for each child
  [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n) (list 'constant)))]
  [Node (λ (n) (hasheq))])
-(define (misc-constraint-dict-ref n)
-  (dict-ref (att-value 'children-misc-constraint-dict
-                       (ast-parent n))
-            n
-            '()))
-(define (default-misc-constraints n)
-  (set-union (misc-constraint-dict-ref n)
-             (att-value 'misc-constraints (ast-parent n))))
-(ag
- misc-constraints
- ;; misc-constraints returns a set of symbols
- [Program (λ (n) '())]
- [ExpressionStatement
-  (λ (n) (set-subtract
-          (default-misc-constraints n)
-          ;; allow assignments here
-          '(no-assignment constant)))]
- [ExpressionHole (λ (n) (default-misc-constraints n))]
- [DeclarationHole (λ (n) (default-misc-constraints n))]
- [StatementHole (λ (n) (default-misc-constraints n))]
- [Node (λ (n) (set-union
-               ;; Don't allow assignment except where explicitly allowed
-               '(no-assignment)
-               (default-misc-constraints n)))])
+
+(ag misc-constraints
+    [Node
+     (λ (n)
+       (define p (parent-node n))
+       (if p
+           (let ([cs (set-union (dict-ref (att-value 'children-misc-constraint-dict p)
+                                          n
+                                          '())
+                                (att-value 'misc-constraints p))])
+             (if (node-subtype? p 'ExpressionStatement)
+                 ;; ExpressionStatements allow assignments and non-constants,
+                 ;; but assignments are disallowed everywhere else.
+                 (set-subtract cs '(no-assignment constant))
+                 (set-union cs '(no-assignment))))
+           '()))])
 
 
 (define ({abstract-binary-op/range op #:unsafe [unsafe #f]} node store flow-returns)
