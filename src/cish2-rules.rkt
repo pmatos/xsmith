@@ -1433,26 +1433,6 @@
                       #:bool-result? #t}]
  )
 
-(ag
- ;;; Find all children satisfying the predicate (the given node included)
- find-descendants
- [Node (λ (n predicate)
-         (define children (filter ast-node? (ast-children/flat n)))
-         (define matches
-           (apply append (map (λ (x) (att-value 'find-descendants x predicate))
-                              children)))
-         (if (predicate n)
-             (cons n matches)
-             matches))])
-
-(ag
- ;;; Find the first node that satisfies the predicate (the given node included)
- find-a-descendant
- [Node (λ (n predicate)
-         (if (predicate n)
-             n
-             (for/or ([c (filter ast-node? (ast-children/flat n))])
-               (att-value 'find-a-descendant c predicate))))])
 
 (ag
  find-direct-resolved

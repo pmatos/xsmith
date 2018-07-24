@@ -39,6 +39,7 @@
  racket/splicing
  "choice.rkt"
  "define-grammar-property.rkt"
+ "xsmith-utils.rkt"
  (for-syntax
   racket/base
   racket/syntax
@@ -333,6 +334,43 @@
              [else #f]))])
     (perform-rewrites n 'top-down fill-in))
   n)
+(define find-a-descendant-function
+  ;;; Find the first node that satisfies the predicate (the given node included)
+  (λ (n predicate)
+    (if (predicate n)
+        n
+        (for/or ([c (filter ast-node? (ast-children/flat n))])
+          (att-value 'find-a-descendant c predicate)))))
+(define find-descendants-function
+  ;;; Find all nodes that satisfy the predicate (the given node not included)
+  (λ (n predicate)
+    (define children (filter ast-node? (ast-children/flat n)))
+    (define matches
+      (apply append (map (λ (x) (att-value 'find-descendants x predicate))
+                         children)))
+    (if (predicate n)
+        (cons n matches)
+        matches)))
+(define hole->replacement-function
+  (λ (n)
+    (if (att-value 'is-hole? n)
+        (let* ([choices (att-value 'hole->choice-list n)]
+               [choices-or-reasons
+                (map (λ (c) (send c apply-choice-filters))
+                     choices)]
+               [filtered (filter (λ (x) (is-a? x ast-choice%))
+                                 choices-or-reasons)])
+          (if (null? filtered)
+              (error 'replace-hole
+                     (string-append
+                      "All choices for filling in a "
+                      (symbol->string (ast-node-type n))
+                      " hole were filtered out.\n"
+                      (string-join choices-or-reasons
+                                   "\n")))
+              (send (choose-ast filtered) fresh)))
+        (error 'hole->replacement
+               "called on non-hole node"))))
 
 (define-syntax-parser assemble-spec-components
   [(_ spec
@@ -749,28 +787,12 @@
                                 [base-node-name (λ (n) #f)]
                                 [ast-hole-name (λ (n) #t)]
                                 ...)
-                       (ag-rule
-                        hole->replacement
-                        [base-node-name
-                         (λ (n)
-                           (if (att-value 'is-hole? n)
-                               (let* ([choices (att-value 'hole->choice-list n)]
-                                      [choices-or-reasons
-                                       (map (λ (c) (send c apply-choice-filters))
-                                            choices)]
-                                      [filtered (filter (λ (x) (is-a? x ast-choice%))
-                                                        choices-or-reasons)])
-                                 (if (null? filtered)
-                                     (error 'replace-hole
-                                            (string-append
-                                             "All choices for filling in a "
-                                             (symbol->string (ast-node-type n))
-                                             " hole were filtered out.\n"
-                                             (string-join choices-or-reasons
-                                                          "\n")))
-                                     (send (choose-ast filtered) fresh)))
-                               (error 'hole->replacement
-                                      "called on non-hole node")))])
+                       (ag-rule hole->replacement
+                                [base-node-name hole->replacement-function])
+                       (ag-rule find-descendants
+                                [base-node-name find-descendants-function])
+                       (ag-rule find-a-descendant
+                                [base-node-name find-a-descendant-function])
                        (compile-ag-specifications))))
 
                  ;; Define an ast-generator with a hygiene-bending name
