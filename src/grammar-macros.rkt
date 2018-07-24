@@ -320,6 +320,20 @@
                                 (hash-ref h k '()))))))
     (hash-set bighash subhash-key subhash)))
 
+(define ((ast-generator-generator fresh-node-func) node-name)
+  (define n (fresh-node-func node-name))
+  (let ([fill-in
+         (λ (n)
+           (cond
+             [(ast-list-node? n) #f]
+             [(att-value 'is-hole? n)
+              (begin
+                (rewrite-subtree n (att-value 'hole->replacement n))
+                #t)]
+             [else #f]))])
+    (perform-rewrites n 'top-down fill-in))
+  n)
+
 (define-syntax-parser assemble-spec-components
   [(_ spec
       (~optional (~seq #:properties (~and extra-props (prop-name:id ...))))
@@ -529,7 +543,9 @@
                   [(ag-clause ...)
                    (map (prop-clause-false-to-default #'base-node-name)
                         (syntax->list #'(ag-clause ...)))]
-                  [fresh-node-func (format-id #'spec "~a-fresh-node" #'spec)]
+                  [fresh-node-func (format-id #'here "~a-fresh-node" #'spec)]
+                  [generate-ast-func
+                   (format-id #'spec "~a-generate-ast" #'spec)]
                   [([subtype-name ...] ...)
                    (map {get-non-abstract-ast-subtypes #'(g-part ...)}
                         (syntax->list #'(g-part.node-name ...)))]
@@ -755,6 +771,10 @@
                                      (send (choose-ast filtered) fresh)))
                                (error 'hole->replacement
                                       "called on non-hole node")))])
-                       (compile-ag-specifications))))))])]))])
+                       (compile-ag-specifications))))
+
+                 ;; Define an ast-generator with a hygiene-bending name
+                 (define generate-ast-func (ast-generator-generator fresh-node-func))
+                 ))])]))])
 
 

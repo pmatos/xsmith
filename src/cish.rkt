@@ -34,10 +34,6 @@
   ))
 
 
-
-
-
-
 (assemble-spec-components
  cish2
  #:properties (depth-increase-predicate fresh wont-over-deepen introduces-scope)
@@ -46,30 +42,10 @@
  )
 
 
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (generate-random-prog n)
-  (let ([fill-in
-         (λ (n)
-           (cond
-             [(ast-list-node? n) #f]
-             [(att-value 'is-hole? n)
-              (begin
-                (rewrite-subtree n (att-value 'hole->replacement n))
-                #t)]
-             [else #f]))])
-    (perform-rewrites n 'top-down fill-in))
-  n)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-(define (fresh-Prog)
-  (define p (cish2-fresh-node 'Program))
-  (rewrite-terminal 'precomment p
+(define (add-precomment! n)
+  (rewrite-terminal 'precomment n
                     (h-append
                      line
                      (vb-append
@@ -86,8 +62,7 @@
                       (hs-append
                        (fill 10 (text "Seed:"))
                        (text (number->string (xsmith-option 'random-seed))))
-                      soft-break)))
-  p)
+                      soft-break))))
 
 (define ({ast-add-unsafe-math refinement-func} ast)
   (define ops (att-value 'find-descendants ast
@@ -137,7 +112,8 @@
 (define (do-one state options)
   (parameterize ((xsmith-state state)
                  (xsmith-options options))
-    (let* ([ast (generate-random-prog (fresh-Prog))]
+    (let* ([ast (cish2-generate-ast 'Program)]
+           [nothing (add-precomment! ast)]
            [pre-analysis-print (printf "/*\n")]
            [ast (if (hash-ref (xsmith-option 'features-disabled)
                               'unsafe-math/range #t)
