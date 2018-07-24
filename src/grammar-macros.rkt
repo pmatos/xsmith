@@ -10,6 +10,8 @@
  current-xsmith-grammar
  (all-from-out "define-grammar-property.rkt")
 
+ current-hole
+ 
  make-hole
  make-fresh-node
 

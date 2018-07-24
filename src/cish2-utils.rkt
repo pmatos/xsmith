@@ -7,29 +7,19 @@
 
 (require
  "xsmith-utils.rkt"
- "grammar-macros.rkt"
  racr
- racr/testing ;; racr/testing is needed for print-ast
  pprint
  racket/random
- racket/string
  racket/dict
- racket/set
  racket/match
  racket/math
- racket/class
  (prefix-in rt: rosette)
  (except-in racket/list empty)
- syntax/parse/define
- "random.rkt"
- "choice.rkt"
  "scope-graph.rkt"
  "xsmith-options.rkt"
- "xsmith-version.rkt"
  (for-syntax
   racket/base
   syntax/parse
-  racket/syntax
   ))
 
 

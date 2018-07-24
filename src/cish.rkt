@@ -10,7 +10,6 @@
  "core-properties.rkt"
 
  racr
- racr/testing ;; racr/testing is needed for print-ast
  (except-in pprint
             semi rparen rbrace lparen lbrace comma
             colon

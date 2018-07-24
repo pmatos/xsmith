@@ -8,30 +8,22 @@
  "core-properties.rkt"
 
  racr
- racr/testing ;; racr/testing is needed for print-ast
  (except-in pprint
             semi rparen rbrace lparen lbrace comma
             colon
             )
- racket/random
- racket/string
  racket/dict
  racket/set
  racket/match
- racket/math
  racket/class
  (prefix-in rt: rosette)
  (except-in racket/list empty)
- "random.rkt"
- "choice.rkt"
  "scope-graph.rkt"
  "xsmith-options.rkt"
- "xsmith-version.rkt"
  syntax/parse/define
  (for-syntax
   racket/base
   syntax/parse
-  racket/syntax
   ))
 
 

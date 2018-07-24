@@ -7,17 +7,12 @@
  "core-properties.rkt"
  "cish2-utils.rkt"
  "scope-graph.rkt"
- "choice.rkt"
  (only-in pprint [empty empty-doc])
  racr
  racket/random
  racket/class
  racket/dict
- racket/list
- (for-syntax
-  racket/base
-  syntax/parse
-  ))
+ )
 
 
 (define-spec-component cish2-grammar)
