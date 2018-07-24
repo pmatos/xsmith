@@ -34,7 +34,12 @@
     (dict-set! options 'output-filename filename)]
    [("--server") run-as-server?
                  "Run as a web server instead of generating a single program."
-                 (set! server? run-as-server?)]
+                 (cond
+                   [(equal? run-as-server? "true") (set! server? #t)]
+                   [(equal? run-as-server? "false") (set! server? #f)]
+                   [else (error
+                          (format"Expected “true” or “false” for --server.  Got “~a”."
+                                 run-as-server?))])]
    [("--port") n "Use port n instead of 8080 (when running as server)."
                (set! port (string->number n))]
 
