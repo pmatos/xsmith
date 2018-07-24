@@ -1,40 +1,8 @@
-#!/usr/bin/env racket
 #lang racket/base
-;; -*- mode: Racket -*-
-;;
-;; Copyright (c) 2017 The University of Utah
-;; All rights reserved.
-;;
-;; This file is part of Xsmith, a generator of highly effective fuzz testers.
-;;
-;; Redistribution and use in source and binary forms, with or without
-;; modification, are permitted provided that the following conditions are met:
-;;
-;;   * Redistributions of source code must retain the above copyright notice,
-;;     this list of conditions and the following disclaimer.
-;;
-;;   * Redistributions in binary form must reproduce the above copyright
-;;     notice, this list of conditions and the following disclaimer in the
-;;     documentation and/or other materials provided with the distribution.
-;;
-;; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-;; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-;; IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-;; ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-;; LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-;; CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-;; SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-;; INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-;; CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-;; ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-;; POSSIBILITY OF SUCH DAMAGE.
+(provide xsmith-command-line)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;(require "gen-term.rkt")
 (require
  racket/dict
- "cish-gen-term.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
  )
@@ -43,10 +11,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(module+ main
-  (require racket/cmdline)
+(require racket/cmdline)
 
+(define (xsmith-command-line make-generator)
   (define features-disabled (dict-ref options 'features-disabled))
+  (define port 8080)
+  (define given-seed #f)
+  (define server? #f)
 
   (command-line
    #:help-labels
@@ -60,6 +31,11 @@
     filename
     "Output generated program to <filename>"
     (dict-set! options 'output-filename filename)]
+   [("--server") run-as-server?
+                 "Run as a web server instead of generating a single program."
+                 (set! server? run-as-server?)]
+   [("--port") n "Use port n instead of 8080 (when running as server)."
+               (set! port (string->number n))]
 
    #:help-labels
    "[[LANGUAGE-GENERATION OPTIONS]]"
@@ -97,8 +73,23 @@
   (unless (dict-has-key? options 'random-seed)
     (dict-set! options 'random-seed (random (expt 2 31))))
 
-  (do-it options))
+  (define generate-and-print (make-generator options))
+
+
+  (if server?
+      (let ([serve/servlet (dynamic-require 'web-server/servlet-env 'serve/servlet)]
+            [response/xexpr (dynamic-require 'web-server/servlet 'response/xexpr)])
+        (define (servlet-start req)
+          (let ((out (open-output-string)))
+            (parameterize ((current-output-port out))
+              (generate-and-print))
+            (response/xexpr
+             `(html (head (title "Random C Program"))
+                    (body (pre ,(get-output-string out)))))))
+        (eprintf "starting server...\n")
+        (serve/servlet servlet-start #:port port #:command-line? #t))
+      (generate-and-print))
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 ;; End of file.

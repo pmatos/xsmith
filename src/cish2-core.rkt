@@ -33,7 +33,6 @@
   racket/syntax
   ))
 
-(provide do-it make-do-it)
 
 
 
@@ -122,14 +121,6 @@
 (define ast-add-unsafe-math/symbolic
   {ast-add-unsafe-math (λ (n) (att-value 'unsafe-op-if-possible/symbolic n))})
 
-(define (do-it options)
-  (let ((state (make-generator-state)))
-    ;; Initialize the state from the options.
-    ;; Pretty lame to use `parameterize` just for this.  XXX Fix options API.
-    (parameterize ((xsmith-options options))
-      (random-seed (xsmith-option 'random-seed)))
-    (do-one state options)))
-
 (define (make-do-it options)
   (let ((state (make-generator-state)))
     ;; Initialize the state from the options.
@@ -178,6 +169,10 @@
                      (abstract-interp-wrap/range ast range-store-top
                                                  empty-abstract-flow-control-return)))))
       )))
+
+(module+ main
+  (require "xsmith-command-line.rkt")
+  (xsmith-command-line make-do-it))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
