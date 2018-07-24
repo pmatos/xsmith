@@ -1,12 +1,12 @@
 #lang racket/base
 
 (provide
- declare-spec
+ define-spec-component
  add-to-grammar
  add-ag-rule
  add-choice-rule
  add-prop
- assemble-spec-parts
+ assemble-spec-components
  current-xsmith-grammar
  define-property
 
@@ -48,6 +48,7 @@
   racket/dict
   racket/match
   "grammar-properties.rkt"
+  "spec-component-struct.rkt"
   ))
 
 
@@ -75,20 +76,18 @@
 
 
 (define-for-syntax (spec->export-name spec-name-stx)
-  (format-id spec-name-stx "%%~a-grammar-info-hash" spec-name-stx))
+  (syntax-parse spec-name-stx
+    [name:id spec-name-stx]))
 
-;; This will export a grammar-info-hash, and the other macros in this module will edit the exported hash.
-(define-syntax-parser declare-spec
-  [(_ spec-name:identifier)
-   (with-syntax ([export-name (spec->export-name #'spec-name)])
-     #'(begin
-         ;; TODO - should the provide be in a submodule?
-         (provide (for-syntax export-name))
-         (begin-for-syntax
-           (define export-name (hash 'grammar-info (hash)
-                                     'ag-info (hash)
-                                     'cm-info (hash)
-                                     'props-info (hash))))))])
+;; This defines a spec component which will be modified by add-ag, add-to-grammar, etc
+(define-syntax-parser define-spec-component
+  [(_ component-name:identifier)
+   (define spec-inner-id (datum->syntax #'here (gensym "%%spec-component-inner-id_")))
+   #`(begin
+       (define-for-syntax #,spec-inner-id
+         (spec-component-struct (hash) (hash) (hash) (hash)))
+       (define-syntax component-name
+         (spec-component-struct-ref (quote-syntax #,spec-inner-id))))])
 
 
 
@@ -248,86 +247,96 @@
   ;; TODO - filter abstracts
   (get-subs name-stx))
 
-(define-for-syntax (stuff-export-hash export-hash-name subhash-key keys-stx infos-stx)
-  (syntax-parse #`(#,keys-stx #,infos-stx #,export-hash-name #,subhash-key)
-    [((key ...) (info ...) export-hash-name subhash-key)
-     #'(begin-for-syntax
-         (let* ([new-sub-hash
-                 (for/fold ([phash (hash-ref export-hash-name subhash-key (hash))])
-                           ([k '(key ...)]
-                            [ifo (list (quote-syntax info) ...)])
-                   (hash-set phash k (cons ifo (hash-ref phash k '()))))])
-           (set! export-hash-name
-                 (hash-set export-hash-name subhash-key new-sub-hash))))]))
+(define-for-syntax (stuff-spec-component spec-component-name
+                                         subhash-getter-stx
+                                         subhash-setter-stx
+                                         keys-stx
+                                         infos-stx)
+  (syntax-parse #`(#,keys-stx #,infos-stx #,spec-component-name)
+    [((key ...) (info ...) component-name:spec-component)
+     (with-syntax ([sc-ref (spec-component-struct-ref-ref
+                            (syntax-local-value #'component-name))])
+       #`(begin-for-syntax
+           (let* ([new-sub-hash
+                   (for/fold ([phash (#,subhash-getter-stx sc-ref)])
+                             ([k '(key ...)]
+                              [ifo (list (quote-syntax info) ...)])
+                     (hash-set phash k (cons ifo (hash-ref phash k '()))))])
+             (set! sc-ref (#,subhash-setter-stx sc-ref new-sub-hash)))))]))
 
 (define-syntax-parser add-to-grammar
-  [(_ grammar-name:id
+  [(_ component:spec-component
       clause:grammar-clause
       ;; TODO - each node in the grammar should be able to add in-line properties here
       ...)
-   (stuff-export-hash (spec->export-name #'grammar-name)
-                      #''grammar-info
-                      #'((clause.node-name grammar-name) ...)
-                      #'(clause ...))])
+   (stuff-spec-component #'component
+                         #'spec-component-struct-grammar-info
+                         #'set-spec-component-struct-grammar-info
+                         #'((clause.node-name component-name) ...)
+                         #'(clause ...))])
 
-(define-syntax-parser add-prop-generic
-  [(_ prop/ag/cm-type
-      grammar-name:id
+(define-for-syntax (add-prop-generic component-getter component-setter arg-stx)
+  (syntax-parse arg-stx
+    [(component:spec-component
       prop/ag/cm-name:id
       [(~and node-name (~or node-name-id:id #f)) prop:expr] ...+)
-   (stuff-export-hash (spec->export-name #'grammar-name)
-                      #'prop/ag/cm-type
-                      #'((prop/ag/cm-name node-name) ...)
-                      #'([prop/ag/cm-name node-name prop] ...))])
+     (stuff-spec-component #'component
+                           component-getter
+                           component-setter
+                           #'((prop/ag/cm-name node-name) ...)
+                           #'([prop/ag/cm-name node-name prop] ...))]))
 
 (define-syntax-parser add-ag-rule
-  [(_ arg ...) #'(add-prop-generic 'ag-info arg ...)])
+  [(_ arg ...) (add-prop-generic
+                #'spec-component-struct-ag-rule-info
+                #'set-spec-component-struct-ag-rule-info
+                #'(arg ...))])
 (define-syntax-parser add-choice-rule
-  [(_ arg ...) #'(add-prop-generic 'cm-info arg ...)])
+  [(_ arg ...) (add-prop-generic
+                #'spec-component-struct-choice-rule-info
+                #'set-spec-component-struct-choice-rule-info
+                #'(arg ...))])
 
 (define-syntax-parser add-prop
-  [(_ arg ...) #'(add-prop-generic 'props-info arg ...)])
+  [(_ arg ...) (add-prop-generic
+                #'spec-component-struct-property-info
+                #'set-spec-component-struct-property-info
+                #'(arg ...))])
 
-(define-for-syntax (spec-hash-merge part-hashes)
+(define-for-syntax (spec-hash-merge spec-components)
   (for/fold ([bighash (hash)])
-            ([subhash-key '(grammar-info ag-info cm-info props-info)])
+            ([component-project (list spec-component-struct-grammar-info
+                                      spec-component-struct-ag-rule-info
+                                      spec-component-struct-choice-rule-info
+                                      spec-component-struct-property-info)]
+             [subhash-key '(grammar-info ag-info cm-info props-info)])
     (define subhash
       (for/fold ([h (hash)])
-                ([p (map (λ (x) (hash-ref x subhash-key))
-                         part-hashes)])
+                ([p (map (λ (x) (component-project x))
+                         spec-components)])
         (for/fold ([h h])
                   ([k (hash-keys p)])
           (hash-set h k (append (hash-ref p k)
                                 (hash-ref h k '()))))))
     (hash-set bighash subhash-key subhash)))
 
-(define-syntax-parser assemble-spec-parts
+(define-syntax-parser assemble-spec-components
   [(_ spec
       (~optional (~seq #:properties (~and extra-props (prop-name:id ...))))
-      require-path ...)
-   (with-syntax ([(req-name ...) (map (λ (rp-stx)
-                                         (format-id #'spec
-                                                    "~a__~a"
-                                                    (spec->export-name #'spec)
-                                                    rp-stx))
-                                       (syntax->datum #'(require-path ...)))]
-                 [export-name-original (spec->export-name #'spec)]
-                 [extra-props (or (attribute extra-props) #'())]
-                 [next-macro (format-id #'spec "assemble-spec-parts-next_~a" #'spec)])
-     ;; We now have the require specifications for the grammar parts as syntax,
-     ;; and the easiest way to retrieve and use them is by having the output
-     ;; of this macro include the require specifications as well as the
-     ;; definition of a new macro that uses the new names required.
-     ;; So the rest of the processing is done by the macro we define (and call)
-     ;; in the output here.
+      component:spec-component ...)
+   (with-syntax ([extra-props (or (attribute extra-props) #'())]
+                 [(spec-ref ...) (map (λ (x) (spec-component-struct-ref-ref
+                                              (syntax-local-value x)))
+                                      (syntax->list #'(component ...)))])
+     ;; The spec-ref names we got out of the component names are
+     ;; phase 1 names that we have at phase 1 in template form, so
+     ;; we need to output a template that defines a macro that references them
+     ;; in the macro body at phase 1.
+     ;; Crazy macro stuff.
      #'(begin
-         (require (rename-in (only-in require-path export-name-original)
-                             [export-name-original req-name]))
-         ...
-         ;; define a new macro to use the req-names...
-         (define-syntax-parser assemble-spec-parts_stage2
-           [(_ spec-name)
-            (define parts (list req-name ...))
+         (define-syntax-parser assemble_stage2
+           [(_ spec-name extra-props-name)
+            (define parts (list spec-ref ...))
             (define combined (spec-hash-merge parts))
             (define (parts->stx key)
               (let ([phash (hash-ref combined key)])
@@ -337,17 +346,16 @@
             (define ag-parts (parts->stx 'ag-info))
             (define cm-parts (parts->stx 'cm-info))
             (define props-parts (parts->stx 'props-info))
-
-            #`(assemble-spec-parts_stage3
+            #`(assemble_stage3
                spec-name
-               extra-props
+               extra-props-name
                #,g-parts
                #,ag-parts
                #,cm-parts
                #,props-parts)])
-         (assemble-spec-parts_stage2 spec)))])
+         (assemble_stage2 spec extra-props)))])
 
-(define-syntax-parser assemble-spec-parts_stage3
+(define-syntax-parser assemble_stage3
   ;; Check for duplicates, then run transformers
   [(_ spec
       extra-props
@@ -464,13 +472,13 @@
                                      (dict-ref infos-hash 'ag-info))]
                  [(n-cm-clause ...) (rule-hash->clause-list
                                      (dict-ref infos-hash 'cm-info))])
-     #'(assemble-spec-parts_stage4
+     #'(assemble_stage4
         spec
         (n-g-part ...)
         (n-ag-clause ...)
         (n-cm-clause ...)))])
 
-(define-syntax-parser assemble-spec-parts_stage4
+(define-syntax-parser assemble_stage4
   ;; Sort the grammar clauses
   [(_ spec
       (g-part:grammar-clause ...)
@@ -484,13 +492,13 @@
                         <
                         #:key grammar-part-n-parents
                         #:cache-keys? #t)])
-     #'(assemble-spec-parts_stage5
+     #'(assemble_stage5
         spec
         (g-part-sorted ...)
         (ag-clause ...)
         (cm-clause ...)))])
 
-(define-syntax-parser assemble-spec-parts_stage5
+(define-syntax-parser assemble_stage5
   ;; Assemble everything!
   ;; First we use with-syntax and syntax-parse to bind a bunch of names
   ;; that are needed in the template.  Then there is a giant template.

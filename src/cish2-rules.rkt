@@ -1,5 +1,7 @@
 #lang racket/base
 
+(provide cish2-rules)
+
 (require
  "grammar-macros.rkt"
  "cish2-utils.rkt"
@@ -33,24 +35,24 @@
   ))
 
 
-(declare-spec cish2)
+(define-spec-component cish2-rules)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; ag rules
 
-(define-syntax-parser ag-cish2
+(define-syntax-parser ag
   [(_ arg ...)
-   #'(add-ag-rule cish2 arg ...)])
+   #'(add-ag-rule cish2-rules arg ...)])
 
 
-(ag-cish2 ast-serial-number
-          ;; This is basically just a hack to signal stale state for the Rosette assertion stack.
-          ;; I don't think this is really necessary -- checking eq? on the top-ancestor-node should be equivalent to checking this serial number.
-          [Program (λ (n) (fresh-int!))]
-          [Node (λ (n) (att-value 'ast-serial-number (parent-node n)))])
+(ag ast-serial-number
+    ;; This is basically just a hack to signal stale state for the Rosette assertion stack.
+    ;; I don't think this is really necessary -- checking eq? on the top-ancestor-node should be equivalent to checking this serial number.
+    [Program (λ (n) (fresh-int!))]
+    [Node (λ (n) (att-value 'ast-serial-number (parent-node n)))])
 
 
-(ag-cish2
+(ag
  pretty-print
  [Program (λ (n)
             (define children (append (ast-children (ast-child 'declarations n))
@@ -268,7 +270,7 @@
  )
 
 
-(ag-cish2
+(ag
  scope-graph-binding
  [FunctionDefinition
   (λ (n) (binding (ast-child 'name n)
@@ -291,11 +293,11 @@
   (λ (n) #f)]
  [Node (λ (n) #f)])
 
-(ag-cish2
+(ag
  visible-bindings
  [Node (λ (n)
          (visible-bindings (att-value 'scope-graph-scope n)))])
-(ag-cish2
+(ag
  illegal-variable-names
  [Node (λ (n) '())]
  [Program (λ (n) (map (λ (cn) (ast-child 'name cn))
@@ -309,12 +311,12 @@
  [Expression (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
  )
 
-(ag-cish2
+(ag
  current-function-return-type
  [Statement (λ (n) (att-value 'current-function-return-type (parent-node n)))]
  [FunctionDefinition (λ (n) (ast-child 'typename n))])
 
-(ag-cish2
+(ag
  children-type-dict
  ;; For eg. functions to associate a child node with the type it must be
  [ExpressionStatement (λ (n) (hasheq (ast-child 'Expression n) #f))]
@@ -358,7 +360,7 @@
                                 (ast-child 'else n) t)))]
  ;; TODO - function call, anything with child expressions...
  )
-(ag-cish2
+(ag
  type-context
  [BinaryExpression (λ (n) (let ([t (or (dict-ref (att-value 'children-type-dict
                                                             (parent-node n))
@@ -368,11 +370,11 @@
                               n))]
  )
 
-(ag-cish2
+(ag
  block-last-statement
  [Block (λ (n) (let ([ns (ast-children (ast-child 'statements n))])
                  (and (not (null? ns)) (car (reverse ns)))))])
-(ag-cish2
+(ag
  children-return-position-dict
  ;; Dictionary that will contain true for children that are in return position.
  ;; Else nothing or #f -- IE check with #f as default.
@@ -385,14 +387,14 @@
                              (hasheq)))]
  [Statement (λ (n) (hasheq))]
  [FunctionDefinition (λ (n) (hasheq (ast-child 'Block n) #t))])
-(ag-cish2
+(ag
  in-return-position?
  [Statement (λ (n) (let ([rp-dict (att-value 'children-return-position-dict
                                              (parent-node n))])
                      (dict-ref rp-dict n #f)))]
  [Node (λ (n) #f)])
 
-(ag-cish2
+(ag
  children-hint-dict
  ;; dictionary will contain a list of hints (or nothing) for each child
  [IfExpression (λ (n) (hasheq (ast-child 'test n) (list bool-hint)))]
@@ -405,12 +407,12 @@
                  (list assignment-hint application-hint)))]
  [Node (λ (n) (hasheq))])
 
-(ag-cish2 hints
-          [Node (λ (n) (dict-ref (att-value 'children-hint-dict (ast-parent n))
-                                 n
-                                 '()))])
+(ag hints
+    [Node (λ (n) (dict-ref (att-value 'children-hint-dict (ast-parent n))
+                           n
+                           '()))])
 
-(ag-cish2
+(ag
  children-misc-constraint-dict
  ;; dictionary will contain a set of constraints (or nothing) for each child
  [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n) (list 'constant)))]
@@ -423,7 +425,7 @@
 (define (default-misc-constraints n)
   (set-union (misc-constraint-dict-ref n)
              (att-value 'misc-constraints (ast-parent n))))
-(ag-cish2
+(ag
  misc-constraints
  ;; misc-constraints returns a set of symbols
  [Program (λ (n) '())]
@@ -590,7 +592,7 @@
     (rt:clear-asserts!)))
 
 (add-ag-rule
- cish2
+ cish2-rules
  symbolic-interp
  ;; Get the single global result
  [Node (λ (n)
@@ -613,7 +615,7 @@
             (define fv (fresh-symbolic-var (att-value 'type-context n)))
             (define val-assert (apply rt:|| (map (λ (v) (rt:= fv v)) vals)))
             (list fv (apply set-union (list val-assert) assert-sets))]))])
-(ag-cish2
+(ag
  abstract-interp/range
  ;; Get the single global result of abstract interpretation of this node.
  [Node (λ (n)
@@ -633,7 +635,7 @@
             (list (apply abstract-value-merge*/range vs)
                   (apply abstract-store-merge*/range ss)
                   (apply abstract-flow-control-return-merge* rs))]))])
-(ag-cish2
+(ag
  get-containing-function-definition
  [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main"))
                                 n
@@ -641,7 +643,7 @@
  [Program (λ (n) n)]
  [Node (λ (n) (att-value 'get-containing-function-definition (ast-parent n)))])
 
-(ag-cish2
+(ag
  ;; This is essentially the same as abstract-interp-result-hash/range
  symbolic-interp-result-hash
  [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main"))
@@ -652,7 +654,7 @@
  [Node (λ (n) (att-value 'symbolic-interp-result-hash (ast-parent n)))]
  )
 
-(ag-cish2
+(ag
  ;; To get a general interp result for any given node, we need to cache
  ;; the results of evaluation when we interpret the whole function it is in.
  ;; We collect results in this hash, then merge if there are multiple results.
@@ -668,7 +670,7 @@
  [Node (λ (n) (att-value 'abstract-interp-result-hash/range (ast-parent n)))]
  )
 
-(ag-cish2
+(ag
  ;; For implementing abstract-interp/range.
  ;; For now, store is table from binding to abstract value.
  ;; Returns (list abstract-value new-store)
@@ -719,9 +721,9 @@
  non-return statements) should return void.
  |#
  #;[VoidReturnStatement
-  (λ (n store flow-returns)
-    (list abstract-value/range/top store
-          (must-return flow-returns abstract-value/range/top store)))]
+    (λ (n store flow-returns)
+      (list abstract-value/range/top store
+            (must-return flow-returns abstract-value/range/top store)))]
  [ExpressionStatement
   (λ (n store flow-returns)
     (abstract-interp-wrap/range
@@ -1030,7 +1032,7 @@
 
 
 
-(ag-cish2
+(ag
  ;;; Return #f if the unsafe op can't be safely used,
  ;;; otherwise return the name of the unsafe type to be used
  ;;; as a refinement.
@@ -1056,7 +1058,7 @@
    'UnsafeModulusExpression
    division-safety-check/range}])
 
-(ag-cish2
+(ag
  unsafe-op-if-possible/symbolic
  [AdditionExpression
   {safe-binary-op-swap/symbolic
@@ -1203,7 +1205,7 @@
                           assertions))
   (list #f b-store #f t-asserts))
 
-(ag-cish2
+(ag
  symbolic-interp-do
  ;; This rule adds rosette assertions, so it should only be called when
  ;; the rosette environment has been prepared (eg. pushed/popped an
@@ -1427,7 +1429,7 @@
                       #:bool-result? #t}]
  )
 
-(ag-cish2
+(ag
  ;;; Find all children satisfying the predicate (the given node included)
  find-descendants
  [Node (λ (n predicate)
@@ -1439,7 +1441,7 @@
              (cons n matches)
              matches))])
 
-(ag-cish2
+(ag
  ;;; Find the first node that satisfies the predicate (the given node included)
  find-a-descendant
  [Node (λ (n predicate)
@@ -1448,24 +1450,24 @@
              (for/or ([c (filter ast-node? (ast-children/flat n))])
                (att-value 'find-a-descendant c predicate))))])
 
-(ag-cish2
+(ag
  find-direct-resolved
  [Node (λ (n node-type)
          (remove-duplicates
           (map resolve-variable-reference-node
                (att-value 'find-descendants
                           n (λ (cn) (node-subtype? cn node-type))))))])
-(ag-cish2
+(ag
  find-direct-assignments
  [Node (λ (n) (att-value 'find-direct-resolved n 'AssignmentExpression))])
-(ag-cish2
+(ag
  find-direct-function-call-refs
  [Node (λ (n) (att-value 'find-direct-resolved n 'FunctionApplicationExpression))])
-(ag-cish2
+(ag
  find-direct-variable-references
  [Node (λ (n) (att-value 'find-direct-resolved n 'VariableReference))])
 
-(ag-cish2
+(ag
  find-transitive-function-call-refs
  [Node (λ (n)
          (define (rec to-search searched)
@@ -1480,7 +1482,7 @@
                  (rec to-search searched))))
          (rec (att-value 'find-direct-function-call-refs n) '()))])
 
-(ag-cish2
+(ag
  find-transitive-resolved
  [Node (λ (n node-type)
          (remove-duplicates
@@ -1491,10 +1493,10 @@
                                                     'declaration-node)
                                           node-type))
                         (att-value 'find-transitive-function-call-refs n))))))])
-(ag-cish2
+(ag
  find-transitive-assignments
  [Node (λ (n) (att-value 'find-transitive-resolved n 'AssignmentExpression))])
-(ag-cish2
+(ag
  find-transitive-variable-references
  [Node (λ (n) (att-value 'find-transitive-resolved n 'VariableReference))])
 
@@ -1506,7 +1508,7 @@
 
 (define-syntax-parser cm
   [(_ method [node-name lambda-body] ...+)
-   #'(add-choice-rule cish2 method [node-name (λ () lambda-body)] ...)])
+   #'(add-choice-rule cish2-rules method [node-name (λ () lambda-body)] ...)])
 
 #|
 Apparently class definitions don't let public methods be defined with
@@ -1576,7 +1578,7 @@ few of these methods.
 
 
 (add-prop
- cish2
+ cish2-rules
  wont-over-deepen
  [ExpressionStatement #t]
  [ValueReturnStatement #t]
@@ -1607,7 +1609,7 @@ few of these methods.
     )
 
 (add-choice-rule
- cish2
+ cish2-rules
  constrain-type
  [Node (λ () #t)]
  [AssignmentExpression
@@ -1695,7 +1697,7 @@ few of these methods.
     ;; if-zero-generator-e is used if nonzero is required and the first generator gives 0
     [(_ nodename btype feature generator-e if-zero-generator-e)
      #'(begin
-         (add-prop cish2 fresh
+         (add-prop cish2-rules fresh
                    [nodename (let* ([t (att-value 'type-context current-hole)]
                                     [v1 generator-e]
                                     [constraints (if (basic-type? t)
@@ -1739,11 +1741,11 @@ few of these methods.
          ;; TODO - this broke at some point when I switched to using all the macros.
          ;;        Commenting it out is quicker than fixing it.
          #;(cm choice-weight
-             [nodename (if (and bool-like (member bool-hint
-                                                  (att-value 'hints current-hole)))
-                           (* (hint-weight-multiplier bool-hint)
-                              (super choice-weight))
-                           (super choice-weight))])
+               [nodename (if (and bool-like (member bool-hint
+                                                    (att-value 'hints current-hole)))
+                             (* (hint-weight-multiplier bool-hint)
+                                (super choice-weight))
+                             (super choice-weight))])
          (cm constrain-type
              [nodename (let ([t (att-value 'type-context current-hole)])
                          (cond [(if output-type

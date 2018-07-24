@@ -1,5 +1,7 @@
 #lang racket/base
 
+(provide cish2-grammar)
+
 (require
  "grammar-macros.rkt"
  "cish2-properties.rkt"
@@ -18,10 +20,10 @@
   ))
 
 
-(declare-spec cish2)
+(define-spec-component cish2-grammar)
 
 (add-to-grammar
- cish2
+ cish2-grammar
  [Node #f ([precomment = empty-doc]
            [postcomment = empty-doc])]
  [Program Node ([declarations : Declaration * = (random 7)]
@@ -93,7 +95,7 @@
 
  )
 
-(add-prop cish2
+(add-prop cish2-grammar
           may-be-generated
           ;; abstract nodes
           [Declaration #f]
@@ -114,7 +116,7 @@
           [UnsafeModulusExpression #f]
           )
 
-(add-prop cish2
+(add-prop cish2-grammar
           depth-increase-predicate
           [Block (λ (n) (if (member (node-type (parent-node n))
                                     '(IfStatement
@@ -130,7 +132,7 @@
           [AssignmentExpression (λ(n)#f)]
           [Declaration (λ(n)#f)])
 
-(add-prop cish2
+(add-prop cish2-grammar
           fresh
           [IfElseStatement (hash
                             'then
@@ -173,7 +175,7 @@
                               (make-fresh-node 'FormalParam))))]
           )
 
-(add-prop cish2
+(add-prop cish2-grammar
           introduces-scope
           [Program #t]
           [FunctionDefinition #t]
@@ -181,7 +183,7 @@
           [ForStatement #t])
 
 (add-prop
- cish2
+ cish2-grammar
  choice-filters-to-apply
  [#f (may-be-generated-method
       features-enabled

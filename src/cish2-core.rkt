@@ -25,6 +25,8 @@
  "scope-graph.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
+ "cish2-grammar.rkt"
+ "cish2-rules.rkt"
  (for-syntax
   racket/base
   syntax/parse
@@ -37,11 +39,11 @@
 
 
 
-(assemble-spec-parts
+(assemble-spec-components
  cish2
  #:properties (depth-increase-predicate fresh wont-over-deepen introduces-scope)
- "cish2-grammar.rkt"
- "cish2-rules.rkt"
+ cish2-grammar
+ cish2-rules
  )
 
 
