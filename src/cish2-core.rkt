@@ -111,7 +111,7 @@
           (and refined-type
                (begin
                  (rewrite-refine n refined-type)
-                 (eprintf "Removing a safe math op.\n")
+                 (printf "Removing a safe math op.\n")
                  #t)))
         #f))
   (perform-rewrites ast 'bottom-up transformer)
@@ -138,20 +138,20 @@
   (parameterize ((xsmith-state state)
                  (xsmith-options options))
     (let* ([ast (generate-random-prog (fresh-Prog))]
-           [pre-analysis-print (eprintf "/*\n")]
+           [pre-analysis-print (printf "/*\n")]
            [ast (if (hash-ref (xsmith-option 'features-disabled)
                               'unsafe-math/range #t)
                     ast
                     (begin
-                      (eprintf "Starting range analysis...\n")
+                      (printf "Starting range analysis...\n")
                       (ast-add-unsafe-math/range ast)))]
            [ast (if (hash-ref (xsmith-option 'features-disabled)
                               'unsafe-math/symbolic #t)
                     ast
                     (begin
-                      (eprintf "Starting symbolic analysis...\n")
+                      (printf "Starting symbolic analysis...\n")
                       (ast-add-unsafe-math/symbolic ast)))]
-           [post-analysis-print (eprintf "*/\n")]
+           [post-analysis-print (printf "*/\n")]
            )
       (if (dict-has-key? (xsmith-options) 'output-filename)
           (call-with-output-file (xsmith-option 'output-filename)
