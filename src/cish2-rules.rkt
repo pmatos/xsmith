@@ -289,8 +289,6 @@
   (λ (n) (binding (ast-child 'name n)
                   (hash 'declaration-node n
                         'type (ast-child 'typename n))))]
- [DeclarationHole
-  (λ (n) #f)]
  [Node (λ (n) #f)])
 
 (ag

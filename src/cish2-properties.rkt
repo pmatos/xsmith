@@ -250,21 +250,19 @@ hole for the type.
                      (att-value 'scope-graph-scope (parent-node n))
                      #f)
                  ;; bindings
-                 (att-value 'scope-graph-descendant-bindings n)
+                 (att-value 'scope-graph-descendant-bindings n #t)
                  ;; imports -- this exists in the scope graphs impl, but is unused...
-                 '())))]
-          ;; I would do error handling here, but it's handled building the
-          ;; previous hash.
-          )))
+                 '())))])))
 
     (define scope-graph-descendant-bindings-info
       (for/hash ([node nodes])
         (define field-info (dict-ref field-info-hash node))
         (values
          node
-         #`(λ (n)
+         #`(λ (n [is-first-node? #f])
              (if (or (att-value 'is-hole? n)
-                     (att-value 'scope-graph-introduces-scope? n))
+                     (and (not is-first-node?)
+                          (att-value 'scope-graph-introduces-scope? n)))
                  '()
                  (let ([this-node-binding (att-value 'scope-graph-binding n)]
                        [children-binding-lists
