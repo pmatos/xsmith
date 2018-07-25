@@ -42,6 +42,7 @@
  "private/choice.rkt"
  "private/define-grammar-property.rkt"
  "xsmith-utils.rkt"
+ "scope-graph.rkt"
  (for-syntax
   racket/base
   racket/syntax
@@ -370,6 +371,14 @@
               (send (choose-ast filtered) fresh)))
         (error 'hole->replacement
                "called on non-hole node"))))
+(define resolve-reference-name-function
+  (λ (node name)
+    (resolve-reference
+     (reference name (att-value 'scope-graph-scope node)))))
+(define visible-bindings-function
+  (λ (n)
+    (visible-bindings (att-value 'scope-graph-scope n))))
+
 
 
 #|
@@ -389,6 +398,8 @@ Additionally, it defines the following ag-rules within the RACR spec:
 * hole->replacement
 * find-descendants
 * find-a-descendant
+* resolve-reference-name
+* visible-bindings
 
 It also defines within the RACR spec all ag-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
 |#
@@ -813,6 +824,10 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                 [base-node-name find-descendants-function])
                        (ag-rule find-a-descendant
                                 [base-node-name find-a-descendant-function])
+                       (ag-rule resolve-reference-name
+                                [base-node-name resolve-reference-name-function])
+                       (ag-rule visible-bindings
+                                [base-node-name visible-bindings-function])
                        (compile-ag-specifications))))
 
                  ;; Define an ast-generator with a hygiene-bending name

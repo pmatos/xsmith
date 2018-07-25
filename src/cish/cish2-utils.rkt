@@ -338,9 +338,7 @@ Types can be:
         list)]))
 
 (define (resolve-variable-reference-node n)
-  (resolve-reference
-   (reference (ast-child 'name n)
-              (att-value 'scope-graph-scope n))))
+  (att-value 'resolve-reference-name n (ast-child 'name n)))
 
 
 

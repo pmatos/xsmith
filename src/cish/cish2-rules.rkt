@@ -290,10 +290,6 @@
  [Node (λ (n) #f)])
 
 (ag
- visible-bindings
- [Node (λ (n)
-         (visible-bindings (att-value 'scope-graph-scope n)))])
-(ag
  illegal-variable-names
  [Node (λ (n) '())]
  [Program (λ (n) (map (λ (cn) (ast-child 'name cn))
