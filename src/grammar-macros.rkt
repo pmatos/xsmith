@@ -16,7 +16,6 @@
  make-fresh-node
 
  (for-syntax
-  prop-clause
   grammar-component
   grammar-clause
 
