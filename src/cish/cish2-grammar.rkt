@@ -165,7 +165,7 @@
               (if main? "main" (fresh-var-name "func_"))
               'typename
               (if main? int-type (fresh-var-type))
-              'FormalParam
+              'params
               (expr->ast-list (if main? 0 (random 5))
                               (make-fresh-node 'FormalParam))))]
           )
