@@ -1,4 +1,6 @@
 # Additions to the patterns specified in the root `.gitignore' file.
 
 # Files made by compilation.
+compiled/
+doc/
 xsmith
