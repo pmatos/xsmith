@@ -9,3 +9,4 @@
                "racr"
                "rosette"
                ))
+(define build-deps '("scribble-lib"))
