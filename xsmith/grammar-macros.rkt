@@ -23,6 +23,7 @@
   grammar-node-name->field-info
 
   grammar-node-field-struct
+  grammar-node-field-struct?
   grammar-node-field-struct-name
   grammar-node-field-struct-type
   grammar-node-field-struct-kleene-star?
