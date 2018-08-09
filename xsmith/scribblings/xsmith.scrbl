@@ -19,21 +19,127 @@ TODO - there should be documentation about what so-far constitutes general infra
 
 @section{Overview}
 
-TODO - High level overview of Xsmith -- it has a DSL for specifying a grammar and auxiliary information to create a fuzzer for a language.
+Xsmith is a library for creating fuzzers.  It has a DSL for specifying a grammar auxiliary information about the grammar to produce a function which generates random ASTs for the language, as well as utilities for creating a command-line interface for generating a single program or starting a web server to generate one program per request.
+
+To create a fuzzer, users create a specification by combining @italic{spec components}, defined with @racket[define-spec-component].
+Each spec component can have portions of grammar as well as @italic{properties} added to them (using @racket[add-to-grammar] and @racket[add-prop]).
+The grammar and properties are used to generate a RACR grammar, attributes for the grammar, and @italic{choice objects}, which guide AST generation.
+
+Program generation starts by generating an AST hole for a given grammar production.
+Generation continues by filling holes with concrete AST nodes (which may introduce new holes as child nodes).
+Each time a hole is to be filled, the grammar specification is used to determine potential replacements, such as an addition expression or a subtraction expression for an expression hole.
+A choice object is created for each legal replacement.
+Choice objects have methods (choice-rules) which aid in choosing a concrete replacement.
+Some of these methods act as predicates to filter out choices that are not legal in a particular context, such as choices that introduce more holes when the maximum tree depth has been reached.
+The @racket['choice-weight] method determines the relative probability of each choice being chosen.
+The @racket['fresh] method determines how the choice is instantiated as a RACR node.
+Additional methods may be defined as helpers.
+Choice objects have access to the @racket[current-hole], so they may query RACR attributes in method bodies.
+Choice object classes follow the same hierarchy as the grammar, so method inheritance for choice objects is similar to attribute inheritance for RACR nodes.
+
+RACR attributes may be added directly with @racket[add-ag-rule] and @racket[add-choice-rule], but many are defined indirectly by various Xsmith properties.
+Properties allow users to specify various attributes and choice rules in a more declarative fashion.
+
 
 @subsection{RACR overview}
-TODO - explain at a high-level and link to the RACR docs.
+
+RACR is a library for Reference Attribute Grammars.  Xsmith's DSL defines a RACR grammar specification as well as various attributes.  The attributes are queried to determine how to generate the AST.
+
+RACR caches the results of attribute queries and keeps track of the nodes accessed for any attribute.  When nodes used in an attribute computation are changed, future queries to that attribute are re-computed.
+
+Users can specify new RACR attributes for Xsmith generators, but they should use @racket[add-ag-rule] or @racket[add-prop] from Xsmith rather than using RACR functions directly.  In expressions evaluated in the context of RACR attributes (ag-rules) or choice rules, RACR attributes may be queried.
+
+The main RACR APIs of interest are:
+
+Functions for querying the AST:
+
+@itemlist[
+@item{att-value}
+@item{ast-child}
+@item{ast-children}
+@item{ast-parent}
+]
+
+Xsmith provides a function which generates a complete AST, but users can also perform AST rewrites after initial program generation.  Relevant RACR functions for performing AST rewrites include:
+
+@itemlist[
+@item{perform-rewrites}
+]
+
+
+Full RACR documentation is @hyperlink["https://github.com/christoff-buerger/racr/blob/master/racr/documentation/contents.md"]{here}.
+
 
 @subsection{Holes and Choice Objects}
-TODO - explain what they are and how they work
+Hole nodes are RACR AST nodes.
+For every node type in the grammar, a hole node is created as a subclass of it, inheriting all of its RACR attributes.
+A hole can be recognized by the @racket['is-hole?] attribute.
+
+Consider the following (partial) grammar:
+@racketblock[
+(add-to-grammar
+ my-spec-component
+ [Expression #f ()]
+ [LiteralInt Expression (v = (random 1000))]
+ [AdditionExpression Expression ([left : Expression] [right : Expression])])
+]
+
+When a fresh AdditionExpression is created, it will include two Expression hole nodes.
+When the generator gets to those holes, a choice object is created for each subclass of Expression (including Expression itself unless it is disabled with the @racket[may-be-generated] property).
+The choice objects have types corresponding to LiteralInt and AdditionExpression, and therefore may have different implementations for various choice methods.
+The choice objects all have access to the Expression hole (through @racket[current-hole]), but while choice objects have access to their specialized choice method implementations, the hole is of type Expression, and so all RACR attributes (ag-rules) that may be queried are specialized only as far as Expression, not to LiteralInt or AdditionExpression.
+
+Note that hole node types are created for every type in the grammar (including LiteralInt and AdditionExpression), but more specialized holes are only used if the grammar specifies that a node's child must be specifically that kind of expression, or if a custom @racket[fresh] implementation uses @racket[make-hole] with the specific kind of expression.
+
+TODO - maybe say something about how choice objects are filtered, how choice-weight affects things, etc.
+
+@subsection{Scope Graphs}
+TODO - exlanation about how Xsmith uses scope graphs.
 
 @subsection{Minimal Example}
 TODO - I think a very minimal arithmetic language definition could fit right here.
 
 @section{API Reference}
 
-@subsection{Auto-generated ag-rules and choice-rules}
-TODO - give full list of them
+@subsection[#:tag "generated-rules"]{Auto-generated ag-rules and choice-rules}
+Many attributes and choice-rules are auto-generated by Xsmith.
+
+The following are always defined by @racket[assemble-spec-components]:
+@itemlist[
+@item{@racket['hole->choice-list], which does TODO}
+@item{@racket['is-hole?], which does TODO}
+@item{@racket['hole->replacement], which does TODO}
+@item{@racket['find-descendants], which does TODO}
+@item{@racket['find-a-descendant], which does TODO}
+@item{@racket['resolve-reference-name], which does TODO}
+@item{@racket['visible-bindings], which does TODO}
+]
+
+TODO - document all of the rules below:
+
+The following attributes are defined by properties:
+ast-depth  -- by depth-increase-predicate property
+scope-graph-introduces-scope -- by introduces-scope property (probably should be private)
+scope-graph-scope -- by introduces-scope property (probably should be private)
+scope-graph-descendant-bindings -- by introduces-scope property (probably should be private)
+
+The following choice methods are defined by properties:
+may-be-generated-method (should be private) -- by may-be-generated property
+fresh (maybe should be private -- I provide the make-fresh-node function around it) -- by fresh property
+wont-over-deepen -- by wont-over-deepen property (probably should be private).
+apply-choice-filters -- by choice-filters-to-apply property (probably should be private).
+
+The following choice methods are defined automatically but may be overridden directly:
+choice-weight
+
+The following attributes are NOT defined automatically, but are required:
+TODO -- I think there may still be some.  But there ultimately shouldn't be any.
+
+The following choice methods are NOT defined automatically, but are required:
+TODO -- I think there may still be some.  But there ultimately shouldn't be any.
+
+
+TODO - they can't be hygienic and therefore properly hidden from the user, but attributes and choice methods that ought to be implementation-private should at least have a naming convention to keep them separate.  Like -xsmith-<whatever>.  Then rather than documenting that such names exist, I can just say "don't use names of this form".  The same goes for hole node names and the auto-generated parent node name.
 
 @subsection{grammar-macros.rkt}
 @defmodule[xsmith/grammar-macros]
@@ -63,15 +169,16 @@ Defines @racket[spec-name] as a RACR specification.
 
 Defines @tt{<spec-name>-generate-ast} as a function.  The function accepts the name of a grammar production as a symbol and produces a random tree starting from a fresh node of that nonterminal.  Essentially, given the name of the top-level program node, this function generates a random program.
 
+Various ag-rules are automatically defined, see @secref{generated rules}.
 Within the RACR spec, the following ag-rules are automatically defined:
 @itemlist[
-@item{@racket['hole->choice-list], which does TODO}
-@item{@racket['is-hole?], which does TODO}
-@item{@racket['hole->replacement], which does TODO}
-@item{@racket['find-descendants], which does TODO}
-@item{@racket['find-a-descendant], which does TODO}
-@item{@racket['resolve-reference-name], which does TODO}
-@item{@racket['visible-bindings], which does TODO}
+@item{@racket['hole->choice-list]}
+@item{@racket['is-hole?]}
+@item{@racket['hole->replacement]}
+@item{@racket['find-descendants]}
+@item{@racket['find-a-descendant]}
+@item{@racket['resolve-reference-name]}
+@item{@racket['visible-bindings]}
 ]
 
 Properties (defined with @racket[define-property]) are used to derive more RACR ag-rules as well as Xsmith choice-rules.
