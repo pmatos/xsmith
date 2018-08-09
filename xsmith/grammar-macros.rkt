@@ -192,7 +192,7 @@
     ;; names can't be hygienic.  So this name is meant to be
     ;; long and not likely to conflict with anything a user would
     ;; actually use.
-    (format-id n "~aXsmithAstHole" n))
+    (format-id n "XsmithAstHole~a" n))
 
   )
 
@@ -329,7 +329,7 @@
              [(ast-list-node? n) #f]
              [(att-value 'is-hole? n)
               (begin
-                (rewrite-subtree n (att-value 'hole->replacement n))
+                (rewrite-subtree n (att-value 'xsmith_hole->replacement n))
                 #t)]
              [else #f]))])
     (perform-rewrites n 'top-down fill-in))
@@ -351,10 +351,10 @@
     (if (predicate n)
         (cons n matches)
         matches)))
-(define hole->replacement-function
+(define xsmith_hole->replacement-function
   (λ (n)
     (if (att-value 'is-hole? n)
-        (let* ([choices (att-value 'hole->choice-list n)]
+        (let* ([choices (att-value 'xsmith_hole->choice-list n)]
                [choices-or-reasons
                 (map (λ (c) (send c apply-choice-filters))
                      choices)]
@@ -369,15 +369,15 @@
                       (string-join choices-or-reasons
                                    "\n")))
               (send (choose-ast filtered) fresh)))
-        (error 'hole->replacement
+        (error 'xsmith_hole->replacement
                "called on non-hole node"))))
 (define resolve-reference-name-function
   (λ (node name)
     (resolve-reference
-     (reference name (att-value 'scope-graph-scope node)))))
+     (reference name (att-value 'xsmith_scope-graph-scope node)))))
 (define visible-bindings-function
   (λ (n)
-    (visible-bindings (att-value 'scope-graph-scope n))))
+    (visible-bindings (att-value 'xsmith_scope-graph-scope n))))
 
 
 
@@ -393,9 +393,9 @@ It defines:
 * spec-generate-ast (with `spec` replaced for the id given as spec), which is a function that accepts the symbol name of a node and generates an AST starting at that node.  IE you give it the top level node name and it gives you a program.
 
 Additionally, it defines the following ag-rules within the RACR spec:
-* hole->choice-list
+* xsmith_hole->choice-list
 * is-hole?
-* hole->replacement
+* xsmith_hole->replacement
 * find-descendants
 * find-a-descendant
 * resolve-reference-name
@@ -605,7 +605,7 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
    (define choice-rule-name->node-name->rule-body
      (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
 
-   (with-syntax* ([base-node-name (format-id #'spec "BaseNode~a" #'spec)]
+   (with-syntax* ([base-node-name (format-id #'spec "XsmithBaseNode~a" #'spec)]
                   [base-node-choice (node->choice #'base-node-name)]
                   ;; Replace the ag-clauses with versions where
                   ;; #f node names are replaced with base-node-name
@@ -807,9 +807,9 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                        (set! fresh-node-func fresh-node-func-impl)
 
                        ;; define some core ag-rules
-                       (ag-rule hole->choice-list
+                       (ag-rule xsmith_hole->choice-list
                                 [base-node-name
-                                 (λ (n) (error 'hole->choice-list
+                                 (λ (n) (error 'xsmith_hole->choice-list
                                                "only implemented for grammar hole nodes"))]
                                 [ast-hole-name
                                  (λ (n) (list (new subtype-choice-name [hole n]) ...))]
@@ -818,8 +818,8 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                 [base-node-name (λ (n) #f)]
                                 [ast-hole-name (λ (n) #t)]
                                 ...)
-                       (ag-rule hole->replacement
-                                [base-node-name hole->replacement-function])
+                       (ag-rule xsmith_hole->replacement
+                                [base-node-name xsmith_hole->replacement-function])
                        (ag-rule find-descendants
                                 [base-node-name find-descendants-function])
                        (ag-rule find-a-descendant

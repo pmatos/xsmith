@@ -182,9 +182,9 @@ hole for the type.
 (define-property introduces-scope
   #:reads (grammar)
   #:appends
-  (ag-rule scope-graph-introduces-scope?)
-  (ag-rule scope-graph-scope)
-  (ag-rule scope-graph-descendant-bindings)
+  (ag-rule xsmith_scope-graph-introduces-scope?)
+  (ag-rule xsmith_scope-graph-scope)
+  (ag-rule xsmith_scope-graph-descendant-bindings)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -204,7 +204,7 @@ hole for the type.
       (for/fold ([rule-info (hash #f #'(λ (n)
                                          ;; If a node does not introduce a scope,
                                          ;; its ag-rule should just check its parent
-                                         (att-value 'scope-graph-scope
+                                         (att-value 'xsmith_scope-graph-scope
                                                     (parent-node n))))])
                 ([node nodes])
         (define prop-for-node (dict-ref this-prop-info node #'#f))
@@ -218,10 +218,10 @@ hole for the type.
                 (scope
                  ;; parent scope -- this should be #f for the top-level scope
                  (if (parent-node n)
-                     (att-value 'scope-graph-scope (parent-node n))
+                     (att-value 'xsmith_scope-graph-scope (parent-node n))
                      #f)
                  ;; bindings
-                 (att-value 'scope-graph-descendant-bindings n #t)
+                 (att-value 'xsmith_scope-graph-descendant-bindings n #t)
                  ;; imports -- this exists in the scope graphs impl, but is unused...
                  '())))])))
 
@@ -233,7 +233,7 @@ hole for the type.
          #`(λ (n [is-first-node? #f])
              (if (or (att-value 'is-hole? n)
                      (and (not is-first-node?)
-                          (att-value 'scope-graph-introduces-scope? n)))
+                          (att-value 'xsmith_scope-graph-introduces-scope? n)))
                  '()
                  (let ([this-node-binding (att-value 'scope-graph-binding n)]
                        [children-binding-lists
@@ -244,7 +244,7 @@ hole for the type.
                                       #'(list)]
                                      [(grammar-node-field-struct-kleene-star? fi)
                                       #`(map (λ (c) (att-value
-                                                     'scope-graph-descendant-bindings
+                                                     'xsmith_scope-graph-descendant-bindings
                                                      c))
                                              (ast-children
                                               (ast-child
@@ -254,7 +254,7 @@ hole for the type.
                                                n)))]
                                      [else
                                       #`(att-value
-                                         'scope-graph-descendant-bindings
+                                         'xsmith_scope-graph-descendant-bindings
                                          (ast-child
                                           '#,(datum->syntax
                                               #f
