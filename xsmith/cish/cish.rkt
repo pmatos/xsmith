@@ -22,7 +22,7 @@
 
 (assemble-spec-components
  cish2
- #:properties (depth-increase-predicate fresh wont-over-deepen introduces-scope)
+ #:properties (may-be-generated depth-increase-predicate fresh wont-over-deepen introduces-scope)
  cish2-grammar
  cish2-rules
  )

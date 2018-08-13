@@ -180,9 +180,8 @@
 (add-prop
  cish2-grammar
  choice-filters-to-apply
- [#f (may-be-generated-method
+ [#f (
       features-enabled
-      wont-over-deepen
       respect-return-position
       misc-constraints
       constrain-type

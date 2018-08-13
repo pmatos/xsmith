@@ -124,7 +124,7 @@ X scope-graph-scope -- by introduces-scope property (probably should be private)
 X sscope-graph-descendant-bindings -- by introduces-scope property (probably should be private)
 
 The following choice methods are defined by properties:
-may-be-generated-method (should be private) -- by may-be-generated property
+xsmith-may-be-generated-method (should be private) -- by may-be-generated property
 fresh (maybe should be private -- I provide the make-fresh-node function around it) -- by fresh property
 wont-over-deepen -- by wont-over-deepen property (probably should be private).
 apply-choice-filters -- by choice-filters-to-apply property (probably should be private).
@@ -526,10 +526,8 @@ TODO
 @defmodule[xsmith/core-properties]
 
 @defform[#:kind "spec-property" #:id may-be-generated may-be-generated]{
-This property defines the @tt{may-be-generated-method} non-inheriting choice-rule.
+#;This property defines the @tt{xsmith_may-be-generated-method} non-inheriting choice-rule.
 Acceptable values for this property are @racket[#t] or @racket[#f], and the default is @racket[#t].
-
-TODO - the choice-rule name really ought to be invisible to the user.
 
 If may-be-generated is false, the node is not added to the list of possibile choices to replace an appropriate AST hole.
 It is useful to set it to false for abstract node types or for specialized node types that are meant to be swapped in only after a full tree is generated, such as by a later analysis to determine validity of an unsafe operation.
@@ -629,9 +627,7 @@ Example:
 (add-prop
  my-spec-component
  choice-filters-to-apply
- [#f (may-be-generated-method
-      features-enabled
-      wont-over-deepen
+ [#f (features-enabled
       respect-return-position
       misc-constraints
       constrain-type

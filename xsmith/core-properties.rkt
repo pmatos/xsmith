@@ -28,7 +28,7 @@
 (define-non-inheriting-rule-property
   may-be-generated
   choice-rule
-  #:rule-name may-be-generated-method
+  #:rule-name xsmith_may-be-generated
   #:default #t
   #:transformer (syntax-parser [#t #'(λ () this)]
                                [#f #'(λ () #f)]))
@@ -149,7 +149,7 @@ hole for the type.
 
 (define-property wont-over-deepen
   #:reads (grammar)
-  #:appends (choice-rule wont-over-deepen)
+  #:appends (choice-rule xsmith_wont-over-deepen)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -279,15 +279,19 @@ hole for the type.
                #:attr func #'(λ (o) (send o method-name)))
       (pattern (method-name:id arg:expr ...)
                #:attr func #'(λ (o) (send o method-name arg ...))))
+    (define (get-filters node-name)
+      (let ([user-filters (dict-ref this-prop-info node-name #'())])
+        #`(xsmith_may-be-generated
+           xsmith_wont-over-deepen
+           #,@user-filters)))
     (define (helper filter-method-stx filter-failure-set!-id)
       (syntax-parse filter-method-stx
+        [() #'this]
         [(filt1:filtering-method filt:filtering-method ...)
          #`(let ([result (filt1.func this)])
              (if result
-                 #,(syntax-parse #'(filt ...)
-                     [() #'this]
-                     [(f ...) (helper #'(filt ...)
-                                      filter-failure-set!-id)])
+                 #,(helper #'(filt ...)
+                           filter-failure-set!-id)
                  (begin
                    (set! #,filter-failure-set!-id 'filt1.method-name)
                    #f)))]))
@@ -298,7 +302,7 @@ hole for the type.
          (with-syntax ([failure-set!-id #'failed-on])
            #`(λ ()
                (define failure-set!-id #f)
-               (define result #,(helper (dict-ref this-prop-info node-name)
+               (define result #,(helper (get-filters node-name)
                                         #'failure-set!-id))
                (if result
                    this
