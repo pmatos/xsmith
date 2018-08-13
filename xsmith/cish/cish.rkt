@@ -22,7 +22,16 @@
 
 (assemble-spec-components
  cish2
- #:properties (may-be-generated depth-increase-predicate fresh wont-over-deepen introduces-scope)
+ #:properties
+ (
+  ;; Most of these don't need to be listed here, but I'm leaving them to remember which ones I need to make enabled by default...
+  may-be-generated
+  depth-increase-predicate
+  choice-weight
+  fresh
+  wont-over-deepen
+  introduces-scope
+  )
  cish2-grammar
  cish2-rules
  )

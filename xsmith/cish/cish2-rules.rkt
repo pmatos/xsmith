@@ -1512,24 +1512,27 @@ few of these methods.
     [FunctionDefinition
      (equal? (node-type (parent-node current-hole)) 'Program)])
 
-(cm choice-weight
-    [Node 10]
-    [NullStatement 1]
-    [ExpressionStatement 70]
-    [IfStatement (top-heavy-choice 5)]
-    [IfElseStatement (top-heavy-choice 5)]
-    [WhileStatement (top-heavy-choice 2)]
-    [DoWhileStatement (top-heavy-choice 2)]
-    [ForStatement (top-heavy-choice 7)]
-    [Block (hinted-choice-weight 1 block-hint)]
-    [ReturnStatement 1]
-    [ValueReturnStatement 1]
-    [AssignmentExpression (hinted-choice-weight assignment-hint)]
-    [FunctionApplicationExpression
-     (hinted-choice-weight application-hint)]
-    [VariableDeclaration 20]
-    [VariableReference 15]
-    )
+(add-prop
+ cish2-rules
+ choice-weight
+ [Node 10]
+ [NullStatement 1]
+ [ExpressionStatement 70]
+ [IfStatement (top-heavy-choice 5)]
+ [IfElseStatement (top-heavy-choice 5)]
+ [WhileStatement (top-heavy-choice 2)]
+ [DoWhileStatement (top-heavy-choice 2)]
+ [ForStatement (top-heavy-choice 7)]
+ [Block (hinted-choice-weight 1 block-hint)]
+ [ReturnStatement 1]
+ [ValueReturnStatement 1]
+ [AssignmentExpression (hinted-choice-weight assignment-hint)]
+ [FunctionApplicationExpression
+  (hinted-choice-weight application-hint)]
+ [VariableDeclaration 20]
+ [VariableReference 15]
+ )
+
 
 
 (add-prop
@@ -1557,6 +1560,7 @@ few of these methods.
             (not (ormap (λ (f) (dict-ref disabled f #f))
                         (send this features))))])
 (cm features
+    [Node '()]
     [NullStatement '(null)]
     [IfStatement '(if-statement)]
     [LoopStatement '(loop)]
@@ -1664,7 +1668,7 @@ few of these methods.
                                            v1)])
                                (hash 'val v))])
          (cm features [nodename '(feature)])
-         (cm choice-weight [nodename 3])
+         (add-prop cish2-rules choice-weight [nodename 3])
          (cm constrain-type
              [nodename (let ([t (att-value 'type-context current-hole)])
                          ;; This isn't necessarily nonzero, but it will be if needed.

@@ -368,7 +368,7 @@
                       " hole were filtered out.\n"
                       (string-join choices-or-reasons
                                    "\n")))
-              (send (choose-ast filtered) fresh)))
+              (send (choose-ast filtered) xsmith_fresh)))
         (error 'xsmith_hole->replacement
                "called on non-hole node"))))
 (define resolve-reference-name-function
@@ -648,20 +648,16 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                   ;; choice base class, which I have to override.
                   [(cdef-pub-or-override-for-base ...)
                    (map (λ (name) (if (member (syntax->datum name)
-                                              '(fresh
-                                                choice-weight
-                                                features))
+                                              '(xsmith_choice-weight))
                                       #'define/override
                                       #'define/public))
                         (syntax->list #'(choice-method-name ...)))]
                   [(cdef-body-for-base/default ...)
                    (map (λ (name)
-                          (if (equal? (syntax->datum name) 'features)
-                              #'(λ () (super features))
-                              #`(λ args (error
-                                         '#,name
-                                         "no default implementation (called on ~a)"
-                                         this))))
+                          #`(λ args (error
+                                     '#,name
+                                     "no default implementation (called on ~a)"
+                                     this)))
                         (syntax->list #'(choice-method-name ...)))]
                   [(choice-parent ...)
                    (map (syntax-parser [#f #'base-node-choice]
@@ -799,7 +795,7 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                       (dict-keys hole-name-hash))))
                          (send (new (dict-ref choice-object-hash node-type)
                                     [hole (make-hole node-type)])
-                               fresh
+                               xsmith_fresh
                                field-dict))
                        ;; Since with-specification creates a new scope,
                        ;; fresh-node-func can't be defined here and visible

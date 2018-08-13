@@ -63,9 +63,9 @@ Choices for AST growth should be some sort of object.
 (define ast-choice%
   (class object%
     (init-field hole)
-    (define/public (fresh hole-node) (error 'fresh-node "no default implementation"))
-    (define/public (choice-weight) (error 'choice-weight "no default implementation"))
-    (define/public (features) '())
+    ;(define/public (fresh hole-node) (error 'fresh-node "no default implementation"))
+    (define/public (xsmith_choice-weight) (error 'xsmith_choice-weight "no default implementation"))
+    ;(define/public (features) '())
     (super-new)
     ))
 
@@ -80,7 +80,7 @@ Choices for AST growth should be some sort of object.
     (for/fold ([sum 0]
                [clist '()])
               ([c ast-choice-list])
-      (define c-weight (send c choice-weight))
+      (define c-weight (send c xsmith_choice-weight))
       (values (+ sum c-weight)
               (cons (list sum c) clist))))
   (define r (random total-weight))

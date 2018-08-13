@@ -3,6 +3,7 @@
 (provide
  may-be-generated
  depth-increase-predicate
+ choice-weight
  fresh
  wont-over-deepen
  introduces-scope
@@ -47,6 +48,14 @@
                                              0))]
                              [else (att-value 'ast-depth (parent-node n))]))]))
 
+(define-property choice-weight
+  #:appends (choice-rule xsmith_choice-weight)
+  #:transformer
+  (λ (this-prop-info)
+    (list
+     (for/hash ([node-name (dict-keys this-prop-info)])
+       (values node-name
+               #`(λ () #,(dict-ref this-prop-info node-name)))))))
 
 #|
 The fresh property will take an expression (to be the body of a method
@@ -62,7 +71,7 @@ hole for the type.
 |#
 (define-property fresh
   #:reads (grammar)
-  #:appends (choice-rule fresh)
+  #:appends (choice-rule xsmith_fresh)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))

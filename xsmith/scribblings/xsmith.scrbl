@@ -119,18 +119,18 @@ TODO - document all of the rules below:
 
 The following attributes are defined by properties:
 ast-depth  -- by depth-increase-predicate property
-X scope-graph-introduces-scope -- by introduces-scope property (probably should be private)
-X scope-graph-scope -- by introduces-scope property (probably should be private)
-X sscope-graph-descendant-bindings -- by introduces-scope property (probably should be private)
+@;xsmith_scope-graph-introduces-scope -- by introduces-scope property (probably should be private)
+@;xsmith_scope-graph-scope -- by introduces-scope property (probably should be private)
+@;xsmith_scope-graph-descendant-bindings -- by introduces-scope property (probably should be private)
 
 The following choice methods are defined by properties:
-xsmith-may-be-generated-method (should be private) -- by may-be-generated property
+@;xsmith_may-be-generated (should be private) -- by may-be-generated property
 fresh (maybe should be private -- I provide the make-fresh-node function around it) -- by fresh property
 wont-over-deepen -- by wont-over-deepen property (probably should be private).
 apply-choice-filters -- by choice-filters-to-apply property (probably should be private).
 
 The following choice methods are defined automatically but may be overridden directly:
-choice-weight
+@;choice-weight
 
 The following attributes are NOT defined automatically, but are required:
 @itemlist[
@@ -280,14 +280,16 @@ Example:
 #:grammar [(rule-clause (nonterminal-name rule-function))]]{
 Adds an Xsmith choice-rule to the spec-component.
 
-Xsmith creates a choice object class for each node type in the specification grammar, following the same class hierarchy that AST nodes themselves do.  Choice objects are created every time Xsmith fills in a hole node.  One choice object is created for every node type that is legal to use in filling the hole.  Choice objects are then filtered according to the @racket[choice-filters-to-apply] property, and then the @tt{choice-weight} method of the remain choice objects is called to determine the probability of choosing each one.  When a choice object is selected, its @racket[fresh] method is called to generate a new AST node of its type.  If all choices are eliminated, an exception is raised with a message stating which filter step invalidated each potential choice.
+Xsmith creates a choice object class for each node type in the specification grammar, following the same class hierarchy that AST nodes themselves do.  Choice objects are created every time Xsmith fills in a hole node.  One choice object is created for every node type that is legal to use in filling the hole.  Choice objects are then filtered according to the @racket[choice-filters-to-apply] property, and then the @tt{xsmith_choice-weight} method of the remain choice objects is called to determine the probability of choosing each one.  When a choice object is selected, its @racket[xsmith_fresh] method is called to generate a new AST node of its type.  If all choices are eliminated, an exception is raised with a message stating which filter step invalidated each potential choice.
 
-Choice rules are methods on the choice objects.  Some choice rules are used by @racket[choice-filters-to-apply] to filter choices.  Other choice rules may be used by those filters or in the body of the @racket[fresh] rule as helper methods.  While most information about the AST and the current choice are probably computed using ag-rules, information about choosing a specific node type to fill in an abstract hole (such as an expression hole which may be filled with many different types of expressions) are computed using choice rules.
+Choice rules are methods on the choice objects.  Some choice rules are used by @racket[choice-filters-to-apply] to filter choices.  Other choice rules may be used by those filters or in the body of the @racket[xsmith_fresh] rule as helper methods.  While most information about the AST and the current choice are probably computed using ag-rules, information about choosing a specific node type to fill in an abstract hole (such as an expression hole which may be filled with many different types of expressions) are computed using choice rules.
 
 Choice rules are methods in Racket's class system and therefore have the @racket[this] macro available for use in their bodies to access other methods (eg. with the @racket[send] macro).
 Choice rules also have the @racket[current-hole] macro available within their body so that they can query attributes of the RACR AST being elaborated (eg. with @tt{att-value} to access ag-rules and @tt{ast-parent} to inspect other nodes in the AST).
 
 Since choice rules are methods in Racket's @racket[class] system, they must be defined with a literal @racket[lambda] (with no parameter for the implicit @racket[this] argument).  If a method needs to modify state (such as to cache the computation of available references of the appropriate type), I would normally recommend the “let-over-lambda” pattern, but that is not allowed in this case.  To make up for this, I recommend using @racket[make-weak-hasheq] to hold the state, using the @racket[this] object as a key.
+
+TODO - this example should change now that the method name is private
 
 Example:
 @racketblock[
@@ -564,7 +566,8 @@ TODO -- this should probably return a number to add rather than #t or #f -- then
 }
 
 @defform[#:kind "spec-property" #:id fresh fresh]{
-This property defines the @tt{fresh} choice-rule.
+@;This property defines the @tt{xsmith_fresh} choice-rule.
+This property determines how fresh nodes are constructed.
 
 Acceptable values for this property are expressions which produce a @racket[dict?] object.  Keys of the dictionary must be field names of the node being generated.  The values in the dictionary are used to fill node fields of the appropriate name.  Any field whose name is not in the dictionary will be filled by evaluating the default init-expr defined in the grammar (via @racket[add-to-grammar]).
 
