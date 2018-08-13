@@ -7,7 +7,7 @@
  add-choice-rule
  add-prop
  assemble-spec-components
- current-xsmith-grammar
+ current-racr-spec
  (all-from-out "private/define-grammar-property.rkt")
 
  current-hole
@@ -56,10 +56,10 @@
   ))
 
 
-(define-syntax-parameter current-xsmith-grammar
+(define-syntax-parameter current-racr-spec
   (syntax-parser [stx (raise-syntax-error
-                       'current-xsmith-grammar
-                       "current-xsmith-grammar used without being parameterized"
+                       'current-racr-spec
+                       "current-racr-spec used without being parameterized"
                        #'stx)]))
 (define-syntax-parameter current-xsmith-grammar-clauses
   (syntax-parser [stx (raise-syntax-error
@@ -356,7 +356,7 @@
     (if (att-value 'is-hole? n)
         (let* ([choices (att-value 'xsmith_hole->choice-list n)]
                [choices-or-reasons
-                (map (λ (c) (send c apply-choice-filters))
+                (map (λ (c) (send c xsmith_apply-choice-filters))
                      choices)]
                [filtered (filter (λ (x) (is-a? x ast-choice%))
                                  choices-or-reasons)])
@@ -735,7 +735,7 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                                     node-type)
                                           #f))))])
                    (splicing-syntax-parameterize
-                       ([current-xsmith-grammar (syntax-rules () [(_) spec])]
+                       ([current-racr-spec (syntax-rules () [(_) spec])]
                         [make-hole (syntax-parser
                                      [(_ node-type-sym:expr)
                                       #'(make-hole-function node-type-sym)])])

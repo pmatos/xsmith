@@ -151,7 +151,7 @@ hole for the type.
                  (map (λ (name) (dict-ref all-values-hash/num-transformed name))
                       (list field-name ...)))
 
-               (create-ast (current-xsmith-grammar)
+               (create-ast (current-racr-spec)
                            '#,node
                            all-values-in-order))))))
     (list rule-info)))
@@ -279,7 +279,7 @@ hole for the type.
           scope-graph-descendant-bindings-info)))
 
 (define-property choice-filters-to-apply
-  #:appends (choice-rule apply-choice-filters)
+  #:appends (choice-rule xsmith_apply-choice-filters)
   #:transformer
   (λ (this-prop-info)
 

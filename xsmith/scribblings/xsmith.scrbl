@@ -31,8 +31,8 @@ Each time a hole is to be filled, the grammar specification is used to determine
 A choice object is created for each legal replacement.
 Choice objects have methods (choice-rules) which aid in choosing a concrete replacement.
 Some of these methods act as predicates to filter out choices that are not legal in a particular context, such as choices that introduce more holes when the maximum tree depth has been reached.
-The @racket['choice-weight] method determines the relative probability of each choice being chosen.
-The @racket['fresh] method determines how the choice is instantiated as a RACR node.
+The @racket[choice-weight] property defines a method which determines the relative probability of each choice being chosen.
+The @racket[fresh] property defines a method which determines how the choice is instantiated as a RACR node.
 Additional methods may be defined as helpers.
 Choice objects have access to the @racket[current-hole], so they may query RACR attributes in method bodies.
 Choice object classes follow the same hierarchy as the grammar, so method inheritance for choice objects is similar to attribute inheritance for RACR nodes.
@@ -125,12 +125,11 @@ ast-depth  -- by depth-increase-predicate property
 
 The following choice methods are defined by properties:
 @;xsmith_may-be-generated (should be private) -- by may-be-generated property
-fresh (maybe should be private -- I provide the make-fresh-node function around it) -- by fresh property
-wont-over-deepen -- by wont-over-deepen property (probably should be private).
-apply-choice-filters -- by choice-filters-to-apply property (probably should be private).
+@;xsmith_fresh (maybe should be private -- I provide the make-fresh-node function around it) -- by fresh property
+@;xsmith_wont-over-deepen -- by wont-over-deepen property (probably should be private).
+@;xsmith_apply-choice-filters -- by choice-filters-to-apply property (probably should be private).
 
 The following choice methods are defined automatically but may be overridden directly:
-@;choice-weight
 
 The following attributes are NOT defined automatically, but are required:
 @itemlist[
@@ -280,27 +279,30 @@ Example:
 #:grammar [(rule-clause (nonterminal-name rule-function))]]{
 Adds an Xsmith choice-rule to the spec-component.
 
-Xsmith creates a choice object class for each node type in the specification grammar, following the same class hierarchy that AST nodes themselves do.  Choice objects are created every time Xsmith fills in a hole node.  One choice object is created for every node type that is legal to use in filling the hole.  Choice objects are then filtered according to the @racket[choice-filters-to-apply] property, and then the @tt{xsmith_choice-weight} method of the remain choice objects is called to determine the probability of choosing each one.  When a choice object is selected, its @racket[xsmith_fresh] method is called to generate a new AST node of its type.  If all choices are eliminated, an exception is raised with a message stating which filter step invalidated each potential choice.
+Xsmith creates a choice object class for each node type in the specification grammar, following the same class hierarchy that AST nodes themselves do.  Choice objects are created every time Xsmith fills in a hole node.  One choice object is created for every node type that is legal to use in filling the hole.  Choice objects are then filtered according to the @racket[choice-filters-to-apply] property, and then the @racket[choice-weight] property of the remaining choice objects is used to determine the probability of choosing each one.  When a choice object is selected, its @racket[fresh] property is used to generate a new AST node of its type.  If all choices are eliminated, an exception is raised with a message stating which filter step invalidated each potential choice.
 
-Choice rules are methods on the choice objects.  Some choice rules are used by @racket[choice-filters-to-apply] to filter choices.  Other choice rules may be used by those filters or in the body of the @racket[xsmith_fresh] rule as helper methods.  While most information about the AST and the current choice are probably computed using ag-rules, information about choosing a specific node type to fill in an abstract hole (such as an expression hole which may be filled with many different types of expressions) are computed using choice rules.
+Choice rules are methods on the choice objects.  Some choice rules are used by @racket[choice-filters-to-apply] to filter choices.  Other choice rules may be used by those filters or in the body of the @racket[fresh] property as helper methods.  While most information about the AST and the current choice are probably computed using ag-rules, information about choosing a specific node type to fill in an abstract hole (such as an expression hole which may be filled with many different types of expressions) are computed using choice rules.
 
 Choice rules are methods in Racket's class system and therefore have the @racket[this] macro available for use in their bodies to access other methods (eg. with the @racket[send] macro).
 Choice rules also have the @racket[current-hole] macro available within their body so that they can query attributes of the RACR AST being elaborated (eg. with @tt{att-value} to access ag-rules and @tt{ast-parent} to inspect other nodes in the AST).
 
 Since choice rules are methods in Racket's @racket[class] system, they must be defined with a literal @racket[lambda] (with no parameter for the implicit @racket[this] argument).  If a method needs to modify state (such as to cache the computation of available references of the appropriate type), I would normally recommend the “let-over-lambda” pattern, but that is not allowed in this case.  To make up for this, I recommend using @racket[make-weak-hasheq] to hold the state, using the @racket[this] object as a key.
 
-TODO - this example should change now that the method name is private
 
-Example:
+This is a poor example, but it demonstrates how ag-rules and choice-rules can be used together to help make choices:
 @racketblock[
 (add-choice-rule
  my-spec-component
+ my-weight-helper
+ [#f 7]
+ [AdditionExpression
+  (λ () (if (att-value 'my-helper-ag-rule (current-hole))
+            20
+            5))])
+(add-prop
+ my-spec-component
  choice-weight
- [#f (λ () 10)]
- (code:line "Generate more AdditionExpressions")
- [AdditionExpression (λ () 20)]
- (code:line "Generate fewer SumExpressions")
- [SumExpression (λ () 5)])
+ [#f (send this my-weight-helper)])
 ]
 
 }
@@ -312,12 +314,12 @@ Adds property values to the spec-component.
 Since property transformers are macros that may accept arbitrary domain-specific syntax, the grammar of prop-value varies for each property.
 }
 
-@defform[(current-xsmith-grammar)]{
-In code within the context of a spec component (eg. in the body of @racket[add-ag-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[(current-xsmith-grammar)] returns the RACR spec object for the grammar ultimately combined by @racket[assemble-spec-components].
+@defform[(current-racr-spec)]{
+In code within the context of a spec component (eg. in the body of @racket[add-ag-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[(current-racr-spec)] returns the RACR spec object for the grammar ultimately combined by @racket[assemble-spec-components].
 
 Elsewhere it raises a syntax error.
 
-TODO - it needs a better name.  Probably @tt{current-racr-spec}.
+TODO - this should probably be private (It's really only needed for the @racket[fresh] property)
 }
 
 @defform[(current-hole)]{
@@ -339,7 +341,7 @@ Outside of a spec component context, it raises a syntax error.
 }
 
 @defform[(make-fresh-node node-type-expression optional-field-value-dict)]{
-Within the context of a spec component (eg. in the body of @racket[add-ag-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-fresh-node] is a function to generate a fresh node of the given type.
+Within the context of a spec component (eg. in the body of @racket[add-ag-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-fresh-node] is a function to generate a fresh node of the given type.  Construction of the new node is guided by the @racket[fresh] property.
 
 For example, to generate a fresh @tt{AdditionExpression} node, specifying values for some of its fields:
 @racketblock[(make-fresh-node 'AdditionExpression
@@ -567,7 +569,7 @@ TODO -- this should probably return a number to add rather than #t or #f -- then
 
 @defform[#:kind "spec-property" #:id fresh fresh]{
 @;This property defines the @tt{xsmith_fresh} choice-rule.
-This property determines how fresh nodes are constructed.
+This property determines how fresh nodes are constructed (by the @racket[make-fresh-node] function).
 
 Acceptable values for this property are expressions which produce a @racket[dict?] object.  Keys of the dictionary must be field names of the node being generated.  The values in the dictionary are used to fill node fields of the appropriate name.  Any field whose name is not in the dictionary will be filled by evaluating the default init-expr defined in the grammar (via @racket[add-to-grammar]).
 
@@ -620,8 +622,28 @@ Examlpe:
 
 }
 
+@defform[#:kind "spec-property" #:id choice-weight choice-weight]{
+This property determines the probability that different kinds of nodes will be chosen.  When choices have been filtered (based on @racket[choice-filters-to-apply]), one of the remaining choices is chosen at random with probability (choice-weight / sum-of-choice-weights).
+
+The expression provided as the choice weight will be evaluated in the context of a method call, so @racket[this] and @racket[current-hole] are available.
+
+Example:
+@racketblock[
+(add-prop
+ my-spec-component
+ choice-weight
+ (code:line "The default choice weight.")
+ [#f (λ () 10)]
+ (code:line "Generate more AdditionExpressions")
+ [AdditionExpression 20]
+ [MultiplicationExpression 15]
+ (code:line "Generate fewer SumExpressions")
+ [SumExpression 5])
+]
+}
+
 @defform[#:kind "spec-property" #:id choice-filters-to-apply choice-filters-to-apply]{
-This property defines the @tt{apply-choice-filters} choice-rule.  TODO - this generated method should also be invisible to the user.
+@;This property defines the @tt{xsmith_apply-choice-filters} choice-rule.  TODO - this generated method should also be invisible to the user.
 
 This property accepts a syntax list of choice-rule names to use as a filter for the node type.  Generally this should be set on the greatest super node type (or @racket[#f] if there is no explicit super node type in your grammar).  Each choice-rule in the list is called on the choice object with no arguments.  Each rule that returns @racket[#f] rules the node out as a choice for filling in a hole.
 
@@ -637,7 +659,8 @@ Example:
       )])
 ]
 
-TODO - some of the core methods (which ought to be invisible to the user...) should always be included in the list, and the given list should just extend the list of filters.
+Some core methods are always applied in addition to this list, such as the method defined by the @racket[may-be-generated] property.
+
 }
 
 
