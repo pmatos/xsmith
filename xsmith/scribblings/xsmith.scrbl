@@ -7,11 +7,17 @@ xsmith/grammar-macros
 xsmith/core-properties
 xsmith/scope-graph
 xsmith/xsmith-command-line
+xsmith/xsmith-utils
+xsmith/xsmith-options
 racket/class
+
+racket/contract/base
+racket/dict
 
 @; if racr had scribble documentation this would provide hyperlinks
 @;racr
 ))
+
 
 @title{Xsmith}
 
@@ -763,9 +769,74 @@ Based on options supplied, it may print a help message and terminate the program
 
 
 @subsection{xsmith-utils.rkt}
-TODO
+@defmodule[xsmith/xsmith-utils]
+
+@subsubsection{generator state}
+@defstruct[generator-state ([fresh-name-counter exact-integer?]) #:omit-constructor]{
+Contains mutable state for program generation.
+
+TODO - cish has a separate counter that I use somewhere that needs to be rolled into this.
+}
+@defproc[(make-generator-state) generator-state?]{}
+
+@defparam[xsmith-state state generator-state?]{
+Parameter holding the current xsmith generator state.
+}
+
+@subsubsection{RACR convenience functions}
+These are a group of convenience functions around RACR.  They are not necessary, and some may not be the best choices.  I should probably revisit them.  TODO.
+
+@defproc[(ast-children/flat [n ast-node?]) (listof/c any/c)]{
+Returns a list containing all of @racket[n]'s children (IE fields).
+Instead of returning @racket[ast-list-node?]s for kleene star fields, it flattens them into the list.
+
+TODO - this is just used in grammar-macros.rkt, it should be private.
+}
+
+@defform[(expr->ast-list length-expression field-expression)]{
+Creates an @racket[ast-list-node?] containing a list of length @racket[length-expression].
+For each element of the list, @racket[field-expression] is evaluated again.
+}
+
+@defproc[(node-type [n any/c]) any/c]{
+Returns the symbol of the type of n, or #f if n is not a proper non-bud, non-list @racket[ast-node?].
+
+Wrapper for @racket[ast-node-type] that returns false rather than erroring when it gets bud nodes or list nodes...
+}
+
+@defproc[(parent-node [n any/c]) any/c]{
+Wrapper for ast-parent that returns #f rather than erroring when the given node doesn't have a parent.
+
+TODO - this could probably go away.  I know there is somewhere I check if it returns false, but I should use RACR's @racket[ast-has-parent?] function instead.
+}
+
+@defproc[(top-ancestor-node [n any/c]) any/c]{
+Calls @racket[parent-node] until it reaches the last parent, and returns it.
+}
+
+@defproc[(node-subtype? [n any/c]) any/c]{
+Wrapper for @racket[ast-subtype?] that returns #f rather than erroring when the given node is a bud, list, or non-node.
+}
+
+
 @subsection{xsmith-options.rkt}
-TODO
+@defmodule[xsmith/xsmith-options]
+
+@defparam[xsmith-options options dict?]{
+Parameter with the current xsmith options.
+
+TODO - this could probably be private...
+}
+
+@defthing[xsmith-options-defaults dict?]{
+Defaults for xsmith options.
+}
+
+@defproc[(xsmith-option [key any/c]) any/c]{
+Gets the current option for the key, from @racket[xsmith-options].
+
+TODO - this should probably follow the dict-ref interface and accept a default value/thunk.
+}
 
 
 
