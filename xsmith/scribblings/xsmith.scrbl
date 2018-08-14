@@ -17,6 +17,12 @@ racket/dict
 @; if racr had scribble documentation this would provide hyperlinks
 @;racr
 ))
+@(require
+racket/runtime-path
+racket/file
+)
+
+@(define-runtime-path minimal-example-path "minimal-example.rkt")
 
 
 @title{Xsmith}
@@ -102,7 +108,10 @@ Note that hole node types are created for every type in the grammar (including L
 TODO - exlanation about how Xsmith uses scope graphs.
 
 @subsection{Minimal Example}
-TODO - I think a very minimal arithmetic language definition could fit right here.
+
+TODO - this example should be... more minimal.
+
+@(verbatim (file->string minimal-example-path))
 
 @section{API Reference}
 
