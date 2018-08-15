@@ -1,6 +1,11 @@
 #lang racket/base
 
-;; struct properties and syntax classes for defining and detecting property transformers
+#|
+This file contains the grammar-property struct definition as well as the procedure to apply their transformers.
+
+Grammar property names are bound with define-syntax to grammar-property structs (IE the syntax-local-value of the bound identifier is the grammar-property struct).
+|#
+
 
 (provide
  (struct-out grammar-property)
@@ -28,6 +33,8 @@
   (pattern gp:id
            #:when (grammar-property? (syntax-local-value #'gp (λ () #f)))))
 
+;;; These are syntax classes for specifying the argument/return types
+;;; of property transformers.
 (define-syntax-class property-arg-property
   (pattern ((~datum property) name:id)))
 (define-syntax-class property-arg-ag-rule
@@ -63,9 +70,21 @@
        [_ #f]))))
 
 
-;;; Run the transformer for a grammar property.
+#|
+Run the transformer for a grammar property.
+
+* grammar-prop-name-stx is an identifier whose syntax-local-value is a grammar-property struct.
+* infos-hash is a hash which contains the keys 'props-info, 'ag-info, 'cm-info, and 'grammar-info
+  The 'grammar-info key maps to a hash of node-name->node-spec-stx
+  The other three keys map to hashes of rule-name -> node-name -> val-stx
+
+This function is only used in one place, so its interface is tightly bound with that use.  Maybe it ought to be improved.
+|#
 (define (grammar-property-transform grammar-prop-name-stx
                                     infos-hash)
+
+  ;; Helper for getting the appropriate part out of the infos hash based on what
+  ;; kind of arguments the property transformer needs.
   (define (infos->section infos-hash pa)
     (syntax-parse pa
       [p:property-arg-property (hash-ref (hash-ref infos-hash 'props-info)
@@ -79,7 +98,10 @@
                                             (hash))]
       [p:property-arg-grammar (hash-ref infos-hash 'grammar-info)]))
 
+  ;; Helper to merge hashes returned by property transformer functions back into
+  ;; the master infos-hash.
   (define (section->infos prop-arg new-hash infos append?)
+    ;; Sub-helper for ag-rule/choice-method cases because they are basically the same.
     (define (ag/cm-branch ag/cm-name-stx ag/cm-flag)
       (define props-hash (hash-ref infos ag/cm-flag))
       (define this-prop-hash
@@ -102,6 +124,8 @@
           (raise-syntax-error 'grammar-property-transform
                               "rewrite is not supported for ag-rules or choice-rules"
                               grammar-prop-name-stx)))
+    ;; Parse the prop-arg (which tells what type the hash is) to merge it back in
+    ;; to the right section of the infos-hash.
     (syntax-parse prop-arg
       [p:property-arg-property
        (define props-hash (hash-ref infos 'props-info))
@@ -136,6 +160,9 @@
                                #'p)
            (dict-set infos 'grammar-info new-hash))]))
 
+  ;; In this form we do the actual transformation, then use the helpers to merge
+  ;; the transformed/appended info about grammar/properties/attributes/choice-methods
+  ;; back into the master infos-hash.
   (syntax-parse grammar-prop-name-stx
     [gp:grammar-property-stx
      (let* ([slv (syntax-local-value #'gp)]
@@ -148,6 +175,7 @@
           (define (i->s pa)
             (infos->section infos-hash pa))
           ;; TODO - do double local-intro+custom-intro for hygiene
+          ;;        OR use the new local-apply-transformer procedure (in Racket v7).
           (define ret-list (apply transform (append (list (i->s #'(property gp)))
                                                     (map i->s rewrites)
                                                     (map i->s reads))))
@@ -173,7 +201,8 @@
   #|
   * reads, rewrites, and appends are all lists of property-args, specifically
     they refer to grammar-property instances, the grammar, or ag-rule
-    or choice-rule names.
+    or choice-rule names.  They specify the argument and return types
+    of the property transformer.
   * transformer is a function that receives as arguments a hash for the
     property values of the property it is a transformer for, a hash for each
     property in the rewrite list, then a hash for each property in the read

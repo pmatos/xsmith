@@ -188,6 +188,12 @@ hole for the type.
                            (dict-ref rule-info-defaults node)))))))
     (list rule-info)))
 
+#|
+The introduces-scope property generates RACR attributes for resolving bindings via scope graphs.
+The scope-graph-descendant-bindings attribute returns a list of all bindings on descendant nodes that are not under a different scope.  In other words, you call it on a node that introduces a scope and it returns all bindings within that scope.  It does not return bindings in child scopes.
+The scope-graph-scope attribute returns the scope that the node in question resides in.  For nodes that introduce a scope, it is their own.
+The scope-graph-introduces-scope? predicate attribute is just used to know when to stop for the scope-graph-descendant-bindings attribute.
+|#
 (define-property introduces-scope
   #:reads (grammar)
   #:appends
@@ -290,6 +296,7 @@ hole for the type.
                #:attr func #'(λ (o) (send o method-name arg ...))))
     (define (get-filters node-name)
       (let ([user-filters (dict-ref this-prop-info node-name #'())])
+        ;; Add user-specified filters to the core filters.
         #`(xsmith_may-be-generated
            xsmith_wont-over-deepen
            #,@user-filters)))
