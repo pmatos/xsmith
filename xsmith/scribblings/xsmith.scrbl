@@ -546,7 +546,7 @@ TODO - (properties and the grammar) this should probably not be in the public in
 In general I should provide better ways to inspect the grammar in property transformers, but I haven't needed them yet...
 }
 
-@defproc[(grammar-node-name->field-info [name symbol?] [grammar-clause-hash any/c])
+@defproc[(grammar-node-name->field-info-list [name symbol?] [grammar-clause-hash any/c])
          (listof/c grammar-node-field-struct?)]{
 This function should be called with a node type name and the grammar object given as an argument to a property transformer that reads the grammar.
 
@@ -561,7 +561,7 @@ TODO - (properties and the grammar) this should probably not be in the public in
             [kleene-star? boolean?]
             [init-expr syntax?])
            #:omit-constructor]{
-The struct type in the list returned by @racket[grammar-node-name->field-info].
+The struct type in the list returned by @racket[grammar-node-name->field-info-list].
 
 TODO - (properties and the grammar) Properties asking to read the grammar should get a dict full of grammar clause structs that include a list of these.
 }

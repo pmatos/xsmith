@@ -78,7 +78,7 @@ hole for the type.
     (define field-info-hash
       (for/hash ([node-name nodes])
         (values node-name
-                (grammar-node-name->field-info node-name grammar-info))))
+                (grammar-node-name->field-info-list node-name grammar-info))))
     ;; I need to create a lambda (of zero args) that evaluates the given expression (if it exists), then calls a thunk to get the default value for any fields not specified in the list received.
     (define rule-info
       (for/hash ([node nodes])
@@ -165,7 +165,7 @@ hole for the type.
     (define field-info-hash
       (for/hash ([node-name nodes])
         (values node-name
-                (grammar-node-name->field-info node-name grammar-info))))
+                (grammar-node-name->field-info-list node-name grammar-info))))
     ;; If a node in the grammar has fields that are also nodes, it will make
     ;; the tree deeper.
     (define rule-info-defaults
@@ -206,7 +206,7 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
     (define field-info-hash
       (for/hash ([node-name nodes])
         (values node-name
-                (grammar-node-name->field-info node-name grammar-info))))
+                (grammar-node-name->field-info-list node-name grammar-info))))
 
     (define scope-graph-introduces-scope?-info
       (for/fold ([rule-info (hash #f #'(λ (n) #f))])

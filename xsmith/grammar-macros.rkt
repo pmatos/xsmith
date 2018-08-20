@@ -20,7 +20,7 @@
   grammar-clause
 
   grammar-clause->parent-chain
-  grammar-node-name->field-info
+  grammar-node-name->field-info-list
 
   grammar-node-field-struct
   grammar-node-field-struct?
@@ -56,12 +56,6 @@
   ))
 
 
-(define-syntax-parameter current-racr-spec
-  (syntax-parser [stx (raise-syntax-error
-                       'current-racr-spec
-                       "current-racr-spec used without being parameterized"
-                       #'stx)]))
-
 (define-syntax-parameter make-hole
   (syntax-parser [stx (raise-syntax-error
                        'make-hole
@@ -73,22 +67,13 @@
                        "Not in a context where make-fresh-node is parameterized"
                        #'stx)]))
 
+;;; This is parameterized for the `fresh` property implementation.
+(define-syntax-parameter current-racr-spec
+  (syntax-parser [stx (raise-syntax-error
+                       'current-racr-spec
+                       "current-racr-spec used without being parameterized"
+                       #'stx)]))
 
-;;; This defines a spec component which will be modified by add-ag, add-to-grammar, etc
-(define-syntax-parser define-spec-component
-  [(_ component-name:identifier)
-   (define spec-inner-id (datum->syntax #'here (gensym "%%spec-component-inner-id_")))
-   ;; We do this in a round-about way to satisfy Racket's separate compilation stuff.
-   ;; If we just define it with define-syntax then when we reference it it won't see
-   ;; all the side-effects from add-to-grammar and friends.
-   ;; The contents of begin-for-syntax (including define-for-syntax) blocks are
-   ;; evaluated for every instantiation of a module.  So by doing the mutation
-   ;; on a define-for-syntax variable it is visible every time.
-   #`(begin
-       (define-for-syntax #,spec-inner-id
-         (spec-component-struct (hash) (hash) (hash) (hash)))
-       (define-syntax component-name
-         (spec-component-struct-ref (quote-syntax #,spec-inner-id))))])
 
 
 
@@ -112,7 +97,13 @@
      [node-name:id (~and parent (~or parent-name:id #f))
                    (component:grammar-component ...)]))
 
+  (struct grammar-node-field-struct
+    (name type kleene-star? init-expr)
+    #:transparent)
 
+  ;;; Takes a node name and a grammar-clause-hash
+  ;;; (made by grammar-clauses-stx->clause-hash),
+  ;;; Returns a list of parent names (as identifiers)
   (define (grammar-clause->parent-chain clause clause-hash)
     (syntax-parse clause
       [c:grammar-clause
@@ -124,11 +115,10 @@
                                                clause-hash))
            '())]))
 
-  (struct grammar-node-field-struct
-    (name type kleene-star? init-expr)
-    #:transparent)
-
-  (define (grammar-node-name->field-info name grammar-clause-hash)
+  ;;; Takes a node name and a grammar-clause-hash
+  ;;; (made by grammar-clauses-stx->clause-hash),
+  ;;; Returns a list of field-info structs for that grammar clause.
+  (define (grammar-node-name->field-info-list name grammar-clause-hash)
     (define (name->field-info/direct name)
       (syntax-parse (dict-ref grammar-clause-hash name
                               (λ () (error 'xsmith
@@ -165,6 +155,8 @@
 
     field-info)
 
+  ;;; (grammar-clause ...) -> (hashof node-name:id -> grammar-clause)
+  ;;; To reference the list by node name instead of searching through it.
   (define grammar-clauses-stx->clause-hash
     (syntax-parser [(c:grammar-clause ...)
                     (for/hash ([name (syntax->datum #'(c.node-name ...))]
@@ -172,7 +164,8 @@
                       (values name clause))]))
 
   (define (ag/cm-list->hash xs)
-    ;; Makes a tiered hash from rule->node->val-stx
+    ;; Accepts a list of prop-clause,
+    ;; Makes a tiered hash from rule -> node -> val-stx
     (for/fold ([h (hash)])
               ([x xs])
       (syntax-parse x
@@ -183,6 +176,9 @@
                                 #'pc.prop-val))
          (dict-set h (syntax->datum #'pc.prop-name) new-rule-hash)])))
 
+  ;; Helper for defining properties on #f (instead of an AST node type name).
+  ;; Basically it turns a prop-clause with #f as the node name into one with
+  ;; the (generated) base node name.
   (define ((prop-clause-false-to-default base-node-name) prop-clause-stx)
     (syntax-parse prop-clause-stx
       [pc:prop-clause
@@ -190,30 +186,34 @@
          [#f #`(pc.prop-name #,base-node-name pc.prop-val)]
          [_ prop-clause-stx])]))
 
+
   (define (ast-node-name-stx->hole-name-stx n)
     ;; Because they have to be passed to `make-ast-rule`, hole
     ;; names can't be hygienic.  So this name is meant to be
     ;; long and not likely to conflict with anything a user would
     ;; actually use.
+    ;; Also, more importantly, it fits the now-documented form for
+    ;; Xsmith-private names that can't be hygienic.
     (format-id n "XsmithAstHole~a" n))
 
 
-  (define (grammar-component->ast-rule-component-part gcomp-stx)
-    (syntax-parse gcomp-stx
-      [gc:grammar-component
-       (symbol->string
-        (syntax->datum
-         (if (attribute gc.type)
-             (format-id #f "~a~a<~a"
-                        #'gc.type
-                        (or (attribute gc.kleene-star) "")
-                        #'gc.name)
-             (format-id #f "~a~a"
-                        #'gc.name
-                        (or (attribute gc.kleene-star) "")))))]))
-
+  ;;; Synthesize the symbols needed for RACR's `ast-rule` form.
+  ;;; They are in the form 'NAME:PARENT->field<name-field*<name...
+  ;;; identifier -> (grammar-clause -> identifier)
   (define ({make-ast-rule-id base-node-name-stx} grammar-part-stx)
-    ;; make the (ast-rule 'NAME:PARENT->field<name-field*<name...) symbols
+    (define (grammar-component->ast-rule-component-part gcomp-stx)
+      (syntax-parse gcomp-stx
+        [gc:grammar-component
+         (symbol->string
+          (syntax->datum
+           (if (attribute gc.type)
+               (format-id #f "~a~a<~a"
+                          #'gc.type
+                          (or (attribute gc.kleene-star) "")
+                          #'gc.name)
+               (format-id #f "~a~a"
+                          #'gc.name
+                          (or (attribute gc.kleene-star) "")))))]))
     (syntax-parse grammar-part-stx
       [gc:grammar-clause
        (define base-name
@@ -225,19 +225,25 @@
                   base-name
                   (string-join fields "-"))]))
 
-  (define (get-ast-immediate-subtypes name-stx grammar-parts-stx)
-    (syntax-parse grammar-parts-stx
-      [(gc:grammar-clause ...)
-       (for/fold ([subs '()])
-                 ([name+parent (map syntax->list
-                                    (syntax->list #'([gc.node-name gc.parent] ...)))])
-         (if (and (syntax->datum (cadr name+parent))
-                  (free-identifier=? (cadr name+parent)
-                                     name-stx))
-             (cons (car name+parent) subs)
-             subs))]))
 
+  ;;; Helper for assemble-part-specs.
+  ;;; For creating choice lists.
+  ;;; Given the spec grammar (as a syntax list of grammar-clause) and the name
+  ;;; of an AST type, return all subtypes (as identifiers).
+  ;;; (grammar-clause ...) -> (identifier -> (listof identifier))
   (define ({get-ast-subtypes grammar-parts-stx} name-stx)
+    (define (get-ast-immediate-subtypes name-stx grammar-parts-stx)
+      (syntax-parse grammar-parts-stx
+        [(gc:grammar-clause ...)
+         (for/fold ([subs '()])
+                   ([name+parent (map syntax->list
+                                      (syntax->list
+                                       #'([gc.node-name gc.parent] ...)))])
+           (if (and (syntax->datum (cadr name+parent))
+                    (free-identifier=? (cadr name+parent)
+                                       name-stx))
+               (cons (car name+parent) subs)
+               subs))]))
     (define (get-subs/work done-subs work-subs)
       (if (null? work-subs)
           done-subs
@@ -247,8 +253,10 @@
                                  (cdr work-subs)))))
     (define (get-subs node)
       (get-subs/work '() (list node)))
-    ;; TODO - filter abstracts
     (get-subs name-stx))
+
+
+  ;;;; Helpers for spec component manipulation
 
   (define (stuff-spec-component spec-component-name
                                 subhash-getter-stx
@@ -267,7 +275,43 @@
                        (hash-set phash k (cons ifo (hash-ref phash k '()))))])
                (set! sc-ref (#,subhash-setter-stx sc-ref new-sub-hash)))))]))
 
+
+  (define (spec-component-merge spec-components)
+    (for/fold ([bighash (hash)])
+              ([component-project (list spec-component-struct-grammar-info
+                                        spec-component-struct-ag-rule-info
+                                        spec-component-struct-choice-rule-info
+                                        spec-component-struct-property-info)]
+               [subhash-key '(grammar-info ag-info cm-info props-info)])
+      (define subhash
+        (for/fold ([h (hash)])
+                  ([p (map (λ (x) (component-project x))
+                           spec-components)])
+          (for/fold ([h h])
+                    ([k (hash-keys p)])
+            (hash-set h k (append (hash-ref p k)
+                                  (hash-ref h k '()))))))
+      (hash-set bighash subhash-key subhash)))
+
   )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Forms for defining and adding definitions to spec components.
+
+(define-syntax-parser define-spec-component
+  [(_ component-name:identifier)
+   (define spec-inner-id (datum->syntax #'here (gensym "%%spec-component-inner-id_")))
+   ;; We do this in a round-about way to satisfy Racket's separate compilation stuff.
+   ;; If we just define it with define-syntax then when we reference it it won't see
+   ;; all the side-effects from add-to-grammar and friends.
+   ;; The contents of begin-for-syntax (including define-for-syntax) blocks are
+   ;; evaluated for every instantiation of a module.  So by doing the mutation
+   ;; on a define-for-syntax variable it is visible every time.
+   #`(begin
+       (define-for-syntax #,spec-inner-id
+         (spec-component-struct (hash) (hash) (hash) (hash)))
+       (define-syntax component-name
+         (spec-component-struct-ref (quote-syntax #,spec-inner-id))))])
 
 
 (define-syntax-parser add-to-grammar
@@ -291,7 +335,6 @@
                            component-setter
                            #'((prop/ag/cm-name node-name) ...)
                            #'([prop/ag/cm-name node-name prop] ...))]))
-
 (define-syntax-parser add-ag-rule
   [(_ arg ...) (add-prop-generic
                 #'spec-component-struct-ag-rule-info
@@ -302,30 +345,17 @@
                 #'spec-component-struct-choice-rule-info
                 #'set-spec-component-struct-choice-rule-info
                 #'(arg ...))])
-
 (define-syntax-parser add-prop
   [(_ arg ...) (add-prop-generic
                 #'spec-component-struct-property-info
                 #'set-spec-component-struct-property-info
                 #'(arg ...))])
 
-(define-for-syntax (spec-hash-merge spec-components)
-  (for/fold ([bighash (hash)])
-            ([component-project (list spec-component-struct-grammar-info
-                                      spec-component-struct-ag-rule-info
-                                      spec-component-struct-choice-rule-info
-                                      spec-component-struct-property-info)]
-             [subhash-key '(grammar-info ag-info cm-info props-info)])
-    (define subhash
-      (for/fold ([h (hash)])
-                ([p (map (λ (x) (component-project x))
-                         spec-components)])
-        (for/fold ([h h])
-                  ([k (hash-keys p)])
-          (hash-set h k (append (hash-ref p k)
-                                (hash-ref h k '()))))))
-    (hash-set bighash subhash-key subhash)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Functions implementing the RACR attributes that xsmith defines by default.
+
+;; Implements the <spec-name>-generate-ast function.
 (define ((ast-generator-generator fresh-node-func) node-name)
   (define n (fresh-node-func node-name))
   (let ([fill-in
@@ -339,6 +369,7 @@
              [else #f]))])
     (perform-rewrites n 'top-down fill-in))
   n)
+
 (define find-a-descendant-function
   ;;; Find the first node that satisfies the predicate (the given node included)
   (λ (n predicate)
@@ -425,7 +456,7 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
          (define-syntax-parser assemble_stage2
            [(_ spec-name extra-props-name)
             (define parts (list spec-ref ...))
-            (define combined (spec-hash-merge parts))
+            (define combined (spec-component-merge parts))
             (define (parts->stx key)
               (let ([phash (hash-ref combined key)])
                 (datum->syntax #f (map (λ (k) (hash-ref phash k))
@@ -613,7 +644,7 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
    (define node-attribute-length-hash
      (for/hash ([node-name node-names])
        (values node-name
-               (length (grammar-node-name->field-info
+               (length (grammar-node-name->field-info-list
                         node-name
                         grammar-hash)))))
    (define choice-rule-name->node-name->rule-body
