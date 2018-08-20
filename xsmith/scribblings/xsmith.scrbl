@@ -841,5 +841,36 @@ TODO - this should probably follow the dict-ref interface and accept a default v
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-@section{What else should go here?}
-Something about the implementation of cish.  Other stuff?
+@section{Cish}
+
+Cish is a C program generator made with the Xsmith library.  It has co-evolved with Xsmith, and is essentially the reference Xsmith program generator.
+
+When xsmith is installed as a Racket package, an @tt{xsmith-cish} executable is placed in your Racket package @tt{bin} directory (usually at @tt{$HOME/.racket/racket-<version>/bin}).  Additinally, Cish can be run with the command @tt{racket -l xsmith/cish --} (the final @tt{--} causes further flags to be parsed by cish and not by Racket).
+
+To see command-line options, run Cish with the @tt{--help} flag.  The options are the same as with any program that uses @racket[xsmith-command-line].
+
+Cish supports the following features for the @tt{--with} and @tt{--without} flags:
+
+@itemlist[
+  @item{
+    These features are enabled by default:
+    @itemlist[
+    @item{@tt{null-statement}}
+    @item{@tt{if-statement}}
+    @item{@tt{if-expression}}
+    @item{@tt{loop-statement}}
+    @item{@tt{float}}
+    @; Technically you can disable int, but then it can't make choices because main is hard-coded to be an int.
+    @; This really ought to be changed -- we should generate a sub-main function to be called by main, which can have any return type.  Then we should have "main" always be the same (accepting arguments, calculating a checksum, printing something...) but calling the sub-main function with appropriate arguments.
+    @;@item{@tt{int}}
+    ]
+  }
+  @item{
+    These features are disabled by default:
+    @itemlist[
+    @item{@tt{unsafe-math/range} -- Use a range analysis to convert safe math operations to bare unsafe math operations (when shown to be safe).}
+    @item{@tt{unsafe-math/symbolic} -- Use a symbolic analysis to convert safe math operations to bare unsafe math operations (when shown to be safe).}
+    ]
+  }
+]
+

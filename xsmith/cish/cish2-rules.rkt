@@ -1561,9 +1561,9 @@ few of these methods.
                         (send this features))))])
 (cm features
     [Node '()]
-    [NullStatement '(null)]
+    [NullStatement '(null-statement)]
     [IfStatement '(if-statement)]
-    [LoopStatement '(loop)]
+    [LoopStatement '(loop-statement)]
     [IfExpression '(if-expression)]
     )
 
