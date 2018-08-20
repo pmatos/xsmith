@@ -27,7 +27,6 @@ racket/file
 
 @title{Xsmith}
 
-TODO - there should be documentation about what so-far constitutes general infrastructure/library/language for fuzzer definition (IE what is xsmith itself) as well as documentation about Cish, a fuzzer implementation that serves as an example and a source of ideas to pull into xsmith the library.
 
 @section{Overview}
 
@@ -105,7 +104,10 @@ Note that hole node types are created for every type in the grammar (including L
 
 
 @subsection{Scope Graphs}
-TODO - exlanation about how Xsmith uses scope graphs.
+Xsmith uses the language-independent resolution algorithm of scope graphs.
+
+The theory of scope graphs is described in the paper “A Theory of Name Resolution with Extended Coverage and Proofs”, (available at @url{https://researchr.org/publication/NeronTVW15}).
+
 
 @subsection{Minimal Example}
 
