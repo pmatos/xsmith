@@ -1456,6 +1456,33 @@
  [Node (λ (n) (att-value 'find-transitive-resolved n 'VariableReference))])
 
 
+;;;;;; Lifting
+(define (make-lift-func n type lift-depth)
+  (λ ()
+    (define name (fresh-var-name "lift_"))
+    (define new-hole (make-hole 'Declaration))
+    (rewrite-terminal 'liftdepth new-hole lift-depth)
+    (rewrite-terminal 'lifttype new-hole type)
+    (rewrite-add (ast-child 'declarations n) new-hole)
+    name))
+(ag
+ lift-destinations
+ ;; Returns a list of functions for lifting a definition of the given type.
+ ;; The functions take no arguments,
+ ;; and they return the name of the newly lifted definition.
+ ;; (which they mutate into a given field)
+ [Node (λ (n type lift-depth)
+         (att-value 'lift-destinations (parent-node n) type))]
+ [Block (λ (n type lift-depth)
+          (define parent-destinations
+            (att-value 'lift-destinations (parent-node n) type))
+          (if (function-type? type)
+              parent-destinations
+              (cons (make-lift-func n type lift-depth)
+                    parent-destinations)))]
+ [Program (λ (n type lift-depth)
+            (list (make-lift-func n type lift-depth)))])
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; choice rules
@@ -1645,6 +1672,16 @@ few of these methods.
                                           legal-with-type))
             (hash-set! ref-choices-filtered-hash this final-choices)
             (and (not (null? final-choices)) final-choices)))))]
+ [FunctionDefinition
+  (λ ()
+    (define lift-type (ast-child 'lifttype current-hole))
+    (or (ast-bud-node? lift-type)
+        (function-type? lift-type)))]
+ [VariableDeclaration
+  (λ ()
+    (define lift-type (ast-child 'lifttype current-hole))
+    (or (ast-bud-node? lift-type)
+        (not (function-type? lift-type))))]
  )
 
 

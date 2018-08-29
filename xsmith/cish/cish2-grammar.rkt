@@ -19,12 +19,17 @@
 
 (add-to-grammar
  cish2-grammar
- [Node #f ([precomment = empty-doc]
+ [Node #f ([liftdepth = 0]
+           [lifttype = #f]
+           [precomment = empty-doc]
            [postcomment = empty-doc])]
  [Program Node ([declarations : Declaration * = (random 7)]
                 [main : FunctionDefinition])]
 
- [Declaration Node ([name = (fresh-var-name "x_")])]
+ [Declaration Node ([liftdepth = 0]
+                    ;; TODO - “lifttype” and “typename” should be merged into “type”
+                    [lifttype = #f]
+                    [name = (fresh-var-name "x_")])]
  [VariableDeclaration Declaration ([typename = (fresh-var-type)]
                                    Expression)]
  [FunctionDefinition Declaration ([typename = (fresh-var-type)]
@@ -150,24 +155,44 @@
                                         'type))
                       2)))]
           [VariableDeclaration
-           (let ([name (if (equal? (top-ancestor-node current-hole)
-                                   (parent-node current-hole))
-                           (fresh-var-name "global_")
-                           (fresh-var-name "local_"))])
+           (let* ([hole-name (ast-child 'name current-hole)]
+                  [name (if (string? hole-name)
+                            hole-name
+                            (if (equal? (top-ancestor-node current-hole)
+                                        (parent-node current-hole))
+                                (fresh-var-name "global_")
+                                (fresh-var-name "local_")))]
+                  [hole-type (ast-child 'lifttype current-hole)]
+                  [typename (if (ast-bud-node? hole-type)
+                                (fresh-var-type)
+                                hole-type)])
              (hash 'name name
-                   'typename (fresh-var-type)))]
+                   'typename typename))]
           [FunctionDefinition
            (let* ([p (parent-node current-hole)]
                   [main? (and (eq? (node-type p) 'Program)
-                              (eq? (ast-child 'main p) current-hole))])
+                              (eq? (ast-child 'main p) current-hole))]
+                  [hole-name (ast-child 'name current-hole)]
+                  [name (if (string? hole-name)
+                            hole-name
+                            (if main?
+                                "main"
+                                (fresh-var-name "func_")))]
+                  [hole-type (ast-child 'lifttype current-hole)]
+                  [return-type (if (ast-bud-node? hole-type)
+                                   (if main? int-type (fresh-var-type))
+                                   ;; typename is the string of the return type...
+                                   (car (reverse hole-type)))]
+                  [params (if (ast-bud-node? hole-type)
+                              (expr->ast-list (if main? 0 (random 5))
+                                              (make-fresh-node 'FormalParam))
+                              (map (λ (t) (make-fresh-node 'FormalParam
+                                                           (hash 'typename t)))
+                                   (reverse (cdr (reverse (cdr hole-type))))))])
              (hash
-              'name
-              (if main? "main" (fresh-var-name "func_"))
-              'typename
-              (if main? int-type (fresh-var-type))
-              'params
-              (expr->ast-list (if main? 0 (random 5))
-                              (make-fresh-node 'FormalParam))))]
+              'name main
+              'typename return-type
+              'params params))]
           )
 
 (add-prop cish2-grammar
