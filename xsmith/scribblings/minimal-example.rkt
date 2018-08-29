@@ -40,7 +40,7 @@
 (assemble-spec-components
  arithmetic
  ;; TODO - these core properties should not need to be specified here.
- #:properties (depth-increase-predicate fresh choice-filters-to-apply)
+ #:properties (depth-increase fresh choice-filters-to-apply)
  arith)
 
 (define (arithmetic-generate-and-print)

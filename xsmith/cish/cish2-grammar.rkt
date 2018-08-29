@@ -112,7 +112,7 @@
           )
 
 (add-prop cish2-grammar
-          depth-increase-predicate
+          depth-increase
           [Block (λ (n) (if (member (node-type (parent-node n))
                                     '(IfStatement
                                       IfElseStatement
@@ -123,9 +123,9 @@
                             (att-value 'ast-depth (parent-node n))
                             (add1 (att-value 'ast-depth (parent-node n)))))]
           ;; some nodes should never increase depth
-          [ExpressionStatement (λ(n)#f)]
-          [AssignmentExpression (λ(n)#f)]
-          [Declaration (λ(n)#f)])
+          [ExpressionStatement (λ(n)0)]
+          [AssignmentExpression (λ(n)0)]
+          [Declaration (λ(n)0)])
 
 (add-prop cish2-grammar
           fresh

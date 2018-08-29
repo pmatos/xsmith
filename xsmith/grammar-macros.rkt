@@ -93,6 +93,7 @@
                    (~optional (~and (~datum *) kleene-star))
                    (~optional (~seq (~datum =) init-expr:expr))])))
   (define-syntax-class grammar-clause
+    ;; TODO - validate node-name: it should not have hyphens or other RACR-special characters
     (pattern
      [node-name:id (~and parent (~or parent-name:id #f))
                    (component:grammar-component ...)]))

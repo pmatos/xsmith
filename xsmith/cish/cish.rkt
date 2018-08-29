@@ -26,7 +26,7 @@
  (
   ;; Most of these don't need to be listed here, but I'm leaving them to remember which ones I need to make enabled by default...
   may-be-generated
-  depth-increase-predicate
+  depth-increase
   choice-weight
   fresh
   wont-over-deepen

@@ -2,7 +2,7 @@
 
 (provide
  may-be-generated
- depth-increase-predicate
+ depth-increase
  choice-weight
  fresh
  wont-over-deepen
@@ -35,18 +35,19 @@
                                [#f #'(λ () #f)]))
 
 (define-non-inheriting-rule-property
-  depth-increase-predicate
+  depth-increase
   ag-rule
   #:rule-name ast-depth
-  #:default (λ (n) #t)
+  #:default (λ (n) 1)
   #:transformer (syntax-parser
-                  [pred:expr
+                  [inc:expr
                    #'(λ (n)
-                       (cond [(pred n) (let ([p (parent-node n)])
-                                         (if p
-                                             (add1 (att-value 'ast-depth p))
-                                             0))]
-                             [else (att-value 'ast-depth (parent-node n))]))]))
+                       (define increment (inc n))
+                       (define parent-depth
+                         (if (ast-has-parent? n)
+                             (att-value 'ast-depth (parent-node n))
+                             0))
+                       (+ increment parent-depth))]))
 
 (define-property choice-weight
   #:appends (choice-rule xsmith_choice-weight)

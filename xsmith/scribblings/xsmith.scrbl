@@ -182,9 +182,7 @@ The following attributes are defined by properties:
 
 Accepts the node it is called on, and no other arguments.
 Returns the tree depth at that node.
-Determined by @racket[depth-increase-predicate].
-
-TODO (code) - depth-increase-predicate should probably be @tt{depth-increase}, and accept integers rather than booleans, and the default should be 1.
+Determined by @racket[depth-increase].
 }
 ]
 
@@ -236,7 +234,7 @@ Example:
 @racketblock[
 (assemble-spec-components
  my-spec
- #:properties (depth-increase-predicate fresh wont-over-deepen introduces-scope)
+ #:properties (depth-increase fresh wont-over-deepen introduces-scope)
  my-spec-component
  my-other-spec-component
  )
@@ -637,7 +635,7 @@ Example:
 ]
 }
 
-@defform[#:kind "spec-property" #:id depth-increase-predicate depth-increase-predicate]{
+@defform[#:kind "spec-property" #:id depth-increase depth-increase]{
 This property defines the @tt{ast-depth} non-inheriting ag-rule.
 
 The property accepts an expression which much evaluate to a function of one argument (the RACR AST node) which returns a truthy value for nodes which increase the depth of the AST and #f otherwise.  The default is @racket[(λ (n) #t)].
@@ -648,15 +646,13 @@ This is useful to allow node re-use.  For example, the body of an @tt{if} or @tt
 Example:
 @racketblock[
 (define no-depth-if-body-is-block
-  (λ (n) (node-subtype? (ast-child 'body n) 'Block)))
+  (λ (n) (if (node-subtype? (ast-child 'body n) 'Block) 0 1)))
 (add-prop
  my-spec-component
- depth-increase-predicate
+ depth-increase
  [IfStatement no-depth-if-body-is-block]
  [ForStatement no-depth-if-body-is-block])
 ]
-
-TODO -- this should probably return a number to add rather than #t or #f -- then some nodes could increase the counted depth faster than normal or even decrease the counted depth (which probably wouldn't be useful?).
 }
 
 @defform[#:kind "spec-property" #:id fresh fresh]{
