@@ -1457,10 +1457,10 @@
 
 
 ;;;;;; Lifting
-(define (make-lift-func n type lift-depth)
+(define (make-lift-func n type lift-depth make-hole-function)
   (λ ()
     (define name (fresh-var-name "lift_"))
-    (define new-hole (make-hole 'Declaration))
+    (define new-hole (make-hole-function))
     (rewrite-terminal 'liftdepth new-hole lift-depth)
     (rewrite-terminal 'lifttype new-hole type)
     (rewrite-add (ast-child 'declarations n) new-hole)
@@ -1478,10 +1478,10 @@
             (att-value 'lift-destinations (parent-node n) type))
           (if (function-type? type)
               parent-destinations
-              (cons (make-lift-func n type lift-depth)
+              (cons (make-lift-func n type lift-depth (λ()(make-hole 'Declaration)))
                     parent-destinations)))]
  [Program (λ (n type lift-depth)
-            (list (make-lift-func n type lift-depth)))])
+            (list (make-lift-func n type lift-depth (λ()(make-hole 'Declaration)))))])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -42,7 +42,7 @@
 (define (xsmith-options-defaults)
   (make-hasheq
    (list (cons 'features-disabled (make-hasheq))
-         (cons 'max-depth 4))))
+         (cons 'max-depth 5))))
 
 (define (xsmith-option key)
   (dict-ref (xsmith-options) key))

@@ -44,9 +44,13 @@
                    #'(λ (n)
                        (define increment (inc n))
                        (define parent-depth
-                         (if (ast-has-parent? n)
-                             (att-value 'ast-depth (parent-node n))
-                             0))
+                         ;; TODO - liftdepth should be xsmithliftdepth
+                         (cond [(and (ast-has-child? 'liftdepth n)
+                                     (number? (ast-child 'liftdepth n)))
+                                (ast-child 'liftdepth n)]
+                               [(ast-has-parent? n)
+                                (att-value 'ast-depth (parent-node n))]
+                               [else 0]))
                        (+ increment parent-depth))]))
 
 (define-property choice-weight
