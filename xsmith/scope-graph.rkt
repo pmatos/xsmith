@@ -94,7 +94,9 @@
          [well-formed-rs (filter well-formed?
                                  resolutions)]
          [err (when (null? well-formed-rs)
-                (error 'resolve-reference "Unbound reference"))]
+                (error 'xsmith_resolve-reference
+                       (format "Unbound reference: ~a"
+                               (reference-name reference))))]
          [best-r (apply generic-max #:gt-comparator greater-visibility
                         well-formed-rs)])
     (resolution-binding best-r)))

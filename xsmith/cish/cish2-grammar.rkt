@@ -19,9 +19,7 @@
 
 (add-to-grammar
  cish2-grammar
- [Node #f ([liftdepth = 0]
-           [lifttype = #f]
-           [precomment = empty-doc]
+ [Node #f ([precomment = empty-doc]
            [postcomment = empty-doc])]
  [Program Node ([declarations : Declaration * = (random 7)]
                 [main : FunctionDefinition])]
@@ -144,14 +142,16 @@
             'name
             (binding-name (random-ref (send this constrain-type))))]
           [VariableReference
-           (hash 'name (binding-name (random-ref
-                                      (send this constrain-type))))]
+           (let* ([choice* (random-ref (send this constrain-type))]
+                  [choice (if (procedure? choice*) (choice*) choice*)])
+             (hash 'name (binding-name choice)))]
           [FunctionApplicationExpression
-           (let ([chosen-func (random-ref (send this constrain-type))])
+           (let* ([choice* (random-ref (send this constrain-type))]
+                  [choice (if (procedure? choice*) (choice*) choice*)])
              (hash 'name
-                   (binding-name chosen-func)
+                   (binding-name choice)
                    'Expression
-                   (- (length (dict-ref (binding-bound chosen-func)
+                   (- (length (dict-ref (binding-bound choice)
                                         'type))
                       2)))]
           [VariableDeclaration
@@ -190,7 +190,7 @@
                                                            (hash 'typename t)))
                                    (reverse (cdr (reverse (cdr hole-type))))))])
              (hash
-              'name main
+              'name name
               'typename return-type
               'params params))]
           )

@@ -15,6 +15,8 @@
  make-hole
  make-fresh-node
 
+ lift-thunk-box
+
  (for-syntax
   grammar-component
   grammar-clause
@@ -74,6 +76,8 @@
                        "current-racr-spec used without being parameterized"
                        #'stx)]))
 
+;; TODO - this should be hidden somehow, but for expedience I need a communication channel here.
+(define lift-thunk-box (box #f))
 
 
 
@@ -366,6 +370,9 @@
              [(att-value 'is-hole? n)
               (begin
                 (rewrite-subtree n (att-value 'xsmith_hole->replacement n))
+                (when (unbox lift-thunk-box)
+                  ((unbox lift-thunk-box))
+                  (set-box! lift-thunk-box #f))
                 #t)]
              [else #f]))])
     (perform-rewrites n 'top-down fill-in))

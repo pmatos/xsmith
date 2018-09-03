@@ -16,6 +16,7 @@
  racket/set
  racket/match
  racket/class
+ racket/random
  (prefix-in rt: rosette)
  (except-in racket/list empty)
  "../scope-graph.rkt"
@@ -1457,14 +1458,35 @@
 
 
 ;;;;;; Lifting
-(define (make-lift-func n type lift-depth make-hole-function)
-  (λ ()
-    (define name (fresh-var-name "lift_"))
-    (define new-hole (make-hole-function))
-    (rewrite-terminal 'liftdepth new-hole lift-depth)
-    (rewrite-terminal 'lifttype new-hole type)
-    (rewrite-add (ast-child 'declarations n) new-hole)
-    name))
+(ag
+ ;; as ag-rule so make-hole is bound
+ make-lift-do-proc
+ [Node (λ (n-destination destination-child type lift-depth ast-type)
+         (λ ()
+           (define name (fresh-var-name "lift_"))
+           (define new-hole (make-hole ast-type))
+
+           ;; These should not be needed
+           ;(rewrite-terminal 'liftdepth new-hole lift-depth)
+           ;(rewrite-terminal 'lifttype new-hole type)
+
+           (define choices
+             (att-value 'xsmith_hole->choice-list new-hole))
+           (when (not (equal? (length choices) 1))
+             (error
+              'xsmith
+              (format
+               "lift attempted for node type with more than 1 replacement choice: ~a"
+               ast-type)))
+           (define new-declaration
+             (send (car choices) xsmith_fresh (hash 'liftdepth lift-depth
+                                                    'lifttype type)))
+           ;(rewrite-add (ast-child destination-child n-destination) new-hole)
+           (set-box! lift-thunk-box
+                     (λ () (rewrite-add
+                            (ast-child destination-child n-destination)
+                            new-declaration)))
+           name))])
 (ag
  lift-destinations
  ;; Returns a list of functions for lifting a definition of the given type.
@@ -1472,16 +1494,34 @@
  ;; and they return the name of the newly lifted definition.
  ;; (which they mutate into a given field)
  [Node (λ (n type lift-depth)
-         (att-value 'lift-destinations (parent-node n) type))]
+         (att-value 'lift-destinations (parent-node n) type lift-depth))]
  [Block (λ (n type lift-depth)
           (define parent-destinations
-            (att-value 'lift-destinations (parent-node n) type))
+            (att-value 'lift-destinations (parent-node n) type lift-depth))
           (if (function-type? type)
               parent-destinations
-              (cons (make-lift-func n type lift-depth (λ()(make-hole 'Declaration)))
+              (cons (att-value 'make-lift-do-proc
+                               n
+                               'declarations
+                               type
+                               lift-depth
+                               'VariableDeclaration)
                     parent-destinations)))]
  [Program (λ (n type lift-depth)
-            (list (make-lift-func n type lift-depth (λ()(make-hole 'Declaration)))))])
+            (list (att-value 'make-lift-do-proc
+                             n
+                             'declarations
+                             type
+                             lift-depth
+                             (if (function-type? type)
+                                 'FunctionDefinition
+                                 'VariableDeclaration))))])
+(ag
+ lift-declaration
+ [Node (λ (n type lift-ast-type)
+         (define depth (att-value 'ast-depth n))
+         (define destinations (att-value 'lift-destinations n type depth))
+         ((random-ref destinations)))])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1644,8 +1684,18 @@ few of these methods.
                   (filter (λ (b) (not (function-type?
                                        (dict-ref (binding-bound b) 'type))))
                           legal-refs)))
-            (hash-set! ref-choices-filtered-hash this legal-with-type)
-            (and (not (null? legal-with-type)) legal-with-type)))))]
+            ;; TODO - must fully concretize type-needed
+            (define legal+lift
+              (cons (λ () (let ([lift-name (att-value 'lift-declaration
+                                                      current-hole
+                                                      type-needed
+                                                      'Declaration)])
+                            ;; TODO - the hash here is incomplete because there is
+                            ;;        no node yet...
+                            (binding lift-name (hash 'type type-needed))))
+                    legal-with-type))
+            (hash-set! ref-choices-filtered-hash this legal+lift)
+            legal+lift))))]
  [FunctionApplicationExpression
   (λ ()
     (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
@@ -1670,14 +1720,27 @@ few of these methods.
                   legal-refs))
             (define final-choices (filter (λ (b) (not (equal? "main" (binding-name b))))
                                           legal-with-type))
-            (hash-set! ref-choices-filtered-hash this final-choices)
-            (and (not (null? final-choices)) final-choices)))))]
- [FunctionDefinition
+            (define lift-type (append '(->)
+                                      (map (λ(x)(fresh-var-type))
+                                           (make-list (random 4) #f))
+                                      (list type-needed)))
+            (define legal+lift
+              (cons (λ () (let ([lift-name (att-value 'lift-declaration
+                                                      current-hole
+                                                      lift-type
+                                                      'Declaration)])
+                            ;; TODO - the hash here is incomplete because there is
+                            ;;        no node yet...
+                            (binding lift-name (hash 'type type-needed))))
+                    final-choices))
+            (hash-set! ref-choices-filtered-hash this legal+lift)
+            legal+lift))))]
+ #;[FunctionDefinition
   (λ ()
     (define lift-type (ast-child 'lifttype current-hole))
     (or (ast-bud-node? lift-type)
         (function-type? lift-type)))]
- [VariableDeclaration
+ #;[VariableDeclaration
   (λ ()
     (define lift-type (ast-child 'lifttype current-hole))
     (or (ast-bud-node? lift-type)
