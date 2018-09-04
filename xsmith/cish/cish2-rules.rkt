@@ -1600,7 +1600,11 @@ few of these methods.
  [FunctionApplicationExpression
   (hinted-choice-weight application-hint)]
  [VariableDeclaration 20]
- [VariableReference 10]
+ ;; Don't choose variable reference often when I'm already in a max-depth lift.
+ [VariableReference (if (>= (att-value 'ast-depth current-hole)
+                            (xsmith-option 'max-depth))
+                        1
+                        10)]
  )
 
 
