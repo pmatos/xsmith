@@ -61,7 +61,10 @@
              (make-list length #f)))]))
 
 (define (node-type n)
-  (and (not (ast-list-node? n)) (not (ast-bud-node? n)) (ast-node-type n)))
+  (and (ast-node? n)
+       (not (ast-list-node? n))
+       (not (ast-bud-node? n))
+       (ast-node-type n)))
 
 (define (parent-node n)
   ;; I've had several bugs where I used a parent node that was a list-node

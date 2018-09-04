@@ -1731,7 +1731,7 @@ few of these methods.
                                                       'Declaration)])
                             ;; TODO - the hash here is incomplete because there is
                             ;;        no node yet...
-                            (binding lift-name (hash 'type type-needed))))
+                            (binding lift-name (hash 'type lift-type))))
                     final-choices))
             (hash-set! ref-choices-filtered-hash this legal+lift)
             legal+lift))))]
