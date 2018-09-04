@@ -1465,6 +1465,7 @@
          (λ ()
            (define name (fresh-var-name "lift_"))
            (define new-hole (make-hole ast-type))
+           (rewrite-terminal 'name new-hole name)
 
            ;; These should not be needed
            ;(rewrite-terminal 'liftdepth new-hole lift-depth)
@@ -1483,8 +1484,10 @@
                                                     'lifttype type)))
            ;(rewrite-add (ast-child destination-child n-destination) new-hole)
            (set-box! lift-thunk-box
-                     (λ () (rewrite-add
+                     (λ () (rewrite-insert
                             (ast-child destination-child n-destination)
+                            ;; 1-based index?
+                            1
                             new-declaration)))
            name))])
 (ag
@@ -1597,7 +1600,7 @@ few of these methods.
  [FunctionApplicationExpression
   (hinted-choice-weight application-hint)]
  [VariableDeclaration 20]
- [VariableReference 15]
+ [VariableReference 10]
  )
 
 

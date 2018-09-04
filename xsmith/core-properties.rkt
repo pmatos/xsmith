@@ -187,6 +187,7 @@ hole for the type.
                 #`(λ ()
                     (or (<= (att-value 'ast-depth current-hole)
                             (xsmith-option 'max-depth))
+                        (current-force-deepen)
                         #,(dict-ref
                            this-prop-info
                            node

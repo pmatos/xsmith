@@ -15,7 +15,9 @@
  make-hole
  make-fresh-node
 
+ ;; these should not be public, but are needed by other xsmith modules
  lift-thunk-box
+ current-force-deepen
 
  (for-syntax
   grammar-component
@@ -79,6 +81,7 @@
 ;; TODO - this should be hidden somehow, but for expedience I need a communication channel here.
 (define lift-thunk-box (box #f))
 
+(define current-force-deepen (make-parameter #f))
 
 
 (begin-for-syntax
@@ -399,9 +402,17 @@
   (λ (n)
     (if (att-value 'is-hole? n)
         (let* ([choices (att-value 'xsmith_hole->choice-list n)]
+               [should-force-deepen?
+                ;; If all choices, before filtering, will over-deepen, don't use
+                ;; that filter.  This is for cases where a deepening choice requires
+                ;; deepening children -- eg. a form that uses a block child for
+                ;; re-use purposes that is chosen at maximum-depth - 1.
+                (andmap (λ (x) (not (send x xsmith_wont-over-deepen)))
+                        choices)]
                [choices-or-reasons
-                (map (λ (c) (send c xsmith_apply-choice-filters))
-                     choices)]
+                (parameterize ([current-force-deepen should-force-deepen?])
+                  (map (λ (c) (send c xsmith_apply-choice-filters))
+                       choices))]
                [filtered (filter (λ (x) (is-a? x ast-choice%))
                                  choices-or-reasons)])
           (if (null? filtered)
@@ -844,6 +855,8 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                            ...)))
                        (define (fresh-node-func-impl node-type [field-dict (hash)])
                          (dict-ref hole-name-hash node-type
+                                   ;; This dict-ref is done solely for the
+                                   ;; side-effect of erroring when a key is not found
                                    (λ ()
                                      (error
                                       'fresh-node-func
