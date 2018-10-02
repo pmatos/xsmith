@@ -237,8 +237,7 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
             node
             #'(λ (n)
                 (scope
-                 ;; parent scope -- this should be #f for the top-level scope
-                 (if (parent-node n)
+                 (if (ast-has-parent? n)
                      (att-value 'xsmith_scope-graph-scope (parent-node n))
                      #f)
                  ;; bindings
