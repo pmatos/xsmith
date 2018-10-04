@@ -1483,12 +1483,12 @@
              (send (car choices) xsmith_fresh (hash 'liftdepth lift-depth
                                                     'lifttype type)))
            ;(rewrite-add (ast-child destination-child n-destination) new-hole)
-           (set-box! lift-thunk-box
-                     (λ () (rewrite-insert
-                            (ast-child destination-child n-destination)
-                            ;; 1-based index?
-                            1
-                            new-declaration)))
+           (enqueue-inter-choice-transform
+            (λ () (rewrite-insert
+                   (ast-child destination-child n-destination)
+                   ;; 1-based index?
+                   1
+                   new-declaration)))
            name))])
 (ag
  lift-destinations

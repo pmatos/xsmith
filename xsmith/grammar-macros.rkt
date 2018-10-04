@@ -16,8 +16,11 @@
  make-fresh-node
 
  ;; these should not be public, but are needed by other xsmith modules
- lift-thunk-box
  current-force-deepen
+ ;; This should probably not be public, and so far is only used for lifts.
+ ;; In principle, any number of extra transformations could be queued up to
+ ;; be performed between choice transformations.  But that's probably a bad idea.
+ enqueue-inter-choice-transform
 
  (for-syntax
   grammar-component
@@ -78,8 +81,19 @@
                        "current-racr-spec used without being parameterized"
                        #'stx)]))
 
-;; TODO - this should be hidden somehow, but for expedience I need a communication channel here.
-(define lift-thunk-box (box #f))
+;; If you try to add a lift node during choice transformation racr will complain,
+;; so this inter-choice-transform-queue allows the lift to be queued for completion
+;; before the next choice is started.
+(define inter-choice-transform-queue-box (box '()))
+(define (enqueue-inter-choice-transform transform-thunk)
+  (set-box! inter-choice-transform-queue-box
+            (cons transform-thunk
+                  (unbox inter-choice-transform-queue-box))))
+(define (execute-inter-choice-transform-queue)
+  (define transforms (reverse (unbox inter-choice-transform-queue-box)))
+  (set-box! inter-choice-transform-queue-box '())
+  (for ([transform transforms])
+    (transform)))
 
 (define current-force-deepen (make-parameter #f))
 
@@ -373,9 +387,7 @@
              [(att-value 'is-hole? n)
               (begin
                 (rewrite-subtree n (att-value 'xsmith_hole->replacement n))
-                (when (unbox lift-thunk-box)
-                  ((unbox lift-thunk-box))
-                  (set-box! lift-thunk-box #f))
+                (execute-inter-choice-transform-queue)
                 #t)]
              [else #f]))])
     (perform-rewrites n 'top-down fill-in))
