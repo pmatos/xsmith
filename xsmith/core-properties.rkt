@@ -19,6 +19,7 @@
  racket/class
  racket/dict
  racket/list
+ racket/match
  (for-syntax
   racket/base
   syntax/parse
@@ -194,6 +195,42 @@ hole for the type.
                            (dict-ref rule-info-defaults node)))))))
     (list rule-info)))
 
+
+#|
+Helper function for xsmith_scope-graph-child-scope-dict.
+* cb-pairs is a list of (cons child-node binding), where binding is #f or a binding struct.
+* parent scope is the scope that the parent node is in.
+* serial/parallel/recursive-flag is a symbol
+|#
+(define (make-child-scope-dict cb-pairs parent-scope serial/parallel/recursive-flag)
+  (define cb-no-bindings (filter (λ (cb) (not (cdr cb))) cb-pairs))
+  (define cb-with-bindings (filter (λ (cb) (cdr cb)) cb-pairs))
+  (match serial/parallel/recursive-flag
+    ['serial
+     (define-values (scope-for-non-binding-children
+                     child-dict-with-binders)
+       (for/fold ([incoming-scope parent-scope]
+                  [child-dict (hash)])
+                 ([cb-pair cb-with-bindings])
+         (define new-scope (scope incoming-scope (list (cdr cb-pair)) '()))
+         (values new-scope
+                 (dict-set child-dict (car cb-pair) incoming-scope))))
+     (for/fold ([child-dict child-dict-with-binders])
+               ([cb-pair cb-no-bindings])
+       (dict-set child-dict
+                 (car cb-pair)
+                 scope-for-non-binding-children))]
+    ['parallel
+     (define new-scope (scope parent-scope (map cdr cb-with-bindings) '()))
+     (for/hash ([cb cb-pairs])
+       (if (cdr cb)
+           (values (car cb) parent-scope)
+           (values (car cb) new-scope)))]
+    ['recursive
+     (define new-scope (scope parent-scope (map cdr cb-with-bindings) '()))
+     (for/hash ([child (map car cb-pairs)])
+       (values child new-scope))]))
+
 #|
 The introduces-scope property generates RACR attributes for resolving bindings via scope graphs.
 The scope-graph-descendant-bindings attribute returns a list of all bindings on descendant nodes that are not under a different scope.  In other words, you call it on a node that introduces a scope and it returns all bindings within that scope.  It does not return bindings in child scopes.
@@ -203,13 +240,14 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
 (define-property introduces-scope
   #:reads (grammar)
   #:appends
+  ;; TODO - I don't think introduces-scope? is used anywhere anymore...  should it be removed?
   (ag-rule xsmith_scope-graph-introduces-scope?)
+  (ag-rule xsmith_scope-graph-child-scope-dict)
   (ag-rule xsmith_scope-graph-scope)
-  (ag-rule xsmith_scope-graph-descendant-bindings)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
-    (define field-info-hash
+    #;(define field-info-hash
       (for/hash ([node-name nodes])
         (values node-name
                 (grammar-node-name->field-info-list node-name grammar-info))))
@@ -221,12 +259,15 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
           [#f rule-info]
           [#t (dict-set rule-info node #'(λ (n) #t))])))
 
-    (define scope-graph-scope-info
+    (define scope-graph-scope-child-dict-info
       (for/fold ([rule-info (hash #f #'(λ (n)
                                          ;; If a node does not introduce a scope,
-                                         ;; its ag-rule should just check its parent
-                                         (att-value 'xsmith_scope-graph-scope
-                                                    (parent-node n))))])
+                                         ;; it just passes through its own.
+                                         (define children (ast-children/flat n))
+                                         (define scope
+                                           (att-value 'xsmith_scope-graph-scope n))
+                                         (for/hash ([c children])
+                                           (values c scope))))])
                 ([node nodes])
         (define prop-for-node (dict-ref this-prop-info node #'#f))
         (syntax-parse prop-for-node
@@ -236,58 +277,30 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
             rule-info
             node
             #'(λ (n)
-                (scope
-                 (if (ast-has-parent? n)
-                     (att-value 'xsmith_scope-graph-scope (parent-node n))
-                     #f)
-                 ;; bindings
-                 (att-value 'xsmith_scope-graph-descendant-bindings n #t)
-                 ;; imports -- this exists in the scope graphs impl, but is unused...
-                 '())))])))
+                (define children (filter ast-node? (ast-children/flat n)))
+                (define children-bindings
+                  ;; TODO - scope-graph-binding is cish-specific
+                  (map (λ (c) (att-value 'scope-graph-binding c))
+                       children))
+                (define cb-pairs (map cons children children-bindings))
+                (define parent-scope
+                  (att-value 'xsmith_scope-graph-scope n))
+                (make-child-scope-dict cb-pairs
+                                       parent-scope
+                                       'serial)))])))
+    (define scope-graph-scope-info
+      (hash #f
+            #'(λ (n) (if (ast-has-parent? n)
+                         (let ([parent-dict (att-value
+                                             'xsmith_scope-graph-child-scope-dict
+                                             (parent-node n))])
+                           (dict-ref parent-dict n))
+                         ;; dummy program parent scope to simplify child-dict lookup
+                         (scope #f '() '())))))
 
-    (define scope-graph-descendant-bindings-info
-      (for/hash ([node nodes])
-        (define field-info (dict-ref field-info-hash node))
-        (values
-         node
-         #`(λ (n [is-first-node? #f])
-             (if (or (att-value 'is-hole? n)
-                     (and (not is-first-node?)
-                          (att-value 'xsmith_scope-graph-introduces-scope? n)))
-                 '()
-                 (let ([this-node-binding (att-value 'scope-graph-binding n)]
-                       [children-binding-lists
-                        (list
-                         #,@(map (λ (fi)
-                                   (cond
-                                     [(not (grammar-node-field-struct-type fi))
-                                      #'(list)]
-                                     [(grammar-node-field-struct-kleene-star? fi)
-                                      #`(map (λ (c) (att-value
-                                                     'xsmith_scope-graph-descendant-bindings
-                                                     c))
-                                             (ast-children
-                                              (ast-child
-                                               '#,(datum->syntax
-                                                   #f
-                                                   (grammar-node-field-struct-name fi))
-                                               n)))]
-                                     [else
-                                      #`(att-value
-                                         'xsmith_scope-graph-descendant-bindings
-                                         (ast-child
-                                          '#,(datum->syntax
-                                              #f
-                                              (grammar-node-field-struct-name fi))
-                                          n))]))
-                                 field-info))])
-                   (define children-bindings (flatten children-binding-lists))
-                   (if this-node-binding
-                       (cons this-node-binding children-bindings)
-                       children-bindings)))))))
     (list scope-graph-introduces-scope?-info
-          scope-graph-scope-info
-          scope-graph-descendant-bindings-info)))
+          scope-graph-scope-child-dict-info
+          scope-graph-scope-info)))
 
 (define-property choice-filters-to-apply
   #:appends (choice-rule xsmith_apply-choice-filters)
