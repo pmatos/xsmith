@@ -55,7 +55,7 @@
   #:transparent)
 
 ;; Bindings may be to a module
-(struct binding (name bound)
+(struct binding (name ast-node type)
   #:transparent)
 
 (struct module (scope)

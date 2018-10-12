@@ -281,7 +281,7 @@ Types can be:
                                          (if (node-subtype? n 'FunctionDefinition)
                                              n
                                              (let ([ref (resolve-variable-reference-node n)])
-                                               (dict-ref (binding-bound ref) 'declaration-node))))]
+                                               (binding-ast-node ref))))]
                              [new-store (for/fold ([store store])
                                                   ([a assignments])
                                           (store-member-to-top-func store a))])
@@ -308,15 +308,13 @@ Types can be:
                           (att-value 'symbolic-interp-do
                                      n store path-condition return-variable assertions))
                         (λ (store key)
-                          (define t (dict-ref (binding-bound key) 'type))
+                          (define t (binding-type key))
                           (dict-set store key (fresh-symbolic-var t)))
                         (λ (n)
                           (att-value 'symbolic-interp-result-hash n))
                         (λ (n store path-condition return-variable assertions)
                           (define node-type
-                            (dict-ref (binding-bound
-                                       (resolve-variable-reference-node n))
-                                      'type))
+                            (binding-type (resolve-variable-reference-node n)))
                           (define ret-type (first (reverse node-type)))
                           (define v (fresh-symbolic-var ret-type))
                           (list v store #f assertions))))

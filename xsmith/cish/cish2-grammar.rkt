@@ -151,8 +151,7 @@
              (hash 'name
                    (binding-name choice)
                    'Expression
-                   (- (length (dict-ref (binding-bound choice)
-                                        'type))
+                   (- (length (binding-type choice))
                       2)))]
           [VariableDeclaration
            (let* ([hole-name (ast-child 'name current-hole)]

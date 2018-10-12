@@ -273,21 +273,19 @@
  scope-graph-binding
  [FunctionDefinition
   (λ (n) (binding (ast-child 'name n)
-                  ;; TODO - decide what should really go here
-                  (hash 'declaration-node n
-                        'type (append (list '->)
-                                      (map (λ (fp) (ast-child 'typename fp))
-                                           (ast-children (ast-child 'params n)))
-                                      (list (ast-child 'typename n))))))]
+                  n
+                  (append (list '->)
+                          (map (λ (fp) (ast-child 'typename fp))
+                               (ast-children (ast-child 'params n)))
+                          (list (ast-child 'typename n)))))]
  [VariableDeclaration
   (λ (n) (binding (ast-child 'name n)
-                  ;; TODO - decide what should really go here
-                  (hash 'declaration-node n
-                        'type (ast-child 'typename n))))]
+                  n
+                  (ast-child 'typename n)))]
  [FormalParam
   (λ (n) (binding (ast-child 'name n)
-                  (hash 'declaration-node n
-                        'type (ast-child 'typename n))))]
+                  n
+                  (ast-child 'typename n)))]
  [Node (λ (n) #f)])
 
 (ag
@@ -324,16 +322,13 @@
                                      (ast-child 'typename n)))]
  [AssignmentExpression
   (λ (n) (hasheq (ast-child 'Expression n)
-                 (hash-ref (binding-bound
-                            (resolve-variable-reference-node n))
-                           'type)))]
+                 (binding-type (resolve-variable-reference-node n))))]
  [FunctionApplicationExpression
   (λ (n)
     (let ([f-bind (resolve-variable-reference-node n)])
       (for/fold ([h (hasheq)])
                 ([cn (ast-children (ast-child 'args n))]
-                 [t (reverse (cdr (reverse (cdr (hash-ref (binding-bound f-bind)
-                                                          'type)))))])
+                 [t (reverse (cdr (reverse (cdr (binding-type f-bind)))))])
         (hash-set h cn t))))]
  [BinaryExpression (λ (n) (let ([t (or (att-value 'type-context n) (fresh-var-type))])
                             (hasheq (ast-child 'l n) t
@@ -797,8 +792,7 @@
  [FunctionApplicationExpression
   (λ (n store flow-returns)
     (match-let* ([binding (resolve-variable-reference-node n)]
-                 [bound (binding-bound binding)]
-                 [func-def-node (dict-ref bound 'declaration-node)]
+                 [func-def-node (binding-ast-node binding)]
                  [func-block (ast-child 'Block func-def-node)]
                  [func-params (ast-children (ast-child 'params func-def-node))]
                  [(list reversed-args store rets)
@@ -1067,7 +1061,7 @@
             [(equal? v2 'not-found) (values k v1)]
             [(equal? v1 v2) (values k v1)]
             [else
-             (define fv (fresh-symbolic-var (dict-ref (binding-bound k) 'type)))
+             (define fv (fresh-symbolic-var (binding-type k)))
              (set! new-asserts (set-add new-asserts (rt:=> (asserts->condition pc1)
                                                            (rt:= fv v1))))
              (set! new-asserts (set-add new-asserts (rt:=> (asserts->condition pc2)
@@ -1149,7 +1143,7 @@
   (define new-store
     (for/fold ([s store])
               ([a altered-refs])
-      (dict-set s a (fresh-symbolic-var (dict-ref (binding-bound a) 'type)))))
+      (dict-set s a (fresh-symbolic-var (binding-type a)))))
   (define has-return?
     (att-value 'find-a-descendant
                n
@@ -1253,7 +1247,7 @@
     (define u-store
       (for/fold ([s i-store])
                 ([a (att-value 'find-transitive-assignments (ast-child 'update n))])
-        (dict-set s a (fresh-symbolic-var (dict-ref (binding-bound a) 'type)))))
+        (dict-set s a (fresh-symbolic-var (binding-type a)))))
     (symbolic-interp-loop/body n u-store path-condition return-variable i-asserts))]
  [Block
   (λ (n store path-condition return-variable assertions)
@@ -1296,8 +1290,7 @@
     ;; TODO - this is almost the same as the one for abstract-interp/range
     ;; I should abstract over them somehow.
     (define ref-node (resolve-variable-reference-node n))
-    (define def-node (dict-ref (binding-bound ref-node)
-                               'declaration-node))
+    (define def-node (binding-ast-node ref-node))
     (define func-block (ast-child 'Block def-node))
     (define func-params (ast-children (ast-child 'params def-node)))
     (match-define (list reversed-args store-post-arguments asserts-post-arguments)
@@ -1338,7 +1331,7 @@
     (define ref (resolve-variable-reference-node n))
     (define val (hash-ref store ref
                           (λ () (fresh-symbolic-var
-                                 (hash-ref (binding-bound ref) 'type)))))
+                                 (binding-type ref)))))
     (list val
           store
           #f
@@ -1430,8 +1423,7 @@
            (if (empty? to-search)
                searched
                (let* ([calls (att-value 'find-direct-function-call-refs
-                                        (hash-ref (binding-bound (car to-search))
-                                                  'declaration-node))]
+                                        (binding-ast-node (car to-search)))]
                       [searched (cons (car to-search) searched)]
                       [new-calls (set-subtract calls searched)]
                       [to-search (append new-calls (cdr to-search))])
@@ -1445,8 +1437,7 @@
           (append (att-value 'find-direct-resolved n node-type)
                   (flatten
                    (map (λ (r) (att-value 'find-direct-resolved
-                                          (hash-ref (binding-bound r)
-                                                    'declaration-node)
+                                          (binding-ast-node r)
                                           node-type))
                         (att-value 'find-transitive-function-call-refs n))))))])
 (ag
@@ -1659,12 +1650,11 @@ few of these methods.
                       visibles))
             (define type-needed (att-value 'type-context current-hole))
             (define not-functions (filter (λ (b) (not (function-type?
-                                                       (dict-ref (binding-bound b)
-                                                                 'type))))
+                                                       (binding-type b))))
                                           legal-refs))
             (define legal-with-type
               (if type-needed
-                  (filter (λ (b) (type-satisfies? (dict-ref (binding-bound b) 'type)
+                  (filter (λ (b) (type-satisfies? (binding-type b)
                                                   type-needed))
                           not-functions)
                   not-functions))
@@ -1685,11 +1675,11 @@ few of these methods.
             (define type-needed (att-value 'type-context current-hole))
             (define legal-with-type
               (if type-needed
-                  (filter (λ (b) (type-satisfies? (dict-ref (binding-bound b) 'type)
+                  (filter (λ (b) (type-satisfies? (binding-type b)
                                                   type-needed))
                           legal-refs)
                   (filter (λ (b) (not (function-type?
-                                       (dict-ref (binding-bound b) 'type))))
+                                       (binding-type b))))
                           legal-refs)))
             ;; TODO - must fully concretize type-needed
             (define legal+lift
@@ -1697,9 +1687,9 @@ few of these methods.
                                                       current-hole
                                                       type-needed
                                                       'Declaration)])
-                            ;; TODO - the hash here is incomplete because there is
-                            ;;        no node yet...
-                            (binding lift-name (hash 'type type-needed))))
+                            ;; TODO - the binding struct is incomplete because
+                            ;; there is no node yet...
+                            (binding lift-name #f type-needed)))
                     legal-with-type))
             (hash-set! ref-choices-filtered-hash this legal+lift)
             legal+lift))))]
@@ -1710,7 +1700,7 @@ few of these methods.
           ref-choices-filtered
           (let ()
             (define visibles (filter (λ (b) (function-type?
-                                             (dict-ref (binding-bound b) 'type)))
+                                             (binding-type b)))
                                      (att-value 'visible-bindings current-hole)))
             (define legal-refs
               (filter (λ (b) (not (member (binding-name b)
@@ -1721,7 +1711,7 @@ few of these methods.
             (define legal-with-type
               (if type-needed
                   (filter (λ (b) (type-satisfies?
-                                  (car (reverse (dict-ref (binding-bound b) 'type)))
+                                  (car (reverse (binding-type b)))
                                   type-needed))
                           legal-refs)
                   legal-refs))
@@ -1736,9 +1726,9 @@ few of these methods.
                                                       current-hole
                                                       lift-type
                                                       'Declaration)])
-                            ;; TODO - the hash here is incomplete because there is
-                            ;;        no node yet...
-                            (binding lift-name (hash 'type lift-type))))
+                            ;; TODO - the binding struct is incomplete because
+                            ;; there is no node yet...
+                            (binding lift-name #f lift-type)))
                     final-choices))
             (hash-set! ref-choices-filtered-hash this legal+lift)
             legal+lift))))]
