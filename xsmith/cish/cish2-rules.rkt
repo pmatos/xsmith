@@ -1483,15 +1483,15 @@
  [Block (λ (n type lift-depth)
           (define parent-destinations
             (att-value 'lift-destinations (parent-node n) type lift-depth))
-          (if (function-type? type)
-              parent-destinations
+          (if (att-value 'xsmith_lift-predicate n type)
               (cons (att-value 'make-lift-do-proc
                                n
                                'declarations
                                type
                                lift-depth
                                'VariableDeclaration)
-                    parent-destinations)))]
+                    parent-destinations)
+              parent-destinations))]
  [Program (λ (n type lift-depth)
             (list (att-value 'make-lift-do-proc
                              n

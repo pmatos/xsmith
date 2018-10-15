@@ -8,6 +8,8 @@
  wont-over-deepen
  introduces-scope
  binder-info
+ lift-predicate
+ binding-structure
  choice-filters-to-apply
  )
 
@@ -233,6 +235,9 @@ Helper function for xsmith_scope-graph-child-scope-dict.
        (values child new-scope))]))
 
 #|
+TODO - This property now takes NO arguments and isn't even checked!
+       But it does a bunch of stuff by reading other properties...
+
 The introduces-scope property generates RACR attributes for resolving bindings via scope graphs.
 The scope-graph-descendant-bindings attribute returns a list of all bindings on descendant nodes that are not under a different scope.  In other words, you call it on a node that introduces a scope and it returns all bindings within that scope.  It does not return bindings in child scopes.
 The scope-graph-scope attribute returns the scope that the node in question resides in.  For nodes that introduce a scope, it is their own.
@@ -242,25 +247,32 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
   #:reads
   (grammar)
   (property binder-info)
+  (property lift-predicate)
+  (property binding-structure)
   #:appends
   ;; TODO - I don't think introduces-scope? is used anywhere anymore...  should it be removed?
   (ag-rule xsmith_scope-graph-introduces-scope?)
   (ag-rule xsmith_scope-graph-child-scope-dict)
   (ag-rule xsmith_scope-graph-scope)
+  (ag-rule xsmith_lift-predicate)
   #:transformer
-  (λ (this-prop-info grammar-info binder-info-info)
+  (λ (this-prop-info
+      grammar-info
+      binder-info-info
+      lift-predicate-info
+      binding-structure-info)
     (define nodes (dict-keys grammar-info))
     (define field-info-hash
       (for/hash ([node-name nodes])
         (values node-name
                 (grammar-node-name->field-info-list node-name grammar-info))))
     (define (binder-or-supertype? node-name)
-      (syntax-parse (dict-ref binder-info-info node-name #'#f)
+      (define n (if (syntax? node-name) (syntax->datum node-name) node-name))
+      (syntax-parse (dict-ref binder-info-info n #'#f)
         ;; TODO - reading other nodes still a list...
-        [((name-field-name type-method-name))
-         #t]
+        [((name-field-name type-method-name)) #t]
         ;; TODO - This should detect supertypes, but for now I'm not...
-        [else #f]))
+        [else-stx #f]))
 
     (define has-binder-child-hash
       (for/hash ([node nodes])
@@ -275,10 +287,40 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                        (and (binder-or-supertype? (grammar-node-field-struct-type f))
                             (grammar-node-field-struct-kleene-star? f)))))))
 
+    (define binding-structure-hash
+      (for/hash ([node nodes])
+        (values node
+                (syntax-parse (dict-ref binding-structure-info node #'(#f))
+                  #:literals (quote)
+                  ;; TODO - because this is not in the transformer of the
+                  ;; original property I have to check duplicates by hand...
+                  [(a b) (raise-syntax-error 'xsmith
+                                             "duplicate property declaration"
+                                             #'b)]
+                  [((quote (~and flag:id (~or (~datum serial)
+                                              (~datum parallel)
+                                              (~datum recursive)))))
+                   #'flag]
+                  [(#f) #''serial]))))
+    (define xsmith_lift-predicate-info
+      (for/hash ([node nodes])
+        (values node
+                (or
+                 (and (dict-ref possible-lift-destination-hash node)
+                      (syntax-parse (dict-ref lift-predicate-info node #'(#t))
+                        ;; TODO - manual duplicate checking because this in not
+                        ;; in the original property's transformer...
+                        [(a b) (raise-syntax-error 'xsmith
+                                                   "duplicate property declaration"
+                                                   #'b)]
+                        [(#t) #'(λ (n type) #t)]
+                        [(#f) #'(λ (n type) #f)]
+                        [(predicate) #'predicate]))
+                 #'(λ (n type) #f)))))
+
     (define scope-graph-introduces-scope?-info
       (for/fold ([rule-info (hash #f #'(λ (n) #f))])
                 ([node nodes])
-        ;; TODO - this should be an OR with other properties (about lifts and binding structure)
         (if (dict-ref has-binder-child-hash node)
             (dict-set rule-info node #'(λ (n) #t))
             rule-info)))
@@ -293,25 +335,23 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                                          (for/hash ([c children])
                                            (values c scope))))])
                 ([node nodes])
-        (define prop-for-node (dict-ref this-prop-info node #'#f))
-        (syntax-parse prop-for-node
-          [#f rule-info]
-          [#t
-           (dict-set
+        (define binding-structure-for-node (dict-ref binding-structure-hash node))
+        (if (dict-ref has-binder-child-hash node)
             rule-info
-            node
-            #'(λ (n)
-                (define children (filter ast-node? (ast-children/flat n)))
-                (define children-bindings
-                  ;; TODO - scope-graph-binding is cish-specific
-                  (map (λ (c) (att-value 'scope-graph-binding c))
-                       children))
-                (define cb-pairs (map cons children children-bindings))
-                (define parent-scope
-                  (att-value 'xsmith_scope-graph-scope n))
-                (make-child-scope-dict cb-pairs
-                                       parent-scope
-                                       'serial)))])))
+            (dict-set
+             rule-info
+             node
+             #`(λ (n)
+                 (define children (filter ast-node? (ast-children/flat n)))
+                 (define children-bindings
+                   (map (λ (c) (att-value 'xsmith_scope-graph-binding c))
+                        children))
+                 (define cb-pairs (map cons children children-bindings))
+                 (define parent-scope
+                   (att-value 'xsmith_scope-graph-scope n))
+                 (make-child-scope-dict cb-pairs
+                                        parent-scope
+                                        #,binding-structure-for-node))))))
     (define scope-graph-scope-info
       (hash #f
             #'(λ (n) (if (ast-has-parent? n)
@@ -324,7 +364,8 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
 
     (list scope-graph-introduces-scope?-info
           scope-graph-scope-child-dict-info
-          scope-graph-scope-info)))
+          scope-graph-scope-info
+          xsmith_lift-predicate-info)))
 
 (define-property binder-info
   #:reads (grammar)
@@ -345,6 +386,11 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                           n
                           (att-value 'type-method-name n))))])))
     (list scope-graph-binding-info)))
+
+;; These are declared separately, but are handled by the transformer of
+;; the `introduces-scope` property.
+(define-property lift-predicate)
+(define-property binding-structure)
 
 (define-property choice-filters-to-apply
   #:appends (choice-rule xsmith_apply-choice-filters)

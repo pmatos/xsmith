@@ -206,6 +206,11 @@
           [VariableDeclaration (name binder-type)]
           [FunctionDefinition (name binder-type)]
           [FormalParam (name binder-type)])
+(add-prop cish2-grammar
+          lift-predicate
+          [FunctionDefinition #f]
+          ;[FunctionDefinition (λ (n type) #f)]
+          [Block (λ (n type) (not (function-type? type)))])
 
 (add-prop
  cish2-grammar

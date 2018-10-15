@@ -32,6 +32,7 @@
   wont-over-deepen
   introduces-scope
   binder-info
+  lift-predicate
   )
  cish2-grammar
  cish2-rules
