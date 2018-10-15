@@ -31,6 +31,7 @@
   fresh
   wont-over-deepen
   introduces-scope
+  binder-info
   )
  cish2-grammar
  cish2-rules

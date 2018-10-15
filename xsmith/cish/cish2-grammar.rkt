@@ -194,12 +194,18 @@
               'params params))]
           )
 
-(add-prop cish2-grammar
+#;(add-prop cish2-grammar
           introduces-scope
           [Program #t]
           [FunctionDefinition #t]
           [Block #t]
           [ForStatement #t])
+(add-prop cish2-grammar
+          binder-info
+          [Declaration (name binder-type)]
+          [VariableDeclaration (name binder-type)]
+          [FunctionDefinition (name binder-type)]
+          [FormalParam (name binder-type)])
 
 (add-prop
  cish2-grammar

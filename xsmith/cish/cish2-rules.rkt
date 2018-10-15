@@ -270,23 +270,14 @@
 
 
 (ag
- scope-graph-binding
- [FunctionDefinition
-  (λ (n) (binding (ast-child 'name n)
-                  n
-                  (append (list '->)
-                          (map (λ (fp) (ast-child 'typename fp))
-                               (ast-children (ast-child 'params n)))
-                          (list (ast-child 'typename n)))))]
- [VariableDeclaration
-  (λ (n) (binding (ast-child 'name n)
-                  n
-                  (ast-child 'typename n)))]
- [FormalParam
-  (λ (n) (binding (ast-child 'name n)
-                  n
-                  (ast-child 'typename n)))]
- [Node (λ (n) #f)])
+ binder-type
+ [FunctionDefinition (λ (n) (append (list '->)
+                                    (map (λ (fp) (ast-child 'typename fp))
+                                         (ast-children (ast-child 'params n)))
+                                    (list (ast-child 'typename n))))]
+ [VariableDeclaration (λ (n) (ast-child 'typename n))]
+ [FormalParam (λ (n) (ast-child 'typename n))]
+ [Declaration (λ (n) #f)])
 
 (ag
  illegal-variable-names

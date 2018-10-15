@@ -7,6 +7,7 @@
  fresh
  wont-over-deepen
  introduces-scope
+ binder-info
  choice-filters-to-apply
  )
 
@@ -238,26 +239,49 @@ The scope-graph-scope attribute returns the scope that the node in question resi
 The scope-graph-introduces-scope? predicate attribute is just used to know when to stop for the scope-graph-descendant-bindings attribute.
 |#
 (define-property introduces-scope
-  #:reads (grammar)
+  #:reads
+  (grammar)
+  (property binder-info)
   #:appends
   ;; TODO - I don't think introduces-scope? is used anywhere anymore...  should it be removed?
   (ag-rule xsmith_scope-graph-introduces-scope?)
   (ag-rule xsmith_scope-graph-child-scope-dict)
   (ag-rule xsmith_scope-graph-scope)
   #:transformer
-  (λ (this-prop-info grammar-info)
+  (λ (this-prop-info grammar-info binder-info-info)
     (define nodes (dict-keys grammar-info))
-    #;(define field-info-hash
+    (define field-info-hash
       (for/hash ([node-name nodes])
         (values node-name
                 (grammar-node-name->field-info-list node-name grammar-info))))
+    (define (binder-or-supertype? node-name)
+      (syntax-parse (dict-ref binder-info-info node-name #'#f)
+        ;; TODO - reading other nodes still a list...
+        [((name-field-name type-method-name))
+         #t]
+        ;; TODO - This should detect supertypes, but for now I'm not...
+        [else #f]))
+
+    (define has-binder-child-hash
+      (for/hash ([node nodes])
+        (values node
+                (for/or ([f (dict-ref field-info-hash node)])
+                  (binder-or-supertype? (grammar-node-field-struct-type f))))))
+    (define possible-lift-destination-hash
+      (for/hash ([node nodes])
+        (values node
+                (and (dict-ref has-binder-child-hash node)
+                     (for/or ([f (dict-ref field-info-hash node)])
+                       (and (binder-or-supertype? (grammar-node-field-struct-type f))
+                            (grammar-node-field-struct-kleene-star? f)))))))
 
     (define scope-graph-introduces-scope?-info
       (for/fold ([rule-info (hash #f #'(λ (n) #f))])
                 ([node nodes])
-        (syntax-parse (dict-ref this-prop-info node #'#f)
-          [#f rule-info]
-          [#t (dict-set rule-info node #'(λ (n) #t))])))
+        ;; TODO - this should be an OR with other properties (about lifts and binding structure)
+        (if (dict-ref has-binder-child-hash node)
+            (dict-set rule-info node #'(λ (n) #t))
+            rule-info)))
 
     (define scope-graph-scope-child-dict-info
       (for/fold ([rule-info (hash #f #'(λ (n)
@@ -301,6 +325,26 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
     (list scope-graph-introduces-scope?-info
           scope-graph-scope-child-dict-info
           scope-graph-scope-info)))
+
+(define-property binder-info
+  #:reads (grammar)
+  #:appends (ag-rule xsmith_scope-graph-binding)
+  #:transformer
+  (λ (this-prop-info grammar-info)
+    (define nodes (dict-keys grammar-info))
+    (define scope-graph-binding-info
+      (for/fold ([rule-info (hash #f #'(λ (n) #f))])
+                ([node nodes])
+        (syntax-parse (dict-ref this-prop-info node #'#f)
+          [#f rule-info]
+          [(name-field-name:id type-method-name:id)
+           (dict-set rule-info node
+                     #'(λ (n)
+                         (binding
+                          (ast-child 'name-field-name n)
+                          n
+                          (att-value 'type-method-name n))))])))
+    (list scope-graph-binding-info)))
 
 (define-property choice-filters-to-apply
   #:appends (choice-rule xsmith_apply-choice-filters)
