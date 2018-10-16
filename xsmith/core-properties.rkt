@@ -354,10 +354,10 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
             (dict-set
              rule-info
              node
-             #`(λ (n type lift-depth)
+             #`(λ (from-node type lift-depth)
                  (define ast-type
                    ((att-value 'xsmith_lift-type-to-ast-binder-type
-                               n)
+                               from-node)
                     type))
                  ;(eprintf "lifting type ~a to node of type ~a\n" type ast-type)
 
@@ -375,15 +375,15 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                               binder-nodes))
                      [else #f]))
                  (if (and field
-                          (att-value 'xsmith_lift-predicate n type))
+                          (att-value 'xsmith_lift-predicate from-node type))
                      (cons (att-value 'xsmith_make-lift-do-proc
-                                      n
+                                      from-node
                                       field
                                       type
                                       lift-depth
                                       ast-type)
-                           (default-lift-destinations-impl n type lift-depth))
-                     (default-lift-destinations-impl n type lift-depth))))
+                           (default-lift-destinations-impl from-node type lift-depth))
+                     (default-lift-destinations-impl from-node type lift-depth))))
             rule-info)))
 
     (define scope-graph-introduces-scope?-info

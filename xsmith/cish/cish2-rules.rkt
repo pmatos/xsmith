@@ -1440,16 +1440,14 @@
 
 
 ;;;;;; Lifting
-(ag
- lift-declaration
- [Node (λ (n type lift-ast-type)
-         (define depth (att-value 'ast-depth n))
-         (define destinations (att-value 'xsmith_lift-destinations n type depth))
-         (when (equal? 0 (length destinations))
-           (error 'lift-declaration
-                  "internal error -- no destinations for n: ~a, type: ~a, depth: ~a\n"
-                  (ast-node-type n) type depth))
-         ((random-ref destinations)))])
+(define (lift-declaration from-node type)
+  (define depth (att-value 'ast-depth from-node))
+  (define destinations (att-value 'xsmith_lift-destinations from-node type depth))
+  (when (equal? 0 (length destinations))
+    (error 'lift-declaration
+           "internal error -- no destinations for lift from: ~a, type: ~a, depth: ~a\n"
+           (ast-node-type from-node) type depth))
+  ((random-ref destinations)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1617,10 +1615,8 @@ few of these methods.
                           legal-refs)))
             ;; TODO - must fully concretize type-needed
             (define legal+lift
-              (cons (λ () (let ([lift-name (att-value 'lift-declaration
-                                                      current-hole
-                                                      type-needed
-                                                      'Declaration)])
+              (cons (λ () (let ([lift-name
+                                 (lift-declaration current-hole type-needed)])
                             ;; TODO - the binding struct is incomplete because
                             ;; there is no node yet...
                             (binding lift-name #f type-needed)))
@@ -1656,10 +1652,8 @@ few of these methods.
                                            (make-list (random 4) #f))
                                       (list type-needed)))
             (define legal+lift
-              (cons (λ () (let ([lift-name (att-value 'lift-declaration
-                                                      current-hole
-                                                      lift-type
-                                                      'Declaration)])
+              (cons (λ () (let ([lift-name
+                                 (lift-declaration current-hole type-needed)])
                             ;; TODO - the binding struct is incomplete because
                             ;; there is no node yet...
                             (binding lift-name #f lift-type)))
