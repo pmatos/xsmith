@@ -9,6 +9,7 @@
  introduces-scope
  binder-info
  lift-predicate
+ lift-type->ast-binder-type
  binding-structure
  choice-filters-to-apply
  )
@@ -234,6 +235,13 @@ Helper function for xsmith_scope-graph-child-scope-dict.
      (for/hash ([child (map car cb-pairs)])
        (values child new-scope))]))
 
+(define (default-lift-destinations-impl n type lift-depth)
+  (if (ast-has-parent? n)
+      (att-value
+       'xsmith_lift-destinations
+       (ast-parent n) type lift-depth)
+      '()))
+
 #|
 TODO - This property now takes NO arguments and isn't even checked!
        But it does a bunch of stuff by reading other properties...
@@ -255,6 +263,7 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
   (ag-rule xsmith_scope-graph-child-scope-dict)
   (ag-rule xsmith_scope-graph-scope)
   (ag-rule xsmith_lift-predicate)
+  (ag-rule xsmith_lift-destinations)
   #:transformer
   (λ (this-prop-info
       grammar-info
@@ -266,26 +275,47 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
       (for/hash ([node-name nodes])
         (values node-name
                 (grammar-node-name->field-info-list node-name grammar-info))))
-    (define (binder-or-supertype? node-name)
-      (define n (if (syntax? node-name) (syntax->datum node-name) node-name))
-      (syntax-parse (dict-ref binder-info-info n #'#f)
-        ;; TODO - reading other nodes still a list...
-        [((name-field-name type-method-name)) #t]
-        ;; TODO - This should detect supertypes, but for now I'm not...
-        [else-stx #f]))
 
-    (define has-binder-child-hash
+    (define binder-nodes
+      (filter (λ (node) (dict-ref binder-info-info node #f))
+              nodes))
+
+
+    (define (ast-subtype? subtype-node-name supertype-node-name)
+      (define subtype-inheritance-chain
+        (cons subtype-node-name
+              (grammar-clause->parent-chain (dict-ref grammar-info
+                                                      subtype-node-name)
+                                            grammar-info)))
+      (member supertype-node-name subtype-inheritance-chain))
+
+    (define has-potential-binder-child-hash
       (for/hash ([node nodes])
         (values node
-                (for/or ([f (dict-ref field-info-hash node)])
-                  (binder-or-supertype? (grammar-node-field-struct-type f))))))
-    (define possible-lift-destination-hash
+                (for/or ([f (map
+                             (λ (x)
+                               (let ([type (grammar-node-field-struct-type x)])
+                                 (if (syntax? type)
+                                     (syntax->datum type)
+                                     type)))
+                             (dict-ref field-info-hash node))])
+                  (and f
+                       (for/or ([binder-node binder-nodes])
+                         (ast-subtype? binder-node f)))))))
+
+    (define node->liftee-node->field
       (for/hash ([node nodes])
-        (values node
-                (and (dict-ref has-binder-child-hash node)
-                     (for/or ([f (dict-ref field-info-hash node)])
-                       (and (binder-or-supertype? (grammar-node-field-struct-type f))
-                            (grammar-node-field-struct-kleene-star? f)))))))
+        (values
+         node
+         (for/hash ([binder-node binder-nodes])
+           (values binder-node
+                   (for/or ([f (dict-ref field-info-hash node)])
+                     (and
+                      (grammar-node-field-struct-kleene-star? f)
+                      (ast-subtype? binder-node
+                                   (syntax->datum
+                                    (grammar-node-field-struct-type f)))
+                      (grammar-node-field-struct-name f))))))))
 
     (define binding-structure-hash
       (for/hash ([node nodes])
@@ -305,23 +335,61 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
     (define xsmith_lift-predicate-info
       (for/hash ([node nodes])
         (values node
-                (or
-                 (and (dict-ref possible-lift-destination-hash node)
-                      (syntax-parse (dict-ref lift-predicate-info node #'(#t))
-                        ;; TODO - manual duplicate checking because this in not
-                        ;; in the original property's transformer...
-                        [(a b) (raise-syntax-error 'xsmith
-                                                   "duplicate property declaration"
-                                                   #'b)]
-                        [(#t) #'(λ (n type) #t)]
-                        [(#f) #'(λ (n type) #f)]
-                        [(predicate) #'predicate]))
-                 #'(λ (n type) #f)))))
+                (syntax-parse (dict-ref lift-predicate-info node #'(#t))
+                  ;; TODO - manual duplicate checking because this in not
+                  ;; in the original property's transformer...
+                  [(a b) (raise-syntax-error 'xsmith
+                                             "duplicate property declaration"
+                                             #'b)]
+                  [(#t) #'(λ (n type) #t)]
+                  [(#f) #'(λ (n type) #f)]
+                  [(predicate) #'predicate]))))
+
+    (define xsmith_lift-destinations-info
+      (for/fold ([rule-info (hash #f #'default-lift-destinations-impl)])
+                ([node nodes])
+        (define has-binder (dict-ref has-potential-binder-child-hash node))
+        (define liftee-node->field (dict-ref node->liftee-node->field node))
+        (if has-binder
+            (dict-set
+             rule-info
+             node
+             #`(λ (n type lift-depth)
+                 (define ast-type
+                   ((att-value 'xsmith_lift-type-to-ast-binder-type
+                               n)
+                    type))
+                 ;(eprintf "lifting type ~a to node of type ~a\n" type ast-type)
+
+                 ;; The field within the lift destination that a lift
+                 ;; should be placed, if possible.
+                 (define field
+                   (match ast-type
+                     #,@(filter
+                         (λ(x)x)
+                         (map (λ (n)
+                                (define f (dict-ref liftee-node->field n))
+                                (if f
+                                    #`['#,n '#,f]
+                                    #f))
+                              binder-nodes))
+                     [else #f]))
+                 (if (and field
+                          (att-value 'xsmith_lift-predicate n type))
+                     (cons (att-value 'xsmith_make-lift-do-proc
+                                      n
+                                      field
+                                      type
+                                      lift-depth
+                                      ast-type)
+                           (default-lift-destinations-impl n type lift-depth))
+                     (default-lift-destinations-impl n type lift-depth))))
+            rule-info)))
 
     (define scope-graph-introduces-scope?-info
       (for/fold ([rule-info (hash #f #'(λ (n) #f))])
                 ([node nodes])
-        (if (dict-ref has-binder-child-hash node)
+        (if (dict-ref has-potential-binder-child-hash node)
             (dict-set rule-info node #'(λ (n) #t))
             rule-info)))
 
@@ -336,7 +404,7 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                                            (values c scope))))])
                 ([node nodes])
         (define binding-structure-for-node (dict-ref binding-structure-hash node))
-        (if (dict-ref has-binder-child-hash node)
+        (if (dict-ref has-potential-binder-child-hash node)
             rule-info
             (dict-set
              rule-info
@@ -365,7 +433,8 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
     (list scope-graph-introduces-scope?-info
           scope-graph-scope-child-dict-info
           scope-graph-scope-info
-          xsmith_lift-predicate-info)))
+          xsmith_lift-predicate-info
+          xsmith_lift-destinations-info)))
 
 (define-property binder-info
   #:reads (grammar)
@@ -386,6 +455,23 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                           n
                           (att-value 'type-method-name n))))])))
     (list scope-graph-binding-info)))
+
+;; TODO - this is not a great design, but I need the user to specify
+;; one function for this and make it available to the xsmith machinery.
+;; The function given to this should be something like:
+;; (λ (type) 'Declaration)
+;; Where you might actually look at the type to determine what kind of
+;; ast node a lifted definition should be.
+(define-property lift-type->ast-binder-type
+  #:appends (ag-rule xsmith_lift-type-to-ast-binder-type)
+  #:transformer
+  (λ (this-prop-info)
+    (unless (and (dict-has-key? this-prop-info #f)
+                 (equal? 1
+                         (length (dict-keys this-prop-info))))
+      (raise-syntax-error 'lift-type->ast-binder-type
+                          "you need to specify exactly one function under #f"))
+    (list (hash #f #`(λ (n) #,(dict-ref this-prop-info #f))))))
 
 ;; These are declared separately, but are handled by the transformer of
 ;; the `introduces-scope` property.

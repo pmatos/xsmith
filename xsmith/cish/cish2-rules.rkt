@@ -1441,71 +1441,14 @@
 
 ;;;;;; Lifting
 (ag
- ;; as ag-rule so make-hole is bound
- make-lift-do-proc
- [Node (λ (n-destination destination-child type lift-depth ast-type)
-         (λ ()
-           (define name (fresh-var-name "lift_"))
-           (define new-hole (make-hole ast-type))
-           (rewrite-terminal 'name new-hole name)
-
-           ;; These should not be needed
-           ;(rewrite-terminal 'liftdepth new-hole lift-depth)
-           ;(rewrite-terminal 'lifttype new-hole type)
-
-           (define choices
-             (att-value 'xsmith_hole->choice-list new-hole))
-           (when (not (equal? (length choices) 1))
-             (error
-              'xsmith
-              (format
-               "lift attempted for node type with more than 1 replacement choice: ~a"
-               ast-type)))
-           (define new-declaration
-             (send (car choices) xsmith_fresh (hash 'liftdepth lift-depth
-                                                    'lifttype type)))
-           ;(rewrite-add (ast-child destination-child n-destination) new-hole)
-           (enqueue-inter-choice-transform
-            (λ () (rewrite-insert
-                   (ast-child destination-child n-destination)
-                   ;; 1-based index?
-                   1
-                   new-declaration)))
-           name))])
-(ag
- lift-destinations
- ;; Returns a list of functions for lifting a definition of the given type.
- ;; The functions take no arguments,
- ;; and they return the name of the newly lifted definition.
- ;; (which they mutate into a given field)
- [Node (λ (n type lift-depth)
-         (att-value 'lift-destinations (parent-node n) type lift-depth))]
- [Block (λ (n type lift-depth)
-          (define parent-destinations
-            (att-value 'lift-destinations (parent-node n) type lift-depth))
-          (if (att-value 'xsmith_lift-predicate n type)
-              (cons (att-value 'make-lift-do-proc
-                               n
-                               'declarations
-                               type
-                               lift-depth
-                               'VariableDeclaration)
-                    parent-destinations)
-              parent-destinations))]
- [Program (λ (n type lift-depth)
-            (list (att-value 'make-lift-do-proc
-                             n
-                             'declarations
-                             type
-                             lift-depth
-                             (if (function-type? type)
-                                 'FunctionDefinition
-                                 'VariableDeclaration))))])
-(ag
  lift-declaration
  [Node (λ (n type lift-ast-type)
          (define depth (att-value 'ast-depth n))
-         (define destinations (att-value 'lift-destinations n type depth))
+         (define destinations (att-value 'xsmith_lift-destinations n type depth))
+         (when (equal? 0 (length destinations))
+           (error 'lift-declaration
+                  "internal error -- no destinations for n: ~a, type: ~a, depth: ~a\n"
+                  (ast-node-type n) type depth))
          ((random-ref destinations)))])
 
 

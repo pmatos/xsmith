@@ -4,6 +4,7 @@
  xsmith-state
  (struct-out generator-state)
  make-generator-state
+ fresh-var-name
 
  ast-children/flat
  expr->ast-list
@@ -38,7 +39,10 @@
 (define (make-generator-state)
   (generator-state 1))
 
-
+(define (fresh-var-name [base "var_"])
+  (let ((n (generator-state-fresh-name-counter (xsmith-state))))
+    (set-generator-state-fresh-name-counter! (xsmith-state) (add1 n))
+    (format "~a~a" base n)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -410,6 +410,7 @@
     (if (predicate n)
         (cons n matches)
         matches)))
+
 (define xsmith_hole->replacement-function
   (λ (n)
     (if (att-value 'is-hole? n)
@@ -898,6 +899,42 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                 ...)
                        (ag-rule xsmith_hole->replacement
                                 [base-node-name xsmith_hole->replacement-function])
+                       (ag-rule xsmith_make-lift-do-proc
+                                [base-node-name
+                                 ;;; This is written in-line because make-hole needs
+                                 ;;; to be in a context where it is parameterized.
+                                 ;;; TODO - fix this so I can put this code outside
+                                 ;;; of this giant macro template.
+                                 (λ (destination-node
+                                     destination-field
+                                     type
+                                     lift-depth
+                                     lifted-ast-type)
+                                   (λ ()
+                                     (define name (fresh-var-name "lift_"))
+                                     (define new-hole (make-hole lifted-ast-type))
+                                     (rewrite-terminal 'name new-hole name)
+
+                                     (define choices
+                                       (att-value 'xsmith_hole->choice-list new-hole))
+                                     (when (not (equal? (length choices) 1))
+                                       (error
+                                        'xsmith
+                                        (format
+                                         "lift attempted for node type with more than 1 replacement choice: ~a"
+                                         lifted-ast-type)))
+                                     (define new-declaration
+                                       (send (car choices) xsmith_fresh
+                                             (hash 'liftdepth lift-depth
+                                                   'lifttype type)))
+                                     (enqueue-inter-choice-transform
+                                      (λ () (rewrite-insert
+                                             (ast-child destination-field
+                                                        destination-node)
+                                             ;; 1-based index?
+                                             1
+                                             new-declaration)))
+                                     name))])
                        (ag-rule find-descendants
                                 [base-node-name find-descendants-function])
                        (ag-rule find-a-descendant

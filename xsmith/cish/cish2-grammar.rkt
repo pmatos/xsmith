@@ -211,6 +211,11 @@
           [FunctionDefinition #f]
           ;[FunctionDefinition (λ (n type) #f)]
           [Block (λ (n type) (not (function-type? type)))])
+(add-prop cish2-grammar
+          lift-type->ast-binder-type
+          [#f (λ (type) (if (function-type? type)
+                            'FunctionDefinition
+                            'VariableDeclaration))])
 
 (add-prop
  cish2-grammar

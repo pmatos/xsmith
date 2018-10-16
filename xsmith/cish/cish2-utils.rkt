@@ -376,10 +376,7 @@ Types can be:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(define (fresh-var-name [base "var_"])
-  (let ((n (generator-state-fresh-name-counter (xsmith-state))))
-    (set-generator-state-fresh-name-counter! (xsmith-state) (add1 n))
-    (format "~a~a" base n)))
+
 (define (fresh-var-type)
   (let ((disabled (xsmith-option 'features-disabled)))
     ;; XXX Obviously, the code below is not quite right.
