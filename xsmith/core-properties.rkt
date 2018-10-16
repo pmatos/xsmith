@@ -12,6 +12,8 @@
  lift-type->ast-binder-type
  binding-structure
  choice-filters-to-apply
+
+ make-lift-reference-choice-proc
  )
 
 (require
@@ -20,6 +22,7 @@
  "xsmith-options.rkt"
  "scope-graph.rkt"
  racr
+ racket/random
  racket/class
  racket/dict
  racket/list
@@ -241,6 +244,26 @@ Helper function for xsmith_scope-graph-child-scope-dict.
        'xsmith_lift-destinations
        (ast-parent n) type lift-depth)
       '()))
+
+;;; For use when choosing which visible binding to reference from some
+;;; sort of reference node.
+;;; Put the resulting thunk in your list of potential bindings, and
+;;; if you choose the thunk, call it (once!) to get a result binding
+;;; struct.
+(define (make-lift-reference-choice-proc lift-origin-hole type)
+  (λ ()
+    (define depth (att-value 'ast-depth lift-origin-hole))
+    (define destinations
+      (att-value 'xsmith_lift-destinations lift-origin-hole type depth))
+    (when (equal? 0 (length destinations))
+      (error 'xsmith
+             "internal error -- no destinations for lift from: ~a, type: ~a, depth: ~a\n"
+             (ast-node-type lift-origin-hole) type depth))
+
+    (define lift-name ((random-ref destinations)))
+    ;; TODO - the binding struct is incomplete because
+    ;; there is no node yet...
+    (binding lift-name #f type)))
 
 #|
 TODO - This property now takes NO arguments and isn't even checked!

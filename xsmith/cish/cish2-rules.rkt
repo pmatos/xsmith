@@ -1439,16 +1439,6 @@
  [Node (λ (n) (att-value 'find-transitive-resolved n 'VariableReference))])
 
 
-;;;;;; Lifting
-(define (lift-declaration from-node type)
-  (define depth (att-value 'ast-depth from-node))
-  (define destinations (att-value 'xsmith_lift-destinations from-node type depth))
-  (when (equal? 0 (length destinations))
-    (error 'lift-declaration
-           "internal error -- no destinations for lift from: ~a, type: ~a, depth: ~a\n"
-           (ast-node-type from-node) type depth))
-  ((random-ref destinations)))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; choice rules
@@ -1613,13 +1603,9 @@ few of these methods.
                   (filter (λ (b) (not (function-type?
                                        (binding-type b))))
                           legal-refs)))
-            ;; TODO - must fully concretize type-needed
+            ;; TODO - must fully concretize type-needed?
             (define legal+lift
-              (cons (λ () (let ([lift-name
-                                 (lift-declaration current-hole type-needed)])
-                            ;; TODO - the binding struct is incomplete because
-                            ;; there is no node yet...
-                            (binding lift-name #f type-needed)))
+              (cons (make-lift-reference-choice-proc current-hole type-needed)
                     legal-with-type))
             (hash-set! ref-choices-filtered-hash this legal+lift)
             legal+lift))))]
@@ -1652,11 +1638,7 @@ few of these methods.
                                            (make-list (random 4) #f))
                                       (list type-needed)))
             (define legal+lift
-              (cons (λ () (let ([lift-name
-                                 (lift-declaration current-hole type-needed)])
-                            ;; TODO - the binding struct is incomplete because
-                            ;; there is no node yet...
-                            (binding lift-name #f lift-type)))
+              (cons (make-lift-reference-choice-proc current-hole lift-type)
                     final-choices))
             (hash-set! ref-choices-filtered-hash this legal+lift)
             legal+lift))))]
