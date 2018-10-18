@@ -75,14 +75,14 @@
     (v-comment
      n
      (h-append
-      (text (basic-type-name (ast-child 'typename n)))
+      (text (basic-type-name (car (reverse (ast-child 'type n)))))
       space
       (text (ast-child 'name n))
       lparen
       (h-concat
        (add-between
         (map (λ (fp)
-               (h-append (text (basic-type-name (ast-child 'typename fp)))
+               (h-append (text (basic-type-name (ast-child 'type fp)))
                          space
                          (text (ast-child 'name fp))))
              (ast-children (ast-child 'params n)))
@@ -197,7 +197,7 @@
     (v-comment
      n
      (h-append (hs-append
-                (text (basic-type-name (ast-child 'typename n)))
+                (text (basic-type-name (ast-child 'type n)))
                 (text (ast-child 'name n))
                 eqsign
                 (att-value 'pretty-print (ast-child 'Expression n)))
@@ -271,12 +271,9 @@
 
 (ag
  binder-type
- [FunctionDefinition (λ (n) (append (list '->)
-                                    (map (λ (fp) (ast-child 'typename fp))
-                                         (ast-children (ast-child 'params n)))
-                                    (list (ast-child 'typename n))))]
- [VariableDeclaration (λ (n) (ast-child 'typename n))]
- [FormalParam (λ (n) (ast-child 'typename n))]
+ [FunctionDefinition (λ (n) (ast-child 'type n))]
+ [VariableDeclaration (λ (n) (ast-child 'type n))]
+ [FormalParam (λ (n) (ast-child 'type n))]
  [Declaration (λ (n) #f)])
 
 (ag
@@ -296,7 +293,7 @@
 (ag
  current-function-return-type
  [Statement (λ (n) (att-value 'current-function-return-type (parent-node n)))]
- [FunctionDefinition (λ (n) (ast-child 'typename n))])
+ [FunctionDefinition (λ (n) (car (reverse (ast-child 'type n))))])
 
 (ag
  children-type-dict
@@ -310,17 +307,16 @@
                               (ast-child 'init n) #f
                               (ast-child 'update n) #f))]
  [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
-                                     (ast-child 'typename n)))]
+                                     (ast-child 'type n)))]
  [AssignmentExpression
   (λ (n) (hasheq (ast-child 'Expression n)
                  (binding-type (resolve-variable-reference-node n))))]
  [FunctionApplicationExpression
   (λ (n)
     (let ([f-bind (resolve-variable-reference-node n)])
-      (for/fold ([h (hasheq)])
-                ([cn (ast-children (ast-child 'args n))]
+      (for/hash ([cn (ast-children (ast-child 'args n))]
                  [t (reverse (cdr (reverse (cdr (binding-type f-bind)))))])
-        (hash-set h cn t))))]
+        (values cn t))))]
  [BinaryExpression (λ (n) (let ([t (or (att-value 'type-context n) (fresh-var-type))])
                             (hasheq (ast-child 'l n) t
                                     (ast-child 'r n) t)))]
@@ -345,8 +341,13 @@
                                                             (parent-node n))
                                                  n))])
                             (or t (fresh-var-type))))]
- [Expression (λ (n) (dict-ref (att-value 'children-type-dict (parent-node n))
-                              n))]
+ [Expression (λ (n)
+               (define parent-dict (att-value 'children-type-dict (parent-node n)))
+               (dict-ref parent-dict
+                         n
+                         (λ()(error 'type-context
+                                    "failed to reference node of type: ~a\n"
+                                    (ast-node-type n)))))]
  )
 
 (ag
@@ -1202,7 +1203,7 @@
  ;; analyzing for potential code transformations.
  [FunctionDefinition
   (λ (n store path-condition return-variable assertions)
-    (define ret-var (fresh-symbolic-var (ast-child 'typename n)))
+    (define ret-var (fresh-symbolic-var (car (reverse (ast-child 'type n)))))
     (symbolic-interp-wrap
      (ast-child 'Block n)
      symbolic-store-top
@@ -1212,7 +1213,7 @@
  [VariableDeclaration
   (λ (n store path-condition return-variable assertions)
     (let* ([name (ast-child 'name n)]
-           [type (ast-child 'typename n)]
+           [type (ast-child 'type n)]
            [sym-var (fresh-symbolic-var type)]
            [ref (resolve-variable-reference-node n)])
       (match-define (list v n-store always-rets n-asserts)
@@ -1300,7 +1301,7 @@
                                        (resolve-variable-reference-node fp)
                                        arg)))
 
-    (define ret-type (ast-child 'typename def-node))
+    (define ret-type (car (reverse (ast-child 'type def-node))))
     (define return-var-for-func (fresh-symbolic-var ret-type))
 
     (match (symbolic-interp-wrap func-block
@@ -1633,10 +1634,7 @@ few of these methods.
                   legal-refs))
             (define final-choices (filter (λ (b) (not (equal? "main" (binding-name b))))
                                           legal-with-type))
-            (define lift-type (append '(->)
-                                      (map (λ(x)(fresh-var-type))
-                                           (make-list (random 4) #f))
-                                      (list type-needed)))
+            (define lift-type (fresh-function-type type-needed))
             (define legal+lift
               (cons (make-lift-reference-choice-proc current-hole lift-type)
                     final-choices))
@@ -1644,12 +1642,12 @@ few of these methods.
             legal+lift))))]
  #;[FunctionDefinition
   (λ ()
-    (define lift-type (ast-child 'lifttype current-hole))
+    (define lift-type (ast-child 'type current-hole))
     (or (ast-bud-node? lift-type)
         (function-type? lift-type)))]
  #;[VariableDeclaration
   (λ ()
-    (define lift-type (ast-child 'lifttype current-hole))
+    (define lift-type (ast-child 'type current-hole))
     (or (ast-bud-node? lift-type)
         (not (function-type? lift-type))))]
  )

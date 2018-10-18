@@ -33,6 +33,8 @@
   introduces-scope
   binder-info
   lift-predicate
+  lift-type->ast-binder-type
+  binding-structure
   )
  cish2-grammar
  cish2-rules

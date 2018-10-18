@@ -25,15 +25,12 @@
                 [main : FunctionDefinition])]
 
  [Declaration Node ([liftdepth = 0]
-                    ;; TODO - “lifttype” and “typename” should be merged into “type”
-                    [lifttype = #f]
+                    [type = #f]
                     [name = (fresh-var-name "x_")])]
- [VariableDeclaration Declaration ([typename = (fresh-var-type)]
-                                   Expression)]
- [FunctionDefinition Declaration ([typename = (fresh-var-type)]
-                                  [params : FormalParam *]
+ [VariableDeclaration Declaration (Expression)]
+ [FunctionDefinition Declaration ([params : FormalParam *]
                                   Block)]
- [FormalParam Node ([typename = (fresh-var-type)]
+ [FormalParam Node ([type = (fresh-var-type)]
                     [name = (fresh-var-name "arg_")])]
 
 
@@ -150,7 +147,7 @@
                   [choice (if (procedure? choice*) (choice*) choice*)])
              (hash 'name
                    (binding-name choice)
-                   'Expression
+                   'args
                    (- (length (binding-type choice))
                       2)))]
           [VariableDeclaration
@@ -161,12 +158,14 @@
                                         (parent-node current-hole))
                                 (fresh-var-name "global_")
                                 (fresh-var-name "local_")))]
-                  [hole-type (ast-child 'lifttype current-hole)]
-                  [typename (if (ast-bud-node? hole-type)
-                                (fresh-var-type)
-                                hole-type)])
+                  [hole-type (ast-child 'type current-hole)]
+                  [type (if (and hole-type
+                                 (not (and (ast-node? hole-type)
+                                           (ast-bud-node? hole-type))))
+                            hole-type
+                            (fresh-var-type))])
              (hash 'name name
-                   'typename typename))]
+                   'type type))]
           [FunctionDefinition
            (let* ([p (parent-node current-hole)]
                   [main? (and (eq? (node-type p) 'Program)
@@ -177,20 +176,18 @@
                             (if main?
                                 "main"
                                 (fresh-var-name "func_")))]
-                  [hole-type (ast-child 'lifttype current-hole)]
-                  [return-type (if (ast-bud-node? hole-type)
-                                   (if main? int-type (fresh-var-type))
-                                   ;; typename is the string of the return type...
-                                   (car (reverse hole-type)))]
-                  [params (if (ast-bud-node? hole-type)
-                              (expr->ast-list (if main? 0 (random 5))
-                                              (make-fresh-node 'FormalParam))
-                              (map (λ (t) (make-fresh-node 'FormalParam
-                                                           (hash 'typename t)))
-                                   (reverse (cdr (reverse (cdr hole-type))))))])
+                  [hole-type (ast-child 'type current-hole)]
+                  [type (if (and hole-type
+                                 (not (and (ast-node? hole-type)
+                                           (ast-bud-node? hole-type))))
+                            hole-type
+                            (fresh-function-type))]
+                  [params (map (λ (t) (make-fresh-node 'FormalParam
+                                                       (hash 'type t)))
+                               (reverse (cdr (reverse (cdr type)))))])
              (hash
               'name name
-              'typename return-type
+              'type type
               'params params))]
           )
 

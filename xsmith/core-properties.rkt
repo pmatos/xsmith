@@ -144,24 +144,25 @@ hole for the type.
                     f-name
                     (dict-ref field-dict
                               f-name
-                              (dict-ref prop-given-values
-                                        f-name
-                                        ((dict-ref thunk-hash f-name)))))))
-               (define all-values-hash/num-transformed
+                              (λ () (dict-ref prop-given-values
+                                              f-name
+                                              (dict-ref thunk-hash f-name)))))))
+               (define all-values-hash/seq-transformed
                  (for/hash ([f-name (list field-name ...)]
                             [f-type (list field-type ...)]
                             [f-seq? (list field-seq? ...)])
                    (values
                     f-name
                     (let ([v (dict-ref all-values-hash f-name)])
-                      (if (and f-seq? (number? v))
-                          ;; If the init value is a number and a list
-                          ;; of hole nodes is required, make an appropriate
-                          ;; list of that length.
-                          (expr->ast-list v (and f-type (make-hole f-type)))
-                          v)))))
+                      (cond [(and f-seq? (list? v) (create-ast-list v))]
+                            [(and f-seq? (number? v))
+                             ;; If the init value is a number and a list
+                             ;; of hole nodes is required, make an appropriate
+                             ;; list of that length.
+                             (expr->ast-list v (and f-type (make-hole f-type)))]
+                            [else v])))))
                (define all-values-in-order
-                 (map (λ (name) (dict-ref all-values-hash/num-transformed name))
+                 (map (λ (name) (dict-ref all-values-hash/seq-transformed name))
                       (list field-name ...)))
 
                (create-ast (current-racr-spec)
@@ -382,7 +383,6 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                    ((att-value 'xsmith_lift-type-to-ast-binder-type
                                from-node)
                     type))
-                 ;(eprintf "lifting type ~a to node of type ~a\n" type ast-type)
 
                  ;; The field within the lift destination that a lift
                  ;; should be placed, if possible.

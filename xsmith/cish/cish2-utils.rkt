@@ -388,5 +388,11 @@ Types can be:
           [else
            (random-ref (list int-type float-type))])))
 
+(define (fresh-function-type [ret-type #f])
+  (append '(->)
+          (map (λ(x)(fresh-var-type))
+               (make-list (random 4) #f))
+          (list (or ret-type (fresh-var-type)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

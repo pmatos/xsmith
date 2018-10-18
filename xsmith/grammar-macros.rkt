@@ -914,6 +914,8 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                      (define name (fresh-var-name "lift_"))
                                      (define new-hole (make-hole lifted-ast-type))
                                      (rewrite-terminal 'name new-hole name)
+                                     (rewrite-terminal 'liftdepth new-hole lift-depth)
+                                     (rewrite-terminal 'type new-hole type)
 
                                      (define choices
                                        (att-value 'xsmith_hole->choice-list new-hole))
@@ -925,8 +927,17 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                          lifted-ast-type)))
                                      (define new-declaration
                                        (send (car choices) xsmith_fresh
+                                             ;; TODO -
+                                             ;; I don't actually want to send the type
+                                             ;; here, because function definitions
+                                             ;; need to know the type before they set
+                                             ;; the formal params.  So the fresh
+                                             ;; property on function definitions needs
+                                             ;; to read the value on the hole node
+                                             ;; instead of getting it here...
                                              (hash 'liftdepth lift-depth
-                                                   'lifttype type)))
+                                                   ;'type type
+                                                   )))
                                      (enqueue-inter-choice-transform
                                       (λ () (rewrite-insert
                                              (ast-child destination-field
