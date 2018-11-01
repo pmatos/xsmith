@@ -2,12 +2,33 @@ Initial goals for specification DSL:
 
 ✓ syntactic segmentation
 ✓ specifying grammar and getting things for free (ast holes, choice objects)
-* also getting ag-rule stuff for free (ast depth, top-level)
-* ability to declare info about grammar pieces -- eg the body of the for loop doesn't increase the depth (or only under certain circumstances), probability skewing for different nodes
-* scope graphs for free -- declare that X in the grammar is a binding form, which forms add new scopes, etc
+✓ also getting ag-rule stuff for free (ast depth, top-level)
+✓ ability to declare info about grammar pieces -- eg the body of the for loop doesn't increase the depth (or only under certain circumstances), probability skewing for different nodes
+✓ scope graphs for free -- declare that X in the grammar is a binding form, which forms add new scopes, etc
 
 
 * inline vs separate declarations
 ** inline makes the grammar definition harder because you have everything up-front, reduced compositionality
 ** essential stuff wants to be inline, the footnotes want to be separate
+
+
+*  the binder-info property should take two field names rather than a field and a method name -- it doesn't really make sense not to have the type stored in the declaration
+*  variable declarations at the top level need constant expressions, but right now they seem to be able to use (and maybe even lift) functions (besides safe math)
+*  block declarations should be VariableDeclarations in cish
+* update docs with new property APIs and changed APIs (introduces-scope, binding struct, lift stuff, serial/parallel stuff...)
+* remove illegal-variable-name nonsense in reference choosing -- this is no longer necessary due to serial/parallel/recursive upgrades
+
+
+* Type properties, obviously
+* depth increase -- should accept function OR literal number.  If literal number is 0 then maybe it is assured to never-deepen?
+* Somewhere I made a quick integer counter that I think I haven't folded into the xsmith-state object -- it needs to be folded in so it is reset if multiple generations are done in series.  (For variable names, I think)
+* split xsmith-utils.rkt into xsmith-state.rkt and xsmith-racr-wrappers.rkt -- the racr-wrappers could probably go away, frankly, or at least not be part of the public interface.
+* consider names -- ag-rule maybe should be "attribute", while choice rule should maybe be... maybe choice method.  "rule" in ag-rule comes from syntax-rule, I think, because it is a macro for declaring attributes.
+** I should look more at the attribute adding function and its more exotic features -- broadcasting, contexts, etc.  I never use them, and my definition form currently may not allow all of those features to be used.  But I'm not sure they're all useful in Xsmith's context either (I haven't wanted them yet...)
+* fix super for choice methods -- it is broken for some reason
+* Property for `features` that will automatically generate a list of potential features to add to the `command-line` --help flag.
+* use local-apply-transformer (or double local-intro for hygiene) in property transformers
+* document newer features that I haven't yet
+* choose good names for the public API
+* re-think any public API -- I don't want bad APIs to live on just because we were in a hurry for a release
 
