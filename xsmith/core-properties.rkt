@@ -470,13 +470,13 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                 ([node nodes])
         (syntax-parse (dict-ref this-prop-info node #'#f)
           [#f rule-info]
-          [(name-field-name:id type-method-name:id)
+          [(name-field-name:id type-field-name:id)
            (dict-set rule-info node
                      #'(λ (n)
                          (binding
                           (ast-child 'name-field-name n)
                           n
-                          (att-value 'type-method-name n))))])))
+                          (ast-child 'type-field-name n))))])))
     (list scope-graph-binding-info)))
 
 ;; TODO - this is not a great design, but I need the user to specify

@@ -199,10 +199,10 @@
           [ForStatement #t])
 (add-prop cish2-grammar
           binder-info
-          [Declaration (name binder-type)]
-          [VariableDeclaration (name binder-type)]
-          [FunctionDefinition (name binder-type)]
-          [FormalParam (name binder-type)])
+          [Declaration (name type)]
+          [VariableDeclaration (name type)]
+          [FunctionDefinition (name type)]
+          [FormalParam (name type)])
 (add-prop cish2-grammar
           lift-predicate
           [FunctionDefinition #f]

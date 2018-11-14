@@ -269,12 +269,6 @@
  )
 
 
-(ag
- binder-type
- [FunctionDefinition (λ (n) (ast-child 'type n))]
- [VariableDeclaration (λ (n) (ast-child 'type n))]
- [FormalParam (λ (n) (ast-child 'type n))]
- [Declaration (λ (n) #f)])
 
 (ag
  illegal-variable-names
