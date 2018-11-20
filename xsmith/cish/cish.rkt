@@ -29,6 +29,7 @@
   depth-increase
   choice-weight
   fresh
+  child-node-name-dict
   wont-over-deepen
   introduces-scope
   binder-info

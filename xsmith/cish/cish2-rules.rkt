@@ -1549,7 +1549,7 @@ few of these methods.
     [IfExpression '(if-expression)]
     )
 
-(add-choice-rule
+#;(add-choice-rule
  cish2-rules
  constrain-type
  [Node (λ () #t)]

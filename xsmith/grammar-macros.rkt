@@ -446,6 +446,13 @@
 (define visible-bindings-function
   (λ (n)
     (visible-bindings (att-value 'xsmith_scope-graph-scope n))))
+(define node-field-name-in-parent-function
+  (λ (n)
+    ;; Parent might be the desired node OR a list node.
+    (define parent (ast-parent))
+    (define parent* (parent-node n))
+    (dict-ref (att-value 'xsmith_child-node-name-dict parent*)
+              (if (eq? parent parent*) n parent))))
 
 
 
@@ -954,6 +961,8 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                 [base-node-name resolve-reference-name-function])
                        (ag-rule visible-bindings
                                 [base-node-name visible-bindings-function])
+                       (ag-rule xsmith_node-field-name-in-parent
+                                [base-node-name node-field-name-in-parent-function])
                        (compile-ag-specifications))))
 
                  ;; Define an ast-generator with a hygiene-bending name

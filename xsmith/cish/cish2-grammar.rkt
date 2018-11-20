@@ -57,7 +57,7 @@
 
  [AssignmentExpression Expression ([name = "standin-name"]
                                    Expression)]
- [FunctionApplicationExpression Expression ([name = "standin-name"]
+ [FunctionApplicationExpression Expression ([function : VariableReference]
                                             [args : Expression *])]
  [BinaryExpression Expression ([l : Expression]
                                [r : Expression])]
@@ -137,13 +137,13 @@
           [AssignmentExpression
            (hash
             'name
-            (binding-name (random-ref (send this constrain-type))))]
+            (binding-name (random-ref (send this xsmith_reference-options!))))]
           [VariableReference
-           (let* ([choice* (random-ref (send this constrain-type))]
+           (let* ([choice* (random-ref (send this xsmith_reference-options!))]
                   [choice (if (procedure? choice*) (choice*) choice*)])
              (hash 'name (binding-name choice)))]
           [FunctionApplicationExpression
-           (let* ([choice* (random-ref (send this constrain-type))]
+           (let* ([choice* (random-ref (send this xsmith_reference-options!))]
                   [choice (if (procedure? choice*) (choice*) choice*)])
              (hash 'name
                    (binding-name choice)
@@ -204,6 +204,10 @@
           [FunctionDefinition (name type)]
           [FormalParam (name type)])
 (add-prop cish2-grammar
+          reference-info
+          [VariableReference name]
+          [AssignmentExpression name])
+(add-prop cish2-grammar
           lift-predicate
           [FunctionDefinition #f]
           ;[FunctionDefinition (λ (n type) #f)]
@@ -214,6 +218,107 @@
                             'FunctionDefinition
                             'VariableDeclaration))])
 
+(define int (base-type 'int))
+(define float (base-type 'float))
+(define bool (base-type 'bool))
+(define type-thunks-for-concretization
+  (list (λ () int)
+        (λ () float)
+        (λ () bool)))
+(define concrete-types (map (λ(x)(x)) type-thunks-for-concretization))
+(define (fresh-statement-type)
+  (fresh-type-variable (return-type (fresh-type-variable))
+                       (no-return-type (fresh-type-variable))))
+(define (fresh-base-or-function-type)
+  (apply fresh-type-variable
+         concrete-types
+         (function-type (product-type #f)
+                        (fresh-type-variable))))
+(define no-child-types (λ (t) (hash)))
+
+(add-prop
+ cish2-grammar
+ type-info
+ [Node [(fresh-base-or-function-type) (no-child-types)]]
+ [Program [(fresh-type-variable)
+           (λ (t) (hash 'main (function-type (product-type '())
+                                             int)
+                        'declarations (λ (n) (fresh-base-or-function-type))))]]
+
+ ;[Declaration aoeu]
+ [VariableDeclaration [(fresh-type-variable)
+                       (λ (t) (hash 'Expression t))]]
+ [FunctionDefinition [(function-type (product-type #f) (fresh-type-variable))
+                      (λ (t) (hash 'Body (return-type t)))]]
+ ;[FormalParam aoeu]
+
+ [Statement (fresh-statement-type) (no-child-types)]
+ [NullStatement [(fresh-statement-type) (no-child-types)]]
+ [Block [(fresh-statement-type)
+         (λ (t) (hash 'declarations (λ (n) (fresh-type-variable))
+                      'statements (λ (n)
+                                    (if (equal? (sub1 (ast-child-index))
+                                                (length
+                                                 (ast-children (ast-parent n))))
+                                        t
+                                        (fresh-statement-type)))))]]
+ [ExpressionStatement [(fresh-statement-type)
+                       (λ (t) (hash 'Expression (fresh-type-variable)))]]
+ [IfStatement [(fresh-statement-type)
+               (λ (t) (hash 'test bool
+                            'then t))]]
+ [IfElseStatement [(fresh-statement-type)
+                   (λ (t) (hash 'test bool
+                                'then t
+                                'else t))]]
+ [ValueReturnStatement [(return-type (fresh-type-variable))
+                        (λ (t) (hash 'Expression (return-type-type t)))]]
+
+
+ [LoopStatement [(fresh-statement-type)
+                 (λ (t) (hash 'test bool
+                              'body t))]]
+ [ForStatement [(fresh-statement-type)
+                (λ (t)
+                  (let ([loop-var-type (fresh-type-variable)])
+                    (hash 'test bool
+                          'body t
+                          'init loop-var-type
+                          'update loop-var-type)))]]
+
+ [Expression [(fresh-type-variable) (no-child-types)]]
+
+ [AssignmentExpression [(fresh-type-variable)
+                        (λ (t) (hash 'Expression t))]]
+ ;; TODO - use a reference for the function...
+ [FunctionApplicationExpression [(fresh-type-variable)
+                                 (λ (t)
+                                   (hash 'function (function-type args-type t)
+                                         'args (λ (n) (fresh-type-variable))))]]
+ ;[BinaryExpression aoeu]
+ [AdditionExpression [(fresh-type-variable int float)
+                      (λ (t) (hash 'l t 'r t))]]
+ [SubtractionExpression [(fresh-type-variable int float)
+                         (λ (t) (hash 'l t 'r t))]]
+ [MultiplicationExpression [(fresh-type-variable int float)
+                            (λ (t) (hash 'l t 'r t))]]
+ [DivisionExpression [(fresh-type-variable int float)
+                      (λ (t) (hash 'l t 'r t))]]
+
+ [IntOnlyBinaryExpression [int
+                           (λ (t) (hash 'l int 'r int))]]
+
+ [ComparisonExpression [(fresh-type-variable bool)
+                        (λ (t) (let ([arg-t (fresh-type-variable int float)])
+                                 (hash 'l arg-t 'r arg-t)))]]
+
+ [IfExpression [(fresh-type-variable)
+                (λ (t) (hash 'test bool 'then t 'else t))]]
+ [LiteralInt [int (no-child-types)]]
+ [LiteralFloat [float (no-child-types)]]
+ [VariableReference [(fresh-base-or-function-type) (no-child-types)]]
+ )
+
 (add-prop
  cish2-grammar
  choice-filters-to-apply
@@ -221,5 +326,4 @@
       features-enabled
       respect-return-position
       misc-constraints
-      constrain-type
       )])

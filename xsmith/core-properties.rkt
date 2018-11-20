@@ -5,9 +5,12 @@
  depth-increase
  choice-weight
  fresh
+ child-node-name-dict
  wont-over-deepen
+ type-info
  introduces-scope
  binder-info
+ reference-info
  lift-predicate
  lift-type->ast-binder-type
  binding-structure
@@ -21,6 +24,7 @@
  "xsmith-utils.rkt"
  "xsmith-options.rkt"
  "scope-graph.rkt"
+ "private/types.rkt"
  racr
  racket/random
  racket/class
@@ -170,6 +174,33 @@ hole for the type.
                            all-values-in-order))))))
     (list rule-info)))
 
+(define-property child-node-name-dict
+  #:reads (grammar)
+  #:appends (ag-rule xsmith_child-node-name-dict)
+  #:transformer
+  (λ (this-prop-info grammar-info)
+    (define nodes (dict-keys grammar-info))
+    (define field-info-hash
+      (for/hash ([node-name nodes])
+        (values node-name
+                (grammar-node-name->field-info-list node-name grammar-info))))
+    (define node-typed-fields-dict
+      (for/hash ([node nodes])
+        (values node
+                (filter (λ(x)x)
+                        (map grammar-node-field-struct-type
+                             (dict-ref field-info-hash node))))))
+    (define child-node-name-dict-info
+      (for/hash ([node nodes])
+        (with-syntax ([(field-name ...)
+                       (map (λ (x) (datum->syntax #f x))
+                            (dict-ref node-typed-fields-dict node))])
+          (values node
+                  #`(λ (n) (make-immutable-hash
+                            (cons (ast-child 'field-name n) . 'field-name)
+                            ...))))))
+    (list child-node-name-dict-info)))
+
 (define-property wont-over-deepen
   #:reads (grammar)
   #:appends (choice-rule xsmith_wont-over-deepen)
@@ -180,9 +211,15 @@ hole for the type.
       (for/hash ([node-name nodes])
         (values node-name
                 (grammar-node-name->field-info-list node-name grammar-info))))
+    (define node-typed-fields-dict
+      (for/hash ([node nodes])
+        (values node
+                (filter (λ(x)x)
+                        (map grammar-node-field-struct-type
+                             (dict-ref field-info-hash node))))))
     ;; If a node in the grammar has fields that are also nodes, it will make
     ;; the tree deeper.
-    (define rule-info-defaults
+    (define wont-over-deepen-info-defaults
       (for/hash ([node nodes])
         (values node
                 (if (ormap (λ (x) (grammar-node-field-struct-type x))
@@ -190,7 +227,7 @@ hole for the type.
                     #'#f
                     #'#t))))
     ;; But we'll let the user override if they want.
-    (define rule-info
+    (define wont-over-deepen-info
       (for/hash ([node nodes])
         (values node
                 #`(λ ()
@@ -200,8 +237,8 @@ hole for the type.
                         #,(dict-ref
                            this-prop-info
                            node
-                           (dict-ref rule-info-defaults node)))))))
-    (list rule-info)))
+                           (dict-ref wont-over-deepen-info-defaults node)))))))
+    (list wont-over-deepen-info)))
 
 
 #|
@@ -479,6 +516,9 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                           (ast-child 'type-field-name n))))])))
     (list scope-graph-binding-info)))
 
+;; This property should be the field name that references use
+(define-property reference-info)
+
 ;; TODO - this is not a great design, but I need the user to specify
 ;; one function for this and make it available to the xsmith machinery.
 ;; The function given to this should be something like:
@@ -516,6 +556,7 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
         ;; Add user-specified filters to the core filters.
         #`(xsmith_may-be-generated
            xsmith_wont-over-deepen
+           xsmith_satisfies-type-constraint?
            #,@user-filters)))
     (define (helper filter-method-stx filter-failure-set!-id)
       (syntax-parse filter-method-stx
@@ -543,3 +584,124 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                            this%
                            failure-set!-id)))))))
     (list rule-info)))
+
+#|
+ref-choices-filtered-hash is for xsmith_constrain-type.
+Apparently class definitions don't let public methods be defined with
+let-over-lambda (maybe the class macro rewrites the lambdas...).
+So let's have a weak hash table store the mutable state we need in a
+few of these methods.
+|#
+(define ref-choices-filtered-hash (make-weak-hasheq))
+
+
+#|
+The type-info property is two-armed.
+The first arm is an expression that must return a type (which should be fresh if it is a [maybe constrained] variable) that the AST node can fulfill.
+The second arm is a function that takes the type that the node has been assigned and must return a dictionary mapping the node's child fields to either:
+• its type
+• A function that takes the AST node for the child and returns its type. (This must be used for list children, IE those with a kleene star)
+|#
+(define-property type-info
+  #:reads
+  (grammar)
+  (property reference-info)
+  #:appends
+  (ag-rule xsmith_children-type-dict)
+  (ag-rule xsmith_type)
+  ;; TODO - cish also has a current-function-return-type ag-rule for return statements that aren't at the end of a body.  It should be removed once this typing stuff is done.
+  (choice-rule xsmith_satisfies-type-constraint?)
+  (choice-rule xsmith_reference-options!)
+  #:transformer
+  (λ (this-prop-info grammar-info reference-info-info)
+    (define nodes (dict-keys grammar-info))
+    (define node-type-constraints
+      (for/hash ([n nodes])
+        (values n (syntax-parse (dict-ref this-prop-info n)
+                    [(constraint:expr _) #'constraint]))))
+    (define node-child-dict-funcs
+      (for/hash ([n nodes])
+        (values n (syntax-parse (dict-ref this-prop-info n)
+                    [(_ f:expr) #'f]))))
+    (define node-reference-names
+      (for/hash ([n nodes])
+        (values n (syntax-parse (dict-ref reference-info-info n #'#f)
+                    [#f #'#f]
+                    [field:id #'(quote field)]))))
+
+    (define xsmith_children-type-dict-info
+      (for/hash ([n nodes])
+        (values
+         n
+         #`(λ (node)
+             (define my-type (att-value 'xsmith_type node))
+             (define my-type->child-type-dict
+               #,(dict-ref node-child-dict-funcs n))
+             (my-type->child-type-dict my-type)))))
+    (define xsmith_type-info
+      (for/hash ([n nodes])
+        (values
+         n
+         #`(λ (node)
+             (define parent-child-type-dict
+               (if (ast-has-parent? node)
+                   (att-value 'xsmith_child-type-dict (ast-parent node))
+                   (hash node (fresh-type-variable))))
+             (define my-type-from-parent/func
+               (dict-ref parent-child-type-dict
+                         node
+                         (λ () (dict-ref
+                                parent-child-type-dict
+                                (att-value 'xsmith_node-field-name-in-parent node)
+                                (λ () (error 'type-info
+                                             "No type info available for node."))))))
+             (define my-type-from-parent (if (procedure? my-type-from-parent/func)
+                                             (my-type-from-parent/func node)
+                                             my-type-from-parent/func))
+             (define my-type-constraint #,(dict-ref node-type-constraints n))
+             (unify! my-type-from-parent my-type-constraint)
+             my-type-from-parent))))
+    (define xsmith_satisfies-type-constraint?-info
+      (for/hash ([n nodes])
+        (values
+         n
+         #`(λ ()
+             (can-unify? (att-value 'xsmith_type (current-hole))
+                         #,(dict-ref node-type-constraints n))))))
+    (define xsmith_reference-options!-info
+      (hash-set
+       (for/hash ([n (dict-keys node-reference-names)])
+         (values
+          n
+          #`(λ ()
+              (define type-needed (att-value 'xsmith_type (current-hole)))
+              (define my-type-constraint #,(dict-ref node-type-constraints n))
+              (unify! type-needed my-type-constraint)
+              (let ([ref-choices-filtered
+                     (hash-ref ref-choices-filtered-hash this #f)])
+                (if ref-choices-filtered
+                    ref-choices-filtered
+                    (let ()
+                      (define visibles
+                        ;; TODO - maybe this should be xsmith_visible-bindings
+                        (att-value 'visible-bindings current-hole))
+                      ;; TODO - function application needs to take an expr for the func and an expr for the args instead of the current function-application-is-a-reference
+                      (define visibles-with-type
+                        (filter (λ (b) (unify? type-needed
+                                               (binding-type b)))))
+                      ;; TODO - for functions there was a filter here to not get main
+                      (define lift-type (concretize-type type-needed))
+                      (define legal+lift
+                        (cons (make-lift-reference-choice-proc
+                               current-hole
+                               lift-type)
+                              final-choices))
+                      (hash-set! ref-choices-filtered-hash this legal+lift)
+                      legal+lift))))))
+       #f #'(λ () (error 'xsmith_reference-options!
+                         "Only defined for nodes with reference-info property"))))
+
+    (list xsmith_children-type-dict-info
+          xsmith_type-info
+          xsmith_satisfies-type-constraint?-info
+          xsmith_reference-options!-info)))
