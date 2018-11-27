@@ -145,11 +145,11 @@
           [FunctionApplicationExpression
            (let* ([choice* (random-ref (send this xsmith_reference-options!))]
                   [choice (if (procedure? choice*) (choice*) choice*)])
-             (hash 'name
-                   (binding-name choice)
+             (hash 'function
+                   (make-fresh-node 'VariableReference (binding-name choice))
                    'args
-                   (- (length (binding-type choice))
-                      2)))]
+                   (length (product-type-inner-type-list
+                            (function-type-args choice)))))]
           [VariableDeclaration
            (let* ([hole-name (ast-child 'name current-hole)]
                   [name (if (string? hole-name)
@@ -290,12 +290,22 @@
 
  [AssignmentExpression [(fresh-type-variable)
                         (λ (t) (hash 'Expression t))]]
- ;; TODO - use a reference for the function...
- [FunctionApplicationExpression [(fresh-type-variable)
-                                 (λ (t)
-                                   (hash 'function (function-type args-type t)
-                                         'args (λ (n) (fresh-type-variable))))]]
- ;[BinaryExpression aoeu]
+ [FunctionApplicationExpression
+  [(fresh-type-variable)
+   (λ (t)
+     (define args-type (product-type #f))
+     (hash 'function (function-type args-type t)
+           'args (λ (n)
+                   (define p (ast-parent n))
+                   (define my-type (fresh-type-variable))
+                   (unify!
+                    args-type
+                    (product-type
+                     (map (λ (c) (if (eq? c n)
+                                     my-type
+                                     (fresh-type-variable)))
+                          (ast-children p))))
+                   my-type)))]]
  [AdditionExpression [(fresh-type-variable int float)
                       (λ (t) (hash 'l t 'r t))]]
  [SubtractionExpression [(fresh-type-variable int float)

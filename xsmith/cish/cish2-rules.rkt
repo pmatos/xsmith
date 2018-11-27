@@ -229,7 +229,7 @@
     (h-comment
      n
      (h-append
-      (text (ast-child 'name n))
+      (att-value 'pretty-print (ast-child 'function n))
       lparen
       (h-concat
        (add-between (map (λ (a) (att-value 'pretty-print a))
@@ -289,7 +289,7 @@
  [Statement (λ (n) (att-value 'current-function-return-type (parent-node n)))]
  [FunctionDefinition (λ (n) (car (reverse (ast-child 'type n))))])
 
-(ag
+#;(ag
  children-type-dict
  ;; For eg. functions to associate a child node with the type it must be
  [ExpressionStatement (λ (n) (hasheq (ast-child 'Expression n) #f))]
@@ -329,7 +329,7 @@
                                 (ast-child 'else n) t)))]
  ;; TODO - function call, anything with child expressions...
  )
-(ag
+#;(ag
  type-context
  [BinaryExpression (λ (n) (let ([t (or (dict-ref (att-value 'children-type-dict
                                                             (parent-node n))
@@ -777,7 +777,7 @@
  ;; Function applications will be evaluated with the arguments given.
  [FunctionApplicationExpression
   (λ (n store flow-returns)
-    (match-let* ([binding (resolve-variable-reference-node n)]
+    (match-let* ([binding (resolve-variable-reference-node (ast-child 'function n))]
                  [func-def-node (binding-ast-node binding)]
                  [func-block (ast-child 'Block func-def-node)]
                  [func-params (ast-children (ast-child 'params func-def-node))]
@@ -1275,7 +1275,7 @@
   (λ (n store path-condition return-variable assertions)
     ;; TODO - this is almost the same as the one for abstract-interp/range
     ;; I should abstract over them somehow.
-    (define ref-node (resolve-variable-reference-node n))
+    (define ref-node (resolve-variable-reference-node (ast-child 'function n)))
     (define def-node (binding-ast-node ref-node))
     (define func-block (ast-child 'Block def-node))
     (define func-params (ast-children (ast-child 'params def-node)))
