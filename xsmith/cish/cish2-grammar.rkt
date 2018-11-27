@@ -25,12 +25,12 @@
                 [main : FunctionDefinition])]
 
  [Declaration Node ([liftdepth = 0]
-                    [type = #f]
-                    [name = (fresh-var-name "x_")])]
+                    [type]
+                    [name])]
  [VariableDeclaration Declaration (Expression)]
  [FunctionDefinition Declaration ([params : FormalParam *]
                                   Block)]
- [FormalParam Node ([type = (fresh-var-type)]
+ [FormalParam Node ([type]
                     [name = (fresh-var-name "arg_")])]
 
 
@@ -55,7 +55,7 @@
 
  [Expression Node ()]
 
- [AssignmentExpression Expression ([name = "standin-name"]
+ [AssignmentExpression Expression ([name]
                                    Expression)]
  [FunctionApplicationExpression Expression ([function : VariableReference]
                                             [args : Expression *])]
@@ -137,19 +137,38 @@
           [AssignmentExpression
            (hash
             'name
-            (binding-name (random-ref (send this xsmith_reference-options!))))]
-          [VariableReference
-           (let* ([choice* (random-ref (send this xsmith_reference-options!))]
-                  [choice (if (procedure? choice*) (choice*) choice*)])
-             (hash 'name (binding-name choice)))]
+            (let* ([choice* (random-ref (send this xsmith_reference-options!))]
+                   [choice (if (procedure? choice*) (choice*) choice*)])
+              (binding-name choice)))]
           [FunctionApplicationExpression
-           (let* ([choice* (random-ref (send this xsmith_reference-options!))]
-                  [choice (if (procedure? choice*) (choice*) choice*)])
-             (hash 'function
-                   (make-fresh-node 'VariableReference (binding-name choice))
-                   'args
-                   (length (product-type-inner-type-list
-                            (function-type-args choice)))))]
+           (hash 'function (make-hole 'VariableReference)
+                 ;; Make an empty args list which will be rewritten
+                 ;; by fresh for VariableReference.
+                 'args 0)]
+          [VariableReference
+           (hash 'name
+                 (λ ()
+                   (let* ([choice* (random-ref (send this
+                                                     xsmith_reference-options!))]
+                          [choice (if (procedure? choice*)
+                                      (choice*)
+                                      choice*)]
+                          [parent (parent-node (current-hole))])
+                     (when (and (ast-subtype? parent 'FunctionApplicationExpression)
+                                (eq? (current-hole) (ast-child 'function parent)))
+                       ;; Rewrite the function argument list to match the
+                       ;; length required by the type we've chosen.
+                       (let ([arg-children (create-ast-list
+                                            (map (λ (x) (make-hole 'Expression))
+                                                 (product-type-inner-type-list
+                                                  (function-type-arg-type
+                                                   (binding-type choice)))))])
+                         (enqueue-inter-choice-transform
+                          (λ ()
+                            (rewrite-subtree
+                             (ast-child 'args parent)
+                             arg-children)))))
+                     (binding-name choice))))]
           [VariableDeclaration
            (let* ([hole-name (ast-child 'name current-hole)]
                   [name (if (string? hole-name)
@@ -163,7 +182,7 @@
                                  (not (and (ast-node? hole-type)
                                            (ast-bud-node? hole-type))))
                             hole-type
-                            (fresh-var-type))])
+                            (fresh-concrete-var-type))])
              (hash 'name name
                    'type type))]
           [FunctionDefinition
@@ -181,14 +200,26 @@
                                  (not (and (ast-node? hole-type)
                                            (ast-bud-node? hole-type))))
                             hole-type
-                            (fresh-function-type))]
+                            (if main?
+                                (function-type (product-type '()) int)
+                                (fresh-concrete-function-type)))]
                   [params (map (λ (t) (make-fresh-node 'FormalParam
                                                        (hash 'type t)))
-                               (reverse (cdr (reverse (cdr type)))))])
+                               (product-type-inner-type-list
+                                (function-type-arg-type type)))])
              (hash
               'name name
               'type type
               'params params))]
+          [LiteralInt (hash 'val (* (random 100)
+                                    (if (equal? 0 (random 2))
+                                        1
+                                        -1)))]
+          [LiteralFloat (hash 'val (* (random)
+                                      (random 10)
+                                      (if (equal? 0 (random 2))
+                                          1
+                                          -1)))]
           )
 
 #;(add-prop cish2-grammar
@@ -211,6 +242,7 @@
           lift-predicate
           [FunctionDefinition #f]
           ;[FunctionDefinition (λ (n type) #f)]
+          [Program (λ (n type) #t)]
           [Block (λ (n type) (not (function-type? type)))])
 (add-prop cish2-grammar
           lift-type->ast-binder-type
@@ -218,24 +250,12 @@
                             'FunctionDefinition
                             'VariableDeclaration))])
 
-(define int (base-type 'int))
-(define float (base-type 'float))
-(define bool (base-type 'bool))
-(define type-thunks-for-concretization
-  (list (λ () int)
-        (λ () float)
-        (λ () bool)))
-(define concrete-types (map (λ(x)(x)) type-thunks-for-concretization))
-(define (fresh-statement-type)
-  (fresh-type-variable (return-type (fresh-type-variable))
-                       (no-return-type (fresh-type-variable))))
-(define (fresh-base-or-function-type)
-  (apply fresh-type-variable
-         concrete-types
-         (function-type (product-type #f)
-                        (fresh-type-variable))))
-(define no-child-types (λ (t) (hash)))
 
+#|
+Type definitions are in cish-utils.rkt
+|#
+
+;; TODO - this property is wonky because it needs more info than I originally anticipated due to shortsightedness in wanting to design something easy to write.  It needs to take the node as well as its type, or maybe have an option to take its node.
 (add-prop
  cish2-grammar
  type-info
@@ -243,21 +263,30 @@
  [Program [(fresh-type-variable)
            (λ (t) (hash 'main (function-type (product-type '())
                                              int)
-                        'declarations (λ (n) (fresh-base-or-function-type))))]]
+                        'declarations (λ (n) (fresh-type-variable))))]]
 
  ;[Declaration aoeu]
  [VariableDeclaration [(fresh-type-variable)
-                       (λ (t) (hash 'Expression t))]]
+                       (λ (t)
+                         (hash 'Expression
+                               (λ (n) (let ([parent-type-annotation
+                                             (ast-child 'type (ast-parent n))])
+                                        (unify! t parent-type-annotation)
+                                        t))))]]
  [FunctionDefinition [(function-type (product-type #f) (fresh-type-variable))
-                      (λ (t) (hash 'Body (return-type t)))]]
+                      (λ (t) (hash 'Block
+                                   (λ (n) (let ([parent-type-annotation
+                                                 (ast-child 'type (ast-parent n))])
+                                            (unify! t parent-type-annotation)
+                                            (return-type t)))))]]
  ;[FormalParam aoeu]
 
- [Statement (fresh-statement-type) (no-child-types)]
+ [Statement [(fresh-statement-type) (no-child-types)]]
  [NullStatement [(fresh-statement-type) (no-child-types)]]
  [Block [(fresh-statement-type)
          (λ (t) (hash 'declarations (λ (n) (fresh-type-variable))
                       'statements (λ (n)
-                                    (if (equal? (sub1 (ast-child-index))
+                                    (if (equal? (sub1 (ast-child-index n))
                                                 (length
                                                  (ast-children (ast-parent n))))
                                         t
@@ -296,16 +325,21 @@
      (define args-type (product-type #f))
      (hash 'function (function-type args-type t)
            'args (λ (n)
+                   ;; p is a list node
                    (define p (ast-parent n))
+                   (define app-node (ast-parent p))
                    (define my-type (fresh-type-variable))
-                   (unify!
-                    args-type
-                    (product-type
-                     (map (λ (c) (if (eq? c n)
-                                     my-type
-                                     (fresh-type-variable)))
-                          (ast-children p))))
-                   my-type)))]]
+                   (if (att-value 'is-hole? (ast-child 'function app-node))
+                       my-type
+                       (begin
+                         (unify!
+                          args-type
+                          (product-type
+                           (map (λ (c) (if (eq? c n)
+                                           my-type
+                                           (fresh-type-variable)))
+                                (ast-children p))))
+                         my-type)))))]]
  [AdditionExpression [(fresh-type-variable int float)
                       (λ (t) (hash 'l t 'r t))]]
  [SubtractionExpression [(fresh-type-variable int float)
@@ -324,7 +358,7 @@
 
  [IfExpression [(fresh-type-variable)
                 (λ (t) (hash 'test bool 'then t 'else t))]]
- [LiteralInt [int (no-child-types)]]
+ [LiteralInt [(fresh-type-variable int bool) (no-child-types)]]
  [LiteralFloat [float (no-child-types)]]
  [VariableReference [(fresh-base-or-function-type) (no-child-types)]]
  )
@@ -334,6 +368,5 @@
  choice-filters-to-apply
  [#f (
       features-enabled
-      respect-return-position
       misc-constraints
       )])

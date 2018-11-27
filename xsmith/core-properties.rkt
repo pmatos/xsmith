@@ -146,11 +146,13 @@ hole for the type.
                  (for/hash ([f-name (list field-name ...)])
                    (values
                     f-name
-                    (dict-ref field-dict
+                    (let ([v (dict-ref
+                              field-dict
                               f-name
                               (λ () (dict-ref prop-given-values
                                               f-name
-                                              (dict-ref thunk-hash f-name)))))))
+                                              (dict-ref thunk-hash f-name))))])
+                      (if (procedure? v) (v) v)))))
                (define all-values-hash/seq-transformed
                  (for/hash ([f-name (list field-name ...)]
                             [f-type (list field-type ...)]
@@ -187,8 +189,8 @@ hole for the type.
     (define node-typed-fields-dict
       (for/hash ([node nodes])
         (values node
-                (filter (λ(x)x)
-                        (map grammar-node-field-struct-type
+                (map grammar-node-field-struct-name
+                     (filter grammar-node-field-struct-type
                              (dict-ref field-info-hash node))))))
     (define child-node-name-dict-info
       (for/hash ([node nodes])
@@ -197,8 +199,9 @@ hole for the type.
                             (dict-ref node-typed-fields-dict node))])
           (values node
                   #`(λ (n) (make-immutable-hash
-                            (cons (ast-child 'field-name n) . 'field-name)
-                            ...))))))
+                            (list
+                             (cons (ast-child 'field-name n) 'field-name)
+                             ...)))))))
     (list child-node-name-dict-info)))
 
 (define-property wont-over-deepen
@@ -348,6 +351,8 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
               (grammar-clause->parent-chain (dict-ref grammar-info
                                                       subtype-node-name)
                                             grammar-info)))
+      #;(eprintf "ast subtype with maybe-sub: ~a  maybe-super: ~a chain: ~a\n"
+               subtype-node-name supertype-node-name subtype-inheritance-chain)
       (member supertype-node-name subtype-inheritance-chain))
 
     (define has-potential-binder-child-hash
@@ -374,8 +379,8 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                      (and
                       (grammar-node-field-struct-kleene-star? f)
                       (ast-subtype? binder-node
-                                   (syntax->datum
-                                    (grammar-node-field-struct-type f)))
+                                    (syntax->datum
+                                     (grammar-node-field-struct-type f)))
                       (grammar-node-field-struct-name f))))))))
 
     (define binding-structure-hash
@@ -607,30 +612,49 @@ The second arm is a function that takes the type that the node has been assigned
   (grammar)
   (property reference-info)
   #:appends
+  (ag-rule xsmith_my-type-constraint)
+  (choice-rule xsmith_my-type-constraint)
   (ag-rule xsmith_children-type-dict)
   (ag-rule xsmith_type)
-  ;; TODO - cish also has a current-function-return-type ag-rule for return statements that aren't at the end of a body.  It should be removed once this typing stuff is done.
   (choice-rule xsmith_satisfies-type-constraint?)
   (choice-rule xsmith_reference-options!)
   #:transformer
   (λ (this-prop-info grammar-info reference-info-info)
     (define nodes (dict-keys grammar-info))
+    (define default-prop-info #'#f)
     (define node-type-constraints
-      (for/hash ([n nodes])
-        (values n (syntax-parse (dict-ref this-prop-info n)
-                    [(constraint:expr _) #'constraint]))))
+      (for/fold ([h (hash)])
+                ([n nodes])
+        (define c (syntax-parse (dict-ref this-prop-info n default-prop-info)
+                    [(constraint:expr _) #'constraint]
+                    [else #f]))
+        (if c (hash-set h n c) h)))
+
+    (define xsmith_my-type-constraint-info/ag-rule
+      (for/hash ([n (dict-keys node-type-constraints)])
+        (values n #`(λ (n) #,(dict-ref node-type-constraints n)))))
+    (define xsmith_my-type-constraint-info/choice-rule
+      (for/hash ([n (dict-keys node-type-constraints)])
+        (values n #`(λ () #,(dict-ref node-type-constraints n)))))
+
     (define node-child-dict-funcs
-      (for/hash ([n nodes])
-        (values n (syntax-parse (dict-ref this-prop-info n)
-                    [(_ f:expr) #'f]))))
+      (for/fold ([h (hash)])
+                ([n nodes])
+        (define f (syntax-parse (dict-ref this-prop-info n default-prop-info)
+                    [(_ f:expr) #'f]
+                    [else #f]))
+        (if f (hash-set h n f) h)))
+
     (define node-reference-names
       (for/hash ([n nodes])
         (values n (syntax-parse (dict-ref reference-info-info n #'#f)
                     [#f #'#f]
-                    [field:id #'(quote field)]))))
+                    ;; TODO - because this is not in the transformer of the
+                    ;; original property I have to check duplicates by hand...
+                    [(field:id) #'(quote field)]))))
 
     (define xsmith_children-type-dict-info
-      (for/hash ([n nodes])
+      (for/hash ([n (dict-keys node-child-dict-funcs)])
         (values
          n
          #`(λ (node)
@@ -645,7 +669,7 @@ The second arm is a function that takes the type that the node has been assigned
          #`(λ (node)
              (define parent-child-type-dict
                (if (ast-has-parent? node)
-                   (att-value 'xsmith_child-type-dict (ast-parent node))
+                   (att-value 'xsmith_children-type-dict (ast-parent node))
                    (hash node (fresh-type-variable))))
              (define my-type-from-parent/func
                (dict-ref parent-child-type-dict
@@ -653,13 +677,21 @@ The second arm is a function that takes the type that the node has been assigned
                          (λ () (dict-ref
                                 parent-child-type-dict
                                 (att-value 'xsmith_node-field-name-in-parent node)
-                                (λ () (error 'type-info
-                                             "No type info available for node."))))))
+                                (λ ()
+                                  (error
+                                   'type-info
+                                   (string-append
+                                    "No type info available for node "
+                                    "(of AST type ~a with parent of AST type ~a).")
+                                   (quote #,n)
+                                   (and (ast-has-parent? node)
+                                        (ast-node-type (ast-parent node)))))))))
              (define my-type-from-parent (if (procedure? my-type-from-parent/func)
                                              (my-type-from-parent/func node)
                                              my-type-from-parent/func))
-             (define my-type-constraint #,(dict-ref node-type-constraints n))
-             (unify! my-type-from-parent my-type-constraint)
+             (define my-type-constraint (att-value 'xsmith_my-type-constraint node))
+             (when my-type-constraint
+               (unify! my-type-from-parent my-type-constraint))
              my-type-from-parent))))
     (define xsmith_satisfies-type-constraint?-info
       (for/hash ([n nodes])
@@ -667,15 +699,15 @@ The second arm is a function that takes the type that the node has been assigned
          n
          #`(λ ()
              (can-unify? (att-value 'xsmith_type (current-hole))
-                         #,(dict-ref node-type-constraints n))))))
+                         (send this xsmith_my-type-constraint))))))
     (define xsmith_reference-options!-info
       (hash-set
-       (for/hash ([n (dict-keys node-reference-names)])
+       (for/hash ([n nodes])
          (values
           n
           #`(λ ()
               (define type-needed (att-value 'xsmith_type (current-hole)))
-              (define my-type-constraint #,(dict-ref node-type-constraints n))
+              (define my-type-constraint (send this xsmith_my-type-constraint))
               (unify! type-needed my-type-constraint)
               (let ([ref-choices-filtered
                      (hash-ref ref-choices-filtered-hash this #f)])
@@ -687,21 +719,26 @@ The second arm is a function that takes the type that the node has been assigned
                         (att-value 'visible-bindings current-hole))
                       ;; TODO - function application needs to take an expr for the func and an expr for the args instead of the current function-application-is-a-reference
                       (define visibles-with-type
-                        (filter (λ (b) (unify? type-needed
-                                               (binding-type b)))))
+                        (filter (λ (b)
+                                  (can-unify? type-needed
+                                                   (binding-type b)))
+                                visibles))
                       ;; TODO - for functions there was a filter here to not get main
                       (define lift-type (concretize-type type-needed))
                       (define legal+lift
                         (cons (make-lift-reference-choice-proc
                                current-hole
                                lift-type)
-                              final-choices))
+                              visibles-with-type))
                       (hash-set! ref-choices-filtered-hash this legal+lift)
                       legal+lift))))))
        #f #'(λ () (error 'xsmith_reference-options!
                          "Only defined for nodes with reference-info property"))))
 
-    (list xsmith_children-type-dict-info
-          xsmith_type-info
-          xsmith_satisfies-type-constraint?-info
-          xsmith_reference-options!-info)))
+    (list
+     xsmith_my-type-constraint-info/ag-rule
+     xsmith_my-type-constraint-info/choice-rule
+     xsmith_children-type-dict-info
+     xsmith_type-info
+     xsmith_satisfies-type-constraint?-info
+     xsmith_reference-options!-info)))

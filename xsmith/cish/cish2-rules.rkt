@@ -75,14 +75,17 @@
     (v-comment
      n
      (h-append
-      (text (basic-type-name (car (reverse (ast-child 'type n)))))
+      (text (symbol->string
+             (base-type-name (function-type-return-type (ast-child 'type n)))))
       space
       (text (ast-child 'name n))
       lparen
       (h-concat
        (add-between
         (map (λ (fp)
-               (h-append (text (basic-type-name (ast-child 'type fp)))
+               (eprintf "printing formal param: ~a\n" (ast-child 'name fp))
+               (h-append (text (symbol->string
+                                (base-type-name (ast-child 'type fp))))
                          space
                          (text (ast-child 'name fp))))
              (ast-children (ast-child 'params n)))
@@ -197,7 +200,7 @@
     (v-comment
      n
      (h-append (hs-append
-                (text (basic-type-name (ast-child 'type n)))
+                (text (symbol->string (base-type-name (ast-child 'type n))))
                 (text (ast-child 'name n))
                 eqsign
                 (att-value 'pretty-print (ast-child 'Expression n)))
@@ -284,10 +287,6 @@
  [Expression (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
  )
 
-(ag
- current-function-return-type
- [Statement (λ (n) (att-value 'current-function-return-type (parent-node n)))]
- [FunctionDefinition (λ (n) (car (reverse (ast-child 'type n))))])
 
 #;(ag
  children-type-dict
@@ -1186,7 +1185,7 @@
                        assertions)])
           (values n-store n-asserts))))
     (define main (ast-child 'main n))
-    (define main-ret (fresh-symbolic-var int-type))
+    (define main-ret (fresh-symbolic-var int))
     (symbolic-interp-wrap
      main
      init-store
@@ -1516,7 +1515,6 @@ few of these methods.
  )
 
 
-
 (add-prop
  cish2-rules
  wont-over-deepen
@@ -1526,215 +1524,28 @@ few of these methods.
  [VariableDeclaration #t]
  )
 
-(cm respect-return-position
-    [Node #t]
-    )
-(cm respect-return-position
-    [Statement (not (att-value 'in-return-position? current-hole))]
-    [IfElseStatement #t]
-    [Block #t]
-    [ReturnStatement #t]
-    [ValueReturnStatement #t]
-    )
-
 (cm features-enabled
     [Node (let ((disabled (xsmith-option 'features-disabled)))
             (not (ormap (λ (f) (dict-ref disabled f #f))
                         (send this features))))])
+
 (cm features
     [Node '()]
     [NullStatement '(null-statement)]
     [IfStatement '(if-statement)]
     [LoopStatement '(loop-statement)]
     [IfExpression '(if-expression)]
+    [LiteralInt '(int)]
+    [LiteralFloat '(float)]
+    [AdditionExpression '(addition)]
+    [MultiplicationExpression '(multiplication)]
+    [SubtractionExpression '(subtraction)]
+    [DivisionExpression '(division)]
+    [ModulusExpression '(modulus)]
+    [EqualityExpression '(comparisons)]
+    [LessThanExpression '(comparisons)]
+    [GreaterThanExpression '(comparisons)]
+    [LessOrEqualExpression '(comparisons)]
+    [GreaterOrEqualExpression '(comparisons)]
     )
-
-#;(add-choice-rule
- cish2-rules
- constrain-type
- [Node (λ () #t)]
- [AssignmentExpression
-  (λ ()
-    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
-      (if ref-choices-filtered
-          ref-choices-filtered
-          (let ()
-            (define visibles (att-value 'visible-bindings current-hole))
-            (define legal-refs
-              (filter (λ (b) (not (member (binding-name b)
-                                          (att-value 'illegal-variable-names
-                                                     current-hole))))
-                      visibles))
-            (define type-needed (att-value 'type-context current-hole))
-            (define not-functions (filter (λ (b) (not (function-type?
-                                                       (binding-type b))))
-                                          legal-refs))
-            (define legal-with-type
-              (if type-needed
-                  (filter (λ (b) (type-satisfies? (binding-type b)
-                                                  type-needed))
-                          not-functions)
-                  not-functions))
-            (hash-set! ref-choices-filtered-hash this legal-with-type)
-            (and (not (null? legal-with-type)) legal-with-type)))))]
- [VariableReference
-  (λ ()
-    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
-      (if ref-choices-filtered
-          ref-choices-filtered
-          (let ()
-            (define visibles (att-value 'visible-bindings current-hole))
-            (define legal-refs
-              (filter (λ (b) (not (member (binding-name b)
-                                          (att-value 'illegal-variable-names
-                                                     current-hole))))
-                      visibles))
-            (define type-needed (att-value 'type-context current-hole))
-            (define legal-with-type
-              (if type-needed
-                  (filter (λ (b) (type-satisfies? (binding-type b)
-                                                  type-needed))
-                          legal-refs)
-                  (filter (λ (b) (not (function-type?
-                                       (binding-type b))))
-                          legal-refs)))
-            ;; TODO - must fully concretize type-needed?
-            (define legal+lift
-              (cons (make-lift-reference-choice-proc current-hole type-needed)
-                    legal-with-type))
-            (hash-set! ref-choices-filtered-hash this legal+lift)
-            legal+lift))))]
- [FunctionApplicationExpression
-  (λ ()
-    (let ([ref-choices-filtered (hash-ref ref-choices-filtered-hash this #f)])
-      (if ref-choices-filtered
-          ref-choices-filtered
-          (let ()
-            (define visibles (filter (λ (b) (function-type?
-                                             (binding-type b)))
-                                     (att-value 'visible-bindings current-hole)))
-            (define legal-refs
-              (filter (λ (b) (not (member (binding-name b)
-                                          (att-value 'illegal-variable-names
-                                                     current-hole))))
-                      visibles))
-            (define type-needed (att-value 'type-context current-hole))
-            (define legal-with-type
-              (if type-needed
-                  (filter (λ (b) (type-satisfies?
-                                  (car (reverse (binding-type b)))
-                                  type-needed))
-                          legal-refs)
-                  legal-refs))
-            (define final-choices (filter (λ (b) (not (equal? "main" (binding-name b))))
-                                          legal-with-type))
-            (define lift-type (fresh-function-type type-needed))
-            (define legal+lift
-              (cons (make-lift-reference-choice-proc current-hole lift-type)
-                    final-choices))
-            (hash-set! ref-choices-filtered-hash this legal+lift)
-            legal+lift))))]
- #;[FunctionDefinition
-  (λ ()
-    (define lift-type (ast-child 'type current-hole))
-    (or (ast-bud-node? lift-type)
-        (function-type? lift-type)))]
- #;[VariableDeclaration
-  (λ ()
-    (define lift-type (ast-child 'type current-hole))
-    (or (ast-bud-node? lift-type)
-        (not (function-type? lift-type))))]
- )
-
-
-
-(define-syntax (define-basic-literal-choice stx)
-  (syntax-parse stx
-    ;; btype is the basic type that it satisfies
-    ;; generator-e is the expression to generate a value
-    ;; if-zero-generator-e is used if nonzero is required and the first generator gives 0
-    [(_ nodename btype feature generator-e if-zero-generator-e)
-     #'(begin
-         (add-prop cish2-rules fresh
-                   [nodename (let* ([t (att-value 'type-context current-hole)]
-                                    [v1 generator-e]
-                                    [constraints (if (basic-type? t)
-                                                     (basic-type-constraints t)
-                                                     '())]
-                                    [v (if (and (member 'nonzero constraints)
-                                                (equal? 0 v1))
-                                           if-zero-generator-e
-                                           v1)])
-                               (hash 'val v))])
-         (cm features [nodename '(feature)])
-         (add-prop cish2-rules choice-weight [nodename 3])
-         (cm constrain-type
-             [nodename (let ([t (att-value 'type-context current-hole)])
-                         ;; This isn't necessarily nonzero, but it will be if needed.
-                         (and (type-satisfies? btype t) this))])
-         )]))
-
-(define-basic-literal-choice LiteralInt nonzero-int-type int
-  (* (random 100)
-     (if (equal? 0 (random 1))
-         1
-         -1))
-  (+ 1 (random 10)))
-(define-basic-literal-choice LiteralFloat nonzero-float-type float
-  (* (random) (random 10))
-  (+ .1 (random)))
-
-
-
-(define-syntax (define-binary-op-choice stx)
-  (syntax-parse stx
-    [(_ nodename ;; Name of grammar node, also generates choice name
-        feature
-        input-typelist ;; types the operator accepts
-        output-type ;; type the operator returns, or #f if it returns its input type
-        bool-like ;; #t if the operator returns something bool-y, otherwise #f
-        )
-     #'(begin
-         (cm features [nodename '(feature)])
-         ;; TODO - this broke at some point when I switched to using all the macros.
-         ;;        Commenting it out is quicker than fixing it.
-         #;(cm choice-weight
-               [nodename (if (and bool-like (member bool-hint
-                                                    (att-value 'hints current-hole)))
-                             (* (hint-weight-multiplier bool-hint)
-                                (super choice-weight))
-                             (super choice-weight))])
-         (cm constrain-type
-             [nodename (let ([t (att-value 'type-context current-hole)])
-                         (cond [(if output-type
-                                    (type-satisfies? output-type t)
-                                    (ormap (λ (avail-type)
-                                             (type-satisfies? avail-type t))
-                                           input-typelist))
-                                #t]
-                               [else #f]))])
-         )]))
-
-(define-binary-op-choice AdditionExpression addition
-  (list int-type float-type) #f #f)
-(define-binary-op-choice MultiplicationExpression multiplication
-  (list int-type float-type) #f #f)
-(define-binary-op-choice SubtractionExpression subtraction
-  (list int-type float-type) #f #f)
-(define-binary-op-choice DivisionExpression division
-  (list int-type float-type) #f #f)
-
-(define-binary-op-choice ModulusExpression modulus
-  (list int-type) #f #f)
-
-(define-binary-op-choice EqualityExpression comparisons
-  (list int-type float-type) int-type #t)
-(define-binary-op-choice LessThanExpression comparisons
-  (list int-type float-type) int-type #t)
-(define-binary-op-choice GreaterThanExpression comparisons
-  (list int-type float-type) int-type #t)
-(define-binary-op-choice LessOrEqualExpression comparisons
-  (list int-type float-type) int-type #t)
-(define-binary-op-choice GreaterOrEqualExpression comparisons
-  (list int-type float-type) int-type #t)
 

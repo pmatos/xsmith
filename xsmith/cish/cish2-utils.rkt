@@ -7,6 +7,7 @@
 
 (require
  "../xsmith-utils.rkt"
+ "../grammar-macros.rkt"
  racr
  pprint
  racket/random
@@ -109,68 +110,122 @@
 (define application-hint (hint 50))
 
 #|
-TYPES
------
-
-Types can be:
-* #f for completely unconstrained
-* (list '-> arg ... result) for function types
-* basic-type for normal types
+New types
 |#
+(define int (base-type 'int))
+(define (int-type? x) (can-unify? x int))
+(define float (base-type 'float))
+(define (float-type? x) (can-unify? x float))
+(define bool (base-type 'bool))
+(define (bool-type? x) (can-unify? x bool))
 
-(struct basic-type
-  ;; Type name can be false or a type (eg int, float, ...),
-  ;; constraints fields are lists.
-  ;; Constraints are things like nonzero, constant, etc -- things that aren't part of the type, but that affect things like undefined behavior.
-  ;; The constrain-type method should always account for every attribute in the list -- if something can't satisfy every attribute it should be out of the running.
-  (name constraints)
-  #:transparent)
+(define (type-thunks-for-concretization)
+  (let ([disabled (xsmith-option 'features-disabled)])
+    (filter (λ(x)x)
+            (list (and (not (dict-ref disabled 'int #f)) (λ () int))
+                  (and (not (dict-ref disabled 'int #f)) (λ () bool))
+                  (and (not (dict-ref disabled 'float #f)) (λ () float))
+                  ))))
+(define (concrete-types) (map (λ(x)(x)) (type-thunks-for-concretization)))
+(define (return-type x)
+  (generic-type 'return (list x)))
+(define (return-type? x)
+  (and (generic-type? x)
+       (eq? (generic-type-name x)
+            'return)))
+(define (return-type-type x)
+  (when (not (return-type? (concretize-type x)))
+    (error 'return-type-type "given ~a\n" x))
+  (car (generic-type-type-arguments (concretize-type x))))
+(define (no-return-type x)
+  (generic-type 'no-return (list x)))
+(define (no-return-type? x)
+  (and (generic-type? x)
+       (eq? (generic-type-name x)
+            'no-return)))
+(define (no-return-type-type x)
+  (when (not (no-return-type? (concretize-type x)))
+    (error 'no-return-type-type "given ~a\n" x))
+  (car (generic-type-type-arguments (concretize-type x))))
+(define (fresh-statement-type)
+  (fresh-type-variable (return-type (fresh-type-variable))
+                       (no-return-type (fresh-type-variable))))
+(define (fresh-base-or-function-type)
+  (apply fresh-type-variable
+         (function-type (product-type #f)
+                        (fresh-type-variable))
+         (concrete-types)))
+(define no-child-types (λ (t) (hash)))
 
-(define (type-satisfies? given-t constraint-t)
-  (match constraint-t
-    ;; TODO - arrow types
-    ;;        But I don't think I'm ever comparing two arrow types directly,
-    ;;        just comparing return values and argument types...
-    [(basic-type cname cconst)
-     (match given-t
-       [(basic-type gname gconst)
-        (and (or (not cname) (equal? gname cname))
-             (andmap (λ (c) (member c gconst)) cconst))]
-       [else #f])]
-    [(list-rest '-> c-args+ret)
-     (match given-t
-       [(list-rest '-> g-args+ret)
-        (and (equal? (length c-args+ret) (length g-args+ret))
-             (map type-satisfies? g-args+ret c-args+ret))]
-       [else #f])]
-    ;; if there is no constraint, anything goes
-    [#f #t]))
+(define (fresh-concrete-var-type)
+  (parameterize ([current-xsmith-type-constructor-thunks
+                  (type-thunks-for-concretization)])
+    (concretize-type (fresh-type-variable))))
+(define (fresh-concrete-function-type)
+  (parameterize ([current-xsmith-type-constructor-thunks
+                  (type-thunks-for-concretization)])
+    (concretize-type (function-type (product-type #f)
+                                    (fresh-type-variable)))))
 
-(define (function-type? t)
-  (and (list? t)
-       (not (null? t))
-       (eq? (car t) '->)))
-
-(define empty-basic-type (basic-type #f (list)))
-(define (specify-type t name)
-  (cond [(not t) (basic-type name (list))]
-        [(basic-type? t) (struct-copy basic-type t
-                                      [name name])]
-        [else (error 'specify-type "bad case")]))
-(define (constrain-type t constraint)
-  (cond [(not t) (basic-type #f (list constraint))]
-        [(basic-type? t)
-         (struct-copy basic-type t
-                      [constraints (cons constraint (basic-type-constraints t))])]
-        [else (error 'constrain-type "bad case")]))
-
-(define int-type (specify-type empty-basic-type "int"))
-(define (int-type? x) (and (basic-type? x) (equal? (basic-type-name x) "int")))
-(define float-type (specify-type empty-basic-type "float"))
-(define (float-type? x) (and (basic-type? x) (equal? (basic-type-name x) "float")))
-(define nonzero-type (constrain-type empty-basic-type 'nonzero))
-(define nonzero-int-type (constrain-type int-type 'nonzero))
-(define nonzero-float-type (constrain-type float-type 'nonzero))
+;#|
+;TYPES
+;-----
+;
+;Types can be:
+;* #f for completely unconstrained
+;* (list '-> arg ... result) for function types
+;* basic-type for normal types
+;|#
+;
+;(struct basic-type
+;  ;; Type name can be false or a type (eg int, float, ...),
+;  ;; constraints fields are lists.
+;  ;; Constraints are things like nonzero, constant, etc -- things that aren't part of the type, but that affect things like undefined behavior.
+;  ;; The constrain-type method should always account for every attribute in the list -- if something can't satisfy every attribute it should be out of the running.
+;  (name constraints)
+;  #:transparent)
+;
+;(define (type-satisfies? given-t constraint-t)
+;  (match constraint-t
+;    ;; TODO - arrow types
+;    ;;        But I don't think I'm ever comparing two arrow types directly,
+;    ;;        just comparing return values and argument types...
+;    [(basic-type cname cconst)
+;     (match given-t
+;       [(basic-type gname gconst)
+;        (and (or (not cname) (equal? gname cname))
+;             (andmap (λ (c) (member c gconst)) cconst))]
+;       [else #f])]
+;    [(list-rest '-> c-args+ret)
+;     (match given-t
+;       [(list-rest '-> g-args+ret)
+;        (and (equal? (length c-args+ret) (length g-args+ret))
+;             (map type-satisfies? g-args+ret c-args+ret))]
+;       [else #f])]
+;    ;; if there is no constraint, anything goes
+;    [#f #t]))
+;
+;
+;(define empty-basic-type (basic-type #f (list)))
+;(define (specify-type t name)
+;  (cond [(not t) (basic-type name (list))]
+;        [(basic-type? t) (struct-copy basic-type t
+;                                      [name name])]
+;        [else (error 'specify-type "bad case")]))
+;(define (constrain-type t constraint)
+;  (cond [(not t) (basic-type #f (list constraint))]
+;        [(basic-type? t)
+;         (struct-copy basic-type t
+;                      [constraints (cons constraint (basic-type-constraints t))])]
+;        [else (error 'constrain-type "bad case")]))
+;
+;(define int-type (specify-type empty-basic-type "int"))
+;(define (int-type? x) (and (basic-type? x) (equal? (basic-type-name x) "int")))
+;(define float-type (specify-type empty-basic-type "float"))
+;(define (float-type? x) (and (basic-type? x) (equal? (basic-type-name x) "float")))
+;(define nonzero-type (constrain-type empty-basic-type 'nonzero))
+;(define nonzero-int-type (constrain-type int-type 'nonzero))
+;(define nonzero-float-type (constrain-type float-type 'nonzero))
 
 (define (print-debug-highlight pretty-print-node)
   ;; add terminal codes to print in magenta, then switch to default
@@ -322,6 +377,7 @@ Types can be:
 (define (fresh-symbolic-var type)
   (define type-pred (cond [(int-type? type) rt:integer?]
                           [(float-type? type) rt:real?]
+                          [(bool-type? type) rt:boolean?]
                           [(member type (list rt:boolean? rt:real? rt:integer?)) type]
                           [else (error 'fresh-symbolic-var "can't handle type: ~a" type)]))
   (rt:define-symbolic* var type-pred)
@@ -352,7 +408,7 @@ Types can be:
 (define ({binary-expression-print/function type->f-name} n)
   (h-comment
    n
-   (h-append (type->f-name (att-value 'type-context n))
+   (h-append (type->f-name (att-value 'xsmith_type n))
              lparen
              (hs-append (att-value 'pretty-print (ast-child 'l n))
                         comma
@@ -372,27 +428,4 @@ Types can be:
 (def-type->print type->print-mul "safe_mul_func_int32_t_s_s" "safe_mul_func_float_f_f")
 (def-type->print type->print-div "safe_div_func_int32_t_s_s" "safe_div_func_float_f_f")
 (def-type->print type->print-mod "safe_mod_func_int32_t_s_s" "safe_mod_func_float_f_f")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-
-(define (fresh-var-type)
-  (let ((disabled (xsmith-option 'features-disabled)))
-    ;; XXX Obviously, the code below is not quite right.
-    ;; What is both float and int are disabled?
-    (cond [(dict-ref disabled 'float #f)
-           int-type]
-          [(dict-ref disabled 'int #f)
-           float-type]
-          [else
-           (random-ref (list int-type float-type))])))
-
-(define (fresh-function-type [ret-type #f])
-  (append '(->)
-          (map (λ(x)(fresh-var-type))
-               (make-list (random 4) #f))
-          (list (or ret-type (fresh-var-type)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

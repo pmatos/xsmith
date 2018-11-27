@@ -98,39 +98,41 @@
 
 
 (define (cish-generate-and-print)
-  (let* ([ast (cish2-generate-ast 'Program)]
-         [nothing (add-precomment! ast)]
-         [pre-analysis-print (printf "/*\n")]
-         [ast (if (hash-ref (xsmith-option 'features-disabled)
-                            'unsafe-math/range #t)
-                  ast
-                  (begin
-                    (printf "Starting range analysis...\n")
-                    (ast-add-unsafe-math/range ast)))]
-         [ast (if (hash-ref (xsmith-option 'features-disabled)
-                            'unsafe-math/symbolic #t)
-                  ast
-                  (begin
-                    (printf "Starting symbolic analysis...\n")
-                    (ast-add-unsafe-math/symbolic ast)))]
-         [post-analysis-print (printf "*/\n")]
-         )
-    (if (dict-has-key? (xsmith-options) 'output-filename)
-        (call-with-output-file (xsmith-option 'output-filename)
-          #:exists 'replace
-          (lambda (out)
+  (parameterize ([current-xsmith-type-constructor-thunks
+                  (type-thunks-for-concretization)])
+    (let* ([ast (cish2-generate-ast 'Program)]
+           [nothing (add-precomment! ast)]
+           [pre-analysis-print (printf "/*\n")]
+           [ast (if (hash-ref (xsmith-option 'features-disabled)
+                              'unsafe-math/range #t)
+                    ast
+                    (begin
+                      (printf "Starting range analysis...\n")
+                      (ast-add-unsafe-math/range ast)))]
+           [ast (if (hash-ref (xsmith-option 'features-disabled)
+                              'unsafe-math/symbolic #t)
+                    ast
+                    (begin
+                      (printf "Starting symbolic analysis...\n")
+                      (ast-add-unsafe-math/symbolic ast)))]
+           [post-analysis-print (printf "*/\n")]
+           )
+      (if (dict-has-key? (xsmith-options) 'output-filename)
+          (call-with-output-file (xsmith-option 'output-filename)
+            #:exists 'replace
+            (lambda (out)
+              (pretty-print (att-value 'pretty-print ast)
+                            out
+                            page-width)))
+          (begin
             (pretty-print (att-value 'pretty-print ast)
-                          out
-                          page-width)))
-        (begin
-          (pretty-print (att-value 'pretty-print ast)
-                        (current-output-port)
-                        page-width)
-          #;(printf "\n\n/*\nabstract return: ~a\n*/\n"
-                    (car
-                     (abstract-interp-wrap/range ast range-store-top
-                                                 empty-abstract-flow-control-return)))))
-    ))
+                          (current-output-port)
+                          page-width)
+            #;(printf "\n\n/*\nabstract return: ~a\n*/\n"
+                      (car
+                       (abstract-interp-wrap/range ast range-store-top
+                                                   empty-abstract-flow-control-return)))))
+      )))
 
 (module+ main
   (require "../xsmith-command-line.rkt")

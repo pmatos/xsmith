@@ -661,6 +661,8 @@ This property determines how fresh nodes are constructed (by the @racket[make-fr
 
 Acceptable values for this property are expressions which produce a @racket[dict?] object.  Keys of the dictionary must be field names of the node being generated.  The values in the dictionary are used to fill node fields of the appropriate name.  Any field whose name is not in the dictionary will be filled by evaluating the default init-expr defined in the grammar (via @racket[add-to-grammar]).
 
+If the value in the dictionary is a procedure, it will be called with 0 arguments.  This allows the fresh property to provide a default value that is not evaluated when @racket[make-fresh-node] is called with an appropriate value.
+
 Example:
 @racketblock[
 (add-to-grammar
@@ -743,7 +745,6 @@ Example:
  my-spec-component
  choice-filters-to-apply
  [#f (features-enabled
-      respect-return-position
       misc-constraints
       constrain-type
       )])

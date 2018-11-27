@@ -1,21 +1,31 @@
 #lang racket/base
+(require racket/contract)
 (provide
- fresh-type-variable
  type-variable?
  (struct-out base-type)
- (struct-out function-type)
  ;(struct-out alias-type)
  ;; TODO - tuple types -- what should the API be?
  (rename-out [mk-record-type record-type])
+ product-type
+ product-type?
+ product-type-inner-type-list
  record-type?
  record-type-name
+ (struct-out generic-type)
 
  type?
 
- unify!
- can-unify?
+ (contract-out
+  [fresh-type-variable (->* () () #:rest (listof type?) type?)]
+  [unify! (-> type? type? any/c)]
+  [can-unify? (-> type? type? any/c)]
+  [concretize-type (-> type? type?)]
+  [function-type (-> type? type? type?)]
+  )
+ function-type?
+ function-type-arg-type
+ function-type-return-type
 
- concretize-type
  current-xsmith-type-constructor-thunks
  )
 
@@ -62,14 +72,17 @@ A type variable list may not contain type variables and may not contain more tha
       (let ()
         (when (memf type-variable? args)
           (error 'fresh-type-variable
-                 "partially constrained type variables can not include type variables in the constraint list"))
+                 "partially constrained type variables can not include type variables in the constraint list.  Given ~a\n"
+                 args))
         (define (composite-error)
           (error 'fresh-type-variable
-                 "partially constrained type variables can not include multiple of any composite type in the constraint list"))
+                 "partially constrained type variables can not include multiple of any composite type in the constraint list.  Given ~a\n"
+                 args))
         (when (<= 2 (length (filter function-type? args))) (composite-error))
         (when (<= 2 (length (filter product-type? args))) (composite-error))
         (when (<= 2 (length (filter sum-type? args))) (composite-error))
         (when (<= 2 (length (filter record-type? args))) (composite-error))
+        ;; TODO - I probably only want to allow one of each kind of generic type
         (andmap type? args)
         (type-variable args))))
 
@@ -100,6 +113,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                 (dict-keys name-type-dict))
                            '())))
 
+(struct generic-type (name type-arguments) #:transparent)
+
 ;; TODO - maybe I should have a base struct with no fields called type, then allow the user to define their own new types with custom rules for subtyping (at least to specify which fields are covariant, contravariant, or invariant) and for where to recur during unification.
 (define (type? x)
   (or
@@ -109,6 +124,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
    (product-type? x)
    (sum-type? x)
    (record-type? x)
+   (generic-type? x)
    ))
 
 (define (unbox* b)
@@ -187,7 +203,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(list #f _) (set-product-type-inner-type-list! t1 inner2)]
        [(list _ #f) (set-product-type-inner-type-list! t2 inner1)]
        [(list (and b (box (? (compose not unbox*)))) _)
-        ;; Set the box so shared things are updated,
+        ;; inner2 is either a box or a list.
+        ;; Set the inner1 box so shared things are updated,
         ;; but also set the struct field to optimize pointer chasing.
         (set-all-boxes! b inner2)
         (set-product-type-inner-type-list! t1 inner2)]
@@ -212,9 +229,15 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (record-type n1 s1) (record-type n2 s2))
      ;; TODO - for now let's assume records start fully specified, but eventually I need to recur on the names and subtypes
      (equal? s1 s2)]
+    [(list (generic-type name1 inners1) (generic-type name2 inners2))
+     (and (equal? name1 name2)
+          ;; This is redundant...
+          (equal? (length inners1) (length inners2))
+          (andmap rec inners1 inners2))]
     [(list (function-type a1 r1) (function-type a2 r2))
      (and (rec a1 a2)
-          (rec r1 r2))]))
+          (rec r1 r2))]
+    [else #f]))
 
 ;; A parameter to hold the list of constructors for base or composite types (with minimally constrained type variables inside).
 (define current-xsmith-type-constructor-thunks (make-parameter '()))
@@ -235,6 +258,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
              options
              (filter base-type? options)))
        (define options-use (if (null? options-filtered) options options-filtered))
+       (when (null? options-use)
+         (error 'concretize-type "Received an empty list for options.  Was current-xsmith-type-constructor-thunks parameterized?"))
        (r (random-ref options-use))]
       [(type-variable inner) (r inner)]
       [(base-type _) t]
@@ -242,11 +267,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (define inner-types (unbox* inner))
        (if inner-types
            (product-type (map r inner-types))
-           (product-type (map (λ (x) (fresh-type-variable))
+           (product-type (map (λ (x) (r (fresh-type-variable)))
                               (make-list (random 6) #f))))]
       [(record-type n1 s1) (error 'concretize-type "not yet implemented for records")]
       [(function-type arg return) (function-type (r arg)
                                                  (r return))]
+      [(generic-type name inners) (generic-type name (map r inners))]
       [else (error 'concretize-type "internal error -- no case for type: ~a" t)]))
   (recur t 0))
 

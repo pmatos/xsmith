@@ -22,6 +22,8 @@
  ;; be performed between choice transformations.  But that's probably a bad idea.
  enqueue-inter-choice-transform
 
+ (all-from-out "private/types.rkt")
+
  (for-syntax
   grammar-component
   grammar-clause
@@ -50,6 +52,8 @@
  "private/define-grammar-property.rkt"
  "xsmith-utils.rkt"
  "scope-graph.rkt"
+ ;; for re-provide
+ "private/types.rkt"
  (for-syntax
   racket/base
   racket/syntax
@@ -449,7 +453,7 @@
 (define node-field-name-in-parent-function
   (λ (n)
     ;; Parent might be the desired node OR a list node.
-    (define parent (ast-parent))
+    (define parent (ast-parent n))
     (define parent* (parent-node n))
     (dict-ref (att-value 'xsmith_child-node-name-dict parent*)
               (if (eq? parent parent*) n parent))))

@@ -45,6 +45,8 @@
          (cons 'max-depth 5))))
 
 (define (xsmith-option key)
+  (when (not (dict? (xsmith-options)))
+    (error 'xsmith-options "xsmith options not parameterized."))
   (dict-ref (xsmith-options) key))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
