@@ -27,6 +27,10 @@
  function-type-return-type
 
  current-xsmith-type-constructor-thunks
+
+ type->type-variable-list
+ at-least-as-concrete
+ contains-type-variables?
  )
 
 (require
@@ -60,9 +64,10 @@ The following are maybe not variables but constrain how I need to think about th
 |#
 
 #|
-Type variables contain either:
+Type variable innards contain a set of handles (type variables with that innard)
+and either:
 • #f - unconstrained
-• another type variable - constrained to be the same as the other variable
+• a non-variable type (though it may contain type variables)
 • a list - constrained to be one of the types in the list
 A type variable list may not contain type variables and may not contain more than one of each compound type.  Eg. it may contain any number of base types but only one function type or record type.  However, the function or record type contained my be only partially specified (eg. may contain type variables).
 |#
@@ -297,7 +302,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [else (error 'concretize-type "internal error -- no case for type: ~a" t)]))
   (recur t 0))
 
-
 (module+ test
   (define integer (base-type 'integer))
   (define float (base-type 'float))
@@ -376,3 +380,153 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (check-true (can-unify? an-or3->int int->int))
   )
 
+
+(define (at-least-as-concrete v constraint-type)
+  #|
+  Returns #t when:
+  • they are different types
+  • any case in a type variable of v is available in constraint-type
+  This is a helper to tell how much of the tree needs to be walked to decide
+  whether it is meaningful to test `can-unify?` when choosing a production
+  to create.  A type may unify with a cousin node's type, constraining the
+  nodes we can choose at a given point.  But we don't want to traverse more
+  of the tree than we need to.
+  |#
+  (match (list v constraint-type)
+    [(list _ (type-variable c-innard))
+     (match c-innard
+       [(type-variable-innard _ #f) #t]
+       [(type-variable-innard _ (list cs ...))
+        (match v
+          [(type-variable (type-variable-innard _ #f)) #f]
+          [(type-variable (type-variable-innard _ (list ts ...)))
+           (for/and ([t ts])
+             (for/or ([c cs])
+               (match (list t c)
+                 [(list (base-type x) (base-type y)) (equal? x y)]
+                 [(list (? function-type?) (? function-type?))
+                  (at-least-as-concrete t c)]
+                 [(list (? product-type?) (? product-type?))
+                  (at-least-as-concrete t c)]
+                 [(list (? sum-type?) (? sum-type?))
+                  (at-least-as-concrete t c)]
+                 [(list (? record-type?) (? record-type?))
+                  (at-least-as-concrete t c)]
+                 [(list (? generic-type?) (? generic-type?))
+                  (at-least-as-concrete t c)]
+                 [else #f])))]
+          [(type-variable (type-variable-innard _ t))
+           (for/and ([c cs]) (at-least-as-concrete t c))]
+          [else (for/and ([c cs]) (at-least-as-concrete v c))])]
+       [(type-variable-innard _ c) (at-least-as-concrete v c)])]
+    [(list (type-variable innard) _)
+     (match innard
+       [(type-variable-innard _ #f) #f]
+       [(type-variable-innard _ (list t ...)) #f]
+       [(type-variable-innard _ t) (at-least-as-concrete t constraint-type)])]
+    ;; No more variables
+    [(list (base-type _) (base-type _)) #t]
+    [(list (function-type v-arg v-ret) (function-type c-arg c-ret))
+     (and (at-least-as-concrete v-arg c-arg)
+          (at-least-as-concrete v-ret c-ret))]
+    [(list (product-type v-inner-list) (product-type c-inner-list))
+     (let ([ts (unbox* v-inner-list)]
+           [cs (unbox* c-inner-list)])
+       (match (list ts cs)
+         [(list _ #f) #t]
+         [(list #f _) #f]
+         [else (if (equal? (length ts) (length cs))
+                   (andmap at-least-as-concrete ts cs)
+                   #t)]))]
+    ;[(list (sum-type aoeu) (sum-type aoeu))]
+    ;[(list (record-type aoeu) (record-type aoeu))]
+    [(list (generic-type v-name v-inners) (generic-type c-name c-inners))
+     (if (equal? v-name c-name)
+         (andmap at-least-as-concrete v-inners c-inners)
+         #t)]
+    [else #t]))
+
+(module+ test
+  (check-true (at-least-as-concrete (fresh-type-variable) (fresh-type-variable)))
+  (check-true (at-least-as-concrete (base-type 'foo) (fresh-type-variable)))
+  (check-true (at-least-as-concrete (base-type 'foo)
+                                    (fresh-type-variable (base-type 'foo)
+                                                         (base-type 'bar))))
+  (check-true (at-least-as-concrete (base-type 'foo)
+                                    (fresh-type-variable (base-type 'foo)
+                                                         (base-type 'bar))))
+  (check-false (at-least-as-concrete (fresh-type-variable)
+                                     (fresh-type-variable (base-type 'foo)
+                                                          (base-type 'bar))))
+  (check-false (at-least-as-concrete (function-type (fresh-type-variable)
+                                                    (base-type 'foo))
+                                     (function-type (base-type 'bar)
+                                                    (base-type 'foo))))
+  )
+
+
+;;; True if any of the variables is anywhere in the type.
+(define (contains-type-variables? t vs)
+  (define innards (map type-variable-tvi vs))
+  (contains-type-variable-innards? t innards))
+(define (contains-type-variable-innards? t innards)
+  (define (rec t) (contains-type-variable-innards? t innards))
+  (match t
+    [(base-type _) #f]
+    [(function-type arg ret) (or (rec arg) (rec ret))]
+    [(product-type inners)
+     (match (unbox* inners)
+       [#f #f]
+       [(list ts ...) (ormap rec ts)])]
+    ;[(sum-type)]
+    ;[(record-type)]
+    [(generic-type name inners)
+     (ormap rec inners)]
+    [(type-variable t-innard)
+     (or (member t-innard innards)
+         (match t-innard
+           [(type-variable-innard _ #f) #f]
+           [(type-variable-innard _ inner-t) (rec inner-t)]
+           [(type-variable-innard _ (list ts ...)) (ormap rec ts)]))]))
+
+;;; Returns a list of every type variable contained in a type.
+(define (type->type-variable-list t)
+  (define (rec t)
+    (match t
+      [(base-type _) '()]
+      [(function-type arg ret) (append (rec arg) (rec ret))]
+      [(product-type inners)
+       (match (unbox* inners)
+         [#f '()]
+         [(list ts ...) (flatten (map rec ts))])]
+      ;[(sum-type)]
+      ;[(record-type)]
+      [(generic-type name inners) (flatten (map rec inners))]
+      [(type-variable innard)
+       (match innard
+         [(type-variable-innard _ (list its ...))
+          (cons t (flatten (map rec its)))]
+         [(type-variable-innard _ #f) (list t)]
+         [(type-variable-innard _ it) (cons t (rec it))])]))
+  (remove-duplicates (map type-variable->canonical-type-variable (rec t))))
+
+(define (type-variable->canonical-type-variable tv)
+  (match tv
+    [(type-variable (type-variable-innard handles _)) (set-first handles)]))
+
+(module+ test
+  (define v1 (fresh-type-variable))
+  (define v2 (fresh-type-variable))
+  (define v3 (fresh-type-variable (base-type 'foo)
+                                  (function-type v1 v2)))
+  (check-true
+   (set=? (type->type-variable-list v3)
+          (list v1 v2 v3)))
+  (unify! v1 v2)
+  (check-true
+   (or (set=? (type->type-variable-list v3)
+              (list v3 v2))
+       (set=? (type->type-variable-list v3)
+              (list v3 v1))))
+
+  )

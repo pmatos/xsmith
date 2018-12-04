@@ -697,12 +697,11 @@ The second arm is a function that takes the type that the node has been assigned
                (unify! my-type-from-parent my-type-constraint))
              my-type-from-parent))))
     (define xsmith_satisfies-type-constraint?-info
-      (for/hash ([n nodes])
-        (values
-         n
-         #`(λ ()
-             (can-unify? (att-value 'xsmith_type (current-hole))
-                         (send this xsmith_my-type-constraint))))))
+      (hash #f #'(λ ()
+                   (satisfies-type-constraint?
+                    current-hole
+
+                    (send this xsmith_my-type-constraint)))))
     (define xsmith_reference-options!-info
       (hash-set
        (for/hash ([n nodes])
@@ -743,3 +742,74 @@ The second arm is a function that takes the type that the node has been assigned
      xsmith_type-info
      xsmith_satisfies-type-constraint?-info
      xsmith_reference-options!-info)))
+
+(define (satisfies-type-constraint? hole type-constraint)
+  #|
+  We need to call `can-unify?`, but we do type checking lazily.
+  This means that the hole type may need to unify with a cousin node's type
+  to get all of its constraints, and `can-unify` may give us the wrong answer
+  if we haven't done that unification.
+
+  So we need to walk some of the tree to unify.  But we don't want to walk the
+  whole tree.  So we check as we go whether the type is sufficiently concrete
+  to always give a correct answer, and break the loop when it is.
+
+  We start by going to sibling nodes, and when any type shares variables with
+  the hole type, we recur down its subtree as far as variables are shared.
+  After each sibling we go up the parent chain and repeat.
+  |#
+  (define hole-type (att-value 'xsmith_type hole))
+
+  ;;; Begin traversal
+  (let/cc break!!
+    (define variables '())
+    (define (break?!)
+      (when (at-least-as-concrete hole-type type-constraint)
+        (break!! #t))
+      ;; Even if we're not done yet, when we make progress we should update this list.
+      (set! variables (type->type-variable-list hole-type)))
+    (break?!)
+    (let parent-loop ([p (ast-parent hole)]
+                      [child hole])
+      (define (loop-over-viable-nodes kernel nodes)
+        (define (rec nodes) (loop-over-viable-nodes kernel nodes))
+        (if (null? nodes)
+            (void)
+            (let ([n (car nodes)])
+              (if (ast-node? n)
+                  (cond [(eq? n child)
+                         (rec (cdr nodes))]
+                        [(ast-list-node? n)
+                         (rec (append (ast-children n)
+                                      (cdr nodes)))]
+                        [(or (ast-bud-node? n)
+                             (att-value 'is-hole? n))
+                         (rec (cdr nodes))]
+                        [else
+                         (kernel n)
+                         (rec (cdr nodes))])
+                  (void)))))
+      (define (sibling-loop siblings)
+        (loop-over-viable-nodes
+         (λ (sibling)
+           (define s-type (att-value 'xsmith_type sibling))
+           ;; When we check the type of a new thing it may unify variables,
+           ;; so we've maybe made progress.
+           (break?!)
+           (when (contains-type-variables? s-type variables)
+             (sibling-loop (ast-children sibling))))
+         siblings))
+      (sibling-loop (ast-children p))
+      (when (and (ast-has-parent? p)
+                 ;; If the parent type doesn't include the variable,
+                 ;; it was fresh for its children, and we don't need
+                 ;; to climb the tree anymore.
+                 (contains-type-variables? (att-value 'xsmith_type p)
+                                           variables))
+        (parent-loop (parent-node p) p))))
+  ;;; End traversal
+
+  ;; The hole type is now either maximally unified or sufficiently concrete
+  ;; that no more unification can change the result of this predicate.
+  (can-unify? hole-type
+              type-constraint))
