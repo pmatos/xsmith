@@ -50,6 +50,11 @@
     [Program (λ (n) (fresh-int!))]
     [Node (λ (n) (att-value 'ast-serial-number (parent-node n)))])
 
+(define (base-type->string t)
+  (if (bool-type? t)
+      "int"
+      (symbol->string
+       (base-type-name t))))
 
 (ag
  pretty-print
@@ -75,17 +80,14 @@
     (v-comment
      n
      (h-append
-      (text (symbol->string
-             (base-type-name (function-type-return-type (ast-child 'type n)))))
+      (text (base-type->string (function-type-return-type (ast-child 'type n))))
       space
       (text (ast-child 'name n))
       lparen
       (h-concat
        (add-between
         (map (λ (fp)
-               (eprintf "printing formal param: ~a\n" (ast-child 'name fp))
-               (h-append (text (symbol->string
-                                (base-type-name (ast-child 'type fp))))
+               (h-append (text (base-type->string (ast-child 'type fp)))
                          space
                          (text (ast-child 'name fp))))
              (ast-children (ast-child 'params n)))
@@ -200,7 +202,7 @@
     (v-comment
      n
      (h-append (hs-append
-                (text (symbol->string (base-type-name (ast-child 'type n))))
+                (text (base-type->string (ast-child 'type n)))
                 (text (ast-child 'name n))
                 eqsign
                 (att-value 'pretty-print (ast-child 'Expression n)))
@@ -287,61 +289,6 @@
  [Expression (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
  )
 
-
-#;(ag
- children-type-dict
- ;; For eg. functions to associate a child node with the type it must be
- [ExpressionStatement (λ (n) (hasheq (ast-child 'Expression n) #f))]
- [ValueReturnStatement (λ (n) (hasheq (ast-child 'Expression n)
-                                      (att-value 'current-function-return-type n)))]
- [IfStatement (λ (n) (hasheq (ast-child 'test n) #f))]
- [LoopStatement (λ (n) (hasheq (ast-child 'test n) #f))]
- [ForStatement (λ (n) (hasheq (ast-child 'test n) #f
-                              (ast-child 'init n) #f
-                              (ast-child 'update n) #f))]
- [VariableDeclaration (λ (n) (hasheq (ast-child 'Expression n)
-                                     (ast-child 'type n)))]
- [AssignmentExpression
-  (λ (n) (hasheq (ast-child 'Expression n)
-                 (binding-type (resolve-variable-reference-node n))))]
- [FunctionApplicationExpression
-  (λ (n)
-    (let ([f-bind (resolve-variable-reference-node n)])
-      (for/hash ([cn (ast-children (ast-child 'args n))]
-                 [t (reverse (cdr (reverse (cdr (binding-type f-bind)))))])
-        (values cn t))))]
- [BinaryExpression (λ (n) (let ([t (or (att-value 'type-context n) (fresh-var-type))])
-                            (hasheq (ast-child 'l n) t
-                                    (ast-child 'r n) t)))]
- [IntOnlyBinaryExpression (λ (n) (let* ([t (att-value 'type-context n)]
-                                        [t (cond [(not t) int-type]
-                                                 [(basic-type? t)
-                                                  (specify-type t "int")])])
-                                   (hasheq (ast-child 'l n) t
-                                           (ast-child 'r n) t)))]
- [ComparisonExpression (λ (n) (let ([t (fresh-var-type)])
-                                (hasheq (ast-child 'l n) t
-                                        (ast-child 'r n) t)))]
- [IfExpression (λ (n) (let ([t (or (att-value 'type-context n) (fresh-var-type))])
-                        (hasheq (ast-child 'test n) #f
-                                (ast-child 'then n) t
-                                (ast-child 'else n) t)))]
- ;; TODO - function call, anything with child expressions...
- )
-#;(ag
- type-context
- [BinaryExpression (λ (n) (let ([t (or (dict-ref (att-value 'children-type-dict
-                                                            (parent-node n))
-                                                 n))])
-                            (or t (fresh-var-type))))]
- [Expression (λ (n)
-               (define parent-dict (att-value 'children-type-dict (parent-node n)))
-               (dict-ref parent-dict
-                         n
-                         (λ()(error 'type-context
-                                    "failed to reference node of type: ~a\n"
-                                    (ast-node-type n)))))]
- )
 
 (ag
  block-last-statement

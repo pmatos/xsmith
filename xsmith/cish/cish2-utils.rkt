@@ -147,9 +147,10 @@ New types
   (when (not (no-return-type? (concretize-type x)))
     (error 'no-return-type-type "given ~a\n" x))
   (car (generic-type-type-arguments (concretize-type x))))
-(define (fresh-statement-type)
+(define (fresh-maybe-return)
   (fresh-type-variable (return-type (fresh-type-variable))
                        (no-return-type (fresh-type-variable))))
+(define (fresh-no-return) (no-return-type (fresh-type-variable)))
 (define (fresh-base-or-function-type)
   (apply fresh-type-variable
          (function-type (product-type #f)

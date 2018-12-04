@@ -351,8 +351,6 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
               (grammar-clause->parent-chain (dict-ref grammar-info
                                                       subtype-node-name)
                                             grammar-info)))
-      #;(eprintf "ast subtype with maybe-sub: ~a  maybe-super: ~a chain: ~a\n"
-               subtype-node-name supertype-node-name subtype-inheritance-chain)
       (member supertype-node-name subtype-inheritance-chain))
 
     (define has-potential-binder-child-hash
@@ -515,10 +513,15 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
           [(name-field-name:id type-field-name:id)
            (dict-set rule-info node
                      #'(λ (n)
-                         (binding
-                          (ast-child 'name-field-name n)
-                          n
-                          (ast-child 'type-field-name n))))])))
+                         (let ([name (ast-child 'name-field-name n)]
+                               [type (ast-child 'type-field-name n)])
+                           (if (or (and (ast-node? type) (ast-bud-node? type))
+                                   (and (ast-node? name) (ast-bud-node? name)))
+                               #f
+                               (binding
+                                (ast-child 'name-field-name n)
+                                n
+                                (ast-child 'type-field-name n))))))])))
     (list scope-graph-binding-info)))
 
 ;; This property should be the field name that references use
@@ -717,11 +720,9 @@ The second arm is a function that takes the type that the node has been assigned
                       (define visibles
                         ;; TODO - maybe this should be xsmith_visible-bindings
                         (att-value 'visible-bindings current-hole))
-                      ;; TODO - function application needs to take an expr for the func and an expr for the args instead of the current function-application-is-a-reference
                       (define visibles-with-type
-                        (filter (λ (b)
-                                  (can-unify? type-needed
-                                                   (binding-type b)))
+                        (filter (λ (b) (and b (can-unify? type-needed
+                                                          (binding-type b))))
                                 visibles))
                       ;; TODO - for functions there was a filter here to not get main
                       (define lift-type (concretize-type type-needed))

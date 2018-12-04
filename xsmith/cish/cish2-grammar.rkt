@@ -259,13 +259,12 @@ Type definitions are in cish-utils.rkt
 (add-prop
  cish2-grammar
  type-info
- [Node [(fresh-base-or-function-type) (no-child-types)]]
+ ;[Node [(fresh-base-or-function-type) (no-child-types)]]
  [Program [(fresh-type-variable)
            (λ (t) (hash 'main (function-type (product-type '())
                                              int)
                         'declarations (λ (n) (fresh-type-variable))))]]
 
- ;[Declaration aoeu]
  [VariableDeclaration [(fresh-type-variable)
                        (λ (t)
                          (hash 'Expression
@@ -279,24 +278,27 @@ Type definitions are in cish-utils.rkt
                                                  (ast-child 'type (ast-parent n))])
                                             (unify! t parent-type-annotation)
                                             (return-type t)))))]]
- ;[FormalParam aoeu]
 
- [Statement [(fresh-statement-type) (no-child-types)]]
- [NullStatement [(fresh-statement-type) (no-child-types)]]
- [Block [(fresh-statement-type)
+ ;[Statement [(fresh-maybe-return) (no-child-types)]]
+
+ [NullStatement [(fresh-no-return) (no-child-types)]]
+ [Block [(fresh-maybe-return)
          (λ (t) (hash 'declarations (λ (n) (fresh-type-variable))
                       'statements (λ (n)
                                     (if (equal? (sub1 (ast-child-index n))
                                                 (length
                                                  (ast-children (ast-parent n))))
                                         t
-                                        (fresh-statement-type)))))]]
- [ExpressionStatement [(fresh-statement-type)
+                                        ;; TODO - this should be maybe-return,
+                                        ;;        but with the inner type constrained.
+                                        (fresh-no-return)
+                                        ))))]]
+ [ExpressionStatement [(fresh-no-return)
                        (λ (t) (hash 'Expression (fresh-type-variable)))]]
- [IfStatement [(fresh-statement-type)
+ [IfStatement [(fresh-no-return)
                (λ (t) (hash 'test bool
                             'then t))]]
- [IfElseStatement [(fresh-statement-type)
+ [IfElseStatement [(fresh-maybe-return)
                    (λ (t) (hash 'test bool
                                 'then t
                                 'else t))]]
@@ -304,10 +306,10 @@ Type definitions are in cish-utils.rkt
                         (λ (t) (hash 'Expression (return-type-type t)))]]
 
 
- [LoopStatement [(fresh-statement-type)
+ [LoopStatement [(fresh-maybe-return)
                  (λ (t) (hash 'test bool
                               'body t))]]
- [ForStatement [(fresh-statement-type)
+ [ForStatement [(fresh-maybe-return)
                 (λ (t)
                   (let ([loop-var-type (fresh-type-variable)])
                     (hash 'test bool
