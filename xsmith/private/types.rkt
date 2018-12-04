@@ -34,6 +34,7 @@
  racket/random
  racket/dict
  racket/list
+ racket/set
  "../scope-graph.rkt"
  )
 (module+ test (require rackunit))
@@ -65,26 +66,29 @@ Type variables contain either:
 • a list - constrained to be one of the types in the list
 A type variable list may not contain type variables and may not contain more than one of each compound type.  Eg. it may contain any number of base types but only one function type or record type.  However, the function or record type contained my be only partially specified (eg. may contain type variables).
 |#
-(struct type-variable ([type #:mutable]) #:transparent)
+(struct type-variable ([tvi #:mutable]) #:transparent)
+(struct type-variable-innard ([handle-set #:mutable] [type #:mutable]))
+
 (define (fresh-type-variable . args)
-  (if (null? args)
-      (type-variable #f)
-      (let ()
-        (when (memf type-variable? args)
-          (error 'fresh-type-variable
-                 "partially constrained type variables can not include type variables in the constraint list.  Given ~a\n"
-                 args))
-        (define (composite-error)
-          (error 'fresh-type-variable
-                 "partially constrained type variables can not include multiple of any composite type in the constraint list.  Given ~a\n"
-                 args))
-        (when (<= 2 (length (filter function-type? args))) (composite-error))
-        (when (<= 2 (length (filter product-type? args))) (composite-error))
-        (when (<= 2 (length (filter sum-type? args))) (composite-error))
-        (when (<= 2 (length (filter record-type? args))) (composite-error))
-        ;; TODO - I probably only want to allow one of each kind of generic type
-        (andmap type? args)
-        (type-variable args))))
+  (when (memf type-variable? args)
+    (error 'fresh-type-variable
+           "partially constrained type variables can not include type variables in the constraint list.  Given ~a\n"
+           args))
+  (define (composite-error)
+    (error 'fresh-type-variable
+           "partially constrained type variables can not include multiple of any composite type in the constraint list.  Given ~a\n"
+           args))
+  (when (<= 2 (length (filter function-type? args))) (composite-error))
+  (when (<= 2 (length (filter product-type? args))) (composite-error))
+  (when (<= 2 (length (filter sum-type? args))) (composite-error))
+  (when (<= 2 (length (filter record-type? args))) (composite-error))
+  ;; TODO - I probably only want to allow one of each kind of generic type
+  (define type (if (null? args) #f args))
+  (define handle-set (weak-seteq))
+  (define tvi (type-variable-innard handle-set type))
+  (define tv (type-variable tvi))
+  (set-add! handle-set tv)
+  tv)
 
 (struct base-type (name) #:transparent)
 (struct function-type (arg-type return-type) #:transparent)
@@ -140,11 +144,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 (define (can-unify? t1 t2)
   (match (list t1 t2)
-    [(list (type-variable #f) _) #t]
-    [(list (type-variable (list inner ...)) _)
+    [(list (type-variable (type-variable-innard _ #f)) _) #t]
+    [(list (type-variable (type-variable-innard _ (list inner ...))) _)
      (for/or ([i inner])
        (can-unify? i t2))]
-    [(list (type-variable inner) _)
+    [(list (type-variable (type-variable-innard _ inner)) _)
      (can-unify? inner t2)]
     [(list _ (type-variable _))
      (can-unify? t2 t1)]
@@ -160,39 +164,55 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 (define (unify! t1 t2)
   (define (fail) (error 'unify! "Can't unify types: ~a ~a" t1 t2))
+  (define (unify-innard-with-single-type! innard t)
+    (match innard
+      [(type-variable-innard _ #f)
+       (set-type-variable-innard-type! innard t)]
+      [(type-variable-innard _ (list ts ...))
+       (define unifier
+         (or (for/or ([inner-t ts])
+               (and (can-unify? inner-t t) inner-t))
+             (fail)))
+       (unify! unifier t)
+       (set-type-variable-innard-type! innard unifier)]
+      [(type-variable-innard _ inner-t)
+       (unify! inner-t t)]))
   (match (list t1 t2)
-    [(list (type-variable #f) _) (set-type-variable-type! t1 t2)]
-    [(list _ (type-variable #f)) (set-type-variable-type! t2 t1)]
-    [(list (type-variable (and inner (type-variable inner-inner))) _)
-     (unify! inner t2)]
-    [(list _ (type-variable (and inner (type-variable inner-inner))))
-     (unify! t1 inner)]
-    [(list (type-variable (list inner1 ...)) (type-variable (list inner2 ...)))
-     (define intersection
-       (filter (λ(x)x)
-               (for/list ([l inner1])
-                 (for/or ([r inner2])
-                   (and (can-unify? l r)
-                        (unify! l r)
-                        l)))))
-     (when (null? intersection) (fail))
-     (set-type-variable-type! t1 (if (null? (cdr intersection))
-                                     (car intersection)
-                                     intersection))
-     (set-type-variable-type! t2 t1)]
-    [(list (type-variable (list inner ...)) _)
-     ;; t2 can not be a type variable here.
-     (define unifier
-       (or (for/or ([i inner])
-             (and (can-unify? i t2) i))
-           (fail)))
-     (unify! unifier t2)
-     (set-type-variable-type! t1 unifier)]
-    [(list (type-variable non-variable) _)
-     (unify! non-variable t2)]
-    [(list _ (type-variable _))
-     ;; Handle any other type variable cases by swapping left and right terms.
-     (unify! t2 t1)]
+    [(list (type-variable innard1) (type-variable innard2))
+     (when (not (eq? innard1 innard2))
+       (match (list innard1 innard2)
+         [(list (type-variable-innard s1 c1) (type-variable-innard s2 c2))
+          ;; We now make innard1 the true innard for both type variables,
+          ;; giving it the union of the sets of type variable handles
+          ;; and unifying the types of both.
+          (set-union! s1 s2)
+          (for ([handle s2])
+            (set-type-variable-tvi! handle innard1))
+          (match (list c1 c2)
+            [(list #f _)
+             (set-type-variable-innard-type! innard1 c2)]
+            [(list _ #f) (void)]
+            [(list (list ls ...) (list rs ...))
+             (define intersection
+               (filter (λ(x)x)
+                       (for/list ([l ls])
+                         (for/or ([r rs])
+                           (and (can-unify? l r)
+                                (unify! l r)
+                                l)))))
+             (when (null? intersection) (fail))
+             (set-type-variable-innard-type! innard1 (if (null? (cdr intersection))
+                                                         (car intersection)
+                                                         intersection))]
+            [(list (list ls ...) r)
+             (unify-innard-with-single-type! innard1 r)]
+            [(list l (list rs ...))
+             (set-type-variable-innard-type! innard1 rs)
+             (unify-innard-with-single-type! innard1 l)]
+            [(list l r)
+             (unify! l r)])]))]
+    [(list (type-variable innard) _) (unify-innard-with-single-type! innard t2)]
+    [(list _ (type-variable innard)) (unify-innard-with-single-type! innard t1)]
     ;;;; No more variables.  At least at the top level.
     [(list (product-type inner1) (product-type inner2))
      (match (list inner1 inner2)
@@ -249,7 +269,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     (define (r t) (recur t (add1 depth)))
     (match t
       ;; TODO - type generation needs some kind of depth limit if composite types can contain composite types.
-      [(type-variable (and maybe-options (or #f (list _ ...))))
+      [(type-variable
+        (type-variable-innard _ (and maybe-options (or #f (list _ ...)))))
        (define options (or maybe-options
                            (map (λ (x) (x))
                                 (current-xsmith-type-constructor-thunks))))
@@ -261,7 +282,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (when (null? options-use)
          (error 'concretize-type "Received an empty list for options.  Was current-xsmith-type-constructor-thunks parameterized?"))
        (r (random-ref options-use))]
-      [(type-variable inner) (r inner)]
+      [(type-variable (type-variable-innard _ non-list-type)) (r non-list-type)]
       [(base-type _) t]
       [(product-type inner)
        (define inner-types (unbox* inner))
