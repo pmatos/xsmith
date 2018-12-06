@@ -692,7 +692,10 @@ The second arm is a function that takes the type that the node has been assigned
              (define my-type-from-parent (if (procedure? my-type-from-parent/func)
                                              (my-type-from-parent/func node)
                                              my-type-from-parent/func))
-             (define my-type-constraint (att-value 'xsmith_my-type-constraint node))
+             (define my-type-constraint
+               (if (att-value 'is-hole? node)
+                   #f
+                   (att-value 'xsmith_my-type-constraint node)))
              (when my-type-constraint
                (unify! my-type-from-parent my-type-constraint))
              my-type-from-parent))))

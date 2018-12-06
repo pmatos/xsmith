@@ -71,7 +71,15 @@ and either:
 • a list - constrained to be one of the types in the list
 A type variable list may not contain type variables and may not contain more than one of each compound type.  Eg. it may contain any number of base types but only one function type or record type.  However, the function or record type contained my be only partially specified (eg. may contain type variables).
 |#
-(struct type-variable ([tvi #:mutable]) #:transparent)
+(struct type-variable ([tvi #:mutable])
+  #:methods gen:custom-write
+  [(define (write-proc v output-port output-mode)
+     (define innard (type-variable-tvi v))
+     (match v
+       [(type-variable (type-variable-innard _ t))
+        (fprintf output-port
+                 "#<type-variable ~a>"
+                 t)]))])
 (struct type-variable-innard ([handle-set #:mutable] [type #:mutable]))
 
 (define (fresh-type-variable . args)
@@ -245,6 +253,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (fail))])]
     [else (let ([rec-result (can-or-do-unify-shared-code unify! t1 t2)])
             (unless rec-result (fail)))]))
+
 
 (define (can-or-do-unify-shared-code rec t1 t2)
   ;; rec is either can-unify? or unify!, but to handle both this returns #t/#f
@@ -486,8 +495,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (or (member t-innard innards)
          (match t-innard
            [(type-variable-innard _ #f) #f]
-           [(type-variable-innard _ inner-t) (rec inner-t)]
-           [(type-variable-innard _ (list ts ...)) (ormap rec ts)]))]))
+           [(type-variable-innard _ (list ts ...)) (ormap rec ts)]
+           [(type-variable-innard _ inner-t) (rec inner-t)]))]))
 
 ;;; Returns a list of every type variable contained in a type.
 (define (type->type-variable-list t)

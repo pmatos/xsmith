@@ -259,12 +259,14 @@ Type definitions are in cish-utils.rkt
 (add-prop
  cish2-grammar
  type-info
- ;[Node [(fresh-base-or-function-type) (no-child-types)]]
+ [#f [(error 'typing-base-node) (no-child-types)]]
+ ;[Node [(error 'typing-node) (no-child-types)]]
  [Program [(fresh-type-variable)
            (λ (t) (hash 'main (function-type (product-type '())
                                              int)
                         'declarations (λ (n) (fresh-type-variable))))]]
 
+ ;[Declaration [(error 'typing-declaration) (no-child-types)]]
  [VariableDeclaration [(fresh-type-variable)
                        (λ (t)
                          (hash 'Expression
@@ -273,26 +275,31 @@ Type definitions are in cish-utils.rkt
                                         (unify! t parent-type-annotation)
                                         t))))]]
  [FunctionDefinition [(function-type (product-type #f) (fresh-type-variable))
-                      (λ (t) (hash 'Block
-                                   (λ (n) (let ([parent-type-annotation
-                                                 (ast-child 'type (ast-parent n))])
-                                            (unify! t parent-type-annotation)
-                                            (return-type t)))))]]
+                      (λ (t) (hash
+                              'Block
+                              (λ (n) (let ([parent-type-annotation
+                                            (ast-child 'type (ast-parent n))]
+                                           [f-type (function-type
+                                                    (fresh-type-variable)
+                                                    (fresh-type-variable))])
+                                       (unify! t parent-type-annotation)
+                                       (unify! t f-type)
+                                       (return-type (function-type-return-type
+                                                     f-type))))))]]
 
- ;[Statement [(fresh-maybe-return) (no-child-types)]]
+ [Statement [(error 'typing-statement) (no-child-types)]]
+ ;[Statement [(fresh-type-variable (fresh-no-return) (return-type (fresh-type-variable))) (no-child-types)]]
 
  [NullStatement [(fresh-no-return) (no-child-types)]]
  [Block [(fresh-maybe-return)
-         (λ (t) (hash 'declarations (λ (n) (fresh-type-variable))
-                      'statements (λ (n)
-                                    (if (equal? (sub1 (ast-child-index n))
-                                                (length
-                                                 (ast-children (ast-parent n))))
-                                        t
-                                        ;; TODO - this should be maybe-return,
-                                        ;;        but with the inner type constrained.
-                                        (fresh-no-return)
-                                        ))))]]
+         (λ (t)
+           (hash 'declarations (λ (n) (fresh-type-variable))
+                 'statements (λ (n)
+                               (if (eq? n (car (reverse
+                                                (ast-children
+                                                 (ast-parent n)))))
+                                   t
+                                   (fresh-no-return)))))]]
  [ExpressionStatement [(fresh-no-return)
                        (λ (t) (hash 'Expression (fresh-type-variable)))]]
  [IfStatement [(fresh-no-return)
@@ -302,6 +309,7 @@ Type definitions are in cish-utils.rkt
                    (λ (t) (hash 'test bool
                                 'then t
                                 'else t))]]
+ [ReturnStatement [(error 'typing-non-value-return-statement) (no-child-types)]]
  [ValueReturnStatement [(return-type (fresh-type-variable))
                         (λ (t) (hash 'Expression (return-type-type t)))]]
 
@@ -309,6 +317,8 @@ Type definitions are in cish-utils.rkt
  [LoopStatement [(fresh-maybe-return)
                  (λ (t) (hash 'test bool
                               'body t))]]
+ ;; WhileStatement
+ ;; DoWhileStatement
  [ForStatement [(fresh-maybe-return)
                 (λ (t)
                   (let ([loop-var-type (fresh-type-variable)])
@@ -317,7 +327,8 @@ Type definitions are in cish-utils.rkt
                           'init loop-var-type
                           'update loop-var-type)))]]
 
- [Expression [(fresh-type-variable) (no-child-types)]]
+ ;[Expression [(fresh-type-variable) (no-child-types)]]
+ [Expression [(error 'typing-expression) (no-child-types)]]
 
  [AssignmentExpression [(fresh-type-variable)
                         (λ (t) (hash 'Expression t))]]
