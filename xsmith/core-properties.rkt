@@ -602,7 +602,6 @@ few of these methods.
 |#
 (define ref-choices-filtered-hash (make-weak-hasheq))
 
-
 #|
 The type-info property is two-armed.
 The first arm is an expression that must return a type (which should be fresh if it is a [maybe constrained] variable) that the AST node can fulfill.
@@ -633,12 +632,21 @@ The second arm is a function that takes the type that the node has been assigned
                     [else #f]))
         (if c (hash-set h n c) h)))
 
+    (define constraints-checked
+      (for/hash ([n (dict-keys node-type-constraints)])
+        (values n #`(let ([t #,(dict-ref node-type-constraints n)])
+                      (if (type? t)
+                          t
+                          (error 'type-info
+                                 "Type constraint returned for node of AST type ~a was not a type: ~a\n"
+                                 (quote #,n)
+                                 t))))))
     (define xsmith_my-type-constraint-info/ag-rule
-      (for/hash ([n (dict-keys node-type-constraints)])
-        (values n #`(λ (n) #,(dict-ref node-type-constraints n)))))
+      (for/hash ([n (dict-keys constraints-checked)])
+        (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n)))))
     (define xsmith_my-type-constraint-info/choice-rule
-      (for/hash ([n (dict-keys node-type-constraints)])
-        (values n #`(λ () #,(dict-ref node-type-constraints n)))))
+      (for/hash ([n (dict-keys constraints-checked)])
+        (values n #`(λ () #,(dict-ref constraints-checked n)))))
 
     (define node-child-dict-funcs
       (for/fold ([h (hash)])
@@ -664,7 +672,7 @@ The second arm is a function that takes the type that the node has been assigned
              (define my-type (att-value 'xsmith_type node))
              (define my-type->child-type-dict
                #,(dict-ref node-child-dict-funcs n))
-             (my-type->child-type-dict my-type)))))
+             (my-type->child-type-dict node my-type)))))
     (define xsmith_type-info
       (for/hash ([n nodes])
         (values
@@ -674,6 +682,9 @@ The second arm is a function that takes the type that the node has been assigned
                (if (ast-has-parent? node)
                    (att-value 'xsmith_children-type-dict (ast-parent node))
                    (hash node (fresh-type-variable))))
+             (define (parent-node-type)
+               (and (ast-has-parent? node)
+                    (ast-node-type (ast-parent node))))
              (define my-type-from-parent/func
                (dict-ref parent-child-type-dict
                          node
@@ -687,11 +698,17 @@ The second arm is a function that takes the type that the node has been assigned
                                     "No type info available for node "
                                     "(of AST type ~a with parent of AST type ~a).")
                                    (quote #,n)
-                                   (and (ast-has-parent? node)
-                                        (ast-node-type (ast-parent node)))))))))
+                                   (parent-node-type)))))))
              (define my-type-from-parent (if (procedure? my-type-from-parent/func)
                                              (my-type-from-parent/func node)
                                              my-type-from-parent/func))
+             (when (not (type? my-type-from-parent))
+               (error
+                'type-info
+                "Got a value that was not a type: ~a, while typechecking node of AST type ~a and parent of AST type ~a"
+                my-type-from-parent
+                (quote #,n)
+                (parent-node-type)))
              (define my-type-constraint
                (if (att-value 'is-hole? node)
                    #f

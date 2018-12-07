@@ -156,7 +156,7 @@ New types
          (function-type (product-type #f)
                         (fresh-type-variable))
          (concrete-types)))
-(define no-child-types (λ (t) (hash)))
+(define no-child-types (λ (n t) (hash)))
 
 (define (fresh-concrete-var-type)
   (parameterize ([current-xsmith-type-constructor-thunks

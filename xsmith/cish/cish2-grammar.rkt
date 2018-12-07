@@ -262,65 +262,70 @@ Type definitions are in cish-utils.rkt
  [#f [(error 'typing-base-node) (no-child-types)]]
  ;[Node [(error 'typing-node) (no-child-types)]]
  [Program [(fresh-type-variable)
-           (λ (t) (hash 'main (function-type (product-type '())
-                                             int)
-                        'declarations (λ (n) (fresh-type-variable))))]]
+           (λ (n t) (hash 'main (function-type (product-type '())
+                                               int)
+                          'declarations (λ (c) (fresh-type-variable))))]]
 
  ;[Declaration [(error 'typing-declaration) (no-child-types)]]
  [VariableDeclaration [(fresh-type-variable)
-                       (λ (t)
-                         (hash 'Expression
-                               (λ (n) (let ([parent-type-annotation
-                                             (ast-child 'type (ast-parent n))])
-                                        (unify! t parent-type-annotation)
-                                        t))))]]
+                       (λ (n t)
+                         (let ([declaration-type-annotation (ast-child 'type n)])
+                           (unify! t declaration-type-annotation)
+                           (hash 'Expression
+                                 declaration-type-annotation)))]]
  [FunctionDefinition [(function-type (product-type #f) (fresh-type-variable))
-                      (λ (t) (hash
-                              'Block
-                              (λ (n) (let ([parent-type-annotation
-                                            (ast-child 'type (ast-parent n))]
-                                           [f-type (function-type
-                                                    (fresh-type-variable)
-                                                    (fresh-type-variable))])
-                                       (unify! t parent-type-annotation)
-                                       (unify! t f-type)
-                                       (return-type (function-type-return-type
-                                                     f-type))))))]]
+                      (λ (n t)
+                        (let ([definition-type-annotation (ast-child 'type n)]
+                              [f-type (function-type
+                                       (fresh-type-variable)
+                                       (fresh-type-variable))])
+                          (unify! t definition-type-annotation)
+                          (unify! t f-type)
+                          (hash
+                           'Block
+                           (return-type (function-type-return-type f-type)))))]]
 
  [Statement [(error 'typing-statement) (no-child-types)]]
  ;[Statement [(fresh-type-variable (fresh-no-return) (return-type (fresh-type-variable))) (no-child-types)]]
 
  [NullStatement [(fresh-no-return) (no-child-types)]]
  [Block [(fresh-maybe-return)
-         (λ (t)
-           (hash 'declarations (λ (n) (fresh-type-variable))
-                 'statements (λ (n)
-                               (if (eq? n (car (reverse
-                                                (ast-children
-                                                 (ast-parent n)))))
-                                   t
-                                   (fresh-no-return)))))]]
+         (λ (n t)
+           (define statements (ast-children (ast-child 'statements n)))
+           (define last-statement (car (reverse statements)))
+           (define statement-dict
+             (for/hash ([s (ast-children (ast-child 'statements n))])
+               (values s
+                       (if (eq? s last-statement)
+                           t
+                           (fresh-no-return)))))
+           (for/fold ([dict statement-dict])
+                     ([d (ast-children (ast-child 'declarations n))])
+             (dict-set dict d (fresh-type-variable))))]]
  [ExpressionStatement [(fresh-no-return)
-                       (λ (t) (hash 'Expression (fresh-type-variable)))]]
+                       (λ (n t) (hash 'Expression (fresh-type-variable)))]]
  [IfStatement [(fresh-no-return)
-               (λ (t) (hash 'test bool
-                            'then t))]]
+               (λ (n t) (hash 'test bool
+                              'then t))]]
  [IfElseStatement [(fresh-maybe-return)
-                   (λ (t) (hash 'test bool
-                                'then t
-                                'else t))]]
+                   (λ (n t) (hash 'test bool
+                                  'then t
+                                  'else t))]]
  [ReturnStatement [(error 'typing-non-value-return-statement) (no-child-types)]]
  [ValueReturnStatement [(return-type (fresh-type-variable))
-                        (λ (t) (hash 'Expression (return-type-type t)))]]
+                        (λ (n t)
+                          (define rt (return-type (fresh-type-variable)))
+                          (unify! t rt)
+                          (hash 'Expression (return-type-type rt)))]]
 
 
  [LoopStatement [(fresh-maybe-return)
-                 (λ (t) (hash 'test bool
-                              'body t))]]
+                 (λ (n t) (hash 'test bool
+                                'body t))]]
  ;; WhileStatement
  ;; DoWhileStatement
  [ForStatement [(fresh-maybe-return)
-                (λ (t)
+                (λ (n t)
                   (let ([loop-var-type (fresh-type-variable)])
                     (hash 'test bool
                           'body t
@@ -331,46 +336,38 @@ Type definitions are in cish-utils.rkt
  [Expression [(error 'typing-expression) (no-child-types)]]
 
  [AssignmentExpression [(fresh-type-variable)
-                        (λ (t) (hash 'Expression t))]]
+                        (λ (n t) (hash 'Expression t))]]
  [FunctionApplicationExpression
   [(fresh-type-variable)
-   (λ (t)
+   (λ (n t)
      (define args-type (product-type #f))
-     (hash 'function (function-type args-type t)
-           'args (λ (n)
-                   ;; p is a list node
-                   (define p (ast-parent n))
-                   (define app-node (ast-parent p))
-                   (define my-type (fresh-type-variable))
-                   (if (att-value 'is-hole? (ast-child 'function app-node))
-                       my-type
-                       (begin
-                         (unify!
-                          args-type
-                          (product-type
-                           (map (λ (c) (if (eq? c n)
-                                           my-type
-                                           (fresh-type-variable)))
-                                (ast-children p))))
-                         my-type)))))]]
+     (define arg-nodes (ast-children (ast-child 'args n)))
+     (define func-node (ast-child 'function n))
+     (define arg-types (map (λ (c) (fresh-type-variable)) arg-nodes))
+     (when (not (att-value 'is-hole? func-node))
+       (unify! args-type (product-type arg-types)))
+     (for/fold ([dict (hash 'function (function-type args-type t))])
+               ([a arg-nodes]
+                [t arg-types])
+       (dict-set dict a t)))]]
  [AdditionExpression [(fresh-type-variable int float)
-                      (λ (t) (hash 'l t 'r t))]]
+                      (λ (n t) (hash 'l t 'r t))]]
  [SubtractionExpression [(fresh-type-variable int float)
-                         (λ (t) (hash 'l t 'r t))]]
+                         (λ (n t) (hash 'l t 'r t))]]
  [MultiplicationExpression [(fresh-type-variable int float)
-                            (λ (t) (hash 'l t 'r t))]]
+                            (λ (n t) (hash 'l t 'r t))]]
  [DivisionExpression [(fresh-type-variable int float)
-                      (λ (t) (hash 'l t 'r t))]]
+                      (λ (n t) (hash 'l t 'r t))]]
 
  [IntOnlyBinaryExpression [int
-                           (λ (t) (hash 'l int 'r int))]]
+                           (λ (n t) (hash 'l int 'r int))]]
 
  [ComparisonExpression [(fresh-type-variable bool)
-                        (λ (t) (let ([arg-t (fresh-type-variable int float)])
-                                 (hash 'l arg-t 'r arg-t)))]]
+                        (λ (n t) (let ([arg-t (fresh-type-variable int float)])
+                                   (hash 'l arg-t 'r arg-t)))]]
 
  [IfExpression [(fresh-type-variable)
-                (λ (t) (hash 'test bool 'then t 'else t))]]
+                (λ (n t) (hash 'test bool 'then t 'else t))]]
  [LiteralInt [(fresh-type-variable int bool) (no-child-types)]]
  [LiteralFloat [float (no-child-types)]]
  [VariableReference [(fresh-base-or-function-type) (no-child-types)]]
