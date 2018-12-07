@@ -8,6 +8,7 @@
 (define racket-launcher-libraries '("cish.rkt"))
 (define scribblings '(("scribblings/xsmith.scrbl" () (library))))
 (define deps '("base"
+               "rackunit-lib"
                "pprint"
                "racr"
                "rosette"

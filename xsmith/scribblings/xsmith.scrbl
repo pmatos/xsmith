@@ -692,27 +692,148 @@ But if you want to set it:
 The property accepts expressions which will evaluate to booleans (IE anything but only #f is false...), which are evaluated if the choice is made at the point where the AST is at it maximum depth.  A true value means that the choice is acceptable, false otherwise.  The default is computed by checking whether a node includes AST-node-typed fields.  If it does not it is considered atomic and therefore acceptable to choose when the AST is already at its maximum depth.
 }
 
-@defform[#:kind "spec-property" #:id introduces-scope introduces-scope]{
-This property is used to determine whether a node introduces a scope where new variable bindings may occur.
+@defform[#:kind "spec-property" #:id binder-info binder-info]{
+This property is used to mark nodes that define bindings.
+The property consists of a length-2 list of field names, one for the name of the field that stores the binding name, one for the name of the field that stores the binding type.
 
-@; introduces these private rules:
-@;xsmith_scope-graph-introduces-scope -- by introduces-scope property
-@;xsmith_scope-graph-scope -- by introduces-scope property
-@;xsmith_scope-graph-descendant-bindings -- by introduces-scope property
+Example:
+@racketblock[
+(add-to-grammar
+ my-spec-component
+ [Definition #f (name type Expression)]
+ [Reference #f (name)])
+(add-prop
+ my-spec-component
+ binder-info
+ [Definition (name type)])
+]
+}
+@defform[#:kind "spec-property" #:id reference-info reference-info]{
+This property marks nodes that are reference nodes.  The argument for the property is the name of the field that stores the reference name.
 
-This property accepts literal boolean values @racket[#t] and @racket[#f].  The default is @racket[#f].
-
-Examlpe:
+Example:
 @racketblock[
 (add-prop
  my-spec-component
- introduces-scope
- (code:comment "For this example, only Program and Block nodes introduce scopes.")
- [Program #t]
- [Block #t])
+ reference-info
+ [Reference name])
+]
+}
+
+@defform[#:kind "spec-property" #:id binding-structure binding-structure]{
+This property is used on nodes that can have binders as children.
+It determines the visibility of those binders to their siblings.
+Options are @racket['serial] (like @tt{let*} in scheme), @racket['parallel] (like @tt{let} in scheme), and @racket['recursive] (like @tt{letrec} in scheme).
+
+If the property is not specified, @racket['serial] is assumed and used as a default.
+
+Example:
+@racketblock[
+(add-to-grammar
+ my-spec-component
+ [Let #f ([definitions : Definition *] Expression)]
+ [Letstar #f ([definitions : Definition *] Expression)]
+ [Letrec #f ([definitions : Definition *] Expression)]
+ )
+(add-prop
+ my-spec-component
+ binding-structure
+ [Let 'parallel]
+ (code:comment "Letstar we can leave blank if we want because serial is the default.")
+ [Letrec 'recursive])
+]
+}
+
+
+@defform[#:kind "spec-property" #:id lift-predicate lift-predicate]{
+This property specifies a predicate for whether a definition of a given type can be lifted to a node.
+
+Example:
+@racketblock[
+(add-to-grammar
+ my-spec-component
+ [Let #f ([definitions : Definition *] Expression)]
+ [Letstar #f ([definitions : Definition *] Expression)]
+ [Letrec #f ([definitions : Definition *] Expression)]
+ )
+(add-prop
+ my-spec-component
+ lift-predicate
+ (code:comment
+  "Allow any definition type to be lifted into the top level of a program.")
+ [Program (λ (n type) #t)]
+ (code:comment
+  "Lifting a definition to Lambda's formal parameter list would require changing all calls.")
+ [Lambda (λ (n type) #f)]
+ (code:comment
+  "Allow local variables to be lifted, except make all functions top-level.")
+ [Let (λ (n type) (not (function-type? type)))])
+]
+}
+
+@defform[#:kind "spec-property" #:id lift-type->ast-binder-type
+lift-type->ast-binder-type]{
+This property should be defined once for the base node (#f).
+It is a mapping from the type of a desired definition (eg. int, float, int -> int, ...) to the AST node type (eg. VariableDefinition, FunctionDefinition).
+This is important when different kinds of definitions use different AST nodes.
+Otherwise it is just boilerplate...
+@; introduces these private rules:
+
+Example:
+@racketblock[
+(add-to-grammar
+ my-spec-component
+ [VariableDefinition #f (name type Expression)]
+ [FunctionDefinition #f (name type Body)]
+ )
+(add-prop
+ my-spec-component
+ lift-type->ast-binder-type
+ [#f (λ (type) (if (function-type? type)
+                   'FunctionDefinition
+                   'VariableDefinition))])
 ]
 
+TODO - This property should not be necessary when there is only one type of binder.
 }
+
+@defform[#:kind "spec-property" #:id type-info type-info]{
+@; introduces these private rules:
+@;xsmith_type -- returns the type of a node
+@;xsmith_my-type-constraint -- returns the type that a node must fulfill (the first half of the type info property)
+@;xsmith_children-type-dict -- returns a dict mapping nodes (or node field names) to types
+@;xsmith_satisfies-type-constraint? -- choice predicate -- tests if a hole's type and a choice object are compatible
+@;xsmith_reference-options! -- returns a list of options for a variable to reference that are type compatible.  BUT - it unifies the type of the reference with a fully concrete version.
+
+This property is used to specify the type system used by the generator.
+You should specify a type system even for dynamically typed languages so that programs don't just crash with dynamic type errors.
+
+Example:
+@racketblock[
+(define int (base-type 'int))
+(define float (base-type 'float))
+(define bool (base-type 'bool))
+(add-prop
+ my-spec-component
+ type-info
+ [AdditionExpression [(fresh-type-variable int float)
+                      (λ (n t) (hash 'l t 'r t))]]
+ [EqualityExpression [bool
+                      (λ (n t)
+                        (define arg-type (fresh-type-variable))
+                        (hash 'l arg-type 'r arg-type))]]
+ [Lambda [(function-type (fresh-type-variable) (fresh-type-variable))
+          (λ (n t) (hash 'arg (function-type-arg-type t)
+                         'Expression (function-type-return-type t)))]])
+]
+
+The property is two armed.
+
+The first part is the type (or partially-constrained type variable) that the given node can inhabit.  The expression given is evaluated fresh every time a node is type checked or considered for generation.
+
+The second part is a function that takes a node, its type, and must return a dictionary mapping its children nodes to types.  The dictionary keys may be the node objects of the node's children OR the symbol of the field name the child inhabits.  For kleene-star children, use their node unless they all should receive the same type.
+}
+
 
 @defform[#:kind "spec-property" #:id choice-weight choice-weight]{
 This property determines the probability that different kinds of nodes will be chosen.  When choices have been filtered (based on @racket[choice-filters-to-apply]), one of the remaining choices is chosen at random with probability (choice-weight / sum-of-choice-weights).
@@ -753,6 +874,39 @@ Example:
 Some core methods are always applied in addition to this list, such as the method defined by the @racket[may-be-generated] property.
 
 }
+
+@subsection{types}
+TODO
+@;type-variable?
+@;(struct-out base-type)
+@;;(struct-out alias-type)
+@;;; TODO - tuple types -- what should the API be?
+@;(rename-out [mk-record-type record-type])
+@;product-type
+@;product-type?
+@;product-type-inner-type-list
+@;record-type?
+@;record-type-name
+@;(struct-out generic-type)
+
+@;type?
+
+@;(contract-out
+@; [fresh-type-variable (->* () () #:rest (listof type?) type?)]
+@; [unify! (-> type? type? any/c)]
+@; [can-unify? (-> type? type? any/c)]
+@; [concretize-type (-> type? type?)]
+@; [function-type (-> type? type? type?)]
+@; )
+@;function-type?
+@;function-type-arg-type
+@;function-type-return-type
+
+@;current-xsmith-type-constructor-thunks
+
+@;type->type-variable-list
+@;at-least-as-concrete
+@;contains-type-variables?
 
 
 @subsection{xsmith-command-line.rkt}
@@ -835,7 +989,6 @@ Gets the current option for the key, from @racket[xsmith-options].
 
 TODO - this should probably follow the dict-ref interface and accept a default value/thunk.
 }
-
 
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
