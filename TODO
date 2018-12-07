@@ -6,20 +6,17 @@ Initial goals for specification DSL:
 ✓ ability to declare info about grammar pieces -- eg the body of the for loop doesn't increase the depth (or only under certain circumstances), probability skewing for different nodes
 ✓ scope graphs for free -- declare that X in the grammar is a binding form, which forms add new scopes, etc
 
+* document type library
+* write property to track effects and specify whether nodes have a defined evaluation order for their children.
+* rearrange code to be a nicer library
+** move grammar-macros.rkt, core-properties.rkt, etc into private/
+** there should be a `main.rkt` so you can `(require xsmith)` to get the whole system.
+* improve types library
 
-* inline vs separate declarations
-** inline makes the grammar definition harder because you have everything up-front, reduced compositionality
-** essential stuff wants to be inline, the footnotes want to be separate
-
-
-*  the binder-info property should take two field names rather than a field and a method name -- it doesn't really make sense not to have the type stored in the declaration
-*  variable declarations at the top level need constant expressions, but right now they seem to be able to use (and maybe even lift) functions (besides safe math)
+*  variable declarations at the top level need constant expressions, but right now they seem to be able to use (and maybe even lift) functions (besides safe math).  I think it used to be properly constrained, but I must have broken it at some point.
 *  block declarations should be VariableDeclarations in cish
-* update docs with new property APIs and changed APIs (introduces-scope, binding struct, lift stuff, serial/parallel stuff...)
-* remove illegal-variable-name nonsense in reference choosing -- this is no longer necessary due to serial/parallel/recursive upgrades
 
 
-* Type properties, obviously
 * depth increase -- should accept function OR literal number.  If literal number is 0 then maybe it is assured to never-deepen?
 * Somewhere I made a quick integer counter that I think I haven't folded into the xsmith-state object -- it needs to be folded in so it is reset if multiple generations are done in series.  (For variable names, I think)
 * split xsmith-utils.rkt into xsmith-state.rkt and xsmith-racr-wrappers.rkt -- the racr-wrappers could probably go away, frankly, or at least not be part of the public interface.
@@ -32,3 +29,7 @@ Initial goals for specification DSL:
 * choose good names for the public API
 * re-think any public API -- I don't want bad APIs to live on just because we were in a hurry for a release
 
+
+* inline vs separate declarations
+** inline makes the grammar definition harder because you have everything up-front, reduced compositionality
+** essential stuff wants to be inline, the footnotes want to be separate
