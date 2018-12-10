@@ -876,37 +876,137 @@ Some core methods are always applied in addition to this list, such as the metho
 }
 
 @subsection{types}
+@defmodule[xsmith/grammar-macros]
+
+While there are various predicates for different types, at any point in type checking you might actually have a type variable instead of a concrete type.  So if you want to check if you have a particular type (and maybe deconstruct it), you should maybe create an instance of the type you are interested in, check if it @racket[can-unify?], then @racket[unify!]-ing it if you want to deconstruct it.
+
+@defproc[(type? [t any/c]) bool?]{
+Predicate for types.
+}
+
+@defproc[(fresh-type-variable [args type?] ...) type?]{
+Creates a fresh type variable.  If given no arguments it is unconstrained and can unify with any type.  Arguments can be provided, in which case the type variable is constrained to be one of the types given.
+In the optional arguments, only one function type is allowed.
+
+Example:
+@racketblock[
+(code:comment "Unconstrained")
+(define v1 (fresh-type-variable))
+
+(define int (base-type 'int))
+(define float (base-type 'float))
+(define bool (base-type 'bool))
+
+(define v2 (fresh-type-variable int bool))
+
+(unify! v1 v2)
+
+(can-unify? v1 float) (code:comment "#f")
+(can-unify? v1 int) (code:comment "#t")
+
+(unify! v2 bool)
+(can-unify? v1 int) (code:comment "#f")
+]
+}
+
+@defproc[(type-variable? [t any/c]) bool?]{
+Predicate for type variables.
+}
+
+@defproc[(can-unify? [t1 type?] [t2 type?]) bool?]{
+Returns whether two types can be unified without actually unifying them.
+}
+@defproc[(unify! [t1 type?] [t2 type?]) void?]{
+Unifies two types.  This mutates type variables so that they match other variables or types going forward.
+
+If unification fails an exception is raised.  Right now a failure to unify might mean that type variables are left in a bad state, so code generation should just give up at that point.
+}
+
+@defproc[(base-type [name symbol?]) type?]{
+Creates a base type.  Base types with the same name are the same.
+}
+
+@defproc[(product-type [types (or/c (listof types?) #f)]) type?]{
+Creates a product type (tuple).  If @racket[types] is @racket[#f], the length of the tuple is unspecified, and it can be @racket[unify!]-ed with a product type of any length.
+
+Example:
+@racketblock[
+(define any-length (product-type #f))
+(define l2 (product-type (list int int)))
+(define l3 (product-type (list int int int)))
+
+(can-unify? any-length l2) (code:comment "#t")
+(can-unify? any-length l3) (code:comment "#t")
+(unify! any-length l2)
+(can-unify? any-length l2) (code:comment "#t")
+(can-unify? any-length l3) (code:comment "#f")
+]
+}
+
+@defproc[(product-type? [t any/c]) bool?]{
+Predicate for product types.
+}
+
+@defproc[(product-type-inner-type-list [t product-type?]) any/c]{
+TODO - this is the raw struct accessor, but what it can return is somewhat complicated because product types are actually a kind of type variable since they can have a #f “list” and then be unified.  So this needs a wrapper if it is actually to be used by xsmith users.
+}
+
+@defproc[(generic-type [name symbol?] [args (listof type?)]) type?]{
+Used to create generic types.
+
+Example:
+@racketblock[
+(define (vector-type t)
+  (generic-type 'vector (list t)))
+]
+
+Generic types can be unified with other generic types with the same name and argument list length.
+
+TODO - This should probably have some kind of wrapper that guarantees that all instances of a given generic have the same name and argument length.  Maybe a function that generates a constructor function?
+}
+
+@defproc[(generic-type? [t any/c]) bool?]{
+Predicate for generic types.
+}
+
+@defproc[(generic-type-name [t generic-type?]) symbol?]{
+Returns the name of a generic type.
+}
+@defproc[(generic-type-type-arguments [t generic-type?]) (listof type?)]{
+Returns the inner types of a generic type.
+}
+
+@defproc[(function-type [arg-type type?] [return-type type?]) type?]{
+Creates a function type.  For multi-argument functions, use a @racket[product-type] for the argument type.
+}
+@defproc[(function-type? [t any/c]) bool?]{
+Predicate for function types.
+}
+@defproc[(function-type-arg-type [t function-type?]) type?]{
+}
+@defproc[(function-type-return-type [t function-type?]) type?]{
+}
+
+@defproc[(concretize-type [t type?]) type?]{
+Returns a fully concrete (no type variables) type that @racket[can-unify?] with @racket[t].
+
+TODO - this function is used for lifting, but I'm not sure whether it's a good idea for this to be available to users.  At any point user code is inspecting a type, it may have been lazily unified and @racket[concretize-type] may return a type that can't actually unify with @racket[t] if the lazy unification is forced.  So unless I provide a way to force lazy unification this is not a good function for users to use.
+}
+
+@defparam[current-xsmith-type-constructor-thunks thunk-list (listof (-> type?))]{
 TODO
-@;type-variable?
-@;(struct-out base-type)
-@;;(struct-out alias-type)
-@;;; TODO - tuple types -- what should the API be?
-@;(rename-out [mk-record-type record-type])
-@;product-type
-@;product-type?
-@;product-type-inner-type-list
-@;record-type?
-@;record-type-name
-@;(struct-out generic-type)
 
-@;type?
+This needs to be parameterized for @racket[concretize-type], which is called for lifting.
+It should consist of a list of thunks that each produce a fully concrete type when called.
+Cish parameterizes this in multiple places, and it should be something that can be set somewhere once.
+}
 
-@;(contract-out
-@; [fresh-type-variable (->* () () #:rest (listof type?) type?)]
-@; [unify! (-> type? type? any/c)]
-@; [can-unify? (-> type? type? any/c)]
-@; [concretize-type (-> type? type?)]
-@; [function-type (-> type? type? type?)]
-@; )
-@;function-type?
-@;function-type-arg-type
-@;function-type-return-type
+TODO
 
-@;current-xsmith-type-constructor-thunks
+Record types -- they are only partially implemented.
 
-@;type->type-variable-list
-@;at-least-as-concrete
-@;contains-type-variables?
+Sum types
+
 
 
 @subsection{xsmith-command-line.rkt}
