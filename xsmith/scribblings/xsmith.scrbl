@@ -709,14 +709,19 @@ Example:
 ]
 }
 @defform[#:kind "spec-property" #:id reference-info reference-info]{
-This property marks nodes that are reference nodes.  The argument for the property is the name of the field that stores the reference name.
+This property marks nodes that are reference nodes.  The argument for the property is a list containing:
+
+@itemlist[
+@item{The identifier @tt{read} or the identifier @tt{write}, indicating whether the reference reads or writes the variable}
+@item{The name of the field that stores the reference name (as an identifier).}
+]
 
 Example:
 @racketblock[
 (add-prop
  my-spec-component
  reference-info
- [Reference name])
+ [Reference (read name)])
 ]
 }
 
@@ -741,6 +746,33 @@ Example:
  [Let 'parallel]
  (code:comment "Letstar we can leave blank if we want because serial is the default.")
  [Letrec 'recursive])
+]
+}
+
+
+@defform[#:kind "spec-property" #:id strict-child-order strict-child-order]{
+Specifies that a node's children are guaranteed by the language to have a strict evaluation order.  The default is false.  This property is used to determine whether nodes have a dependency in their read/write/io effect conditions.
+
+Example:
+@racketblock[
+(add-prop
+ my-spec-component
+ strict-child-order
+ (code:comment "Most languages have some sort of sequential construct, like a block")
+ [Block #t])
+]
+}
+
+
+@defform[#:kind "spec-property" #:id io io]{
+Used to specify that a node has some kind of IO effect, such as printing or reading a volatile variable.
+
+Example:
+@racketblock[
+(add-prop
+ my-spec-component
+ io
+ [Print #t])
 ]
 }
 
