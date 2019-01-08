@@ -692,6 +692,13 @@ But if you want to set it:
 The property accepts expressions which will evaluate to booleans (IE anything but only #f is false...), which are evaluated if the choice is made at the point where the AST is at it maximum depth.  A true value means that the choice is acceptable, false otherwise.  The default is computed by checking whether a node includes AST-node-typed fields.  If it does not it is considered atomic and therefore acceptable to choose when the AST is already at its maximum depth.
 }
 
+@defform[#:kind "spec-property" #:id introduces-scope introduces-scope]{
+This property needs to be in the #:properties list of @racket[assemble-spec-components].  But it should not actually be used.
+
+TODO (code) - this property should be in a base set that is always run by default, and it should not even be exported to users.
+
+}
+
 @defform[#:kind "spec-property" #:id binder-info binder-info]{
 This property is used to mark nodes that define bindings.
 The property consists of a length-2 list of field names, one for the name of the field that stores the binding name, one for the name of the field that stores the binding type.
@@ -876,7 +883,7 @@ Some core methods are always applied in addition to this list, such as the metho
 }
 
 @subsection{types}
-@defmodule[xsmith/grammar-macros]
+@declare-exporting[xsmith/grammar-macros]
 
 While there are various predicates for different types, at any point in type checking you might actually have a type variable instead of a concrete type.  So if you want to check if you have a particular type (and maybe deconstruct it), you should maybe create an instance of the type you are interested in, check if it @racket[can-unify?], then @racket[unify!]-ing it if you want to deconstruct it.
 
