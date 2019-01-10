@@ -11,6 +11,8 @@
  introduces-scope
  binder-info
  reference-info
+ strict-child-order?
+ io
  lift-predicate
  lift-type->ast-binder-type
  binding-structure
@@ -25,6 +27,7 @@
  "xsmith-options.rkt"
  "scope-graph.rkt"
  "private/types.rkt"
+ "private/effects.rkt"
  racr
  racket/random
  racket/class
@@ -524,7 +527,9 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                                 (ast-child 'type-field-name n))))))])))
     (list scope-graph-binding-info)))
 
-;; This property should be the field name that references use
+;; This property should be a list containing:
+;; the identifier `read` or the identifier `write`,
+;; the field name that references use (as an identifier)
 (define-property reference-info)
 
 ;; TODO - this is not a great design, but I need the user to specify
@@ -565,6 +570,7 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
         #`(xsmith_may-be-generated
            xsmith_wont-over-deepen
            xsmith_satisfies-type-constraint?
+           xsmith_no-io-conflict?
            #,@user-filters)))
     (define (helper filter-method-stx filter-failure-set!-id)
       (syntax-parse filter-method-stx
@@ -656,13 +662,19 @@ The second arm is a function that takes the type that the node has been assigned
                     [else #f]))
         (if f (hash-set h n f) h)))
 
-    (define node-reference-names
-      (for/hash ([n nodes])
-        (values n (syntax-parse (dict-ref reference-info-info n #'#f)
-                    [#f #'#f]
-                    ;; TODO - because this is not in the transformer of the
-                    ;; original property I have to check duplicates by hand...
-                    [(field:id) #'(quote field)]))))
+    (define node-reference-info-cleansed
+      (for/list ([n nodes])
+        (syntax-parse (dict-ref reference-info-info n #'#f)
+          [#f (list #'#f #'#f)]
+          ;; TODO - because this is not in the transformer of the
+          ;; original property I have to check duplicates by hand...
+          [(((~and r/w-type:id
+                   (~or (~datum read) (~datum write)))
+             field:id))
+           (list #'(quote r/w-type) #'(quote field))])))
+    (define node-r/w-type (for/hash ([n nodes]
+                                     [i node-reference-info-cleansed])
+                            (values n (first i))))
 
     (define xsmith_children-type-dict-info
       (for/hash ([n (dict-keys node-child-dict-funcs)])
@@ -736,6 +748,15 @@ The second arm is a function that takes the type that the node has been assigned
                 (if ref-choices-filtered
                     ref-choices-filtered
                     (let ()
+                      (define write? (equal? 'write #,(dict-ref node-r/w-type n)))
+                      (define effects-to-avoid
+                        (filter (if write?
+                                    (λ (x) (not (effect-io? x)))
+                                    effect-write-variable?)
+                                (att-value 'xsmith_effect-constraints (current-hole))))
+                      (define effect-variable-names
+                        (map effect-variable effects-to-avoid))
+
                       (define visibles
                         ;; TODO - maybe this should be xsmith_visible-bindings
                         (att-value 'visible-bindings current-hole))
@@ -743,13 +764,22 @@ The second arm is a function that takes the type that the node has been assigned
                         (filter (λ (b) (and b (can-unify? type-needed
                                                           (binding-type b))))
                                 visibles))
+                      (define effect-filtered
+                        (filter
+                         (λ (x) (not (member (binding-name x) effect-variable-names)))
+                         visibles-with-type))
                       ;; TODO - for functions there was a filter here to not get main
                       (define lift-type (concretize-type type-needed))
+                      (when (and write? (function-type? lift-type))
+                        ;; Without assigning to functions destroys language-agnostic effect tracking.
+                        ;; TODO - check whether a variable contains a function type in any way, not just at the top level.
+                        (error 'xsmith "Got a function type as a type to assign to.  Xsmith's effect tracking requires that assignment can never have a function type."))
                       (define legal+lift
+                        ;; TODO - lift effect constraints...
                         (cons (make-lift-reference-choice-proc
                                current-hole
                                lift-type)
-                              visibles-with-type))
+                              effect-filtered))
                       (hash-set! ref-choices-filtered-hash this legal+lift)
                       legal+lift))))))
        #f #'(λ () (error 'xsmith_reference-options!
@@ -833,3 +863,120 @@ The second arm is a function that takes the type that the node has been assigned
   ;; that no more unification can change the result of this predicate.
   (can-unify? hole-type
               type-constraint))
+
+
+
+(define-property strict-child-order?
+  #:appends (ag-rule xsmith_strict-child-order?)
+  #:transformer
+  (λ (this-prop-info)
+    (define xsmith_strict-child-order?-info
+      (for/fold ([out-info (hash #f #'(λ (n) #f))])
+                ([n (dict-keys this-prop-info)])
+        (dict-set out-info n (syntax-parse (dict-ref this-prop-info n)
+                               [b:boolean #'(λ (n) b)]))))
+    (list xsmith_strict-child-order?-info)))
+
+(define (non-hole-node? x)
+  (and (ast-node? x) (not (att-value 'is-hole? x))))
+
+(define-property io
+  #:reads
+  (grammar)
+  (property reference-info)
+  #:appends
+  (ag-rule xsmith_effects/no-children) ;; effects directly caused by a node
+  (ag-rule xsmith_effects) ;; effects caused by a node and its children
+  (ag-rule xsmith_effect-constraints-for-child)
+  (choice-rule xsmith_no-io-conflict?)
+  #:transformer
+  (λ (this-prop-info grammar-info reference-info)
+    (define nodes (dict-keys grammar-info))
+    (define io-info (for/hash ([node nodes])
+                      (values node
+                              (syntax-parse (dict-ref this-prop-info node #'#f)
+                                [b:boolean #'b]))))
+    (define xsmith_effects/no-children-info
+      (for/hash ([n nodes])
+        (define-values (read-or-write varname)
+          (syntax-parse (dict-ref reference-info n #'(#f))
+            ;; Because I'm reading it outside of its own property
+            ;; I have to check duplicates manually...
+            [(((~datum read) field-name:id))
+             (values #'effect-read-variable #'field-name)]
+            [(((~datum write) field-name:id))
+             (values #'effect-write-variable #'field-name)]
+            [(#f) (values #f #f)]))
+        (values
+         n
+         #`(λ (n) (filter (λ(x)x)
+                          (list #,(dict-ref io-info n)
+                                #,(if read-or-write
+                                      #`(#,read-or-write
+                                         (att-value
+                                          'resolve-reference-name
+                                          n
+                                          (ast-child '#,varname n)))
+                                      #'#f)
+                                ;; This is an over-approximation.
+                                ;; For function application, I need the effects of
+                                ;; the function body.
+                                ;; If I can tell when a reference is for a function
+                                ;; specifically I can limit this to only function
+                                ;; lookup.
+                                ;; However, even then it is an over-approximation
+                                ;; because a function definition in some languages
+                                ;; can have arbitrary expressions around a lambda,
+                                ;; or even different lambdas behind conditionals.
+                                (and (equal? #,read-or-write effect-read-variable)
+                                     (att-value 'xsmith_effects
+                                                (binding-ast-node
+                                                 (att-value
+                                                  'resolve-reference-name
+                                                  n
+                                                  (ast-child '#,varname n)))))))))))
+    (define xsmith_effects-info
+      ;; TODO - this is not node specific, but I think I want ag-rule caching on it...
+      (hash
+       #f
+       #`(λ (n)
+           (remove-duplicates
+            (flatten
+             (cons
+              (att-value 'xsmith_effects/no-children n)
+              (for/list ([child (filter non-hole-node? (ast-children/flat n))])
+                (att-value 'xsmith_effects child))))))))
+    (define xsmith_effect-constraints-for-child-info
+      ;; TODO - this is not node specific, but I think I want ag-rule caching on it...
+      (hash
+       #f
+       #`(λ (n c)
+           (define extended-family-constraints
+             (if (ast-has-parent? n)
+                 (att-value 'xsmith_effect-constraints-for-child (ast-parent n) n)
+                 '()))
+           (define direct-constraints
+             (if (att-value 'xsmith_strict-child-order? n)
+                 '()
+                 (for/list ([sibling (filter non-hole-node? (ast-children/flat n))])
+                   (if (eq? c sibling)
+                       '()
+                       (att-value 'xsmith_effects sibling)))))
+           (remove-duplicates
+            (flatten (cons extended-family-constraints direct-constraints))))))
+    (define xsmith_no-io-conflict?-info
+      (for/hash ([n nodes])
+        (values
+         n
+         (syntax-parse (dict-ref io-info n)
+           [#t #'(λ () (or (not (ast-has-parent? (current-hole)))
+                           (not (memf effect-io?
+                                      (att-value 'xsmith_effect-constraints-for-child
+                                                 (ast-parent (current-hole))
+                                                 (current-hole))))))]
+           [#f #'(λ () #t)]))))
+    (list xsmith_effects/no-children-info
+          xsmith_effects-info
+          xsmith_effect-constraints-for-child-info
+          xsmith_no-io-conflict?-info)))
+

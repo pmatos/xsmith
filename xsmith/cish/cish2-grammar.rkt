@@ -236,8 +236,15 @@
           [FormalParam (name type)])
 (add-prop cish2-grammar
           reference-info
-          [VariableReference name]
-          [AssignmentExpression name])
+          [VariableReference (read name)]
+          [AssignmentExpression (write name)])
+(add-prop cish2-grammar
+          strict-child-order?
+          [Program #t]
+          [Block #t]
+          [IfStatement #t]
+          [IfExpression #t]
+          [LoopStatement #t])
 (add-prop cish2-grammar
           lift-predicate
           [FunctionDefinition #f]

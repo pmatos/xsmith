@@ -457,6 +457,11 @@
     (define parent* (parent-node n))
     (dict-ref (att-value 'xsmith_child-node-name-dict parent*)
               (if (eq? parent parent*) n parent))))
+(define xsmith_effect-constraints-function
+  (λ (n)
+    (if (ast-has-parent? n)
+        (att-value 'xsmith_effect-constraints-for-child (parent-node n) n)
+        '())))
 
 
 
@@ -967,6 +972,8 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                 [base-node-name visible-bindings-function])
                        (ag-rule xsmith_node-field-name-in-parent
                                 [base-node-name node-field-name-in-parent-function])
+                       (ag-rule xsmith_effect-constraints
+                                [base-node-name xsmith_effect-constraints-function])
                        (compile-ag-specifications))))
 
                  ;; Define an ast-generator with a hygiene-bending name
