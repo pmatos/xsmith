@@ -925,12 +925,19 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                      destination-field
                                      type
                                      lift-depth
-                                     lifted-ast-type)
+                                     lifted-ast-type
+                                     lifting-hole-node)
                                    (λ ()
                                      (define name (fresh-var-name "lift_"))
                                      (define new-hole (make-hole lifted-ast-type))
+                                     (define lifting-hole-parent
+                                       (ast-parent lifting-hole-node))
+                                     (define hole-index-in-parent
+                                       (ast-child-index lifting-hole-node))
+                                     ;; TODO - these field names should probably be looked up...
                                      (rewrite-terminal 'name new-hole name)
-                                     (rewrite-terminal 'liftdepth new-hole lift-depth)
+                                     (rewrite-terminal 'xsmithliftdepth
+                                                       new-hole lift-depth)
                                      (rewrite-terminal 'type new-hole type)
 
                                      (define choices
@@ -951,16 +958,27 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                              ;; property on function definitions needs
                                              ;; to read the value on the hole node
                                              ;; instead of getting it here...
-                                             (hash 'liftdepth lift-depth
+                                             (hash 'xsmithliftdepth lift-depth
                                                    ;'type type
                                                    )))
                                      (enqueue-inter-choice-transform
-                                      (λ () (rewrite-insert
-                                             (ast-child destination-field
-                                                        destination-node)
-                                             ;; 1-based index?
-                                             1
-                                             new-declaration)))
+                                      (λ ()
+                                        (rewrite-insert
+                                         (ast-child destination-field
+                                                    destination-node)
+                                         ;; 1-based index?
+                                         1
+                                         new-declaration)
+                                        (rewrite-terminal
+                                         'xsmithlifterwrapped
+                                         new-declaration
+                                         ;; This is boxed so that it won't be
+                                         ;; an ast node, so it won't interfere
+                                         ;; with things that just look at all
+                                         ;; child nodes of its parent.
+                                         (box-immutable
+                                          (ast-child hole-index-in-parent
+                                                     lifting-hole-parent)))))
                                      name))])
                        (ag-rule find-descendants
                                 [base-node-name find-descendants-function])

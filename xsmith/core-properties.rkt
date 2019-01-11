@@ -59,10 +59,9 @@
                    #'(λ (n)
                        (define increment (inc n))
                        (define parent-depth
-                         ;; TODO - liftdepth should be xsmithliftdepth
-                         (cond [(and (ast-has-child? 'liftdepth n)
-                                     (number? (ast-child 'liftdepth n)))
-                                (ast-child 'liftdepth n)]
+                         (cond [(and (ast-has-child? 'xsmithliftdepth n)
+                                     (number? (ast-child 'xsmithliftdepth n)))
+                                (ast-child 'xsmithliftdepth n)]
                                [(ast-has-parent? n)
                                 (att-value 'ast-depth (parent-node n))]
                                [else 0]))
@@ -282,11 +281,11 @@ Helper function for xsmith_scope-graph-child-scope-dict.
      (for/hash ([child (map car cb-pairs)])
        (values child new-scope))]))
 
-(define (default-lift-destinations-impl n type lift-depth)
+(define (default-lift-destinations-impl n type lift-depth origin-hole)
   (if (ast-has-parent? n)
       (att-value
        'xsmith_lift-destinations
-       (ast-parent n) type lift-depth)
+       (ast-parent n) type lift-depth origin-hole)
       '()))
 
 ;;; For use when choosing which visible binding to reference from some
@@ -298,7 +297,8 @@ Helper function for xsmith_scope-graph-child-scope-dict.
   (λ ()
     (define depth (att-value 'ast-depth lift-origin-hole))
     (define destinations
-      (att-value 'xsmith_lift-destinations lift-origin-hole type depth))
+      (att-value 'xsmith_lift-destinations
+                 lift-origin-hole type depth lift-origin-hole))
     (when (equal? 0 (length destinations))
       (error 'xsmith
              "internal error -- no destinations for lift from: ~a, type: ~a, depth: ~a\n"
@@ -421,10 +421,10 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
             (dict-set
              rule-info
              node
-             #`(λ (from-node type lift-depth)
+             #`(λ (n type lift-depth lifting-hole-node)
                  (define ast-type
                    ((att-value 'xsmith_lift-type-to-ast-binder-type
-                               from-node)
+                               n)
                     type))
 
                  ;; The field within the lift destination that a lift
@@ -441,15 +441,18 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                               binder-nodes))
                      [else #f]))
                  (if (and field
-                          (att-value 'xsmith_lift-predicate from-node type))
+                          (att-value 'xsmith_lift-predicate n type))
                      (cons (att-value 'xsmith_make-lift-do-proc
-                                      from-node
+                                      n
                                       field
                                       type
                                       lift-depth
-                                      ast-type)
-                           (default-lift-destinations-impl from-node type lift-depth))
-                     (default-lift-destinations-impl from-node type lift-depth))))
+                                      ast-type
+                                      lifting-hole-node)
+                           (default-lift-destinations-impl
+                             n type lift-depth lifting-hole-node))
+                     (default-lift-destinations-impl
+                       n type lift-depth lifting-hole-node))))
             rule-info)))
 
     (define scope-graph-introduces-scope?-info
