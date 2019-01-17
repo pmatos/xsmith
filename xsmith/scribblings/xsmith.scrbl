@@ -700,7 +700,9 @@ TODO (code) - this property should be in a base set that is always run by defaul
 
 @defform[#:kind "spec-property" #:id binder-info binder-info]{
 This property is used to mark nodes that define bindings.
-The property consists of a length-2 list of field names, one for the name of the field that stores the binding name, one for the name of the field that stores the binding type.
+The property consists of a length-3 list.
+The first two are field names, one for the name of the field that stores the binding name, one for the name of the field that stores the binding type.
+The last field is either @tt{definition} or @tt{parameter}, reflecting whether the binding is a function parameter.  This is used by some Xsmith analyses about higher order values.
 
 Example:
 @racketblock[
@@ -711,7 +713,7 @@ Example:
 (add-prop
  my-spec-component
  binder-info
- [Definition (name type)])
+ [Definition (name type definition)])
 ]
 }
 @defform[#:kind "spec-property" #:id reference-info reference-info]{
