@@ -774,9 +774,10 @@ The second arm is a function that takes the type that the node has been assigned
                       ;; TODO - for functions there was a filter here to not get main
                       (define lift-type (concretize-type type-needed))
                       (when (and write? (function-type? lift-type))
-                        ;; Without assigning to functions destroys language-agnostic effect tracking.
+                        ;; Assigning to functions destroys language-agnostic effect tracking.
                         ;; TODO - check whether a variable contains a function type in any way, not just at the top level.
                         (error 'xsmith "Got a function type as a type to assign to.  Xsmith's effect tracking requires that assignment can never have a function type."))
+                      ;; TODO - if a reference contains a function type and comes from a function argument, it is higher order and we should assume it has all effects.
                       (define legal+lift
                         ;; TODO - lift effect constraints...
                         (cons (make-lift-reference-choice-proc
@@ -958,6 +959,13 @@ The second arm is a function that takes the type that the node has been assigned
              (if (ast-has-parent? n)
                  (att-value 'xsmith_effect-constraints-for-child (ast-parent n) n)
                  '()))
+           (define lift-constraints
+             (if (ast-has-child? 'xsmithlifterwrapped n)
+                 (let ([lifter (ast-child 'xsmithlifterwrapped n)])
+                   (if lifter
+                       (att-value 'xsmith_effects (unbox lifter))
+                       '()))
+                 '()))
            (define direct-constraints
              (if (att-value 'xsmith_strict-child-order? n)
                  '()
@@ -966,7 +974,9 @@ The second arm is a function that takes the type that the node has been assigned
                        '()
                        (att-value 'xsmith_effects sibling)))))
            (remove-duplicates
-            (flatten (cons extended-family-constraints direct-constraints))))))
+            (flatten (cons lift-constraints
+                           (cons extended-family-constraints
+                                 direct-constraints)))))))
     (define xsmith_no-io-conflict?-info
       (for/hash ([n nodes])
         (values
