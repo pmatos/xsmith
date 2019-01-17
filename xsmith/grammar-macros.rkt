@@ -730,7 +730,12 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                     #'here
                     (map (λ (x) (dict-ref node-attribute-length-hash x))
                          node-names))]
-                  [base-node-spec (format-id #'spec "~a->" #'base-node-name)]
+                  [base-node-spec
+                   ;; The base node has xsmithliftdepth and xsmithlifterwrapped fields injected
+                   (format-id
+                    #'spec
+                    "~a->xsmithliftdepth-xsmithlifterwrapped"
+                    #'base-node-name)]
                   [(choice-name ...) (map node->choice
                                           (syntax->list #'(g-part.node-name ...)))]
                   [(choice-method-name ...) (remove-duplicates
@@ -827,10 +832,13 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                          (create-ast
                           spec
                           (dict-ref hole-name-hash node-type)
-                          (map (λ (x) (create-ast-bud))
-                               (make-list (dict-ref node-attr-length-hash
-                                                    node-type)
-                                          #f))))])
+                          (append
+                           ;; This first list is for xsmithliftdepth and xsmithlifterwrapped
+                           (list #f #f)
+                           (map (λ (x) (create-ast-bud))
+                                (make-list (dict-ref node-attr-length-hash
+                                                     node-type)
+                                           #f)))))])
                    (splicing-syntax-parameterize
                        ([current-racr-spec (syntax-rules () [(_) spec])]
                         [make-hole (syntax-parser

@@ -24,10 +24,7 @@
  [Program Node ([declarations : Declaration * = (random 7)]
                 [main : FunctionDefinition])]
 
- ;; TODO - xsmithliftdepth and xsmithlifterwrapped should be injected by xsmith, not written here
- [Declaration Node ([xsmithliftdepth = 0]
-                    [xsmithlifterwrapped]
-                    [type]
+ [Declaration Node ([type]
                     [name])]
  [VariableDeclaration Declaration (Expression)]
  [FunctionDefinition Declaration ([params : FormalParam *]

@@ -172,10 +172,14 @@ hole for the type.
                (define all-values-in-order
                  (map (λ (name) (dict-ref all-values-hash/seq-transformed name))
                       (list field-name ...)))
+               (define all-values+xsmith-injected
+                 ;; add xsmithliftdepth and xsmithlifterwrapped
+                 (append (list #f #f)
+                         all-values-in-order))
 
                (create-ast (current-racr-spec)
                            '#,node
-                           all-values-in-order))))))
+                           all-values+xsmith-injected))))))
     (list rule-info)))
 
 (define-property child-node-name-dict
