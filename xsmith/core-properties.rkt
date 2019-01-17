@@ -778,19 +778,31 @@ The second arm is a function that takes the type that the node has been assigned
                         (filter
                          (λ (x) (not (member (binding-name x) effect-variable-names)))
                          visibles-with-type))
-                      ;; TODO - for functions there was a filter here to not get main
+
                       (define lift-type (concretize-type type-needed))
-                      (when (and write? (function-type? lift-type))
+                      ;; TODO - I should check if the type contains a function, not merely IS a function.  And for higher order effects I should check this before concretizing.
+                      (define function? (function-type? lift-type))
+
+                      ;; Higher order functions could have any effect!
+                      (define higher-order-effect-filtered
+                        (if (and function?
+                                 (not (null? effects-to-avoid)))
+                            (filter
+                             ;; Filter out function parameters
+                             (λ (x) (eq? (binding-def-or-param x) 'definition))
+                             effect-filtered)
+                            effect-filtered))
+
+                      ;; TODO - for functions there was a filter here to not get main
+                      (when (and write? function?)
                         ;; Assigning to functions destroys language-agnostic effect tracking.
-                        ;; TODO - check whether a variable contains a function type in any way, not just at the top level.
                         (error 'xsmith "Got a function type as a type to assign to.  Xsmith's effect tracking requires that assignment can never have a function type."))
-                      ;; TODO - if a reference contains a function type and comes from a function argument, it is higher order and we should assume it has all effects.
                       (define legal+lift
                         ;; TODO - lift effect constraints...
                         (cons (make-lift-reference-choice-proc
                                current-hole
                                lift-type)
-                              effect-filtered))
+                              higher-order-effect-filtered))
                       (hash-set! ref-choices-filtered-hash this legal+lift)
                       legal+lift))))))
        #f #'(λ () (error 'xsmith_reference-options!
