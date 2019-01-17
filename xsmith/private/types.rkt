@@ -126,7 +126,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (struct record-type (name scope) #:transparent)
 (define (mk-record-type #:name [name #f] name-type-dict)
   (record-type name (scope #f
-                           (map (λ (k) (binding k #f (dict-ref name-type-dict k)))
+                           (map (λ (k) (binding k
+                                                #f
+                                                (dict-ref name-type-dict k)
+                                                'definition))
                                 (dict-keys name-type-dict))
                            '())))
 

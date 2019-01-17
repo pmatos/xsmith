@@ -229,10 +229,10 @@
           [ForStatement #t])
 (add-prop cish2-grammar
           binder-info
-          [Declaration (name type)]
-          [VariableDeclaration (name type)]
-          [FunctionDefinition (name type)]
-          [FormalParam (name type)])
+          [Declaration (name type definition)]
+          [VariableDeclaration (name type definition)]
+          [FunctionDefinition (name type definition)]
+          [FormalParam (name type parameter)])
 (add-prop cish2-grammar
           reference-info
           [VariableReference (read name)]

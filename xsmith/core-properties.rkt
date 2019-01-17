@@ -311,7 +311,7 @@ Helper function for xsmith_scope-graph-child-scope-dict.
     (define lift-name ((random-ref destinations)))
     ;; TODO - the binding struct is incomplete because
     ;; there is no node yet...
-    (binding lift-name #f type)))
+    (binding lift-name #f type 'definition)))
 
 #|
 TODO - This property now takes NO arguments and isn't even checked!
@@ -520,7 +520,9 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                 ([node nodes])
         (syntax-parse (dict-ref this-prop-info node #'#f)
           [#f rule-info]
-          [(name-field-name:id type-field-name:id)
+          [(name-field-name:id
+            type-field-name:id
+            (~and def-or-param (~or (~datum definition) (~datum parameter))))
            (dict-set rule-info node
                      #'(λ (n)
                          (let ([name (ast-child 'name-field-name n)]
@@ -531,7 +533,8 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                                (binding
                                 (ast-child 'name-field-name n)
                                 n
-                                (ast-child 'type-field-name n))))))])))
+                                (ast-child 'type-field-name n)
+                                'def-or-param)))))])))
     (list scope-graph-binding-info)))
 
 ;; This property should be a list containing:
