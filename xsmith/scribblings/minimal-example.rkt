@@ -60,6 +60,7 @@
                lift-predicate
                lift-type->ast-binder-type
                binding-structure
+               io
                )
  arith)
 
