@@ -8,8 +8,7 @@
        (provide (all-from-out arg) ...))])
 
 (reprovide
- "private/core-properties.rkt"
- "private/grammar-macros.rkt"
+ "private/core-macros-and-properties.rkt"
  "private/scope-graph.rkt"
  "private/xsmith-command-line.rkt"
  "private/xsmith-options.rkt"

@@ -19,22 +19,6 @@
 
 (assemble-spec-components
  cish2
- #:properties
- (
-  ;; Most of these don't need to be listed here, but I'm leaving them to remember which ones I need to make enabled by default...
-  may-be-generated
-  depth-increase
-  choice-weight
-  fresh
-  child-node-name-dict
-  wont-over-deepen
-  introduces-scope
-  binder-info
-  lift-predicate
-  lift-type->ast-binder-type
-  binding-structure
-  io
-  )
  cish2-grammar
  cish2-rules
  )

@@ -45,24 +45,7 @@
           [LiteralInt [int (λ (n t) (hash))]]
           [Addition [int (λ (n t) (hash 'l int 'r int))]])
 
-(assemble-spec-components
- arithmetic
- ;; TODO - these core properties should not need to be specified here.
- #:properties (depth-increase
-               fresh
-               choice-filters-to-apply
-               may-be-generated
-               choice-weight
-               child-node-name-dict
-               wont-over-deepen
-               introduces-scope
-               binder-info
-               lift-predicate
-               lift-type->ast-binder-type
-               binding-structure
-               io
-               )
- arith)
+(assemble-spec-components arithmetic arith)
 
 (define (arithmetic-generate-and-print)
   ;; TODO - the generated generate-ast function should maybe generate a hole and then fill it.  Then I would not need to add a Program node to this language.

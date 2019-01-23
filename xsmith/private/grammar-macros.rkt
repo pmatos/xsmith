@@ -6,7 +6,7 @@
  add-ag-rule
  add-choice-rule
  add-prop
- assemble-spec-components
+ assemble-spec-components/core
  current-racr-spec
  (all-from-out "define-grammar-property.rkt")
 
@@ -489,7 +489,7 @@
 
 
 #|
-`assemble-spec-components` is the main macro that generates everything.
+`assemble-spec-components/core` is the main macro that generates everything.
 It takes:
 * an identifier for a spec name
 * (optional) a list of properties to expand (IE use their transformer function).  All properties referenced in spec components are automatically expanded and don't need to be listed.
@@ -510,9 +510,10 @@ Additionally, it defines the following ag-rules within the RACR spec:
 
 It also defines within the RACR spec all ag-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
 |#
-(define-syntax-parser assemble-spec-components
+(define-syntax-parser assemble-spec-components/core
   [(_ spec:id
-      (~optional (~seq #:properties (~and extra-props (prop-name:id ...))))
+      (~and extra-props (prop-name:id ...))
+      ;(~optional (~seq #:properties (~and extra-props (prop-name:id ...))))
       component:spec-component ...)
    (with-syntax ([extra-props (or (attribute extra-props) #'())]
                  [(spec-ref ...) (map (λ (x) (spec-component-struct-ref-ref
