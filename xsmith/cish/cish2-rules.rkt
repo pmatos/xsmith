@@ -3,9 +3,8 @@
 (provide cish2-rules)
 
 (require
- "../grammar-macros.rkt"
+ "../main.rkt"
  "cish2-utils.rkt"
- "../core-properties.rkt"
 
  racr
  (except-in pprint
@@ -19,8 +18,6 @@
  racket/random
  (prefix-in rt: rosette)
  (except-in racket/list empty)
- "../scope-graph.rkt"
- "../xsmith-options.rkt"
  syntax/parse/define
  (for-syntax
   racket/base

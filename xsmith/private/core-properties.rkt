@@ -26,8 +26,8 @@
  "xsmith-utils.rkt"
  "xsmith-options.rkt"
  "scope-graph.rkt"
- "private/types.rkt"
- "private/effects.rkt"
+ "types.rkt"
+ "effects.rkt"
  racr
  racket/random
  racket/class

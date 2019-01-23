@@ -8,7 +8,7 @@
  add-prop
  assemble-spec-components
  current-racr-spec
- (all-from-out "private/define-grammar-property.rkt")
+ (all-from-out "define-grammar-property.rkt")
 
  current-hole
 
@@ -22,7 +22,7 @@
  ;; be performed between choice transformations.  But that's probably a bad idea.
  enqueue-inter-choice-transform
 
- (all-from-out "private/types.rkt")
+ (all-from-out "types.rkt")
 
  (for-syntax
   grammar-component
@@ -48,12 +48,12 @@
  racket/string
  racket/stxparam
  racket/splicing
- "private/choice.rkt"
- "private/define-grammar-property.rkt"
+ "choice.rkt"
+ "define-grammar-property.rkt"
  "xsmith-utils.rkt"
  "scope-graph.rkt"
  ;; for re-provide
- "private/types.rkt"
+ "types.rkt"
  (for-syntax
   racket/base
   racket/syntax
@@ -62,8 +62,8 @@
   racket/string
   racket/dict
   racket/match
-  "private/grammar-properties.rkt"
-  "private/spec-component-struct.rkt"
+  "grammar-properties.rkt"
+  "spec-component-struct.rkt"
   ))
 
 

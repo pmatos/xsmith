@@ -26,6 +26,7 @@ racket/file
 
 
 @title{Xsmith}
+@defmodule[xsmith]
 
 
 @section{Overview}
@@ -191,7 +192,6 @@ Node type names, attribute names, and choice rule names are just symbols, so the
 
 
 @subsection{grammar-macros.rkt}
-@defmodule[xsmith/grammar-macros]
 
 @defform[(define-spec-component component-name)]{
 Defines a spec component.  Spec components include information about a language grammar and attributes, and can be combined to generate an xsmith fuzzer.  You add grammar productions with @racket[add-to-grammar], you add properties with @racket[add-prop], and you can add ag-rules and choice-rules with @racket[add-ag-rule] and @racket[add-choice-rule], respectively.  Spec components are combined with @racket[assemble-spec-components].
@@ -562,7 +562,6 @@ TODO - (properties and the grammar) Properties asking to read the grammar should
 
 
 @subsection{scope-graph.rkt}
-@defmodule[xsmith/scope-graph]
 
 @defstruct[binding ([name string?]
                     [ast-node ast-node?]
@@ -614,7 +613,6 @@ TODO - these are also provided by scope-graph.rkt, but maybe should be private t
 
 
 @subsection{core-properties.rkt}
-@defmodule[xsmith/core-properties]
 
 @defform[#:kind "spec-property" #:id may-be-generated may-be-generated]{
 #;This property defines the @tt{xsmith_may-be-generated-method} non-inheriting choice-rule.
@@ -1049,8 +1047,7 @@ Sum types
 
 
 
-@subsection{xsmith-command-line.rkt}
-@defmodule[xsmith/xsmith-command-line]
+@subsection{xsmith-command-line}
 
 @defproc[(xsmith-command-line [generate-and-print-func (-> any/c)]) any/c]{
 This function parses the current command-line arguments for xsmith fuzzers.  It is basically to be used in the main function of a fuzzer.
@@ -1060,8 +1057,7 @@ Based on options supplied, it may print a help message and terminate the program
 }
 
 
-@subsection{xsmith-utils.rkt}
-@defmodule[xsmith/xsmith-utils]
+@subsection{xsmith-utils}
 
 @subsubsection{generator state}
 @defstruct[generator-state ([fresh-name-counter exact-integer?]) #:omit-constructor]{
@@ -1111,8 +1107,7 @@ Wrapper for @racket[ast-subtype?] that returns #f rather than erroring when the 
 }
 
 
-@subsection{xsmith-options.rkt}
-@defmodule[xsmith/xsmith-options]
+@subsection{xsmith-options}
 
 @defparam[xsmith-options options dict?]{
 Parameter with the current xsmith options.

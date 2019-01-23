@@ -2,12 +2,11 @@
 #lang racket/base
 
 (require
- "../grammar-macros.rkt"
+ "../main.rkt"
  "cish2-grammar.rkt"
  "cish2-rules.rkt"
 
  "cish2-utils.rkt"
- "../core-properties.rkt"
 
  racr
  (except-in pprint
@@ -15,8 +14,6 @@
             colon
             )
  racket/dict
- "../xsmith-options.rkt"
- "../xsmith-version.rkt"
  )
 
 
@@ -136,7 +133,7 @@
       )))
 
 (module+ main
-  (require "../xsmith-command-line.rkt")
+  (require "../main.rkt")
   (xsmith-command-line cish-generate-and-print))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -39,7 +39,7 @@
  racket/dict
  racket/list
  racket/set
- "../scope-graph.rkt"
+ "scope-graph.rkt"
  )
 (module+ test (require rackunit))
 

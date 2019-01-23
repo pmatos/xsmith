@@ -1,8 +1,5 @@
 #lang racket/base
-(require xsmith/grammar-macros
-         xsmith/core-properties
-         xsmith/xsmith-command-line
-         racr)
+(require xsmith racr)
 
 (define-spec-component arith)
 

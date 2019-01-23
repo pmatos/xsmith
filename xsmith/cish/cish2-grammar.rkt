@@ -3,10 +3,8 @@
 (provide cish2-grammar)
 
 (require
- "../grammar-macros.rkt"
- "../core-properties.rkt"
+ "../main.rkt"
  "cish2-utils.rkt"
- "../scope-graph.rkt"
  (only-in pprint [empty empty-doc])
  racr
  racket/random
