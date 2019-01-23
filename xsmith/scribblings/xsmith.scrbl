@@ -3,13 +3,7 @@
 @(require (for-label
 (except-in racket/base
            module)
-xsmith/grammar-macros
-xsmith/core-properties
-xsmith/scope-graph
-xsmith/xsmith-command-line
-xsmith/xsmith-utils
-xsmith/xsmith-options
-racket/class
+xsmith
 
 racket/contract/base
 racket/dict
@@ -914,7 +908,6 @@ Some core methods are always applied in addition to this list, such as the metho
 }
 
 @subsection{types}
-@declare-exporting[xsmith/grammar-macros]
 
 While there are various predicates for different types, at any point in type checking you might actually have a type variable instead of a concrete type.  So if you want to check if you have a particular type (and maybe deconstruct it), you should maybe create an instance of the type you are interested in, check if it @racket[can-unify?], then @racket[unify!]-ing it if you want to deconstruct it.
 
