@@ -89,9 +89,6 @@
  [If (->se 'if 'test 'then 'else)]
  )
 
-(add-prop schemely-core choice-weight
-          ;; TODO - there should be a default choice weight if none is specified.
-          [#f 10])
 
 ;; TODO - this should not need to be specified when there are no binders or just one.
 (add-prop schemely-core lift-type->ast-binder-type

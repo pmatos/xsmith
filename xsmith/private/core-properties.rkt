@@ -71,10 +71,14 @@
   #:appends (choice-rule xsmith_choice-weight)
   #:transformer
   (λ (this-prop-info)
+    (define this-prop/defaulted
+      (if (dict-has-key? this-prop-info #f)
+          this-prop-info
+          (dict-set this-prop-info #f #'10)))
     (list
-     (for/hash ([node-name (dict-keys this-prop-info)])
+     (for/hash ([node-name (dict-keys this-prop/defaulted)])
        (values node-name
-               #`(λ () #,(dict-ref this-prop-info node-name)))))))
+               #`(λ () #,(dict-ref this-prop/defaulted node-name)))))))
 
 #|
 The fresh property will take an expression (to be the body of a method

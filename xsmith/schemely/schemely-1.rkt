@@ -26,9 +26,6 @@
  )
 
 (add-prop schemely-core choice-weight
-          ;; TODO - there should be a default choice weight if none is specified.
-          ;; Maybe 10.
-          [#f 10]
           [Addition 20])
 
 ;; TODO - this should not need to be specified when there are no binders or just one.

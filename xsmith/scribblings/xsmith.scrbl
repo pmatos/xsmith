@@ -872,6 +872,8 @@ This property determines the probability that different kinds of nodes will be c
 
 The expression provided as the choice weight will be evaluated in the context of a method call, so @racket[this] and @racket[current-hole] are available.
 
+Choice weights should be positive integer values.  The default weight is 10 unless set explicitly.
+
 Example:
 @racketblock[
 (add-prop
@@ -897,13 +899,12 @@ Example:
 (add-prop
  my-spec-component
  choice-filters-to-apply
- [#f (features-enabled
-      misc-constraints
-      constrain-type
-      )])
+ [#f (my-custom-filter-choice-rule my-other-filter-choice-rule)])
 ]
 
 Some core methods are always applied in addition to this list, such as the method defined by the @racket[may-be-generated] property.
+If you don't make custom filtering rules you don't need to specify this property.
+
 
 }
 
