@@ -805,6 +805,7 @@ Example:
 
 @defform[#:kind "spec-property" #:id lift-type->ast-binder-type
 lift-type->ast-binder-type]{
+If you have more than one binding node in your language (IE via @racket[binder-info]) you must specify this property.
 This property should be defined once for the base node (#f).
 It is a mapping from the type of a desired definition (eg. int, float, int -> int, ...) to the AST node type (eg. VariableDefinition, FunctionDefinition).
 This is important when different kinds of definitions use different AST nodes.
@@ -825,8 +826,6 @@ Example:
                    'FunctionDefinition
                    'VariableDefinition))])
 ]
-
-TODO - This property should not be necessary when there is only one type of binder.
 }
 
 @defform[#:kind "spec-property" #:id type-info type-info]{
