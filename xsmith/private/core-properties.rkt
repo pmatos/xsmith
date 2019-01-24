@@ -736,7 +736,16 @@ The second arm is a function that takes the type that the node has been assigned
                    #f
                    (att-value 'xsmith_my-type-constraint node)))
              (when my-type-constraint
-               (unify! my-type-from-parent my-type-constraint))
+               (with-handlers
+                 ([(λ(x)#t)
+                   (λ (e)
+                     (eprintf "error while unifying types: ~a and ~a\n"
+                              my-type-from-parent my-type-constraint)
+                     (eprintf "for node of AST type: ~a\n" (ast-node-type node))
+                     (eprintf "with parent of AST type: ~a\n" (ast-node-type
+                                                               (parent-node node)))
+                     (raise e))])
+                 (unify! my-type-from-parent my-type-constraint)))
              my-type-from-parent))))
     (define xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()

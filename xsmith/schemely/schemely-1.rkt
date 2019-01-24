@@ -8,16 +8,12 @@
 (add-to-grammar
  schemely-core
  [Program #f ([expressions : Expression * = (add1 (random 5))])]
- [Expression #f ()]
- [LiteralInt Expression ([v = (random 100)])]
+ [Expression #f ()
+             [#:prop may-be-generated #f]]
+ [LiteralInt Expression ([v = (random 100)])
+             [#:prop wont-over-deepen #t]]
  [Addition Expression ([l : Expression] [r : Expression])])
 
-(add-prop
- schemely-core may-be-generated
- [Expression #f])
-(add-prop
- schemely-core wont-over-deepen
- [LiteralInt #t])
 
 (add-ag-rule
  schemely-core
