@@ -1,6 +1,8 @@
 #!/usr/bin/env racket
 #lang racket/base
 
+;; This is totally broken, but is sitting here as a reference while I build up a new one that isn't, taking smaller bites at a time...
+
 (require
  "../main.rkt"
  racr
