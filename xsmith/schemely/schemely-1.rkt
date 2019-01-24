@@ -12,7 +12,8 @@
              [#:prop may-be-generated #f]]
  [LiteralInt Expression ([v = (random 100)])
              [#:prop wont-over-deepen #t]]
- [Addition Expression ([l : Expression] [r : Expression])])
+ [Addition Expression ([l : Expression] [r : Expression])
+           [#:prop choice-weight 20]])
 
 
 (add-ag-rule
@@ -25,12 +26,6 @@
                       ,(att-value 'to-s-exp (ast-child 'r n))))]
  )
 
-(add-prop schemely-core choice-weight
-          [Addition 20])
-
-;; TODO - this should not need to be specified when there are no binders or just one.
-(add-prop schemely-core lift-type->ast-binder-type
-          [#f (λ (n t) (error 'this-should-not-be-called))])
 
 (define int (base-type 'int))
 ;; TODO - specifying a default with #f seems broken at the moment.

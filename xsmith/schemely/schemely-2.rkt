@@ -90,9 +90,6 @@
  )
 
 
-;; TODO - this should not need to be specified when there are no binders or just one.
-(add-prop schemely-core lift-type->ast-binder-type
-          [#f (λ (n t) (error 'this-should-not-be-called))])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

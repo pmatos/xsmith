@@ -29,10 +29,6 @@
           ;; The default weight is 10.
           [Addition 20])
 
-;; TODO - this should not need to be specified when there are no binders or just one.
-(add-prop arith lift-type->ast-binder-type
-          [#f (λ (n t) (error 'this-should-not-be-called))])
-
 (define int (base-type 'int))
 ;; TODO - specifying a default with #f seems broken at the moment.
 (add-prop arith type-info

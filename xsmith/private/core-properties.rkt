@@ -553,15 +553,28 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
 ;; Where you might actually look at the type to determine what kind of
 ;; ast node a lifted definition should be.
 (define-property lift-type->ast-binder-type
+  #:reads (property binder-info)
   #:appends (ag-rule xsmith_lift-type-to-ast-binder-type)
   #:transformer
-  (λ (this-prop-info)
-    (unless (and (dict-has-key? this-prop-info #f)
-                 (equal? 1
-                         (length (dict-keys this-prop-info))))
+  (λ (this-prop-info binder-info)
+    (define single-binder (and (equal? 1 (length (dict-keys binder-info)))
+                               (car (dict-keys binder-info))))
+
+    (define this-prop-defaulted
+      (if (dict-has-key? this-prop-info #f)
+          this-prop-info
+          (dict-set
+           this-prop-info
+           #f
+           (if single-binder
+               #`(λ (n) (λ (type) '#,(datum->syntax #f single-binder)))
+               #'(λ (n) (λ (type) (error 'lift-type->ast-binder-type
+                                         "You must specify a #f value for the lift-type->ast-binder-type property if your language has more than one binding form.")))))))
+
+    (unless (equal? 1 (length (dict-keys this-prop-defaulted)))
       (raise-syntax-error 'lift-type->ast-binder-type
                           "you need to specify exactly one function under #f"))
-    (list (hash #f #`(λ (n) #,(dict-ref this-prop-info #f))))))
+    (list (hash #f #`(λ (n) #,(dict-ref this-prop-defaulted #f))))))
 
 ;; These are declared separately, but are handled by the transformer of
 ;; the `introduces-scope` property.
