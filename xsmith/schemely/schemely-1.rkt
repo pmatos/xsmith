@@ -25,9 +25,6 @@
                       ,(att-value 'to-s-exp (ast-child 'r n))))]
  )
 
-(add-prop schemely-core choice-filters-to-apply
-          ;; TODO - this property should not need to be specified.
-          [#f ()])
 (add-prop schemely-core choice-weight
           ;; TODO - there should be a default choice weight if none is specified.
           ;; Maybe 10.

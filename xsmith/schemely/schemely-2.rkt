@@ -89,9 +89,6 @@
  [If (->se 'if 'test 'then 'else)]
  )
 
-(add-prop schemely-core choice-filters-to-apply
-          ;; TODO - this property should not need to be specified.
-          [#f ()])
 (add-prop schemely-core choice-weight
           ;; TODO - there should be a default choice weight if none is specified.
           [#f 10])

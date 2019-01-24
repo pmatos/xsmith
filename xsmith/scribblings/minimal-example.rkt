@@ -25,9 +25,6 @@
                           (att-value 'ugly-print (ast-child 'l n))
                           (att-value 'ugly-print (ast-child 'r n))))])
 
-(add-prop arith choice-filters-to-apply
-          ;; TODO - this property should not need to be specified.
-          [#f ()])
 (add-prop arith choice-weight
           ;; TODO - there should be a default choice weight if none is specified.
           ;; Maybe 10.

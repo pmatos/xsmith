@@ -569,13 +569,18 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
   #:transformer
   (λ (this-prop-info)
 
+    (define this-info/defaults
+      (if (dict-has-key? this-prop-info #f)
+          this-prop-info
+          (dict-set this-prop-info #f #'())))
+
     (define-syntax-class filtering-method
       (pattern method-name:id
                #:attr func #'(λ (o) (send o method-name)))
       (pattern (method-name:id arg:expr ...)
                #:attr func #'(λ (o) (send o method-name arg ...))))
     (define (get-filters node-name)
-      (let ([user-filters (dict-ref this-prop-info node-name #'())])
+      (let ([user-filters (dict-ref this-info/defaults node-name #'())])
         ;; Add user-specified filters to the core filters.
         #`(xsmith_may-be-generated
            xsmith_wont-over-deepen
@@ -594,7 +599,7 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                    (set! #,filter-failure-set!-id 'filt1.method-name)
                    #f)))]))
     (define rule-info
-      (for/hash ([node-name (dict-keys this-prop-info)])
+      (for/hash ([node-name (dict-keys this-info/defaults)])
         (values
          node-name
          (with-syntax ([failure-set!-id #'failed-on])
