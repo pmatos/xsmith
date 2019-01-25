@@ -32,7 +32,7 @@
 
 (define name "xsmith")
 (define version "0.0.0")
-(define git-version "1234abcd")
+(define git-version "$Format:%h$")
 
 (define racket-launcher-names '("xsmith-cish"))
 (define racket-launcher-libraries '("cish.rkt"))
