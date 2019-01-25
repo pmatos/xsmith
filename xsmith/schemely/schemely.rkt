@@ -254,7 +254,7 @@
 (define (print-variadic-op op-name)
   (λ (n) (h-append (text (format "(~a " op-name))
                    (map (λ (c)
-                          (h-append 
+                          (h-append
                            (att-value 'print c)
                            (text " ")))
                         (ast-children (ast-child 'arguments n)))
