@@ -2,11 +2,11 @@
 
             Xsmith --- a generator of highly effective fuzz testers
 
-                Eric Eide, Michael McConville, and John Regehr
-                        {eeide,mmcc,regehr}@cs.utah.edu
+                          William Hatch and Eric Eide
+		   <william@hatch.uno>, <eeide@cs.utah.edu>
 
                     University of Utah School of Computing
-                            http://www.cs.utah.edu/
+                            https://www.cs.utah.edu/
                                        
 
 Please send bug reports and fixes to <xsmith-bugs@flux.utah.edu>.
