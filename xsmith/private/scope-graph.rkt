@@ -95,8 +95,10 @@
                                  resolutions)]
          [err (when (null? well-formed-rs)
                 (error 'xsmith_resolve-reference
-                       (format "Unbound reference: ~a"
-                               (reference-name reference))))]
+                       (format "Unbound reference: ~a\n(With visible bindings: ~a)\n"
+                               (reference-name reference)
+                               (visible-bindings
+                                (reference-parent-scope reference)))))]
          [best-r (apply generic-max #:gt-comparator greater-visibility
                         well-formed-rs)])
     (resolution-binding best-r)))

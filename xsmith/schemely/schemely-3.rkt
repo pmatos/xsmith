@@ -39,9 +39,7 @@
  schemely-core
  [DefinitionContext #f ([definitions : Definition * = (random 3)]
                         [expressions : Expression * = (add1 (random 3))])
-   [#:prop strict-child-order? #t]
-   ;[#:prop lift-predicate (λ (n type) #t)]
-   ]
+   [#:prop strict-child-order? #t]]
  [Program DefinitionContext ()]
 
  [Definition #f ([type = (concretize-type (fresh-type-variable))]
@@ -54,9 +52,9 @@
 
  [Let Expression ([definitions : Definition * = (random 3)]
                   [body : DefinitionContext])
-      ;[#:prop lift-predicate (λ (n type) #t)]
-      ]
+      [#:prop strict-child-order? #t]]
 
+ ;; TODO - this is broken -- it needs to have a `fresh` implementation for name, unfortunately...
  [VariableReference #f (name)
                     [#:prop reference-info (read name)]]
 

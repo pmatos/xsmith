@@ -453,6 +453,7 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
     (define xsmith_lift-destinations-info
       (for/fold ([rule-info (hash #f #'default-lift-destinations-impl)])
                 ([node nodes])
+        ;; TODO - check if potential-binder-child supports definitions or just params
         (define has-binder (dict-ref has-potential-binder-child-hash node))
         (define liftee-node->field (dict-ref node->liftee-node->field node))
         (if has-binder
@@ -512,7 +513,6 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                 ([node nodes])
         (define binding-structure-for-node (dict-ref binding-structure-hash node))
         (if (dict-ref has-potential-binder-child-hash node)
-            rule-info
             (dict-set
              rule-info
              node
@@ -526,7 +526,8 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                    (att-value 'xsmith_scope-graph-scope n))
                  (make-child-scope-dict cb-pairs
                                         parent-scope
-                                        #,binding-structure-for-node))))))
+                                        #,binding-structure-for-node)))
+            rule-info)))
     (define scope-graph-scope-info
       (hash #f
             #'(λ (n) (if (ast-has-parent? n)

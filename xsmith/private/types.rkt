@@ -39,7 +39,8 @@
  (rename-out [mk-record-type record-type])
  product-type
  product-type?
- product-type-inner-type-list
+ [rename-out [product-type-inner-type-list/resolve product-type-inner-type-list]]
+ ;product-type-inner-type-list
  record-type?
  record-type-name
  (struct-out generic-type)
@@ -148,6 +149,8 @@ inner-type-list may be:
 • a box which contains an inner-type-list (so #f product types can be unified without forcing a length.)
 |#
 (struct product-type ([inner-type-list #:mutable]) #:transparent)
+(define (product-type-inner-type-list/resolve pt)
+  (unbox* (product-type-inner-type-list pt)))
 (struct sum-type (inner-type-list) #:transparent)
 
 
