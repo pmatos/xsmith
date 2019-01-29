@@ -43,9 +43,7 @@
  [DefinitionContext #f ([definitions : Definition * = (random 3)]
                         [expressions : Expression * = (add1 (random 3))])
    [#:prop strict-child-order? #t]]
- [Program DefinitionContext ()
-          ;; TODO - this should not be necessary...
-          [#:prop lift-predicate (λ (n t) #t)]]
+ [Program DefinitionContext ()]
 
  [Definition #f ([type = (concretize-type (fresh-type-variable))]
                  [name]
@@ -125,7 +123,6 @@
 
 
 (define numeric-bin-op-type (λ (n t) (hash 'l number 'r number)))
-;; TODO - specifying a default with #f seems broken at the moment.
 (add-prop
  schemely-core
  type-info
@@ -168,8 +165,7 @@
                                             xsmith_reference-options!))]
                  [choice (if (procedure? choice*)
                              (choice*)
-                             choice*)]
-                 [parent (parent-node (current-hole))])
+                             choice*)])
             (binding-name choice))))]
  ;; TODO - this should not be necessary
  [Definition (let* ([hole-name (ast-child 'name current-hole)]

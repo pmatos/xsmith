@@ -43,9 +43,7 @@
  [DefinitionContext #f ([definitions : Definition * = (random 3)]
                         [expressions : Expression * = (add1 (random 3))])
    [#:prop strict-child-order? #t]]
- [Program DefinitionContext ()
-          ;; TODO - this should not be necessary...
-          [#:prop lift-predicate (λ (n t) #t)]]
+ [Program DefinitionContext ()]
 
  [Definition #f ([type = (concretize-type (fresh-type-variable))]
                  [name]
@@ -63,9 +61,7 @@
                      ;;[body : DefinitionContext]
                      [body : Expression]
                      )
-         [#:prop wont-over-deepen #t]
-         ;; TODO - This shouldn't be necessary
-         [#:prop lift-predicate #f]]
+         [#:prop wont-over-deepen #t]]
  [FormalParam #f (type [name = (fresh-var-name "arg-")])
               [#:prop binder-info (name type parameter)]]
 
@@ -300,18 +296,9 @@
                                             xsmith_reference-options!))]
                  [choice (if (procedure? choice*)
                              (choice*)
-                             choice*)]
-                 [parent (parent-node (current-hole))])
+                             choice*)])
             (binding-name choice))))]
- [Lambda (let* ([hole-type (att-value 'xsmith_type current-hole)]
-                [type (if (and hole-type
-                               (not (and (ast-node? hole-type)
-                                         (ast-bud-node? hole-type))))
-                          hole-type
-                          (function-type (product-type
-                                          (map (λ (x) (fresh-type-variable))
-                                               (make-list (arg-length) #f)))
-                                         (fresh-type-variable)))]
+ [Lambda (let* ([type (att-value 'xsmith_type current-hole)]
                 [ftype (function-type
                         (product-type #f)
                         (fresh-type-variable))]
