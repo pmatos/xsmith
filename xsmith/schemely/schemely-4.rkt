@@ -31,32 +31,55 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require xsmith racr racket/pretty racket/random)
+(require xsmith racr racket/pretty racket/random racket/list racket/class)
 
 (define-spec-component schemely-core)
+
+(define (arg-length)
+  (random 10))
 
 (add-to-grammar
  schemely-core
  [DefinitionContext #f ([definitions : Definition * = (random 3)]
                         [expressions : Expression * = (add1 (random 3))])
+   ;; TODO - temporary
+   [#:prop lift-predicate #f]
+   ;[#:prop binding-structure 'recursive]
    [#:prop strict-child-order? #t]]
- [Program DefinitionContext ()]
+ [Program DefinitionContext ()
+          ;; TODO - this should not be necessary...
+          [#:prop lift-predicate (λ (n t) #t)]
+          [#:prop may-be-generated #f]]
 
  [Definition #f ([type = (concretize-type (fresh-type-variable))]
-                 [name = (fresh-var-name)]
+                 [name]
                  Expression)
    [#:prop binder-info (name type definition)]]
 
  [Expression #f ()
              [#:prop may-be-generated #f]]
 
- [Let Expression ([definitions : Definition * = (random 3)]
-                  [body : DefinitionContext])
-      [#:prop strict-child-order? #t]]
+ [Application Expression
+              ([procedure : Expression]
+               [arguments : Expression * = (arg-length)])
+              [#:prop choice-weight 50]]
+ [Lambda Expression ([params : FormalParam * = (arg-length)]
+                     ;;[body : DefinitionContext]
+                     [body : Expression]
+                     )
+         [#:prop wont-over-deepen #t]
+         ;; TODO - This shouldn't be necessary
+         [#:prop lift-predicate #f]]
+ [FormalParam #f (type [name = (fresh-var-name "arg-")])
+              [#:prop binder-info (name type parameter)]]
 
- ;; TODO - this is broken -- it needs to have a `fresh` implementation for name, unfortunately...
- [VariableReference #f (name)
-                    [#:prop reference-info (read name)]]
+ [LetStar Expression ([definitions : Definition * = (random 3)]
+                      [body : DefinitionContext])
+          [#:prop strict-child-order? #t]]
+
+ [VariableReference Expression (name)
+                    [#:prop reference-info (read name)]
+                    [#:prop choice-weight 10]]
 
  [LiteralBool Expression ([v = (even? (random 2))])]
  [Not Expression ([Expression])]
@@ -64,7 +87,8 @@
  [And Expression ([l : Expression] [r : Expression])]
  [Or Expression ([l : Expression] [r : Expression])]
 
- [LiteralNumber Expression ([v = (random 100)])]
+ [LiteralNumber Expression ([v = (* (random 1000000)
+                                    (if (equal? 0 (random 2)) -1 1))])]
  [Plus Expression ([l : Expression] [r : Expression])]
  [Minus Expression ([l : Expression] [r : Expression])]
  [Times Expression ([l : Expression] [r : Expression])]
@@ -111,11 +135,18 @@
                                     (ast-children (ast-child 'expressions n)))))]
  [Definition (λ (n) `(define ,(string->symbol (ast-child 'name n))
                        ,(att-value 'to-s-exp (ast-child 'Expression n))))]
+ [Lambda (λ (n) `(lambda (,@(map (λ (x) (string->symbol (ast-child 'name x)))
+                                 (ast-children (ast-child 'params n))))
+                   ,(att-value 'to-s-exp (ast-child 'body n))))]
+ [Application (λ (n) `(,(att-value 'to-s-exp (ast-child 'procedure n))
+                       ,@(map (λ (x) (att-value 'to-s-exp x))
+                              (ast-children (ast-child 'arguments n)))))]
 
- [Let (λ (n) `(let (,@(map (λ (d) `(,(string->symbol (ast-child 'name d))
-                                    ,(att-value 'to-s-exp (ast-child 'Expression d))))
-                           (ast-children (ast-child 'definitions n))))
-                ,@(att-value 'to-s-exp (ast-child 'body n))))]
+ [LetStar (λ (n) `(let* (,@(map (λ (d) `(,(string->symbol (ast-child 'name d))
+                                         ,(att-value 'to-s-exp
+                                                     (ast-child 'Expression d))))
+                                (ast-children (ast-child 'definitions n))))
+                    ,@(att-value 'to-s-exp (ast-child 'body n))))]
 
  [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
 
@@ -178,33 +209,60 @@
 
 (define no-child-types (λ (n t) (hash)))
 
+(define (fresh-concrete-var-type)
+  (parameterize ([current-xsmith-type-constructor-thunks
+                  (type-thunks-for-concretization)])
+    (concretize-type (fresh-type-variable))))
+
 
 (define numeric-bin-op-type (λ (n t) (hash 'l number 'r number)))
 ;; TODO - specifying a default with #f seems broken at the moment.
 (add-prop
- schemely-core type-info
+ schemely-core
+ type-info
  [DefinitionContext [(fresh-type-variable)
                      (λ (n t)
                        (define last-expression
                          (car (reverse (ast-children
                                         (ast-child 'expressions n)))))
-                       (for/hash ([c (append
-                                             (ast-children
-                                              (ast-child 'definitions n))
-                                             (ast-children
-                                              (ast-child 'expressions n)))])
-                         (values c
-                                 (if (equal? c last-expression)
-                                     t
-                                     (fresh-type-variable)))))]]
+                       (hash last-expression t
+                             'definitions (λ (c) (fresh-type-variable))
+                             'expressions (λ (c) (fresh-type-variable))))]]
  [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
  [VariableReference [(fresh-type-variable) (no-child-types)]]
- [Let [(fresh-type-variable) (λ (n t) (hash-set
-                                       (for/hash ([c (ast-children
-                                                      (ast-child 'definitions n))])
-                                         (values c (fresh-type-variable)))
-                                       'body
-                                       t))]]
+ [LetStar [(fresh-type-variable) (λ (n t)
+                                   (hash 'body t
+                                         'definitions (λ (c) (fresh-type-variable))))]]
+ [Lambda [(function-type (product-type #f) (fresh-type-variable))
+          (λ (n t)
+            (define args-type (product-type
+                               (map (λ(x)(fresh-type-variable))
+                                    (ast-children (ast-child 'params n)))))
+            (define return-type (fresh-type-variable))
+            (unify! (function-type args-type return-type)
+                    t)
+            (define args-list (product-type-inner-type-list args-type))
+            (hash-set
+             (for/hash ([c (ast-children (ast-child 'params n))]
+                        [at args-list])
+               (values c at))
+             (ast-child 'body n)
+             return-type))]]
+ [Application [(fresh-type-variable)
+               (λ (n t)
+                 (define proc (ast-child 'procedure n))
+                 (define args (ast-children (ast-child 'arguments n)))
+                 (define args-type (product-type
+                                    (map (λ(x)(fresh-type-variable))
+                                         args)))
+                 (define args-type-list (product-type-inner-type-list args-type))
+                 (hash-set
+                  (for/hash ([arg args]
+                             [arg-type args-type-list])
+                    (values arg arg-type))
+                  'procedure
+                  (function-type args-type t)))]]
+ [FormalParam [(fresh-type-variable) (no-child-types)]]
 
  [LiteralBool [bool (no-child-types)]]
  [Not [bool (λ (n t) (hash 'Expression bool))]]
@@ -228,8 +286,7 @@
                             (define lt (fresh-list-type))
                             (unify! t lt)
                             (define inner (list-type-type lt))
-                            (for/hash ([c (ast-children (ast-child 'arguments n))])
-                              (values c inner)))]]
+                            (hash 'arguments inner))]]
  [SafeCar [(fresh-type-variable) (λ (n t) (hash 'default t 'list (list-type t)))]]
  [SafeCdr [(fresh-list-type) (λ (n t) (hash 'Expression t))]]
  [EmptyP [bool (λ (n t) (hash 'Expression (fresh-list-type)))]]
@@ -241,22 +298,88 @@
  [If [(fresh-type-variable) (λ (n t) (hash 'test bool 'then t 'else t))]]
  )
 
+(add-prop
+ schemely-core
+ fresh
+ [VariableReference
+  ;; TODO - getting a name for a reference should be automatic.
+  (hash 'name
+        (λ ()
+          (let* ([choice* (random-ref (send this
+                                            xsmith_reference-options!))]
+                 [choice (if (procedure? choice*)
+                             (choice*)
+                             choice*)]
+                 [parent (parent-node (current-hole))])
+            (binding-name choice))))]
+ [Lambda (let* ([hole-type (att-value 'xsmith_type current-hole)]
+                [type (if (and hole-type
+                               (not (and (ast-node? hole-type)
+                                         (ast-bud-node? hole-type))))
+                          hole-type
+                          (function-type (product-type
+                                          (map (λ (x) (fresh-type-variable))
+                                               (make-list (arg-length) #f)))
+                                         (fresh-type-variable)))]
+                [ftype (function-type
+                        (product-type #f)
+                        (fresh-type-variable))]
+                [unification-dumb-return-value (unify! ftype type)]
+                [params (map (λ (t) (make-fresh-node 'FormalParam
+                                                     (hash 'type t)))
+                             (or (product-type-inner-type-list
+                                  (function-type-arg-type ftype))
+                                 (map (λ (x) (fresh-type-variable))
+                                      (make-list (arg-length) #f))))])
+           (hash
+            'type type
+            'params params))]
+ ;; TODO - this should not be necessary
+ [Definition (let* ([hole-name (ast-child 'name current-hole)]
+                    [name (if (string? hole-name)
+                              hole-name
+                              (if (equal? (top-ancestor-node current-hole)
+                                          (parent-node current-hole))
+                                  (fresh-var-name "global-")
+                                  (fresh-var-name "local-")))]
+                    [hole-type (ast-child 'type current-hole)]
+                    [type (if (and hole-type
+                                   (not (and (ast-node? hole-type)
+                                             (ast-bud-node? hole-type))))
+                              hole-type
+                              (fresh-concrete-var-type))])
+               (hash 'name name
+                     'type type))]
+ )
+
+;; TODO - this really shouldn't be necessary...
+(add-prop
+ schemely-core
+ lift-type->ast-binder-type
+ [#f (λ (type) 'Definition)])
+
 (assemble-spec-components
  ;; TODO - have this macro check the name -- it can't have dashes or other things that RACR doesn't allow...
  schemely
  schemely-core)
 
 (define (generate-and-print)
+  (define (pp x)
+    (pretty-print x (current-output-port) 1))
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
-    (for ([se (att-value 'to-s-exp (schemely-generate-ast 'Program))])
-      (pretty-print
-       se
-       (current-output-port)
-       1))))
+    (define forms (att-value 'to-s-exp (schemely-generate-ast 'Program)))
+    ;; TODO - just assume racket for now, but later any scheme...
+    (printf "#lang racket/base\n")
+    (pp '(define (safe-car safe l)
+           (if (null? l)
+               safe
+               l)))
+    (pp '(define (safe-cdr l)
+           (if (null? l)
+               '()
+               l)))
+    (for ([form forms])
+      (pp form))))
 
 (xsmith-command-line generate-and-print)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; End of file.

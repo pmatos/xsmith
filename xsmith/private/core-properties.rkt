@@ -207,8 +207,9 @@ hole for the type.
                  (map (λ (name) (dict-ref all-values-hash/seq-transformed name))
                       (list field-name ...)))
                (define all-values+xsmith-injected
-                 ;; add xsmithliftdepth and xsmithlifterwrapped
-                 (append (list #f #f)
+                 (append (map (λ (name) (dict-ref field-dict name #f))
+                              (list 'xsmithliftdepth
+                                    'xsmithlifterwrapped))
                          all-values-in-order))
 
                (create-ast (current-racr-spec)
@@ -274,13 +275,23 @@ hole for the type.
       (for/hash ([node nodes])
         (values node
                 #`(λ ()
-                    (or (<= (att-value 'ast-depth current-hole)
-                            (xsmith-option 'max-depth))
-                        (current-force-deepen)
-                        #,(dict-ref
-                           this-prop-info
-                           node
-                           (dict-ref wont-over-deepen-info-defaults node)))))))
+                    (let ([ok? (<= (att-value 'ast-depth current-hole)
+                                   (xsmith-option 'max-depth))]
+                          [override-ok? #,(dict-ref
+                                           this-prop-info
+                                           node
+                                           (dict-ref wont-over-deepen-info-defaults
+                                                     node))]
+                          [ref-in-lift? (and (att-value 'xsmith_in-lift-branch
+                                                        current-hole)
+                                             (send this xsmith_is-reference-choice?))])
+                      (if (and (not ok?) ref-in-lift?)
+                          ;; Don't allow circles of lifting definitions with
+                          ;; references that may then lift again.
+                          #f
+                          (or ok?
+                              override-ok?
+                              (current-force-deepen))))))))
     (list wont-over-deepen-info)))
 
 
@@ -575,7 +586,21 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
 ;; This property should be a list containing:
 ;; the identifier `read` or the identifier `write`,
 ;; the field name that references use (as an identifier)
-(define-property reference-info)
+(define-property reference-info
+  #:reads (grammar)
+  #:appends (choice-rule xsmith_is-reference-choice?)
+  #:transformer
+  (λ (this-prop-info grammar-info)
+    (define nodes (dict-keys grammar-info))
+    (define xsmith_is-reference-choice?-info
+      (for/hash ([node nodes])
+        (values node
+                (syntax-parse (dict-ref this-prop-info
+                                        node
+                                        #'#f)
+                  [((~datum read) field-name:id) #'(λ () #t)]
+                  [else #'(λ () #f)]))))
+    (list xsmith_is-reference-choice?-info)))
 
 ;; TODO - this is not a great design, but I need the user to specify
 ;; one function for this and make it available to the xsmith machinery.

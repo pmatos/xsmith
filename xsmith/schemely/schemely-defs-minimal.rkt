@@ -61,12 +61,10 @@
 
  [VariableReference Expression (name)
                     [#:prop reference-info (read name)]
-                    [#:prop wont-over-deepen #t]
                     [#:prop choice-weight 10]]
 
  [LiteralNumber Expression ([v = (* (random 1000000)
-                                    (if (equal? 0 (random 2)) -1 1))])
-                [#:prop wont-over-deepen #t]]
+                                    (if (equal? 0 (random 2)) -1 1))])]
  [Plus Expression ([l : Expression] [r : Expression])]
  [Minus Expression ([l : Expression] [r : Expression])]
 

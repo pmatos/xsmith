@@ -42,15 +42,13 @@
  [Expression #f ()
              [#:prop may-be-generated #f]]
 
- [LiteralBool Expression ([v = (even? (random 2))])
-              [#:prop wont-over-deepen #t]]
+ [LiteralBool Expression ([v = (even? (random 2))])]
  [Not Expression ([Expression])]
  ;; TODO - many of these I've defined as binary but they could be variadic instead.
  [And Expression ([l : Expression] [r : Expression])]
  [Or Expression ([l : Expression] [r : Expression])]
 
- [LiteralNumber Expression ([v = (random 100)])
-                [#:prop wont-over-deepen #t]]
+ [LiteralNumber Expression ([v = (random 100)])]
  [Plus Expression ([l : Expression] [r : Expression])]
  [Minus Expression ([l : Expression] [r : Expression])]
  [Times Expression ([l : Expression] [r : Expression])]
@@ -58,8 +56,7 @@
  [LessThan Expression ([l : Expression] [r : Expression])]
  [GreaterThan Expression ([l : Expression] [r : Expression])]
 
- [LiteralString Expression ([v = (random-ref (list "foo" "bar" "baz" "quux"))])
-                [#:prop wont-over-deepen #t]]
+ [LiteralString Expression ([v = (random-ref (list "foo" "bar" "baz" "quux"))])]
  [StringAppend Expression ([l : Expression] [r : Expression])]
  [StringLength Expression (Expression)]
 

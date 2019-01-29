@@ -515,6 +515,11 @@
     (if (ast-has-parent? n)
         (att-value 'xsmith_effect-constraints-for-child (parent-node n) n)
         '())))
+(define xsmith_in-lift-branch-function
+  (λ (n)
+    (or (ast-child 'xsmithliftdepth n)
+        (and (ast-has-parent? n)
+             (att-value 'xsmith_in-lift-branch (parent-node n))))))
 
 
 
@@ -1054,6 +1059,8 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                 [base-node-name node-field-name-in-parent-function])
                        (ag-rule xsmith_effect-constraints
                                 [base-node-name xsmith_effect-constraints-function])
+                       (ag-rule xsmith_in-lift-branch
+                                [base-node-name xsmith_in-lift-branch-function])
                        (compile-ag-specifications))))
 
                  ;; Define an ast-generator with a hygiene-bending name
