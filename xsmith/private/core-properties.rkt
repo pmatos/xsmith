@@ -365,7 +365,6 @@ TODO - This property now takes NO arguments and isn't even checked!
 The introduces-scope property generates RACR attributes for resolving bindings via scope graphs.
 The scope-graph-descendant-bindings attribute returns a list of all bindings on descendant nodes that are not under a different scope.  In other words, you call it on a node that introduces a scope and it returns all bindings within that scope.  It does not return bindings in child scopes.
 The scope-graph-scope attribute returns the scope that the node in question resides in.  For nodes that introduce a scope, it is their own.
-The scope-graph-introduces-scope? predicate attribute is just used to know when to stop for the scope-graph-descendant-bindings attribute.
 |#
 (define-property introduces-scope
   #:reads
@@ -375,7 +374,6 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
   (property binding-structure)
   #:appends
   ;; TODO - I don't think introduces-scope? is used anywhere anymore...  should it be removed?
-  (ag-rule xsmith_scope-graph-introduces-scope?)
   (ag-rule xsmith_scope-graph-child-scope-dict)
   (ag-rule xsmith_scope-graph-scope)
   (ag-rule xsmith_lift-predicate)
@@ -392,10 +390,20 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
         (values node-name
                 (grammar-node-name->field-info-list node-name grammar-info))))
 
-    (define binder-nodes
-      (filter (λ (node) (dict-ref binder-info-info node #f))
-              nodes))
-
+    (define node-binder-types
+      (for/hash ([node nodes])
+        (values node
+                (syntax-parse (dict-ref binder-info-info node #'#f)
+                  ;; TODO - in list because this is a #:reads argument
+                  [((name-field-name type-field-name (~and def/param
+                                                           (~or (~datum definition)
+                                                                (~datum parameter)))))
+                   (syntax->datum #'def/param)]
+                  [else #f]))))
+    (define binder-nodes (filter (λ (n) (dict-ref node-binder-types n)) nodes))
+    (define definition-nodes (filter (λ (n) (equal? (dict-ref node-binder-types n)
+                                                    'definition))
+                                     nodes))
 
     (define (ast-subtype? subtype-node-name supertype-node-name)
       (define subtype-inheritance-chain
@@ -405,30 +413,43 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                                             grammar-info)))
       (member supertype-node-name subtype-inheritance-chain))
 
+    (define field-types-hash
+      ;; get a list of field types that a node contains
+      (for/hash ([node nodes])
+        (values node
+                (map (λ (x) (let ([type (grammar-node-field-struct-type x)])
+                              (if (syntax? type)
+                                  (syntax->datum type)
+                                  type)))
+                     (dict-ref field-info-hash node)))))
+
     (define has-potential-binder-child-hash
       (for/hash ([node nodes])
         (values node
-                (for/or ([f (map
-                             (λ (x)
-                               (let ([type (grammar-node-field-struct-type x)])
-                                 (if (syntax? type)
-                                     (syntax->datum type)
-                                     type)))
-                             (dict-ref field-info-hash node))])
-                  (and f
-                       (for/or ([binder-node binder-nodes])
-                         (ast-subtype? binder-node f)))))))
+                (for/or ([f (dict-ref field-types-hash node)])
+                  (and f (for/or ([binder-node binder-nodes])
+                           (ast-subtype? binder-node f)))))))
+
+    (define has-potential-definition-child-hash
+      ;; Like binder hash, but only definitions, NOT parameters.
+      ;; For figuring out lift destinations.
+      (for/hash ([node nodes])
+        (values node
+                (for/or ([f (dict-ref field-types-hash node)])
+                  (and f (for/or ([definition-node definition-nodes])
+                           (ast-subtype? definition-node f)))))))
 
     (define node->liftee-node->field
+      ;; For each node, what field should a lifted definition use
       (for/hash ([node nodes])
         (values
          node
-         (for/hash ([binder-node binder-nodes])
-           (values binder-node
+         (for/hash ([definition-node definition-nodes])
+           (values definition-node
                    (for/or ([f (dict-ref field-info-hash node)])
                      (and
                       (grammar-node-field-struct-kleene-star? f)
-                      (ast-subtype? binder-node
+                      (ast-subtype? definition-node
                                     (syntax->datum
                                      (grammar-node-field-struct-type f)))
                       (grammar-node-field-struct-name f))))))))
@@ -464,10 +485,9 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
     (define xsmith_lift-destinations-info
       (for/fold ([rule-info (hash #f #'default-lift-destinations-impl)])
                 ([node nodes])
-        ;; TODO - check if potential-binder-child supports definitions or just params
-        (define has-binder (dict-ref has-potential-binder-child-hash node))
+        (define has-definition (dict-ref has-potential-definition-child-hash node))
         (define liftee-node->field (dict-ref node->liftee-node->field node))
-        (if has-binder
+        (if has-definition
             (dict-set
              rule-info
              node
@@ -488,8 +508,11 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                                 (if f
                                     #`['#,n '#,f]
                                     #f))
-                              binder-nodes))
+                              definition-nodes))
                      [else #f]))
+                 (define parent-destinations
+                   (default-lift-destinations-impl
+                     n type lift-depth lifting-hole-node))
                  (if (and field
                           (att-value 'xsmith_lift-predicate n type))
                      (cons (att-value 'xsmith_make-lift-do-proc
@@ -499,18 +522,10 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                                       lift-depth
                                       ast-type
                                       lifting-hole-node)
-                           (default-lift-destinations-impl
-                             n type lift-depth lifting-hole-node))
-                     (default-lift-destinations-impl
-                       n type lift-depth lifting-hole-node))))
+                           parent-destinations)
+                     parent-destinations)))
             rule-info)))
 
-    (define scope-graph-introduces-scope?-info
-      (for/fold ([rule-info (hash #f #'(λ (n) #f))])
-                ([node nodes])
-        (if (dict-ref has-potential-binder-child-hash node)
-            (dict-set rule-info node #'(λ (n) #t))
-            rule-info)))
 
     (define scope-graph-scope-child-dict-info
       (for/fold ([rule-info (hash #f #'(λ (n)
@@ -549,7 +564,7 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
                          ;; dummy program parent scope to simplify child-dict lookup
                          (scope #f '() '())))))
 
-    (list scope-graph-introduces-scope?-info
+    (list ;scope-graph-introduces-scope?-info
           scope-graph-scope-child-dict-info
           scope-graph-scope-info
           xsmith_lift-predicate-info
@@ -613,8 +628,12 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
   #:appends (ag-rule xsmith_lift-type-to-ast-binder-type)
   #:transformer
   (λ (this-prop-info binder-info)
-    (define single-binder (and (equal? 1 (length (dict-keys binder-info)))
-                               (car (dict-keys binder-info))))
+    (define definitions (filter (λ (n) (syntax-parse (dict-ref binder-info n)
+                                         ;; TODO - in list because this is in #:reads
+                                         [((name-f type-f (~datum definition))) #t]
+                                         [else #f]))
+                                (dict-keys binder-info)))
+    (define single-definition (and (equal? 1 (length definitions)) (car definitions)))
 
     (define this-prop-defaulted
       (if (dict-has-key? this-prop-info #f)
@@ -622,10 +641,10 @@ The scope-graph-introduces-scope? predicate attribute is just used to know when 
           (dict-set
            this-prop-info
            #f
-           (if single-binder
-               #`(λ (n) (λ (type) '#,(datum->syntax #f single-binder)))
-               #'(λ (n) (λ (type) (error 'lift-type->ast-binder-type
-                                         "You must specify a #f value for the lift-type->ast-binder-type property if your language has more than one binding form.")))))))
+           (if single-definition
+               #`(λ (type) '#,(datum->syntax #f single-definition))
+               #'(λ (type) (error 'lift-type->ast-binder-type
+                                  "You must specify a #f value for the lift-type->ast-binder-type property if your language has more than one binding form."))))))
 
     (unless (equal? 1 (length (dict-keys this-prop-defaulted)))
       (raise-syntax-error 'lift-type->ast-binder-type

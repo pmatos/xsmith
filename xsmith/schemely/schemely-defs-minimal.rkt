@@ -189,11 +189,6 @@
                      'type type))]
  )
 
-;; TODO - this really shouldn't be necessary...
-(add-prop
- schemely-core
- lift-type->ast-binder-type
- [#f (λ (type) 'Definition)])
 
 (assemble-spec-components
  ;; TODO - have this macro check the name -- it can't have dashes or other things that RACR doesn't allow...

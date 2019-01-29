@@ -42,14 +42,10 @@
  schemely-core
  [DefinitionContext #f ([definitions : Definition * = (random 3)]
                         [expressions : Expression * = (add1 (random 3))])
-   ;; TODO - temporary
-   [#:prop lift-predicate #f]
-   ;[#:prop binding-structure 'recursive]
    [#:prop strict-child-order? #t]]
  [Program DefinitionContext ()
           ;; TODO - this should not be necessary...
-          [#:prop lift-predicate (λ (n t) #t)]
-          [#:prop may-be-generated #f]]
+          [#:prop lift-predicate (λ (n t) #t)]]
 
  [Definition #f ([type = (concretize-type (fresh-type-variable))]
                  [name]
@@ -125,10 +121,6 @@
 (add-ag-rule
  schemely-core
  to-s-exp
- ;[Program (λ (n) `(begin ,@(map (λ (x) (att-value 'to-s-exp x))
- ;                               (ast-children (ast-child 'definitions n)))
- ;                        ,@(map (λ (x) (att-value 'to-s-exp x))
- ;                               (ast-children (ast-child 'expressions n)))))]
  [DefinitionContext (λ (n) `(,@(map (λ (x) (att-value 'to-s-exp x))
                                     (ast-children (ast-child 'definitions n)))
                              ,@(map (λ (x) (att-value 'to-s-exp x))
@@ -216,7 +208,6 @@
 
 
 (define numeric-bin-op-type (λ (n t) (hash 'l number 'r number)))
-;; TODO - specifying a default with #f seems broken at the moment.
 (add-prop
  schemely-core
  type-info
@@ -352,11 +343,6 @@
                      'type type))]
  )
 
-;; TODO - this really shouldn't be necessary...
-(add-prop
- schemely-core
- lift-type->ast-binder-type
- [#f (λ (type) 'Definition)])
 
 (assemble-spec-components
  ;; TODO - have this macro check the name -- it can't have dashes or other things that RACR doesn't allow...
