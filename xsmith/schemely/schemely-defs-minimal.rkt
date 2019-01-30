@@ -35,9 +35,6 @@
 
 (define-spec-component schemely-core)
 
-(define (arg-length)
-  (random 10))
-
 (add-to-grammar
  schemely-core
  [DefinitionContext #f ([definitions : Definition * = (random 3)]

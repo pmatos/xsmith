@@ -36,7 +36,7 @@
 (define-spec-component schemely-core)
 
 (define (arg-length)
-  (random 10))
+  (random 4))
 
 (add-to-grammar
  schemely-core
@@ -223,7 +223,11 @@
                              'expressions (λ (c) (fresh-type-variable))))]]
  [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
  [VariableReference [(fresh-type-variable) (no-child-types)]]
- [SetBangRet [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
+ ;; TODO - the type of a variable write must not be function, which is checked dynamically.  But it would be better if this were accomplished in some way that just let me write an unconstrained type variable here and filter out the possibility of set! on a function rather than having a runtime error.  Even this verbose type doesn't capture all the non-function types I can have, since there are a ton of possible list types (including nested lists).
+ [SetBangRet [(fresh-type-variable number bool string
+                                   (list-type (fresh-type-variable
+                                               number bool string)))
+              (λ (n t) (hash 'Expression t))]]
  [LetStar [(fresh-type-variable) (λ (n t)
                                    (hash 'body t
                                          'definitions (λ (c) (fresh-type-variable))))]]

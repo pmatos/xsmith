@@ -36,7 +36,7 @@
 (define-spec-component schemely-core)
 
 (define (arg-length)
-  (random 10))
+  (random 4))
 
 (add-to-grammar
  schemely-core
