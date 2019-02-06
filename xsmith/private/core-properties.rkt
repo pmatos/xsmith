@@ -782,6 +782,9 @@ The second arm is a function that takes the type that the node has been assigned
     (define node-r/w-type (for/hash ([n nodes]
                                      [i node-reference-info-cleansed])
                             (values n (first i))))
+    (define node-reference-field (for/hash ([n nodes]
+                                            [i node-reference-info-cleansed])
+                                   (values n (second i))))
 
     (define xsmith_children-type-dict-info
       (for/hash ([n (dict-keys node-child-dict-funcs)])
@@ -828,6 +831,7 @@ The second arm is a function that takes the type that the node has been assigned
                 my-type-from-parent
                 (quote #,n)
                 (parent-node-type)))
+             (define reference-field #,(dict-ref node-reference-field n))
              (define my-type-constraint
                (if (att-value 'is-hole? node)
                    #f
@@ -843,6 +847,24 @@ The second arm is a function that takes the type that the node has been assigned
                                                                (parent-node node)))
                      (raise e))])
                  (unify! my-type-from-parent my-type-constraint)))
+             (when reference-field
+               (let ([var-type (binding-type
+                                (att-value 'resolve-reference-name
+                                           node
+                                           (ast-child reference-field node)))])
+                 (with-handlers
+                   ([(λ(x)#t)
+                     (λ (e)
+                       (eprintf "Error unifying types for reference of AST type: ~a\n"
+                                (ast-node-type node))
+                       (eprintf "Type received prom parent AST node: ~a\n"
+                                my-type-from-parent)
+                       (eprintf "Type annotated at variable definition: ~a\n"
+                                var-type)
+                       (raise e))])
+                   (unify! my-type-from-parent var-type))))
+             ;; Now unified, return the one from the parent since it likely has
+             ;; the most direct info.
              my-type-from-parent))))
     (define xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
