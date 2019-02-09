@@ -902,10 +902,19 @@ The second arm is a function that takes the type that the node has been assigned
                         (filter (λ (b) (and b (can-unify? type-needed
                                                           (binding-type b))))
                                 visibles))
+                      (define visibles/no-func-for-write
+                        (if write?
+                            (filter (λ (b) (not (can-unify? (binding-type b)
+                                                            (function-type
+                                                             (fresh-type-variable)
+                                                             (fresh-type-variable)))))
+                                    visibles-with-type)
+                            visibles-with-type))
+
                       (define effect-filtered
                         (filter
                          (λ (x) (not (member (binding-name x) effect-variable-names)))
-                         visibles-with-type))
+                         visibles/no-func-for-write))
 
                       (define lift-type (concretize-type type-needed))
                       ;; TODO - I should check if the type contains a function, not merely IS a function.  And for higher order effects I should check this before concretizing.
