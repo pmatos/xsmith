@@ -96,6 +96,8 @@
 
  [LiteralEmptyList Expression ()]
  [List Expression ([arguments : Expression * = (add1 (random 8))])]
+ [Cons Expression ([v : Expression]
+                   [l : Expression])]
  [SafeCar Expression ([default : Expression] [list : Expression])]
  [SafeCdr Expression (Expression)]
  [EmptyP Expression (Expression)]
@@ -163,6 +165,7 @@
 
  [LiteralEmptyList (λ (n) ''())]
  [List (->se* 'list 'arguments)]
+ [Cons (->se 'cons 'v 'l)]
  [SafeCar (->se 'safe-car 'default 'list)]
  [SafeCdr (->se 'safe-cdr 'Expression)]
  [EmptyP (->se 'null? 'Expression)]
@@ -285,6 +288,11 @@
                             (unify! t lt)
                             (define inner (list-type-type lt))
                             (hash 'arguments inner))]]
+ [Cons [(fresh-list-type) (λ (n t)
+                            (define lt (fresh-list-type))
+                            (unify! t lt)
+                            (define inner (list-type-type lt))
+                            (hash 'v inner 'l t))]]
  [SafeCar [(fresh-type-variable) (λ (n t) (hash 'default t 'list (list-type t)))]]
  [SafeCdr [(fresh-list-type) (λ (n t) (hash 'Expression t))]]
  [EmptyP [bool (λ (n t) (hash 'Expression (fresh-list-type)))]]
@@ -377,6 +385,7 @@
            (if (equal? r 0)
                0
                (/ l r))))
+    (printf ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
     (for ([form forms])
       (pp form))))
 
