@@ -726,6 +726,7 @@ The second arm is a function that takes the type that the node has been assigned
   #:reads
   (grammar)
   (property reference-info)
+  (property binder-info)
   #:appends
   (ag-rule xsmith_my-type-constraint)
   (choice-rule xsmith_my-type-constraint)
@@ -734,7 +735,7 @@ The second arm is a function that takes the type that the node has been assigned
   (choice-rule xsmith_satisfies-type-constraint?)
   (choice-rule xsmith_reference-options!)
   #:transformer
-  (λ (this-prop-info grammar-info reference-info-info)
+  (λ (this-prop-info grammar-info reference-info-info binder-info-info)
     (define nodes (dict-keys grammar-info))
     (define default-prop-info #'#f)
     (define node-type-constraints
@@ -785,6 +786,14 @@ The second arm is a function that takes the type that the node has been assigned
     (define node-reference-field (for/hash ([n nodes]
                                             [i node-reference-info-cleansed])
                                    (values n (second i))))
+    (define binder-type-field
+      (for/hash ([node nodes])
+        (values node
+                (syntax-parse (dict-ref binder-info-info node #'#f)
+                  ;; TODO - in list because this is a #:reads argument
+                  [((name-field-name type-field-name def/param))
+                   #''type-field-name]
+                  [else #'#f]))))
 
     (define xsmith_children-type-dict-info
       (for/hash ([n (dict-keys node-child-dict-funcs)])
@@ -832,6 +841,7 @@ The second arm is a function that takes the type that the node has been assigned
                 (quote #,n)
                 (parent-node-type)))
              (define reference-field #,(dict-ref node-reference-field n))
+             (define definition-type-field #,(dict-ref binder-type-field n))
              (define my-type-constraint
                (if (att-value 'is-hole? node)
                    #f
@@ -863,6 +873,11 @@ The second arm is a function that takes the type that the node has been assigned
                                 var-type)
                        (raise e))])
                    (unify! my-type-from-parent var-type))))
+             (when definition-type-field
+               (let ([def-type (ast-child definition-type-field node)])
+                 (when (type? def-type)
+                   ;; TODO - in my existing fuzzers this is sometimes not set for parameters, but it should be... I'm just not sure about the timing of setting it all up right now...
+                   (unify! my-type-from-parent def-type))))
              ;; Now unified, return the one from the parent since it likely has
              ;; the most direct info.
              my-type-from-parent))))
