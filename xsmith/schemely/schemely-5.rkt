@@ -86,7 +86,7 @@
  [Plus Expression ([l : Expression] [r : Expression])]
  [Minus Expression ([l : Expression] [r : Expression])]
  [Times Expression ([l : Expression] [r : Expression])]
- [Divide Expression ([l : Expression] [r : Expression])]
+ [SafeDivide Expression ([l : Expression] [r : Expression])]
  [LessThan Expression ([l : Expression] [r : Expression])]
  [GreaterThan Expression ([l : Expression] [r : Expression])]
 
@@ -153,7 +153,7 @@
  [Plus (->se '+ 'l 'r)]
  [Minus (->se '- 'l 'r)]
  [Times (->se '* 'l 'r)]
- [Divide (->se '/ 'l 'r)]
+ [SafeDivide (->se 'safe-/ 'l 'r)]
  [LessThan (->se '< 'l 'r)]
  [GreaterThan (->se '> 'l 'r)]
 
@@ -271,7 +271,7 @@
  [Plus [number numeric-bin-op-type]]
  [Minus [number numeric-bin-op-type]]
  [Times [number numeric-bin-op-type]]
- [Divide [number numeric-bin-op-type]]
+ [SafeDivide [number numeric-bin-op-type]]
  [LessThan [bool numeric-bin-op-type]]
  [GreaterThan [bool numeric-bin-op-type]]
 
@@ -368,11 +368,15 @@
     (pp '(define (safe-car safe l)
            (if (null? l)
                safe
-               l)))
+               (car l))))
     (pp '(define (safe-cdr l)
            (if (null? l)
                '()
-               l)))
+               (cdr l))))
+    (pp '(define (safe-/ l r)
+           (if (equal? r 0)
+               0
+               (/ l r))))
     (for ([form forms])
       (pp form))))
 

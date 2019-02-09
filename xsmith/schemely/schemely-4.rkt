@@ -347,11 +347,11 @@
     (pp '(define (safe-car safe l)
            (if (null? l)
                safe
-               l)))
+               (car l))))
     (pp '(define (safe-cdr l)
            (if (null? l)
                '()
-               l)))
+               (cdr l))))
     (for ([form forms])
       (pp form))))
 
