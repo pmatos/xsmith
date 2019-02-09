@@ -857,7 +857,7 @@ The second arm is a function that takes the type that the node has been assigned
                                                                (parent-node node)))
                      (raise e))])
                  (unify! my-type-from-parent my-type-constraint)))
-             (when reference-field
+             (when (and reference-field (not (att-value 'is-hole? node)))
                (let ([var-type (binding-type
                                 (att-value 'resolve-reference-name
                                            node
@@ -873,7 +873,7 @@ The second arm is a function that takes the type that the node has been assigned
                                 var-type)
                        (raise e))])
                    (unify! my-type-from-parent var-type))))
-             (when definition-type-field
+             (when (and definition-type-field (not (att-value 'is-hole? node)))
                (let ([def-type (ast-child definition-type-field node)])
                  (when (type? def-type)
                    ;; TODO - in my existing fuzzers this is sometimes not set for parameters, but it should be... I'm just not sure about the timing of setting it all up right now...
