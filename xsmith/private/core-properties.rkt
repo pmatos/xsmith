@@ -858,10 +858,12 @@ The second arm is a function that takes the type that the node has been assigned
                      (raise e))])
                  (unify! my-type-from-parent my-type-constraint)))
              (when (and reference-field (not (att-value 'is-hole? node)))
-               (let ([var-type (binding-type
-                                (att-value 'resolve-reference-name
-                                           node
-                                           (ast-child reference-field node)))])
+               (let* ([binding (att-value 'resolve-reference-name
+                                          node
+                                          (ast-child reference-field node))]
+                      [binding-node (binding-ast-node binding)]
+                      [binding-node-type (att-value 'xsmith_type binding-node)]
+                      [var-type (binding-type binding)])
                  (with-handlers
                    ([(λ(x)#t)
                      (λ (e)
@@ -872,7 +874,20 @@ The second arm is a function that takes the type that the node has been assigned
                        (eprintf "Type annotated at variable definition: ~a\n"
                                 var-type)
                        (raise e))])
-                   (unify! my-type-from-parent var-type))))
+                   (unify! my-type-from-parent var-type))
+                 ;; This shouldn't be necessary, but something is going wrong,
+                 ;; so I'll give a chance to get this error message.
+                 (with-handlers
+                   ([(λ(x)#t)
+                     (λ (e)
+                       (eprintf "Error unifying types for reference of AST type: ~a\n"
+                                (ast-node-type node))
+                       (eprintf "Type annotated at variable definition: ~a\n"
+                                binding-node-type)
+                       (eprintf "Type that was recorded in scope graph: ~a\n"
+                                var-type)
+                       (raise e))])
+                   (unify! binding-node-type var-type))))
              (when (and definition-type-field (not (att-value 'is-hole? node)))
                (let ([def-type (ast-child definition-type-field node)])
                  (when (type? def-type)
@@ -989,8 +1004,12 @@ The second arm is a function that takes the type that the node has been assigned
   (let/cc break!!
     (define variables '())
     (define (break?!)
-      (when (at-least-as-concrete hole-type type-constraint)
+      (when (concrete-type? hole-type)
         (break!! #t))
+      (when (at-least-as-concrete hole-type type-constraint)
+        (break!! #t)
+        (void)
+        )
       ;; Even if we're not done yet, when we make progress we should update this list.
       (set! variables (type->type-variable-list hole-type)))
     (break?!)

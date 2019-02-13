@@ -37,7 +37,6 @@
  ;(struct-out alias-type)
  ;; TODO - tuple types -- what should the API be?
  (rename-out [mk-record-type record-type])
- product-type
  product-type?
  [rename-out [product-type-inner-type-list/resolve product-type-inner-type-list]]
  ;product-type-inner-type-list
@@ -52,6 +51,8 @@
   [unify! (-> type? type? any/c)]
   [can-unify? (-> type? type? any/c)]
   [concretize-type (-> type? type?)]
+  [rename concrete? concrete-type? (-> type? any/c)]
+  [rename mk-product-type product-type (-> (or/c #f (listof type?)) type?)]
   [function-type (-> type? type? type?)]
   )
  function-type?
@@ -149,6 +150,10 @@ inner-type-list may be:
 • a box which contains an inner-type-list (so #f product types can be unified without forcing a length.)
 |#
 (struct product-type ([inner-type-list #:mutable]) #:transparent)
+(define (mk-product-type inners)
+  (if (not inners)
+      (product-type (box #f))
+      (product-type inners)))
 (define (product-type-inner-type-list/resolve pt)
   (unbox* (product-type-inner-type-list pt)))
 (struct sum-type (inner-type-list) #:transparent)
@@ -185,6 +190,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (if (box? b)
       (unbox* (unbox b))
       b))
+(define (unbox*- b)
+  ;; unbox all but the LAST box
+  (when (not (box? b))
+    (error 'unbox*- "received not a box: ~a" b))
+  (let ([ub (unbox b)])
+    (if (box? ub)
+        (unbox*- ub)
+        b)))
 (define (set-all-boxes! b target)
   ;; Set all nested boxes to the given target.
   (when (box? b)
@@ -427,6 +440,19 @@ TODO - when generating a record ref, I'll need to compare something like (record
   )
 
 
+(define (concrete? t)
+  (match t
+    [(type-variable (type-variable-innard _ it))
+     (and it (not (list? it)) (concrete? it))]
+    [(base-type _) #t]
+    [(function-type a r)
+     (and (concrete? a) (concrete? r))]
+    [(product-type itl)
+     (define itl* (unbox* itl))
+     (and (list? itl*) (andmap concrete? itl*))]
+    [(generic-type _ inners)
+     (andmap concrete? inners)]))
+
 (define (at-least-as-concrete v constraint-type)
   #|
   Returns #t when:
@@ -471,7 +497,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(type-variable-innard _ (list t ...)) #f]
        [(type-variable-innard _ t) (at-least-as-concrete t constraint-type)])]
     ;; No more variables
-    [(list (base-type _) (base-type _)) #t]
+    [(list (base-type _) _) #t]
     [(list (function-type v-arg v-ret) (function-type c-arg c-ret))
      (and (at-least-as-concrete v-arg c-arg)
           (at-least-as-concrete v-ret c-ret))]
@@ -522,14 +548,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(function-type arg ret) (or (rec arg) (rec ret))]
     [(product-type inners)
      (match (unbox* inners)
-       [#f #f]
+       [#f (memq inners innards)]
        [(list ts ...) (ormap rec ts)])]
     ;[(sum-type)]
     ;[(record-type)]
     [(generic-type name inners)
      (ormap rec inners)]
     [(type-variable t-innard)
-     (or (member t-innard innards)
+     (or (memq t-innard innards)
          (match t-innard
            [(type-variable-innard _ #f) #f]
            [(type-variable-innard _ (list ts ...)) (ormap rec ts)]
@@ -543,7 +569,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [(function-type arg ret) (append (rec arg) (rec ret))]
       [(product-type inners)
        (match (unbox* inners)
-         [#f '()]
+         [#f (list (unbox*- inners))]
          [(list ts ...) (flatten (map rec ts))])]
       ;[(sum-type)]
       ;[(record-type)]
@@ -554,11 +580,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
           (cons t (flatten (map rec its)))]
          [(type-variable-innard _ #f) (list t)]
          [(type-variable-innard _ it) (cons t (rec it))])]))
-  (remove-duplicates (map type-variable->canonical-type-variable (rec t))))
+  (remove-duplicates (map type-variable->canonical-type-variable (rec t))
+                     eq?))
 
 (define (type-variable->canonical-type-variable tv)
   (match tv
-    [(type-variable (type-variable-innard handles _)) (set-first handles)]))
+    [(type-variable (type-variable-innard handles _)) (set-first handles)]
+    [else tv]))
 
 (module+ test
   (define v1 (fresh-type-variable))

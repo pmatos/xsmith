@@ -45,7 +45,7 @@
    [#:prop strict-child-order? #t]]
  [Program DefinitionContext ()]
 
- [Definition #f ([type = (concretize-type (fresh-type-variable))]
+ [Definition #f ([type]
                  [name]
                  Expression)
    [#:prop binder-info (name type definition)]]
