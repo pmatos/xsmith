@@ -311,13 +311,18 @@ Type definitions are in cish-utils.rkt
                       (λ (n t)
                         (let ([definition-type-annotation (ast-child 'type n)]
                               [f-type (function-type
-                                       (fresh-type-variable)
+                                       (product-type #f)
                                        (fresh-type-variable))])
                           (unify! t definition-type-annotation)
                           (unify! t f-type)
-                          (hash
-                           'Block
-                           (return-type (function-type-return-type f-type)))))]]
+                          (define arg-types (product-type-inner-type-list
+                                             (function-type-arg-type f-type)))
+                          (hash-set
+                           (for/hash ([arg (ast-children (ast-child 'params n))]
+                                      [arg-type arg-types])
+                             (values arg arg-type))
+                           'Block (return-type (function-type-return-type f-type)))))]]
+ [FormalParam [(fresh-type-variable) (no-child-types)]]
 
  [Statement [(error 'typing-statement) (no-child-types)]]
  ;[Statement [(fresh-type-variable (fresh-no-return) (return-type (fresh-type-variable))) (no-child-types)]]
