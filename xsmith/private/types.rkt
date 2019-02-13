@@ -248,9 +248,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
           ;; We now make innard1 the true innard for both type variables,
           ;; giving it the union of the sets of type variable handles
           ;; and unifying the types of both.
-          (set-union! s1 s2)
-          (for ([handle s2])
-            (set-type-variable-tvi! handle innard1))
           (match (list c1 c2)
             [(list #f _)
              (set-type-variable-innard-type! innard1 c2)]
@@ -273,7 +270,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
              (set-type-variable-innard-type! innard1 rs)
              (unify-innard-with-single-type! innard1 l)]
             [(list l r)
-             (unify! l r)])]))]
+             (unify! l r)])
+          (set-union! s1 s2)
+          (for ([handle s2])
+            (set-type-variable-tvi! handle innard1))]))]
     [(list (type-variable innard) _) (unify-innard-with-single-type! innard t2)]
     [(list _ (type-variable innard)) (unify-innard-with-single-type! innard t1)]
     ;;;; No more variables.  At least at the top level.
