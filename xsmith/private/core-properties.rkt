@@ -1023,7 +1023,8 @@ The second arm is a function that takes the type that the node has been assigned
            ;; When we check the type of a new thing it may unify variables,
            ;; so we've maybe made progress.
            (break?!)
-           (when (contains-type-variables? s-type variables)
+           ;; TODO - this traversal trimming isn't currently working...
+           (when #t #;(contains-type-variables? s-type variables)
              (sibling-loop (ast-children sibling))))
          siblings))
       (sibling-loop (ast-children p))
@@ -1031,7 +1032,8 @@ The second arm is a function that takes the type that the node has been assigned
                  ;; If the parent type doesn't include the variable,
                  ;; it was fresh for its children, and we don't need
                  ;; to climb the tree anymore.
-                 (contains-type-variables? (att-value 'xsmith_type p)
+                 ;; TODO - this traversal trimming isn't currently working...
+                 #;(contains-type-variables? (att-value 'xsmith_type p)
                                            variables))
         (parent-loop (parent-node p) p))))
   ;;; End traversal
