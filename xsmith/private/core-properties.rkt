@@ -815,7 +815,7 @@ The second arm is a function that takes the type that the node has been assigned
                    (hash node (fresh-type-variable))))
              (define (parent-node-type)
                (and (ast-has-parent? node)
-                    (ast-node-type (ast-parent node))))
+                    (ast-node-type (parent-node node))))
              (define my-type-from-parent/func
                (dict-ref parent-child-type-dict
                          node
@@ -997,23 +997,25 @@ The second arm is a function that takes the type that the node has been assigned
     (let parent-loop ([p (ast-parent hole)]
                       [child hole])
       (define (loop-over-viable-nodes kernel nodes)
-        (define (rec nodes) (loop-over-viable-nodes kernel nodes))
+        (define (rec ns) (loop-over-viable-nodes kernel ns))
         (if (null? nodes)
             (void)
-            (let ([n (car nodes)])
-              (if (ast-node? n)
-                  (cond [(eq? n child)
-                         (rec (cdr nodes))]
-                        [(ast-list-node? n)
-                         (rec (append (ast-children n)
-                                      (cdr nodes)))]
-                        [(or (ast-bud-node? n)
-                             (att-value 'is-hole? n))
-                         (rec (cdr nodes))]
-                        [else
-                         (kernel n)
-                         (rec (cdr nodes))])
-                  (void)))))
+            (let ([n (car nodes)]
+                  [ns (cdr nodes)])
+              (cond [(not (ast-node? n))
+                     (rec ns)]
+                    [(eq? n child)
+                     (rec ns)]
+                    [(ast-list-node? n)
+                     (rec (append (ast-children n)
+                                  ns))]
+                    [(ast-bud-node? n)
+                     (rec ns)]
+                    [(att-value 'is-hole? n)
+                     (rec ns)]
+                    [else
+                     (kernel n)
+                     (rec ns)]))))
       (define (sibling-loop siblings)
         (loop-over-viable-nodes
          (λ (sibling)
