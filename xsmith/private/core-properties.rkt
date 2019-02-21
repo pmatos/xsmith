@@ -603,19 +603,38 @@ The scope-graph-scope attribute returns the scope that the node in question resi
 ;; the field name that references use (as an identifier)
 (define-property reference-info
   #:reads (grammar)
-  #:appends (choice-rule xsmith_is-reference-choice?)
+  #:appends
+  (choice-rule xsmith_is-reference-choice?)
+  (ag-rule xsmith_is-reference-node?)
+  (ag-rule xsmith_resolve-reference)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
-    (define xsmith_is-reference-choice?-info
+    (define xsmith_is-reference-info
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref this-prop-info
                                         node
                                         #'#f)
-                  [((~datum read) field-name:id) #'(λ () #t)]
-                  [else #'(λ () #f)]))))
-    (list xsmith_is-reference-choice?-info)))
+                  [((~datum read) field-name:id) #''field-name]
+                  [else #'#f]))))
+    (define xsmith_is-reference-choice?-info
+      (for/hash ([node nodes])
+        (values node #`(λ () #,(dict-ref xsmith_is-reference-info node)))))
+    (define xsmith_is-reference-node?-info
+      (for/hash ([node nodes])
+        (values node #`(λ (n) #,(dict-ref xsmith_is-reference-info node)))))
+    (define xsmith_resolve-reference
+      (for/hash ([node nodes])
+        (values node
+                #`(λ (n)
+                    (define field #,(dict-ref xsmith_is-reference-info node))
+                    (when (not field) (error 'xsmith_resolve-reference
+                                             "not a reference node"))
+                    (att-value 'resolve-reference-name n (ast-child field n))))))
+    (list xsmith_is-reference-choice?-info
+          xsmith_is-reference-node?-info
+          xsmith_resolve-reference)))
 
 ;; TODO - this is not a great design, but I need the user to specify
 ;; one function for this and make it available to the xsmith machinery.
@@ -929,8 +948,10 @@ The second arm is a function that takes the type that the node has been assigned
                         ;; TODO - maybe this should be xsmith_visible-bindings
                         (att-value 'visible-bindings current-hole))
                       (define visibles-with-type
-                        (filter (λ (b) (and b (can-unify? type-needed
-                                                          (binding-type b))))
+                        (filter (λ (b) (and b
+                                            (concrete-type? (binding-type b))
+                                            (can-unify? type-needed
+                                                        (binding-type b))))
                                 visibles))
                       (define visibles/no-func-for-write
                         (if write?
@@ -1003,11 +1024,14 @@ The second arm is a function that takes the type that the node has been assigned
   ;;; Begin traversal
   (let/cc break!!
     (define variables '())
+    (define binding-nodes-started '())
+    (define binding-nodes-finished '())
+
     (define (break?!)
       (when (concrete-type? hole-type)
         (break!! #t))
       (when (at-least-as-concrete hole-type type-constraint)
-        (break!! #t)
+        ;;(break!! #t)
         (void)
         )
       ;; Even if we're not done yet, when we make progress we should update this list.
@@ -1015,8 +1039,8 @@ The second arm is a function that takes the type that the node has been assigned
     (break?!)
     (let parent-loop ([p (ast-parent hole)]
                       [child hole])
-      (define (loop-over-viable-nodes kernel nodes)
-        (define (rec ns) (loop-over-viable-nodes kernel ns))
+      (define (sibling-loop nodes)
+        (define rec sibling-loop)
         (if (null? nodes)
             (void)
             (let ([n (car nodes)]
@@ -1032,24 +1056,35 @@ The second arm is a function that takes the type that the node has been assigned
                      (rec ns)]
                     [(att-value 'is-hole? n)
                      (rec ns)]
+                    [(memq n binding-nodes-finished)
+                     (rec ns)]
                     [else
-                     (kernel n)
+                     (define n-type (att-value 'xsmith_type n))
+                     ;; When we check the type of a new thing it may unify variables,
+                     ;; so we've maybe made progress.
+                     (break?!)
+
+                     ;; If the node is a binder, mark it so we don't look at it
+                     ;; repeatedly when we hit references to it.
+                     (when (att-value 'xsmith_scope-graph-binding n)
+                       (set! binding-nodes-finished
+                             (cons n binding-nodes-finished)))
+
+                     ;; If the node is a reference, the definition site
+                     ;; may have nodes that will affect the type.
+                     (when (att-value 'xsmith_is-reference-node? n)
+                       (let ([binding-node (binding-ast-node
+                                            (att-value
+                                             'xsmith_resolve-reference n))])
+                         (when (not (memq binding-node binding-nodes-started))
+                           (set! binding-nodes-started
+                                 (cons binding-node binding-nodes-started))
+                           (sibling-loop (list binding-node)))))
+
+                     ;; Check children nodes if they are relevant
+                     (when (contains-type-variables? n-type variables)
+                           (sibling-loop (ast-children n)))
                      (rec ns)]))))
-      (define (sibling-loop siblings)
-        (loop-over-viable-nodes loop-kernel siblings))
-      (define (loop-kernel node)
-        (define n-type (att-value 'xsmith_type node))
-        ;; When we check the type of a new thing it may unify variables,
-        ;; so we've maybe made progress.
-        (break?!)
-        #|
-        TODO - this seems to be the key to my typing problems right now.  Either:
-        * contains-type-variables? has a bug
-        * the variables list is not the list I should be considering
-        * I am completely wrong about this being the right check here
-        |#
-        (when #;#t (contains-type-variables? n-type variables)
-              (sibling-loop (ast-children node))))
       (sibling-loop (ast-children p))
       (when (and (ast-has-parent? p)
                  ;; If the parent type doesn't include the variable,

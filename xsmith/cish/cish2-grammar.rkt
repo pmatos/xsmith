@@ -211,7 +211,7 @@
                             hole-type
                             (fresh-concrete-var-type))])
              (hash 'name name
-                   'type type))]
+                   'type (concretize-type type)))]
           [FunctionDefinition
            (let* ([p (parent-node current-hole)]
                   [main? (and (eq? (node-type p) 'Program)
@@ -236,7 +236,7 @@
                                 (function-type-arg-type type)))])
              (hash
               'name name
-              'type type
+              'type (concretize-type type)
               'params params))]
           [LiteralInt (hash 'val (* (random 100)
                                     (if (equal? 0 (random 2))
