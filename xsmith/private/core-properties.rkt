@@ -1087,12 +1087,15 @@ The second arm is a function that takes the type that the node has been assigned
                      (rec ns)]))))
       (sibling-loop (ast-children p))
       (when (and (ast-has-parent? p)
-                 ;; If the parent type doesn't include the variable,
-                 ;; it was fresh for its children, and we don't need
-                 ;; to climb the tree anymore.
-                 ;; TODO - this traversal trimming isn't currently working...
-                 #;(contains-type-variables? (att-value 'xsmith_type p)
-                                           variables))
+                 (or
+                  ;; If the current node (child) includes relevant variables,
+                  ;; its siblings may too even if the parent doesn't.
+                  (contains-type-variables? (att-value 'xsmith_type child)
+                                            variables)
+                  ;; If the parent includes relevant variables its siblings
+                  ;; or ancestors might as well.
+                  (contains-type-variables? (att-value 'xsmith_type p)
+                                            variables)))
         (parent-loop (parent-node p) p))))
   ;;; End traversal
 
