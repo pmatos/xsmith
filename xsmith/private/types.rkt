@@ -205,6 +205,24 @@ TODO - when generating a record ref, I'll need to compare something like (record
       (set-box! b target)
       (set-all-boxes! inner target))))
 
+(module+ test
+  (define b1 (box #f))
+  (define-values (b1-chain b1-chain-list)
+    (for/fold ([chain b1]
+               [chain-list '()])
+              ([i (in-range 5)])
+      (define newbox (box chain))
+      (values newbox (cons newbox chain-list))))
+  (check-eq? (unbox*- b1-chain) b1)
+  (define b2 (box 'foo))
+  (set-all-boxes! b1-chain b2)
+  (check-eq? (unbox b1) b2)
+  (for ([b b1-chain-list])
+    (check-eq? (unbox*- b) b2))
+  (check-eq? (unbox* b1-chain) 'foo)
+  )
+
+
 (define (can-unify? t1 t2)
   (match (list t1 t2)
     [(list (type-variable (type-variable-innard _ #f)) _) #t]

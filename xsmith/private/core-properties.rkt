@@ -1007,7 +1007,7 @@ The second arm is a function that takes the type that the node has been assigned
       (when (concrete-type? hole-type)
         (break!! #t))
       (when (at-least-as-concrete hole-type type-constraint)
-        ;;(break!! #t)
+        (break!! #t)
         (void)
         )
       ;; Even if we're not done yet, when we make progress we should update this list.
@@ -1042,7 +1042,12 @@ The second arm is a function that takes the type that the node has been assigned
         ;; When we check the type of a new thing it may unify variables,
         ;; so we've maybe made progress.
         (break?!)
-        ;; TODO - this traversal trimming isn't currently working...
+        #|
+        TODO - this seems to be the key to my typing problems right now.  Either:
+        * contains-type-variables? has a bug
+        * the variables list is not the list I should be considering
+        * I am completely wrong about this being the right check here
+        |#
         (when #;#t (contains-type-variables? n-type variables)
               (sibling-loop (ast-children node))))
       (sibling-loop (ast-children p))
