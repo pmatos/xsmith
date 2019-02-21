@@ -539,6 +539,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 ;;; True if any of the variables is anywhere in the type.
 (define (contains-type-variables? t vs)
+  ;; Here "type variables" can be type variables or product-type-inners boxes
   (define innards (map (λ (x) (if (type-variable? x) (type-variable-tvi x) x)) vs))
   (contains-type-variable-innards? t innards))
 (define (contains-type-variable-innards? t innards)
@@ -548,7 +549,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(function-type arg ret) (or (rec arg) (rec ret))]
     [(product-type inners)
      (match (unbox* inners)
-       [#f (memq inners innards)]
+       [#f (memq (unbox*- inners) innards)]
        [(list ts ...) (ormap rec ts)])]
     ;[(sum-type)]
     ;[(record-type)]

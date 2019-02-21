@@ -869,7 +869,7 @@ The second arm is a function that takes the type that the node has been assigned
                      (λ (e)
                        (eprintf "Error unifying types for reference of AST type: ~a\n"
                                 (ast-node-type node))
-                       (eprintf "Type received prom parent AST node: ~a\n"
+                       (eprintf "Type received from parent AST node: ~a\n"
                                 my-type-from-parent)
                        (eprintf "Type annotated at variable definition: ~a\n"
                                 var-type)
@@ -1007,7 +1007,7 @@ The second arm is a function that takes the type that the node has been assigned
       (when (concrete-type? hole-type)
         (break!! #t))
       (when (at-least-as-concrete hole-type type-constraint)
-        (break!! #t)
+        ;;(break!! #t)
         (void)
         )
       ;; Even if we're not done yet, when we make progress we should update this list.
@@ -1036,16 +1036,15 @@ The second arm is a function that takes the type that the node has been assigned
                      (kernel n)
                      (rec ns)]))))
       (define (sibling-loop siblings)
-        (loop-over-viable-nodes
-         (λ (sibling)
-           (define s-type (att-value 'xsmith_type sibling))
-           ;; When we check the type of a new thing it may unify variables,
-           ;; so we've maybe made progress.
-           (break?!)
-           ;; TODO - this traversal trimming isn't currently working...
-           (when #t #;(contains-type-variables? s-type variables)
-             (sibling-loop (ast-children sibling))))
-         siblings))
+        (loop-over-viable-nodes loop-kernel siblings))
+      (define (loop-kernel node)
+        (define n-type (att-value 'xsmith_type node))
+        ;; When we check the type of a new thing it may unify variables,
+        ;; so we've maybe made progress.
+        (break?!)
+        ;; TODO - this traversal trimming isn't currently working...
+        (when #;#t (contains-type-variables? n-type variables)
+              (sibling-loop (ast-children node))))
       (sibling-loop (ast-children p))
       (when (and (ast-has-parent? p)
                  ;; If the parent type doesn't include the variable,

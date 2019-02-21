@@ -356,7 +356,7 @@
                               hole-type
                               (fresh-concrete-var-type))])
                (hash 'name name
-                     'type type))]
+                     'type (concretize-type type)))]
  )
 
 
