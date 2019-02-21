@@ -612,16 +612,49 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (define v2 (fresh-type-variable))
   (define v3 (fresh-type-variable (base-type 'foo)
                                   (function-type v1 v2)))
+  (define p1 (mk-product-type #f))
+  (define p2 (mk-product-type #f))
+  (define p3 (mk-product-type #f))
+  (define v4 (fresh-type-variable (base-type 'bar)
+                                  (function-type p1 v3)))
+
+  (check-not-false (contains-type-variables? v1 (type->type-variable-list v4)))
+  (check-not-false (contains-type-variables? v1 (type->type-variable-list v3)))
+  (check-false (contains-type-variables? v1 (type->type-variable-list v2)))
+
+  (define (s= l r)
+    (set=? (apply seteq l)
+           (apply seteq r)))
   (check-true
-   (set=? (type->type-variable-list v3)
-          (list v1 v2 v3)))
+   (s= (type->type-variable-list v3)
+       (list v1 v2 v3)))
+  (check-true
+   (s= (type->type-variable-list v4)
+       (list v1 v2 v3 v4 (unbox*- (product-type-inner-type-list p1)))))
   (unify! v1 v2)
   (check-true
-   (or (set=? (type->type-variable-list v3)
-              (list v3 v2))
-       (set=? (type->type-variable-list v3)
-              (list v3 v1))))
+   (s= (type->type-variable-list v1)
+       (type->type-variable-list v2)))
+  (check-true
+   (s= (type->type-variable-list v3)
+       (map type-variable->canonical-type-variable (list v1 v3))))
+  (check-not-false (contains-type-variables? v1 (type->type-variable-list v2)))
 
+  (unify! p1 p2)
+  (check-not-false (contains-type-variables? v4 (list v1)))
+  (check-not-false (contains-type-variables? v4 (type->type-variable-list p1)))
+  (check-not-false (contains-type-variables? v4 (type->type-variable-list p2)))
+  (check-false (contains-type-variables? v4 (type->type-variable-list p3)))
+  (unify! p2 (product-type (list v1 v2 v3)))
+  (check-true
+   (s= (type->type-variable-list p1)
+       (map type-variable->canonical-type-variable (list v1 v3))))
+
+  (unify! p3 p1)
+  (check-true (s= (type->type-variable-list p1)
+                  (type->type-variable-list p2)))
+  (check-true (s= (type->type-variable-list p1)
+                  (type->type-variable-list p3)))
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
