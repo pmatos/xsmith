@@ -490,21 +490,35 @@ TODO - when generating a record ref, I'll need to compare something like (record
         (match v
           [(type-variable (type-variable-innard _ #f)) #f]
           [(type-variable (type-variable-innard _ (list ts ...)))
-           (for/and ([t ts])
-             (for/or ([c cs])
-               (match (list t c)
-                 [(list (base-type x) (base-type y)) (equal? x y)]
-                 [(list (? function-type?) (? function-type?))
-                  (at-least-as-concrete t c)]
-                 [(list (? product-type?) (? product-type?))
-                  (at-least-as-concrete t c)]
-                 [(list (? sum-type?) (? sum-type?))
-                  (at-least-as-concrete t c)]
-                 [(list (? record-type?) (? record-type?))
-                  (at-least-as-concrete t c)]
-                 [(list (? generic-type?) (? generic-type?))
-                  (at-least-as-concrete t c)]
-                 [else #f])))]
+           (or
+            ;; check if every case in ts is covered in cs
+            (for/and ([t ts])
+              (match t
+                [(base-type x) (for/or ([c (filter base-type? cs)])
+                                 (equal? x (base-type-name c)))]
+                [(? function-type?)
+                 (ormap (λ (c) (at-least-as-concrete t c))
+                        (filter function-type? cs))]
+                [(? product-type?)
+                 (ormap (λ (c) (at-least-as-concrete t c))
+                        (filter product-type? cs))]
+                [(? generic-type?)
+                 (ormap (λ (c) (at-least-as-concrete t c))
+                        (filter (λ (c) (and (generic-type? c)
+                                            (equal? (generic-type-name c)
+                                                    (generic-type-name t))))
+                                cs))]))
+            ;; check if they have nothing in common
+            (for/and ([c cs])
+              (match c
+                [(base-type cn) (for/and ([t (filter base-type? ts)])
+                                  (not (equal? cn (base-type-name t))))]
+                [(? function-type?)
+                 (null? (filter function-type? ts))]
+                [(? product-type?)
+                 (null? (filter product-type? ts))]
+                [(? generic-type?)
+                 (null? (filter generic-type? ts))])))]
           [(type-variable (type-variable-innard _ t))
            (for/and ([c cs]) (at-least-as-concrete t c))]
           [else (for/and ([c cs]) (at-least-as-concrete v c))])]
@@ -552,6 +566,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                                     (base-type 'foo))
                                      (function-type (base-type 'bar)
                                                     (base-type 'foo))))
+  (check-true (at-least-as-concrete (fresh-type-variable (mk-product-type #f))
+                                    (fresh-type-variable (base-type 'foo)
+                                                         (base-type 'bar))))
+  (check-false (at-least-as-concrete (fresh-type-variable (mk-product-type #f))
+                                     (fresh-type-variable
+                                      (mk-product-type (list (fresh-type-variable)))
+                                      (base-type 'bar))))
   )
 
 
