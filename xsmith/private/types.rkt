@@ -539,7 +539,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 ;;; True if any of the variables is anywhere in the type.
 (define (contains-type-variables? t vs)
-  (define innards (map type-variable-tvi vs))
+  (define innards (map (λ (x) (if (type-variable? x) (type-variable-tvi x) x)) vs))
   (contains-type-variable-innards? t innards))
 (define (contains-type-variable-innards? t innards)
   (define (rec t) (contains-type-variable-innards? t innards))
