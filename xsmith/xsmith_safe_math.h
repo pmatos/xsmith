@@ -34,23 +34,34 @@
   Get safe math to work, at least at a basic level.
 */
 
+
+#define STATIC static
+#define FUNC_NAME(x) (safe_##x)
+#define LOG_INDEX
+#define LOG_EXEC
+#define UNDEFINED(__val) (__val)
+#include <math.h>
 #include <stdint.h>
+//#include "custom_limits.h"
+#define FLT_MAX 3.40282347e+38F
+#define DBL_MAX 1.7976931348623158e+308
+#include "safe_math.h"
 
 
+
+/*
 // These includes are in the csmith runtime dir
 //#include "csmith.h"
 //#include "safe_math_macros_notmp.h"
 //#include "custom_limits.h"
 #define CHAR_BIT 8
 #include "safe_math_macros.h"
+*/
 
-#define safe_add_func_float_f_f(a,b) (a + b)
-#define safe_sub_func_float_f_f(a,b) (a - b)
-#define safe_mul_func_float_f_f(a,b) (a * b)
-#define safe_div_func_float_f_f(a,b) (a / b)
-#define safe_mod_func_float_f_f(a,b) (a % b)
 
 /*****************************************************************************/
+
+
 
 /*
  * Local Variables:
