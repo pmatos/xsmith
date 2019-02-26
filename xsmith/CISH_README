@@ -1,0 +1,8 @@
+To compile cish output, you need to include Csmith's runtime directory in your header path to get safe_math.h.
+
+eg.
+
+racket cish.rkt > cish-output.c && gcc -I $CSMITH_DIR/runtime -o cish-output cish-output.c
+
+TODO - this should be part of the cish.rkt --help text.
+
