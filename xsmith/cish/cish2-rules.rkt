@@ -1455,7 +1455,10 @@ few of these methods.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (cm misc-constraints
-    [Node #t]
+    [Node (let ([cs (att-value 'misc-constraints current-hole)])
+            (not (set-member? cs 'constant)))]
+    [LiteralInt #t]
+    [LiteralFloat #t]
     [AssignmentExpression
      (set-empty? (set-intersect '(constant no-assignment)
                                 (att-value 'misc-constraints
