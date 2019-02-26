@@ -1031,6 +1031,13 @@ The second arm is a function that takes the type that the node has been assigned
       (when (concrete-type? hole-type)
         (break!! #t))
       (when (at-least-as-concrete hole-type type-constraint)
+        #|
+        TODO This is currently broken.  I'm sure at-least-as-concrete is broken.
+        I need to make at-least-as-concrete more conservative, probably, but also
+        I can pair it here with `can-unify?` to break off in the case that there
+        are no common cases instead of trying to cram a second version of that into
+        `at-least-as-concrete`.
+        |#
         ;;(break!! #t)
         (void)
         )
