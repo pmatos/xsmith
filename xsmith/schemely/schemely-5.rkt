@@ -31,7 +31,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require xsmith racr racket/pretty racket/random racket/list racket/class)
+(require
+ xsmith
+ racr
+ racket/pretty
+ racket/random
+ racket/list
+ racket/class
+ racket/string
+ )
 
 (define-spec-component schemely-core)
 
@@ -389,4 +397,8 @@
     (for ([form forms])
       (pp form))))
 
-(xsmith-command-line generate-and-print)
+(xsmith-command-line generate-and-print
+                     #:comment-wrap (λ (lines)
+                                      (string-join
+                                       (map (λ (x) (format ";; ~a" x)) lines)
+                                       "\n")))

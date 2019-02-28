@@ -44,6 +44,7 @@
             colon
             )
  racket/dict
+ racket/string
  )
 
 
@@ -56,25 +57,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (add-precomment! n)
-  (rewrite-terminal 'precomment n
-                    (h-append
-                     line
-                     (vb-append
-                      (text "This is a RANDOMLY GENERATED PROGRAM.")
-                      (hs-append
-                       (fill 10 (text "Generator:"))
-                       (text xsmith-version-string))
-                      (hs-append
-                       (fill 10 (text "Options:"))
-                       (apply hs-append
-                              (map text
-                                   (vector->list
-                                    (xsmith-option 'command-line)))))
-                      (hs-append
-                       (fill 10 (text "Seed:"))
-                       (text (number->string (xsmith-option 'random-seed))))
-                      soft-break))))
 
 (define ({ast-add-unsafe-math refinement-func} ast)
   (define ops (att-value 'find-descendants ast
@@ -113,7 +95,6 @@
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
     (let* ([ast (cish2-generate-ast 'Program)]
-           [nothing (add-precomment! ast)]
            [pre-analysis-print (printf "/*\n")]
            [ast (if (hash-ref (xsmith-option 'features-disabled)
                               'unsafe-math/range #t)
@@ -148,7 +129,9 @@
 
 (module+ main
   (require "../main.rkt")
-  (xsmith-command-line cish-generate-and-print))
+  (xsmith-command-line cish-generate-and-print
+                       #:comment-wrap (λ (lines) (format "/*\n~a\n*/"
+                                                         (string-join lines "\n")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

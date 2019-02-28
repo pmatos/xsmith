@@ -34,6 +34,7 @@
 
 (require
  racket/dict
+ racket/string
  "xsmith-utils.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
@@ -45,7 +46,8 @@
 
 (require racket/cmdline)
 
-(define (xsmith-command-line generate-and-print-func)
+(define (xsmith-command-line generate-and-print-func
+                             #:comment-wrap [comment-func (λ (lines) "")])
   (define features-disabled (dict-ref options 'features-disabled))
   (define port 8080)
   (define given-seed #f)
@@ -118,6 +120,13 @@
       ;; wrong!
       (let ([seed (xsmith-option 'random-seed)])
         (random-seed seed)
+        (define lines (list "This is a RANDOMLY GENERATED PROGRAM."
+                            (format "Generator: ~a" xsmith-version-string)
+                            (format "Options: ~a" (string-join
+                                                   (vector->list
+                                                    (xsmith-option 'command-line))))
+                            (format "Seed: ~a" seed)))
+        (printf "~a\n" (comment-func lines))
         (generate-and-print-func)
         (dict-set! (xsmith-options)
                    'random-seed
