@@ -1072,11 +1072,22 @@ Sum types
 
 @subsection{xsmith-command-line}
 
-@defproc[(xsmith-command-line [generate-and-print-func (-> any/c)]) any/c]{
+@defproc[(xsmith-command-line
+[generate-and-print-func (-> any/c)]
+[#:comment-wrap comment-wrap (-> (listof string?) string?)])
+any/c]{
 This function parses the current command-line arguments for xsmith fuzzers.  It is basically to be used in the main function of a fuzzer.
 Based on options supplied, it may print a help message and terminate the program, generate a single program, or start a web server to generate many programs.
 
 @racket[generate-and-print-func] must be a function that generates and prints a single program.  It is called within @racket[xsmith-command-line] with the random seed parameterized according to command-line options (and for the web server reset and incremented for each call), and with all xsmith-options parameterized according to the command line.
+
+@racket[comment-wrap] takes a list of strings which contain info about the generated program, such as the command line used to generate it and the random seed number.  It should return a string representing those lines commented out.  Such as the following, assuming the "#" character is the line-comment character in your language:
+
+@racketblock[
+(λ (lines)
+  (string-join
+   (map (λ (x) (format "# ~a" x)) lines)
+   "\n"))]
 }
 
 
