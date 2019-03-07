@@ -378,7 +378,8 @@
     (pretty-print x (current-output-port) 1))
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
-    (define forms (att-value 'to-s-exp (schemely-generate-ast 'Program)))
+    (define program (schemely-generate-ast 'Program))
+    (define forms (att-value 'to-s-exp program))
     ;; TODO - just assume racket for now, but later any scheme...
     (printf "#lang racket/base\n")
     (pp '(define (safe-car safe l)
@@ -395,7 +396,10 @@
                (/ l r))))
     (printf ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
     (for ([form forms])
-      (pp form))))
+      (pp form))
+    (for ([def (ast-children (ast-child 'definitions program))])
+      (pp `(write ,(string->symbol (ast-child 'name def))))
+      (pp '(newline)))))
 
 (xsmith-command-line generate-and-print
                      #:comment-wrap (λ (lines)
