@@ -96,10 +96,26 @@
              (v-comment
               n
               (vb-concat
-               (cons
+               (list*
                 (text "#include \"xsmith_safe_math.h\"\n")
+                (text "#include <stdio.h>\n")
                 (map (λ (cn) (att-value 'pretty-print cn))
                      (append global-vars functions)))))
+             (text "")
+             (text "int main(){")
+             (text "  int main_ret = 0;")
+             (text "  main_ret = main_inner();")
+             (apply v-append
+                    (map (λ (v) (text (format "  printf(\"~a\\n\", ~a);\n"
+                                              (match (ast-child 'type v)
+                                                [(? int-type?) "%d"]
+                                                [(? bool-type?) "%d"]
+                                                [(? float-type?) "%f"])
+                                              (ast-child 'name v))))
+                         global-vars))
+             (text "  printf(\"%d\\n\", main_ret);")
+             (text "  return 0;")
+             (text "}")
              ;; Hack to get a newline...
              (text "")))]
  [FunctionDefinition
@@ -576,7 +592,7 @@
                   (apply abstract-flow-control-return-merge* rs))]))])
 (ag
  get-containing-function-definition
- [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main"))
+ [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main_inner"))
                                 n
                                 (ast-parent n)))]
  [Program (λ (n) n)]
@@ -585,7 +601,7 @@
 (ag
  ;; This is essentially the same as abstract-interp-result-hash/range
  symbolic-interp-result-hash
- [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main"))
+ [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main_inner"))
                                 (make-hasheq)
                                 (att-value 'symbolic-interp-result-hash
                                            (ast-parent n))))]
@@ -601,7 +617,7 @@
  ;; The hash holds a list of results for each node (or nothing -- use '() as
  ;; a default).  Although an empty result should mean the node is dead code.
  abstract-interp-result-hash/range
- [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main"))
+ [FunctionDefinition (λ (n) (if (not (equal? (ast-child 'name n) "main_inner"))
                                 (make-hasheq)
                                 (att-value 'abstract-interp-result-hash/range
                                            (ast-parent n))))]

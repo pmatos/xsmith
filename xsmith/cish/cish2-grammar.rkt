@@ -220,7 +220,7 @@
                   [name (if (string? hole-name)
                             hole-name
                             (if main?
-                                "main"
+                                "main_inner"
                                 (fresh-var-name "func_")))]
                   [hole-type (ast-child 'type current-hole)]
                   [type (if (and hole-type
