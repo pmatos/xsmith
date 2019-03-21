@@ -58,6 +58,7 @@
 (define lparen          (char #\())
 (define rparen          (char #\)))
 (define comma           (char #\,))
+(define period          (char #\.))
 (define semi            (char #\;))
 (define plus            (char #\+))
 (define minus           (char #\-))
@@ -147,12 +148,14 @@ New types
 
 (define (type-thunks-for-concretization)
   (let ([disabled (xsmith-option 'features-disabled)])
+    ;; TODO - look up available record types
     (filter (λ(x)x)
             (list (and (not (dict-ref disabled 'int #f)) (λ () int))
                   (and (not (dict-ref disabled 'int #f)) (λ () bool))
                   (and (not (dict-ref disabled 'float #f)) (λ () float))
                   ))))
 (define (concrete-types) (map (λ(x)(x)) (type-thunks-for-concretization)))
+
 (define (return-type x)
   (generic-type 'return (list x)))
 (define (return-type? x)

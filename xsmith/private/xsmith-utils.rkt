@@ -40,6 +40,8 @@
  expr->ast-list
  node-type
  parent-node
+ ast-ancestors
+ ancestor-nodes
  top-ancestor-node
  node-subtype?
  )
@@ -110,6 +112,15 @@
     (cond [(not p) #f]
           [(ast-list-node? p) (ast-parent p)]
           [else p])))
+
+(define (ast-ancestors n)
+  (if (ast-has-parent? n)
+      (cons (ast-parent n) (ast-ancestors (ast-parent n)))
+      '()))
+(define (ancestor-nodes n)
+  (filter (λ (x) (and (not (ast-bud-node? x))
+                      (not (ast-list-node? x))))
+          (ast-ancestors n)))
 
 (define (top-ancestor-node n)
   (let ([p (parent-node n)])

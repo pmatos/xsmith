@@ -285,13 +285,12 @@ hole for the type.
                           [ref-in-lift? (and (att-value 'xsmith_in-lift-branch
                                                         current-hole)
                                              (send this xsmith_is-reference-choice?))])
-                      (if (and (not ok?) ref-in-lift?)
-                          ;; Don't allow circles of lifting definitions with
-                          ;; references that may then lift again.
-                          #f
-                          (or ok?
-                              override-ok?
-                              (current-force-deepen))))))))
+                      ;; TODO - I should prevent circles of lifting where a lift
+                      ;; variable is defined as another variable reference that
+                      ;; gets lifted, etc.
+                      ;; But my basic heuristic that I first used is bad in the face
+                      ;; of nominal record variable reference.
+                      (or ok? override-ok? (current-force-deepen)))))))
     (list wont-over-deepen-info)))
 
 
@@ -467,7 +466,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
                   [((quote (~and flag:id (~or (~datum serial)
                                               (~datum parallel)
                                               (~datum recursive)))))
-                   #'flag]
+                   #''flag]
                   [(#f) #''serial]))))
     (define xsmith_lift-predicate-info
       (for/hash ([node nodes])
@@ -750,6 +749,7 @@ The second arm is a function that takes the type that the node has been assigned
   (ag-rule xsmith_my-type-constraint)
   (choice-rule xsmith_my-type-constraint)
   (ag-rule xsmith_children-type-dict)
+  (ag-rule xsmith_type-constraint-from-parent)
   (ag-rule xsmith_type)
   (choice-rule xsmith_satisfies-type-constraint?)
   (choice-rule xsmith_reference-options!)
@@ -823,18 +823,18 @@ The second arm is a function that takes the type that the node has been assigned
              (define my-type->child-type-dict
                #,(dict-ref node-child-dict-funcs n))
              (my-type->child-type-dict node my-type)))))
-    (define xsmith_type-info
+    (define xsmith_type-constraint-from-parent-info
       (for/hash ([n nodes])
         (values
          n
          #`(λ (node)
+             (define (parent-node-type)
+               (and (ast-has-parent? node)
+                    (ast-node-type (parent-node node))))
              (define parent-child-type-dict
                (if (ast-has-parent? node)
                    (att-value 'xsmith_children-type-dict (ast-parent node))
                    (hash node (fresh-type-variable))))
-             (define (parent-node-type)
-               (and (ast-has-parent? node)
-                    (ast-node-type (parent-node node))))
              (define my-type-from-parent/func
                (dict-ref parent-child-type-dict
                          node
@@ -845,10 +845,13 @@ The second arm is a function that takes the type that the node has been assigned
                                   (error
                                    'type-info
                                    (string-append
-                                    "No type info available for node "
-                                    "(of AST type ~a with parent of AST type ~a).")
+                                    "No type info provided by parent for node "
+                                    "(of AST type ~a, with parent of AST type ~a, "
+                                    "and field name ~a).")
                                    (quote #,n)
-                                   (parent-node-type)))))))
+                                   (parent-node-type)
+                                   (att-value 'xsmith_node-field-name-in-parent
+                                              node)))))))
              (define my-type-from-parent (if (procedure? my-type-from-parent/func)
                                              (my-type-from-parent/func node)
                                              my-type-from-parent/func))
@@ -859,12 +862,20 @@ The second arm is a function that takes the type that the node has been assigned
                 my-type-from-parent
                 (quote #,n)
                 (parent-node-type)))
+             my-type-from-parent))))
+    (define xsmith_type-info
+      (for/hash ([n nodes])
+        (values
+         n
+         #`(λ (node)
              (define reference-field #,(dict-ref node-reference-field n))
              (define definition-type-field #,(dict-ref binder-type-field n))
              (define my-type-constraint
                (if (att-value 'is-hole? node)
                    #f
                    (att-value 'xsmith_my-type-constraint node)))
+             (define my-type-from-parent
+               (att-value 'xsmith_type-constraint-from-parent node))
              (when my-type-constraint
                (with-handlers
                  ([(λ(x)#t)
@@ -928,8 +939,6 @@ The second arm is a function that takes the type that the node has been assigned
           n
           #`(λ ()
               (define type-needed (att-value 'xsmith_type (current-hole)))
-              (define my-type-constraint (send this xsmith_my-type-constraint))
-              (unify! type-needed my-type-constraint)
               (let ([ref-choices-filtered
                      (hash-ref ref-choices-filtered-hash this #f)])
                 (if ref-choices-filtered
@@ -954,13 +963,18 @@ The second arm is a function that takes the type that the node has been assigned
                                                         (binding-type b))))
                                 visibles))
                       (define visibles/no-func-for-write
-                        (if write?
-                            (filter (λ (b) (not (can-unify? (binding-type b)
-                                                            (function-type
-                                                             (fresh-type-variable)
-                                                             (fresh-type-variable)))))
-                                    visibles-with-type)
-                            visibles-with-type))
+                        (if (not write?)
+                            visibles-with-type
+                            (filter
+                             (λ (b)
+                               (and (not (can-unify? (binding-type b)
+                                                     (function-type
+                                                      (fresh-type-variable)
+                                                      (fresh-type-variable))))
+                                    (not (can-unify? (binding-type b)
+                                                     (nominal-record-definition-type
+                                                      (fresh-type-variable))))))
+                             visibles-with-type)))
 
                       (define effect-filtered
                         (filter
@@ -987,10 +1001,13 @@ The second arm is a function that takes the type that the node has been assigned
                         (error 'xsmith "Got a function type as a type to assign to.  Xsmith's effect tracking requires that assignment can never have a function type."))
                       (define legal+lift
                         ;; TODO - lift effect constraints...
-                        (cons (make-lift-reference-choice-proc
-                               current-hole
-                               lift-type)
-                              higher-order-effect-filtered))
+                        (if (and (nominal-record-definition-type? lift-type)
+                                 (not (null? higher-order-effect-filtered)))
+                            higher-order-effect-filtered
+                            (cons (make-lift-reference-choice-proc
+                                   current-hole
+                                   lift-type)
+                                  higher-order-effect-filtered)))
                       (hash-set! ref-choices-filtered-hash this legal+lift)
                       legal+lift))))))
        #f #'(λ () (error 'xsmith_reference-options!
@@ -1000,6 +1017,7 @@ The second arm is a function that takes the type that the node has been assigned
      xsmith_my-type-constraint-info/ag-rule
      xsmith_my-type-constraint-info/choice-rule
      xsmith_children-type-dict-info
+     xsmith_type-constraint-from-parent-info
      xsmith_type-info
      xsmith_satisfies-type-constraint?-info
      xsmith_reference-options!-info)))

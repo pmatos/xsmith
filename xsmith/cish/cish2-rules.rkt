@@ -83,15 +83,17 @@
       (symbol->string
        (base-type-name t))))
 
+(define (type->string t)
+  (cond [(base-type? t) (base-type->string t)]
+        [(nominal-record-type? t) (format "struct ~a" (nominal-record-type-name t))]
+        [else (error 'type->string "not yet implemented for type ~a" t)]))
+
 (ag
  pretty-print
  [Program (λ (n)
-            (define children (append (ast-children (ast-child 'declarations n))
-                                     (list (ast-child 'main n))))
-            (define global-vars (filter (λ (d) (node-subtype? d 'VariableDeclaration))
-                                        children))
-            (define functions (filter (λ (d) (node-subtype? d 'FunctionDefinition))
-                                      children))
+            (define structs (ast-children (ast-child 'structdefinitions n)))
+            (define global-vars (ast-children (ast-child 'globalvariables n)))
+            (define functions (ast-children (ast-child 'functions n)))
             (v-append
              (v-comment
               n
@@ -100,7 +102,10 @@
                 (text "#include \"xsmith_safe_math.h\"\n")
                 (text "#include <stdio.h>\n")
                 (map (λ (cn) (att-value 'pretty-print cn))
-                     (append global-vars functions)))))
+                     (append (reverse structs)
+                             global-vars
+                             functions
+                             (list (ast-child 'main n)))))))
              (text "")
              (text "int main(){")
              (text "  int main_ret = 0;")
@@ -112,7 +117,8 @@
                                                 [(? bool-type?) "%d"]
                                                 [(? float-type?) "%f"])
                                               (ast-child 'name v))))
-                         global-vars))
+                         (filter (λ (x) (base-type? (ast-child 'type x)))
+                                 global-vars)))
              (text "  printf(\"%d\\n\", main_ret);")
              (text "  return 0;")
              (text "}")
@@ -123,14 +129,14 @@
     (v-comment
      n
      (h-append
-      (text (base-type->string (function-type-return-type (ast-child 'type n))))
+      (text (type->string (function-type-return-type (ast-child 'type n))))
       space
       (text (ast-child 'name n))
       lparen
       (h-concat
        (add-between
         (map (λ (fp)
-               (h-append (text (base-type->string (ast-child 'type fp)))
+               (h-append (text (type->string (ast-child 'type fp)))
                          space
                          (text (ast-child 'name fp))))
              (ast-children (ast-child 'params n)))
@@ -138,6 +144,48 @@
       rparen
       line
       (att-value 'pretty-print (ast-child 'Block n)))))]
+ [StructDefinition
+  (λ (n)
+    (v-append
+     (h-append (text "struct") space (text (ast-child 'name n)))
+     (nest nest-step
+           (apply v-append
+                  lbrace
+                  (for/list ([(field-name field-type)
+                              (in-dict
+                               (let ([t (nominal-record-definition-type
+                                         (nominal-record-type #f '()))])
+                                 (unify! t (ast-child 'type n))
+                                 (nominal-record-type-inners
+                                  (nominal-record-definition-type-type
+                                   t))))])
+                    (h-append (text (type->string field-type))
+                              space
+                              (text field-name)
+                              semi))))
+     (h-append rbrace semi)))]
+ [LiteralStruct
+  (λ (n)
+    (define constant? (member 'constant (att-value 'misc-constraints n)))
+    (define braces-part
+      (h-append
+       lbrace
+       (h-concat
+        (add-between (map (λ (c) (att-value 'pretty-print c))
+                          (ast-children (ast-child 'vals n)))
+                     (h-append comma space)))
+       rbrace))
+    ;; When constants are needed, cast operations are not only not needed but
+    ;; can cause compilation failure.  But elsewhere a cast operator can be needed
+    ;; for the compiler to tell what kind of struct you are constructing.
+    (if constant?
+        braces-part
+        (h-append
+         lparen
+         (text "struct ")
+         (text (ast-child 'name (ast-child 'structdefref n)))
+         rparen
+         braces-part)))]
  [IfStatement
   (λ (n)
     (v-comment
@@ -245,7 +293,7 @@
     (v-comment
      n
      (h-append (hs-append
-                (text (base-type->string (ast-child 'type n)))
+                (text (type->string (ast-child 'type n)))
                 (text (ast-child 'name n))
                 eqsign
                 (att-value 'pretty-print (ast-child 'Expression n)))
@@ -295,6 +343,27 @@
                           colon
                           (att-value 'pretty-print (ast-child 'else n)))
                rparen)))]
+
+ [StructReference
+  (λ (n)
+    (h-append lparen
+              (att-value 'pretty-print (ast-child 'structval n))
+              rparen
+              period
+              (text (ast-child 'fieldname n))))]
+ [StructSetField
+  (λ (n)
+    (h-append lparen
+              lparen
+              (att-value 'pretty-print (ast-child 'structval n))
+              rparen
+              period
+              (text (ast-child 'fieldname n))
+              space
+              eqsign
+              space
+              (att-value 'pretty-print (ast-child 'updateval n))
+              rparen))]
 
  ;; TODO -- gen the name of the safe op function from the type of the operator
  [AdditionExpression {binary-expression-print/function type->print-add}]
@@ -1470,11 +1539,20 @@ few of these methods.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (misc-constraints-choice-rule-default cur-hole)
+  (let ([cs (att-value 'misc-constraints cur-hole)])
+    (not (set-member? cs 'constant))))
+
 (cm misc-constraints
-    [Node (let ([cs (att-value 'misc-constraints current-hole)])
-            (not (set-member? cs 'constant)))]
+    [Node (misc-constraints-choice-rule-default (current-hole))]
     [LiteralInt #t]
     [LiteralFloat #t]
+    [LiteralStruct #t]
+    [VariableReference
+     (or (let ([p (parent-node (current-hole))])
+           (and (ast-subtype? p 'LiteralStruct)
+                (eq? (current-hole) (ast-child 'structdefref p))))
+         (misc-constraints-choice-rule-default (current-hole)))]
     [AssignmentExpression
      (set-empty? (set-intersect '(constant no-assignment)
                                 (att-value 'misc-constraints

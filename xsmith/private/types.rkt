@@ -36,13 +36,21 @@
  (struct-out base-type)
  ;(struct-out alias-type)
  ;; TODO - tuple types -- what should the API be?
- (rename-out [mk-record-type record-type])
+ ;(rename-out [mk-record-type record-type])
  product-type?
  [rename-out [product-type-inner-type-list/resolve product-type-inner-type-list]]
  ;product-type-inner-type-list
- record-type?
- record-type-name
+ ;record-type?
+ ;record-type-name
  (struct-out generic-type)
+ nominal-record-type
+ nominal-record-type?
+ nominal-record-type-name
+ nominal-record-type-inners
+
+ (rename-out [make-nominal-record-definition nominal-record-definition-type])
+ nominal-record-definition-type?
+ nominal-record-definition-type-type
 
  type?
 
@@ -73,6 +81,7 @@
  racket/list
  racket/set
  "scope-graph.rkt"
+ "xsmith-utils.rkt"
  )
 (module+ test (require rackunit))
 
@@ -127,7 +136,8 @@ A type variable list may not contain type variables and may not contain more tha
   (when (<= 2 (length (filter function-type? args))) (composite-error))
   (when (<= 2 (length (filter product-type? args))) (composite-error))
   (when (<= 2 (length (filter sum-type? args))) (composite-error))
-  (when (<= 2 (length (filter record-type? args))) (composite-error))
+  (when (<= 2 (length (filter nominal-record-type? args))) (composite-error))
+  ;(when (<= 2 (length (filter record-type? args))) (composite-error))
   ;; TODO - I probably only want to allow one of each kind of generic type
   (define type (if (null? args) #f args))
   (define handle-set (weak-seteq))
@@ -162,8 +172,8 @@ inner-type-list may be:
 #|
 TODO - when generating a record ref, I'll need to compare something like (record-with-a-field-of-type t) to available record types.
 |#
-(struct record-type (name scope) #:transparent)
-(define (mk-record-type #:name [name #f] name-type-dict)
+#;(struct record-type (name scope) #:transparent)
+#;(define (mk-record-type #:name [name #f] name-type-dict)
   (record-type name (scope #f
                            (map (λ (k) (binding k
                                                 #f
@@ -171,6 +181,24 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                                 'definition))
                                 (dict-keys name-type-dict))
                            '())))
+
+(struct nominal-record-type
+  ;; If name is not #f, inners is an ordered dict of name to type.
+  ;; If name is #f, then the type is variable and inners is still an ordered dict, but names may be #f to just specify that an int needs to be available.
+  ;; By ordered dict, I specifically mean an alist.
+  (name inners)
+  #:mutable
+  #:transparent)
+
+(struct nominal-record-definition-type
+  ;; This is a wrapper to be the type for the definition site of a nominal-record-type.
+  ;; IE instances of a nominal record use the `inner` type, but nominal types need
+  ;; definitions themselves.  This is the type for those definitions...
+  (type)
+  #:transparent)
+(define (make-nominal-record-definition nominal-record-type)
+  ;; TODO - this should be verified to be actually a nominal-record-type
+  (nominal-record-definition-type nominal-record-type))
 
 (struct generic-type (name type-arguments) #:transparent)
 
@@ -182,7 +210,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
    (function-type? x)
    (product-type? x)
    (sum-type? x)
-   (record-type? x)
+   (nominal-record-type? x)
+   (nominal-record-definition-type? x)
+   ;(record-type? x)
    (generic-type? x)
    ))
 
@@ -241,6 +271,23 @@ TODO - when generating a record ref, I'll need to compare something like (record
                   (for/and ([a (unbox* inner1)]
                             [b (unbox* inner2)])
                     (can-unify? a b)))])]
+    [(list (nominal-record-type #f inners1) (nominal-record-type #f inners2))
+     ;; For now, just be conservative to not need to change variable representation...
+     #f]
+    [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
+     (define inner-vals (dict-values inners2))
+     (for/and ([k (dict-keys inners1)])
+       (cond [(not k) (member (dict-ref inners1 k) inner-vals)]
+             [else (and (dict-has-key? inners2 k)
+                        (can-unify? (dict-ref inners1 k) (dict-ref inners2 k)))]))]
+    [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
+     (can-unify? t2 t1)]
+    [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
+     ;; TODO - verify that names are unique?
+     (equal? name1 name2)]
+    [(list (nominal-record-definition-type inner1)
+           (nominal-record-definition-type inner2))
+     (can-unify? inner1 inner2)]
     [else (can-or-do-unify-shared-code can-unify? t1 t2)]))
 
 (define (unify! t1 t2)
@@ -319,6 +366,20 @@ TODO - when generating a record ref, I'll need to compare something like (record
                   [b r])
               (unify! a b))
             (fail))])]
+    [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
+     ;; TODO - do a sanity check that the inners match up and error if they don't.
+     (set-nominal-record-type-name! t1 name2)
+     (set-nominal-record-type-inners! t1 inners2)]
+    [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
+     ;; TODO - do a sanity check that the inners match up and error if they don't.
+     (set-nominal-record-type-name! t2 name1)
+     (set-nominal-record-type-inners! t2 inners1)]
+    [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
+     (when (not (equal? name1 name2))
+       (fail))]
+    [(list (nominal-record-definition-type inner1)
+           (nominal-record-definition-type inner2))
+     (unify! inner1 inner2)]
     [else (let ([rec-result (can-or-do-unify-shared-code unify! t1 t2)])
             (unless rec-result (fail)))]))
 
@@ -328,7 +389,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   ;; in cases where no recursion is necessary.
   (match (list t1 t2)
     [(list (base-type n1) (base-type n2)) (equal? n1 n2)]
-    [(list (record-type n1 s1) (record-type n2 s2))
+    #;[(list (record-type n1 s1) (record-type n2 s2))
      ;; TODO - for now let's assume records start fully specified, but eventually I need to recur on the names and subtypes
      (equal? s1 s2)]
     [(list (generic-type name1 inners1) (generic-type name2 inners2))
@@ -345,6 +406,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define current-xsmith-type-constructor-thunks (make-parameter '()))
 ;; TODO - this should be configurable.
 (define type-max-depth 5)
+(define record-type-max-fields 5)
 
 (define (concretize-type t)
   (define (recur t depth)
@@ -372,7 +434,20 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (product-type (map r inner-types))
            (product-type (map (λ (x) (r (fresh-type-variable)))
                               (make-list (random 6) #f))))]
-      [(record-type n1 s1) (error 'concretize-type "not yet implemented for records")]
+      [(nominal-record-type #f inner-needed)
+       (define needed (dict-ref inner-needed #f (λ () (fresh-type-variable))))
+       (define n-random-fields (random record-type-max-fields))
+       (define field-list (cons needed
+                                (map (λ (x) (fresh-type-variable))
+                                     (make-list n-random-fields #f))))
+       (concretize-type
+        (nominal-record-type (fresh-var-name "record_")
+                             (for/list ([f field-list])
+                               (cons (fresh-var-name "field_")
+                                     (r f)))))]
+      [(nominal-record-type name inners) t]
+      [(nominal-record-definition-type inner)
+       (nominal-record-definition-type (r inner))]
       [(function-type arg return) (function-type (r arg)
                                                  (r return))]
       [(generic-type name inners) (generic-type name (map r inners))]
@@ -465,6 +540,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(base-type _) #t]
     [(function-type a r)
      (and (concrete? a) (concrete? r))]
+    [(nominal-record-type name inners)
+     ;; If a name is set then it's concrete.
+     (not (not name))]
+    [(nominal-record-definition-type inner) (concrete? inner)]
     [(product-type itl)
      (define itl* (unbox* itl))
      (and (list? itl*) (andmap concrete? itl*))]
@@ -544,6 +623,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
                    #t)]))]
     ;[(list (sum-type aoeu) (sum-type aoeu))]
     ;[(list (record-type aoeu) (record-type aoeu))]
+    [(list (nominal-record-type v-name v-inners)
+           (nominal-record-type c-name c-inners))
+     ;; For now be conservative.
+     (not (not v-name))]
+    [(list (nominal-record-definition-type inner1)
+           (nominal-record-definition-type inner2))
+     (at-least-as-concrete inner1 inner2)]
     [(list (generic-type v-name v-inners) (generic-type c-name c-inners))
      (if (equal? v-name c-name)
          (andmap at-least-as-concrete v-inners c-inners)
@@ -592,6 +678,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(list ts ...) (ormap rec ts)])]
     ;[(sum-type)]
     ;[(record-type)]
+    [(nominal-record-type name inners)
+     (ormap rec (dict-values inners))]
+    [(nominal-record-definition-type inner) (rec inner)]
     [(generic-type name inners)
      (ormap rec inners)]
     [(type-variable t-innard)
@@ -613,6 +702,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
          [(list ts ...) (flatten (map rec ts))])]
       ;[(sum-type)]
       ;[(record-type)]
+      [(nominal-record-type name inners) (flatten (map rec (dict-values inners)))]
+      [(nominal-record-definition-type inner) (rec inner)]
       [(generic-type name inners) (flatten (map rec inners))]
       [(type-variable innard)
        (match innard

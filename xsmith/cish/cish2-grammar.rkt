@@ -40,7 +40,11 @@
  racket/random
  racket/class
  racket/dict
- )
+
+ (for-syntax
+  racket/base
+  syntax/parse
+  ))
 
 
 (define-spec-component cish2-grammar)
@@ -49,12 +53,15 @@
  cish2-grammar
  [Node #f ([precomment = empty-doc]
            [postcomment = empty-doc])]
- [Program Node ([declarations : Declaration * = (random 7)]
+ [Program Node ([structdefinitions : StructDefinition * = (random 3)]
+                [globalvariables : VariableDeclaration * = (random 5)]
+                [functions : FunctionDefinition * = (random 3)]
                 [main : FunctionDefinition])]
 
  [Declaration Node ([type]
                     [name])]
  [VariableDeclaration Declaration (Expression)]
+ [StructDefinition Declaration ()]
  [FunctionDefinition Declaration ([params : FormalParam *]
                                   Block)]
  [FormalParam Node ([type]
@@ -63,7 +70,7 @@
 
  [Statement Node ()]
  [NullStatement Statement ()]
- [Block Statement ([declarations : Declaration * = (random 2)]
+ [Block Statement ([declarations : VariableDeclaration * = (random 2)]
                    [statements : Statement * = (add1 (random 4))])]
  [ExpressionStatement Statement (Expression)]
  [IfStatement Statement ([test : Expression]
@@ -77,7 +84,7 @@
                            [body : Statement])]
  [WhileStatement LoopStatement ()]
  [DoWhileStatement LoopStatement ()]
- [ForStatement LoopStatement ([init : Declaration]
+ [ForStatement LoopStatement ([init : VariableDeclaration]
                               [update : Expression])]
 
  [Expression Node ()]
@@ -114,6 +121,15 @@
  [LiteralInt Expression (val)]
  [LiteralFloat Expression (val)]
  [VariableReference Expression (name)]
+ [LiteralStruct Expression ([structdefref : VariableReference]
+                            [vals : Expression *])]
+ [StructReference Expression (fieldname
+                              [structdefref : VariableReference]
+                              [structval : Expression])]
+ [StructSetField Expression (fieldname
+                             [structdefref : VariableReference]
+                             [structval : VariableReference]
+                             [updateval : Expression])]
 
  )
 
@@ -155,6 +171,12 @@
           [Declaration (λ(n)0)])
 
 (add-prop cish2-grammar
+          wont-over-deepen
+          [LiteralStruct #t]
+          )
+
+
+(add-prop cish2-grammar
           fresh
           [IfElseStatement (hash
                             'then
@@ -172,11 +194,20 @@
                  ;; Make an empty args list which will be rewritten
                  ;; by fresh for VariableReference.
                  'args 0)]
+          ;[StructReference (hash)]
+          ;[StructSetField (hash)]
+          ;[LiteralStruct (hash)]
           [VariableReference
            (hash 'name
                  (λ ()
-                   (let* ([choice* (random-ref (send this
-                                                     xsmith_reference-options!))]
+                   (define (struct-def-ref? x)
+                     (define parent (parent-node x))
+                     (and (or (ast-subtype? parent 'StructReference)
+                              (ast-subtype? parent 'StructSetField)
+                              (ast-subtype? parent 'LiteralStruct))
+                          (eq? (current-hole) (ast-child 'structdefref parent))))
+                   (let* ([options (send this xsmith_reference-options!)]
+                          [choice* (random-ref options)]
                           [choice (if (procedure? choice*)
                                       (choice*)
                                       choice*)]
@@ -195,6 +226,34 @@
                             (rewrite-subtree
                              (ast-child 'args parent)
                              arg-children)))))
+                     (when (and (struct-def-ref? (current-hole))
+                                (not (ast-subtype? parent 'LiteralStruct)))
+                       (enqueue-inter-choice-transform
+                        (λ ()
+                          (define inner-names
+                            (nominal-record-type-inners
+                             (nominal-record-definition-type-type
+                              (binding-type choice))))
+                          (define parent-type (att-value 'xsmith_type parent))
+                          (define fieldname-choice
+                            (random-ref
+                             (filter (λ (k) (can-unify? parent-type
+                                                        (dict-ref inner-names k)))
+                                     (dict-keys inner-names))))
+                          (rewrite-terminal 'fieldname parent fieldname-choice))))
+                     (when (and (struct-def-ref? (current-hole))
+                                (ast-subtype? parent 'LiteralStruct))
+                       (enqueue-inter-choice-transform
+                        (λ ()
+                          (define vals-children
+                            (create-ast-list
+                             (map (λ (x) (make-hole 'Expression))
+                                  (dict-keys (nominal-record-type-inners
+                                              (nominal-record-definition-type-type
+                                               (binding-type choice)))))))
+                          (rewrite-subtree
+                           (ast-child 'vals parent)
+                           vals-children))))
                      (binding-name choice))))]
           [VariableDeclaration
            (let* ([hole-name (ast-child 'name current-hole)]
@@ -212,6 +271,21 @@
                             (fresh-concrete-var-type))])
              (hash 'name name
                    'type (concretize-type type)))]
+          [StructDefinition
+           (let* ([hole-type (ast-child 'type current-hole)]
+                  [type (if (and hole-type
+                                 (not (and (ast-node? hole-type)
+                                           (ast-bud-node? hole-type))))
+                            hole-type
+                            (nominal-record-definition-type
+                             (concretize-type (nominal-record-type #f '()))))]
+                  [hole-name (ast-child 'name current-hole)]
+                  [name (if (string? hole-name)
+                            hole-name
+                            (nominal-record-type-name
+                             (nominal-record-definition-type-type type)))])
+             (hash 'name name
+                   'type type))]
           [FunctionDefinition
            (let* ([p (parent-node current-hole)]
                   [main? (and (eq? (node-type p) 'Program)
@@ -260,11 +334,16 @@
           [Declaration (name type definition)]
           [VariableDeclaration (name type definition)]
           [FunctionDefinition (name type definition)]
+          [StructDefinition (name type definition)]
           [FormalParam (name type parameter)])
 (add-prop cish2-grammar
           reference-info
           [VariableReference (read name)]
-          [AssignmentExpression (write name)])
+          [AssignmentExpression (write name)]
+          )
+(add-prop cish2-grammar
+          io
+          [StructSetField #t])
 (add-prop cish2-grammar
           strict-child-order?
           [Program #t]
@@ -277,12 +356,16 @@
           [FunctionDefinition #f]
           ;[FunctionDefinition (λ (n type) #f)]
           [Program (λ (n type) #t)]
-          [Block (λ (n type) (not (function-type? type)))])
+          ;; TODO - not function types AND not struct types
+          [Block (λ (n type) (and (not (function-type? type))
+                                  (not (nominal-record-definition-type? type))))])
 (add-prop cish2-grammar
           lift-type->ast-binder-type
-          [#f (λ (type) (if (function-type? type)
-                            'FunctionDefinition
-                            'VariableDeclaration))])
+          [#f (λ (type) (cond [(function-type? type)
+                               'FunctionDefinition]
+                              [(nominal-record-definition-type? type)
+                               'StructDefinition]
+                              [else 'VariableDeclaration]))])
 
 
 #|
@@ -298,7 +381,12 @@ Type definitions are in cish-utils.rkt
  [Program [(fresh-type-variable)
            (λ (n t) (hash 'main (function-type (product-type '())
                                                int)
-                          'declarations (λ (c) (fresh-type-variable))))]]
+                          'structdefinitions (λ (c) (nominal-record-definition-type
+                                                     (fresh-type-variable)))
+                          'globalvariables (λ (c) (fresh-type-variable))
+                          'functions (λ (c) (function-type
+                                             (product-type #f)
+                                             (fresh-type-variable)))))]]
 
  ;[Declaration [(error 'typing-declaration) (no-child-types)]]
  [VariableDeclaration [(fresh-type-variable)
@@ -307,6 +395,10 @@ Type definitions are in cish-utils.rkt
                            (unify! t declaration-type-annotation)
                            (hash 'Expression
                                  declaration-type-annotation)))]]
+ [StructDefinition [(nominal-record-definition-type (fresh-type-variable))
+                    (λ (n t)
+                      (unify! t (ast-child 'type n))
+                      (hash))]]
  [FunctionDefinition [(function-type (product-type #f) (fresh-type-variable))
                       (λ (n t)
                         (let ([definition-type-annotation (ast-child 'type n)]
@@ -409,7 +501,41 @@ Type definitions are in cish-utils.rkt
                 (λ (n t) (hash 'test bool 'then t 'else t))]]
  [LiteralInt [(fresh-type-variable int bool) (no-child-types)]]
  [LiteralFloat [float (no-child-types)]]
- [VariableReference [(fresh-base-or-function-type) (no-child-types)]]
+ [VariableReference [(fresh-type-variable) (no-child-types)]]
+ [StructReference [(fresh-type-variable)
+                   (λ (n t)
+                     (define type-with-field
+                       (nominal-record-type #f (hash (ast-child 'fieldname n) t)))
+                     (hash 'structval type-with-field
+                           'structdefref (nominal-record-definition-type
+                                          type-with-field)))]]
+ [StructSetField [(fresh-type-variable)
+                  (λ (n t)
+                    (define type-with-field
+                      (nominal-record-type #f (hash (ast-child 'fieldname n) t)))
+                    (hash 'structval type-with-field
+                          'updateval t
+                          'structdefref (nominal-record-definition-type
+                                         type-with-field)))]]
+ [LiteralStruct
+  [(nominal-record-type #f '())
+   (λ (n t)
+     (if (att-value 'is-hole? (ast-child 'structdefref n))
+         (hash 'structdefref (nominal-record-definition-type t))
+         (let* ([vals (ast-children (ast-child 'vals n))]
+                [struct-ref (ast-child 'structdefref n)]
+                [struct-name-bind (att-value 'resolve-reference-name
+                                             struct-ref
+                                             (ast-child 'name struct-ref))]
+                [inners (nominal-record-type-inners
+                         (nominal-record-definition-type-type
+                          (binding-type struct-name-bind)))])
+           (hash-set
+            (for/hash ([v vals]
+                       [field-name (dict-keys inners)])
+              (values v (dict-ref inners field-name)))
+            'structdefref
+            (nominal-record-definition-type t)))))]]
  )
 
 (add-prop

@@ -472,6 +472,7 @@
   (λ (n)
     (if (att-value 'is-hole? n)
         (let* ([choices (att-value 'xsmith_hole->choice-list n)]
+               [choice? (λ (x) (is-a? x ast-choice%))]
                [should-force-deepen?
                 ;; If all choices, before filtering, will over-deepen, don't use
                 ;; that filter.  This is for cases where a deepening choice requires
@@ -483,8 +484,24 @@
                 (parameterize ([current-force-deepen should-force-deepen?])
                   (map (λ (c) (send c xsmith_apply-choice-filters))
                        choices))]
-               [filtered (filter (λ (x) (is-a? x ast-choice%))
-                                 choices-or-reasons)])
+               [filtered (filter choice? choices-or-reasons)]
+               #;[choices-or-reasons
+                (map (λ (c) (send c xsmith_apply-choice-filters))
+                     choices)]
+               #;[choices-or-reasons/no-deepen
+                (map (λ (x) (if (choice? x)
+                                (let ([result (send x xsmith_wont-over-deepen)])
+                                  (if (not result)
+                                      (format "Choice ~a: filtered out by ~a method."
+                                              x
+                                              'xsmith_wont-over-deepen)
+                                      result))
+                                x))
+                     choices-or-reasons)]
+               #;[filtered/no-deepen (filter choice? choices-or-reasons/no-deepen)]
+               #;[filtered (if (null? filtered/no-deepen)
+                             (filter choice? choices-or-reasons)
+                             filtered/no-deepen)])
           (if (null? filtered)
               (error 'replace-hole
                      (string-append
@@ -492,7 +509,19 @@
                       (symbol->string (ast-node-type n))
                       " hole were filtered out.\n"
                       (string-join choices-or-reasons
-                                   "\n")))
+                                   "\n")
+                      "\n\n"
+                      "Hole tree ancestor node types:\n"
+                      (string-join (map symbol->string
+                                        (map ast-node-type
+                                             (filter (λ (x) (not (ast-list-node? x)))
+                                                     (ast-ancestors n))))
+                                   "\n")
+                      "\n\n"
+                      (if (ast-has-parent? n)
+                          (format "Type of this node expected by its parent: ~a\n"
+                                  (att-value 'xsmith_type-constraint-from-parent n))
+                          "")))
               (send (choose-ast filtered) xsmith_fresh)))
         (error 'xsmith_hole->replacement
                "called on non-hole node"))))
@@ -995,7 +1024,12 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                      lifted-ast-type
                                      lifting-hole-node)
                                    (λ ()
-                                     (define name (fresh-var-name "lift_"))
+                                     (define name
+                                       (if (nominal-record-definition-type? type)
+                                           (nominal-record-type-name
+                                            (nominal-record-definition-type-type
+                                             type))
+                                           (fresh-var-name "lift_")))
                                      (define new-hole (make-hole lifted-ast-type))
                                      (define lifting-hole-parent
                                        (ast-parent lifting-hole-node))
