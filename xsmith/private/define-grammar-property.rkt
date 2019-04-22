@@ -46,7 +46,7 @@
   (syntax-parse stx
     [(_ name:id
         (~or
-         (~optional (~seq #:allow-duplicates? allow-duplicates?))
+         (~optional (~seq #:allow-duplicates? allow-duplicates?:boolean))
          (~optional (~seq #:reads read-arg:property-arg ...+))
          (~optional (~seq #:rewrites rewrite-arg:property-arg ...+))
          (~optional (~seq #:appends append-arg:property-arg ...+))
@@ -69,32 +69,11 @@
         "transformer function must declare read, rewrite, or append arguments"
         stx))
      (define transformer-func-use
-       (if (attribute transformer-func)
-           ;; TODO - this disallows duplicates when the transformer for this property is run.  But if a property reads another property then it will still have to do duplicate checking itself.  This should be implemented in a way where the macro that runs transformers first checks for duplicates itself based on this duplicate setting.
-           (syntax-parse (or (attribute allow-duplicates?) #'#f)
-             [#t (attribute transformer-func)]
-             [#f #`(λ (this-prop-info . other-args)
-                     (define checked-this-prop-info
-                       (for/hash ([n (dict-keys this-prop-info)])
-                         (values
-                          n
-                          (syntax-parse (dict-ref this-prop-info n)
-                            [(a) #'a]
-                            [(a b (... ...))
-                             (raise-syntax-error
-                              #f
-                              (format
-                               "duplicate definition of ~a property for node ~a."
-                               'name
-                               n)
-                              #'a)]))))
-                     (apply #,(attribute transformer-func)
-                            checked-this-prop-info
-                            other-args))])
-           #'#f))
+       (or (attribute transformer-func) #'#f))
      ;; TODO - check for duplicates or conflicts in read/rewrite/append specs
      #`(define-syntax name
-         (grammar-property #,transformer-func-use
+         (grammar-property 'name
+                           #,transformer-func-use
                            #,(if (attribute read-arg)
                                  #'(quote-syntax (read-arg ...))
                                  #'(quote-syntax ()))
@@ -103,7 +82,8 @@
                                  #'(quote-syntax ()))
                            #,(if (attribute append-arg)
                                  #'(quote-syntax (append-arg ...))
-                                 #'(quote-syntax ()))))]))
+                                 #'(quote-syntax ()))
+                           #,(or (attribute allow-duplicates?) #'#f)))]))
 
 (define-syntax (define-non-inheriting-rule-property stx)
   (define-syntax-class rule-type

@@ -393,10 +393,9 @@ The scope-graph-scope attribute returns the scope that the node in question resi
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref binder-info-info node #'#f)
-                  ;; TODO - in list because this is a #:reads argument
-                  [((name-field-name type-field-name (~and def/param
-                                                           (~or (~datum definition)
-                                                                (~datum parameter)))))
+                  [(name-field-name type-field-name (~and def/param
+                                                          (~or (~datum definition)
+                                                               (~datum parameter))))
                    (syntax->datum #'def/param)]
                   [else #f]))))
     (define binder-nodes (filter (λ (n) (dict-ref node-binder-types n)) nodes))
@@ -456,30 +455,20 @@ The scope-graph-scope attribute returns the scope that the node in question resi
     (define binding-structure-hash
       (for/hash ([node nodes])
         (values node
-                (syntax-parse (dict-ref binding-structure-info node #'(#f))
+                (syntax-parse (dict-ref binding-structure-info node #'#f)
                   #:literals (quote)
-                  ;; TODO - because this is not in the transformer of the
-                  ;; original property I have to check duplicates by hand...
-                  [(a b) (raise-syntax-error 'xsmith
-                                             "duplicate property declaration"
-                                             #'b)]
-                  [((quote (~and flag:id (~or (~datum serial)
-                                              (~datum parallel)
-                                              (~datum recursive)))))
+                  [(quote (~and flag:id (~or (~datum serial)
+                                             (~datum parallel)
+                                             (~datum recursive))))
                    #''flag]
-                  [(#f) #''serial]))))
+                  [#f #''serial]))))
     (define xsmith_lift-predicate-info
       (for/hash ([node nodes])
         (values node
-                (syntax-parse (dict-ref lift-predicate-info node #'(#t))
-                  ;; TODO - manual duplicate checking because this in not
-                  ;; in the original property's transformer...
-                  [(a b) (raise-syntax-error 'xsmith
-                                             "duplicate property declaration"
-                                             #'b)]
-                  [(#t) #'(λ (n type) #t)]
-                  [(#f) #'(λ (n type) #f)]
-                  [(predicate) #'predicate]))))
+                (syntax-parse (dict-ref lift-predicate-info node #'#t)
+                  [#t #'(λ (n type) #t)]
+                  [#f #'(λ (n type) #f)]
+                  [predicate #'predicate]))))
 
     (define xsmith_lift-destinations-info
       (for/fold ([rule-info (hash #f #'default-lift-destinations-impl)])
@@ -647,8 +636,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
   #:transformer
   (λ (this-prop-info binder-info)
     (define definitions (filter (λ (n) (syntax-parse (dict-ref binder-info n)
-                                         ;; TODO - in list because this is in #:reads
-                                         [((name-f type-f (~datum definition))) #t]
+                                         [(name-f type-f (~datum definition)) #t]
                                          [else #f]))
                                 (dict-keys binder-info)))
     (define single-definition (and (equal? 1 (length definitions)) (car definitions)))
@@ -793,11 +781,9 @@ The second arm is a function that takes the type that the node has been assigned
       (for/list ([n nodes])
         (syntax-parse (dict-ref reference-info-info n #'#f)
           [#f (list #'#f #'#f)]
-          ;; TODO - because this is not in the transformer of the
-          ;; original property I have to check duplicates by hand...
-          [(((~and r/w-type:id
-                   (~or (~datum read) (~datum write)))
-             field:id))
+          [((~and r/w-type:id
+                  (~or (~datum read) (~datum write)))
+            field:id)
            (list #'(quote r/w-type) #'(quote field))])))
     (define node-r/w-type (for/hash ([n nodes]
                                      [i node-reference-info-cleansed])
@@ -809,8 +795,7 @@ The second arm is a function that takes the type that the node has been assigned
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref binder-info-info node #'#f)
-                  ;; TODO - in list because this is a #:reads argument
-                  [((name-field-name type-field-name def/param))
+                  [(name-field-name type-field-name def/param)
                    #''type-field-name]
                   [else #'#f]))))
 
@@ -1164,14 +1149,12 @@ The second arm is a function that takes the type that the node has been assigned
     (define xsmith_effects/no-children-info
       (for/hash ([n nodes])
         (define-values (read-or-write varname)
-          (syntax-parse (dict-ref reference-info n #'(#f))
-            ;; Because I'm reading it outside of its own property
-            ;; I have to check duplicates manually...
-            [(((~datum read) field-name:id))
+          (syntax-parse (dict-ref reference-info n #'#f)
+            [((~datum read) field-name:id)
              (values #'effect-read-variable #'field-name)]
-            [(((~datum write) field-name:id))
+            [((~datum write) field-name:id)
              (values #'effect-write-variable #'field-name)]
-            [(#f) (values #f #f)]))
+            [#f (values #f #f)]))
         (values
          n
          #`(λ (n) (filter (λ(x)x)

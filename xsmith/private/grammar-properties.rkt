@@ -41,6 +41,8 @@ Grammar property names are bound with define-syntax to grammar-property structs 
  (struct-out grammar-property)
  grammar-property-less-than
  grammar-property-transform
+ grammar-property-name
+ grammar-property-allow-duplicates?
 
  ;; syntax classes
  grammar-property-stx
@@ -49,7 +51,6 @@ Grammar property names are bound with define-syntax to grammar-property structs 
  property-arg-ag-rule
  property-arg-choice-rule
  property-arg-grammar
-
  )
 
 (require
@@ -213,6 +214,8 @@ This function is only used in one place, so its interface is tightly bound with 
           ;; The return list should be a hash for each rewrite
           ;; then a hash for each append.
           ;; TODO - verify the returns to be sure they are proper.
+          ;;        Eg. for rewritten/appended properties, check that they
+          ;;        adhere to the `allow-duplicates?` flag.
           (define post-rewrites
             (for/fold ([i infos-hash])
                       ([rw rewrites]
@@ -247,7 +250,7 @@ This function is only used in one place, so its interface is tightly bound with 
     must be grammar-node-name->grammar-clause (where grammar-clause is
     the syntax class).
   |#
-  (transformer reads rewrites appends)
+  (name transformer reads rewrites appends allow-duplicates?)
   #:property prop:procedure (λ (stx) (raise-syntax-error
                                       'grammar-property
                                       "Can't be used directly as a macro."

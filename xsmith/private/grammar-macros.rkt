@@ -685,13 +685,30 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                       (dict-set node-hash
                                 node-name
                                 (cons val-stx current-node-name-list))))])))
-   ;; Switch from a list of syntax objects to a syntax object wrapping a list.
+   ;; Switch from a list of syntax objects to a single syntax object for
+   ;; properties that do not `allow-duplicates?`, and a syntax-object list
+   ;; for those that do.
    ;; For easier parsing on the receiving side.
    (define prop-hash
      (for/hash ([pk (dict-keys prop-hash-with-lists)])
        (define subhash (dict-ref prop-hash-with-lists pk))
-       (values pk (for/hash ([nk (dict-keys subhash)])
-                    (values nk (datum->syntax #f (dict-ref subhash nk)))))))
+       (values
+        pk
+        (for/hash ([nk (dict-keys subhash)])
+          (values
+           nk
+           (if (grammar-property-allow-duplicates? pk)
+               (datum->syntax #f (dict-ref subhash nk))
+               (syntax-parse (dict-ref subhash nk)
+                 [(a) #'a]
+                 [(a b ...)
+                  (raise-syntax-error
+                   #f
+                   (format
+                    "duplicate definition of ~a property for node ~a."
+                    (grammar-property-name pk)
+                    nk)
+                   #'a)])))))))
 
    (define g-parts (syntax->list #'(g-part ...)))
    ;; g-hash is a single-level hash node-name->node-spec-stx
