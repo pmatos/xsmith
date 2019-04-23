@@ -30,11 +30,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(provide cish2-grammar)
+(provide cish-grammar)
 
 (require
  "../main.rkt"
- "cish2-utils.rkt"
+ "cish-utils.rkt"
  (only-in pprint [empty empty-doc])
  racr
  racket/random
@@ -47,10 +47,10 @@
   ))
 
 
-(define-spec-component cish2-grammar)
+(define-spec-component cish-grammar)
 
 (add-to-grammar
- cish2-grammar
+ cish-grammar
  [Node #f ([precomment = empty-doc]
            [postcomment = empty-doc])]
  [Program Node ([structdefinitions : StructDefinition * = (random 3)]
@@ -133,7 +133,7 @@
 
  )
 
-(add-prop cish2-grammar
+(add-prop cish-grammar
           may-be-generated
           ;; abstract nodes
           [Declaration #f]
@@ -154,7 +154,7 @@
           [UnsafeModulusExpression #f]
           )
 
-(add-prop cish2-grammar
+(add-prop cish-grammar
           depth-increase
           [Block (λ (n) (if (member (node-type (parent-node n))
                                     '(IfStatement
@@ -170,13 +170,13 @@
           [AssignmentExpression (λ(n)0)]
           [Declaration (λ(n)0)])
 
-(add-prop cish2-grammar
+(add-prop cish-grammar
           wont-over-deepen
           [LiteralStruct #t]
           )
 
 
-(add-prop cish2-grammar
+(add-prop cish-grammar
           fresh
           [IfElseStatement (hash
                             'then
@@ -323,35 +323,35 @@
                                           -1)))]
           )
 
-#;(add-prop cish2-grammar
+#;(add-prop cish-grammar
           introduces-scope
           [Program #t]
           [FunctionDefinition #t]
           [Block #t]
           [ForStatement #t])
-(add-prop cish2-grammar
+(add-prop cish-grammar
           binder-info
           [Declaration (name type definition)]
           [VariableDeclaration (name type definition)]
           [FunctionDefinition (name type definition)]
           [StructDefinition (name type definition)]
           [FormalParam (name type parameter)])
-(add-prop cish2-grammar
+(add-prop cish-grammar
           reference-info
           [VariableReference (read name)]
           [AssignmentExpression (write name)]
           )
-(add-prop cish2-grammar
+(add-prop cish-grammar
           io
           [StructSetField #t])
-(add-prop cish2-grammar
+(add-prop cish-grammar
           strict-child-order?
           [Program #t]
           [Block #t]
           [IfStatement #t]
           [IfExpression #t]
           [LoopStatement #t])
-(add-prop cish2-grammar
+(add-prop cish-grammar
           lift-predicate
           [FunctionDefinition #f]
           ;[FunctionDefinition (λ (n type) #f)]
@@ -359,7 +359,7 @@
           ;; TODO - not function types AND not struct types
           [Block (λ (n type) (and (not (function-type? type))
                                   (not (nominal-record-definition-type? type))))])
-(add-prop cish2-grammar
+(add-prop cish-grammar
           lift-type->ast-binder-type
           [#f (λ (type) (cond [(function-type? type)
                                'FunctionDefinition]
@@ -374,7 +374,7 @@ Type definitions are in cish-utils.rkt
 
 ;; TODO - this property is wonky because it needs more info than I originally anticipated due to shortsightedness in wanting to design something easy to write.  It needs to take the node as well as its type, or maybe have an option to take its node.
 (add-prop
- cish2-grammar
+ cish-grammar
  type-info
  [#f [(error 'typing-base-node) (no-child-types)]]
  ;[Node [(error 'typing-node) (no-child-types)]]
@@ -539,7 +539,7 @@ Type definitions are in cish-utils.rkt
  )
 
 (add-prop
- cish2-grammar
+ cish-grammar
  choice-filters-to-apply
  [#f (
       features-enabled

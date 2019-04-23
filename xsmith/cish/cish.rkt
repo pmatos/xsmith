@@ -33,10 +33,10 @@
 
 (require
  "../main.rkt"
- "cish2-grammar.rkt"
- "cish2-rules.rkt"
+ "cish-grammar.rkt"
+ "cish-rules.rkt"
 
- "cish2-utils.rkt"
+ "cish-utils.rkt"
 
  racr
  (except-in pprint
@@ -49,9 +49,9 @@
 
 
 (assemble-spec-components
- cish2
- cish2-grammar
- cish2-rules
+ cish
+ cish-grammar
+ cish-rules
  )
 
 
@@ -94,7 +94,7 @@
 (define (cish-generate-and-print)
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
-    (let* ([ast (cish2-generate-ast 'Program)]
+    (let* ([ast (cish-generate-ast 'Program)]
            [pre-analysis-print (printf "/*\n")]
            [ast (if (hash-ref (xsmith-option 'features-disabled)
                               'unsafe-math/range #t)

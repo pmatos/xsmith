@@ -30,11 +30,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(provide cish2-rules)
+(provide cish-rules)
 
 (require
  "../main.rkt"
- "cish2-utils.rkt"
+ "cish-utils.rkt"
 
  racr
  (except-in pprint
@@ -55,14 +55,14 @@
   ))
 
 
-(define-spec-component cish2-rules)
+(define-spec-component cish-rules)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; ag rules
 
 (define-syntax-parser ag
   [(_ arg ...)
-   #'(add-ag-rule cish2-rules arg ...)])
+   #'(add-ag-rule cish-rules arg ...)])
 
 
 (define fresh-int-counter 0)
@@ -616,7 +616,7 @@
     (rt:clear-asserts!)))
 
 (add-ag-rule
- cish2-rules
+ cish-rules
  symbolic-interp
  ;; Get the single global result
  [Node (λ (n)
@@ -1499,7 +1499,7 @@
 
 (define-syntax-parser cm
   [(_ method [node-name lambda-body] ...+)
-   #'(add-choice-rule cish2-rules method [node-name (λ () lambda-body)] ...)])
+   #'(add-choice-rule cish-rules method [node-name (λ () lambda-body)] ...)])
 
 #|
 Apparently class definitions don't let public methods be defined with
@@ -1561,7 +1561,7 @@ few of these methods.
      (equal? (node-type (parent-node current-hole)) 'Program)])
 
 (add-prop
- cish2-rules
+ cish-rules
  choice-weight
  [Node 10]
  [NullStatement 1]
@@ -1587,7 +1587,7 @@ few of these methods.
 
 
 (add-prop
- cish2-rules
+ cish-rules
  wont-over-deepen
  [ExpressionStatement #t]
  [ValueReturnStatement #t]
