@@ -570,7 +570,7 @@ Additionally, it defines the following ag-rules within the RACR spec:
 * find-descendants
 * find-a-descendant
 * resolve-reference-name
-* visible-bindings
+* xsmith_visible-bindings
 
 It also defines within the RACR spec all ag-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
 |#
@@ -1104,7 +1104,7 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                 [base-node-name find-a-descendant-function])
                        (ag-rule resolve-reference-name
                                 [base-node-name resolve-reference-name-function])
-                       (ag-rule visible-bindings
+                       (ag-rule xsmith_visible-bindings
                                 [base-node-name visible-bindings-function])
                        (ag-rule xsmith_node-field-name-in-parent
                                 [base-node-name node-field-name-in-parent-function])

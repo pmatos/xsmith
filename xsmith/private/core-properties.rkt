@@ -939,8 +939,7 @@ The second arm is a function that takes the type that the node has been assigned
                         (map effect-variable effects-to-avoid))
 
                       (define visibles
-                        ;; TODO - maybe this should be xsmith_visible-bindings
-                        (att-value 'visible-bindings current-hole))
+                        (att-value 'xsmith_visible-bindings current-hole))
                       (define visibles-with-type
                         (filter (λ (b) (and b
                                             (concrete-type? (binding-type b))
