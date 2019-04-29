@@ -40,7 +40,7 @@
  [Program #f ([expressions : Expression * = (add1 (random 5))])]
 
  [Expression #f ()
-             [#:prop may-be-generated #f]]
+             #:prop may-be-generated #f]
 
  [LiteralBool Expression ([v = (even? (random 2))])]
  [Not Expression ([Expression])]
@@ -69,7 +69,7 @@
  [EqualP Expression ([l : Expression] [r : Expression])]
 
  [If Expression ([test : Expression] [then : Expression] [else : Expression])
-     [#:prop strict-child-order? #t]]
+     #:prop strict-child-order? #t]
 
  )
 

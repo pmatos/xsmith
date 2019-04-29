@@ -39,24 +39,24 @@
  schemely-core
  [DefinitionContext #f ([definitions : Definition * = (random 3)]
                         [expressions : Expression * = (add1 (random 3))])
-   [#:prop strict-child-order? #t]]
+   #:prop strict-child-order? #t]
  [Program DefinitionContext ()]
 
  [Definition #f ([type = (concretize-type (fresh-type-variable))]
                  [name]
                  Expression)
-   [#:prop binder-info (name type definition)]]
+   #:prop binder-info (name type definition)]
 
  [Expression #f ()
-             [#:prop may-be-generated #f]]
+             #:prop may-be-generated #f]
 
  [LetStar Expression ([definitions : Definition * = (random 3)]
                       [body : DefinitionContext])
-          [#:prop strict-child-order? #t]]
+          #:prop strict-child-order? #t]
 
  [VariableReference Expression (name)
-                    [#:prop reference-info (read name)]
-                    [#:prop choice-weight 10]]
+                    #:prop reference-info (read name)
+                    #:prop choice-weight 10]
 
  [LiteralNumber Expression ([v = (* (random 1000000)
                                     (if (equal? 0 (random 2)) -1 1))])]

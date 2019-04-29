@@ -39,10 +39,10 @@
  schemely-core
  [Program #f ([expressions : Expression * = (add1 (random 5))])]
  [Expression #f ()
-             [#:prop may-be-generated #f]]
+             #:prop may-be-generated #f]
  [LiteralInt Expression ([v = (random 100)])]
  [Addition Expression ([l : Expression] [r : Expression])
-           [#:prop choice-weight 20]])
+           #:prop choice-weight 20])
 
 
 (add-ag-rule

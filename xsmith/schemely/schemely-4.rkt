@@ -42,36 +42,36 @@
  schemely-core
  [DefinitionContext #f ([definitions : Definition * = (random 3)]
                         [expressions : Expression * = (add1 (random 3))])
-   [#:prop strict-child-order? #t]]
+   #:prop strict-child-order? #t]
  [Program DefinitionContext ()]
 
  [Definition #f ([type = (concretize-type (fresh-type-variable))]
                  [name]
                  Expression)
-   [#:prop binder-info (name type definition)]]
+   #:prop binder-info (name type definition)]
 
  [Expression #f ()
-             [#:prop may-be-generated #f]]
+             #:prop may-be-generated #f]
 
  [Application Expression
               ([procedure : Expression]
                [arguments : Expression * = (arg-length)])
-              [#:prop choice-weight 50]]
+              #:prop choice-weight 50]
  [Lambda Expression ([params : FormalParam * = (arg-length)]
                      ;;[body : DefinitionContext]
                      [body : Expression]
                      )
-         [#:prop wont-over-deepen #t]]
+         #:prop wont-over-deepen #t]
  [FormalParam #f (type [name = (fresh-var-name "arg-")])
-              [#:prop binder-info (name type parameter)]]
+              #:prop binder-info (name type parameter)]
 
  [LetStar Expression ([definitions : Definition * = (random 3)]
                       [body : DefinitionContext])
-          [#:prop strict-child-order? #t]]
+          #:prop strict-child-order? #t]
 
  [VariableReference Expression (name)
-                    [#:prop reference-info (read name)]
-                    [#:prop choice-weight 10]]
+                    #:prop reference-info (read name)
+                    #:prop choice-weight 10]
 
  [LiteralBool Expression ([v = (even? (random 2))])]
  [Not Expression ([Expression])]
@@ -101,7 +101,7 @@
  [EqualP Expression ([l : Expression] [r : Expression])]
 
  [If Expression ([test : Expression] [then : Expression] [else : Expression])
-     [#:prop strict-child-order? #t]]
+     #:prop strict-child-order? #t]
 
  )
 

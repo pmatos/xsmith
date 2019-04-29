@@ -39,24 +39,24 @@
  schemely-core
  [DefinitionContext #f ([definitions : Definition * = (random 3)]
                         [expressions : Expression * = (add1 (random 3))])
-   [#:prop strict-child-order? #t]]
+   #:prop strict-child-order? #t]
  [Program DefinitionContext ()]
 
  [Definition #f ([type = (concretize-type (fresh-type-variable))]
                  [name = (fresh-var-name)]
                  Expression)
-   [#:prop binder-info (name type definition)]]
+   #:prop binder-info (name type definition)]
 
  [Expression #f ()
-             [#:prop may-be-generated #f]]
+             #:prop may-be-generated #f]
 
  [Let Expression ([definitions : Definition * = (random 3)]
                   [body : DefinitionContext])
-      [#:prop strict-child-order? #t]]
+      #:prop strict-child-order? #t]
 
  ;; TODO - this is broken -- it needs to have a `fresh` implementation for name, unfortunately...
  [VariableReference #f (name)
-                    [#:prop reference-info (read name)]]
+                    #:prop reference-info (read name)]
 
  [LiteralBool Expression ([v = (even? (random 2))])]
  [Not Expression ([Expression])]
@@ -85,7 +85,7 @@
  [EqualP Expression ([l : Expression] [r : Expression])]
 
  [If Expression ([test : Expression] [then : Expression] [else : Expression])
-     [#:prop strict-child-order? #t]]
+     #:prop strict-child-order? #t]
 
  )
 
