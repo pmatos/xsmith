@@ -883,6 +883,64 @@ few of these methods.
      (parent-node-type)))
   my-type-from-parent)
 
+(define (xsmith_type-info-func node reference-field definition-type-field)
+  (define my-type-constraint
+    (if (att-value 'is-hole? node)
+        #f
+        (att-value 'xsmith_my-type-constraint node)))
+  (define my-type-from-parent
+    (att-value 'xsmith_type-constraint-from-parent node))
+  (when my-type-constraint
+    (with-handlers
+      ([(λ(x)#t)
+        (λ (e)
+          (eprintf "error while unifying types: ~a and ~a\n"
+                   my-type-from-parent my-type-constraint)
+          (eprintf "for node of AST type: ~a\n" (ast-node-type node))
+          (eprintf "with parent of AST type: ~a\n" (ast-node-type
+                                                    (parent-node node)))
+          (raise e))])
+      (unify! my-type-from-parent my-type-constraint)))
+  (when (and reference-field (not (att-value 'is-hole? node)))
+    (let* ([binding (att-value 'resolve-reference-name
+                               node
+                               (ast-child reference-field node))]
+           [binding-node (binding-ast-node binding)]
+           [binding-node-type (att-value 'xsmith_type binding-node)]
+           [var-type (binding-type binding)])
+      (with-handlers
+        ([(λ(x)#t)
+          (λ (e)
+            (eprintf "Error unifying types for reference of AST type: ~a\n"
+                     (ast-node-type node))
+            (eprintf "Type received from parent AST node: ~a\n"
+                     my-type-from-parent)
+            (eprintf "Type annotated at variable definition: ~a\n"
+                     var-type)
+            (raise e))])
+        (unify! my-type-from-parent var-type))
+      ;; This shouldn't be necessary, but something is going wrong,
+      ;; so I'll give a chance to get this error message.
+      (with-handlers
+        ([(λ(x)#t)
+          (λ (e)
+            (eprintf "Error unifying types for reference of AST type: ~a\n"
+                     (ast-node-type node))
+            (eprintf "Type annotated at variable definition: ~a\n"
+                     binding-node-type)
+            (eprintf "Type that was recorded in scope graph: ~a\n"
+                     var-type)
+            (raise e))])
+        (unify! binding-node-type var-type))))
+  (when (and definition-type-field (not (att-value 'is-hole? node)))
+    (let ([def-type (ast-child definition-type-field node)])
+      (when (type? def-type)
+        ;; TODO - in my existing fuzzers this is sometimes not set for parameters, but it should be... I'm just not sure about the timing of setting it all up right now...
+        (unify! my-type-from-parent def-type))))
+  ;; Now unified, return the one from the parent since it likely has
+  ;; the most direct info.
+  my-type-from-parent)
+
 #|
 The type-info property is two-armed.
 The first arm is an expression that must return a type (which should be fresh if it is a [maybe constrained] variable) that the AST node can fulfill.
@@ -981,69 +1039,13 @@ The second arm is a function that takes the type that the node has been assigned
         (values
          n
          #`(λ (node)
-             (define reference-field #,(dict-ref node-reference-field n))
-             (define definition-type-field #,(dict-ref binder-type-field n))
-             (define my-type-constraint
-               (if (att-value 'is-hole? node)
-                   #f
-                   (att-value 'xsmith_my-type-constraint node)))
-             (define my-type-from-parent
-               (att-value 'xsmith_type-constraint-from-parent node))
-             (when my-type-constraint
-               (with-handlers
-                 ([(λ(x)#t)
-                   (λ (e)
-                     (eprintf "error while unifying types: ~a and ~a\n"
-                              my-type-from-parent my-type-constraint)
-                     (eprintf "for node of AST type: ~a\n" (ast-node-type node))
-                     (eprintf "with parent of AST type: ~a\n" (ast-node-type
-                                                               (parent-node node)))
-                     (raise e))])
-                 (unify! my-type-from-parent my-type-constraint)))
-             (when (and reference-field (not (att-value 'is-hole? node)))
-               (let* ([binding (att-value 'resolve-reference-name
-                                          node
-                                          (ast-child reference-field node))]
-                      [binding-node (binding-ast-node binding)]
-                      [binding-node-type (att-value 'xsmith_type binding-node)]
-                      [var-type (binding-type binding)])
-                 (with-handlers
-                   ([(λ(x)#t)
-                     (λ (e)
-                       (eprintf "Error unifying types for reference of AST type: ~a\n"
-                                (ast-node-type node))
-                       (eprintf "Type received from parent AST node: ~a\n"
-                                my-type-from-parent)
-                       (eprintf "Type annotated at variable definition: ~a\n"
-                                var-type)
-                       (raise e))])
-                   (unify! my-type-from-parent var-type))
-                 ;; This shouldn't be necessary, but something is going wrong,
-                 ;; so I'll give a chance to get this error message.
-                 (with-handlers
-                   ([(λ(x)#t)
-                     (λ (e)
-                       (eprintf "Error unifying types for reference of AST type: ~a\n"
-                                (ast-node-type node))
-                       (eprintf "Type annotated at variable definition: ~a\n"
-                                binding-node-type)
-                       (eprintf "Type that was recorded in scope graph: ~a\n"
-                                var-type)
-                       (raise e))])
-                   (unify! binding-node-type var-type))))
-             (when (and definition-type-field (not (att-value 'is-hole? node)))
-               (let ([def-type (ast-child definition-type-field node)])
-                 (when (type? def-type)
-                   ;; TODO - in my existing fuzzers this is sometimes not set for parameters, but it should be... I'm just not sure about the timing of setting it all up right now...
-                   (unify! my-type-from-parent def-type))))
-             ;; Now unified, return the one from the parent since it likely has
-             ;; the most direct info.
-             my-type-from-parent))))
+             (xsmith_type-info-func node
+                                    #,(dict-ref node-reference-field n)
+                                    #,(dict-ref binder-type-field n))))))
     (define xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
                    (satisfies-type-constraint?
-                    current-hole
-
+                    (current-hole)
                     (send this xsmith_my-type-constraint)))))
     (define xsmith_reference-options!-info
       (hash-set
