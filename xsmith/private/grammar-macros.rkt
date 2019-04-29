@@ -468,6 +468,63 @@
         (cons n matches)
         matches)))
 
+(define xsmith_make-lift-do-proc-function
+  (λ (make-hole-func)
+    (λ (destination-node
+        destination-field
+        type
+        lift-depth
+        lifted-ast-type
+        lifting-hole-node)
+      (λ ()
+        (define name
+          (if (nominal-record-definition-type? type)
+              (nominal-record-type-name
+               (nominal-record-definition-type-type
+                type))
+              (fresh-var-name "lift_")))
+        (define new-hole (make-hole-func lifted-ast-type))
+        (define lifting-hole-parent
+          (ast-parent lifting-hole-node))
+        (define hole-index-in-parent
+          (ast-child-index lifting-hole-node))
+        ;; TODO - these field names should probably be looked up...
+        (rewrite-terminal 'name new-hole name)
+        (rewrite-terminal 'xsmithliftdepth
+                          new-hole lift-depth)
+        (rewrite-terminal 'type new-hole type)
+
+        (define choices
+          (att-value 'xsmith_hole->choice-list new-hole))
+        (when (not (equal? (length choices) 1))
+          (error
+           'xsmith
+           (format
+            "lift attempted for node type with more than 1 replacement choice: ~a"
+            lifted-ast-type)))
+        (define new-declaration
+          (send (car choices) xsmith_fresh
+                (hash 'xsmithliftdepth lift-depth)))
+        (enqueue-inter-choice-transform
+         (λ ()
+           (rewrite-insert
+            (ast-child destination-field
+                       destination-node)
+            ;; 1-based index?
+            1
+            new-declaration)
+           (rewrite-terminal
+            'xsmithlifterwrapped
+            new-declaration
+            ;; This is boxed so that it won't be
+            ;; an ast node, so it won't interfere
+            ;; with things that just look at all
+            ;; child nodes of its parent.
+            (box-immutable
+             (ast-child hole-index-in-parent
+                        lifting-hole-parent)))))
+        name))))
+
 (define xsmith_hole->replacement-function
   (λ (n)
     (if (att-value 'is-hole? n)
@@ -1030,74 +1087,8 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                 [base-node-name xsmith_hole->replacement-function])
                        (ag-rule xsmith_make-lift-do-proc
                                 [base-node-name
-                                 ;;; This is written in-line because make-hole needs
-                                 ;;; to be in a context where it is parameterized.
-                                 ;;; TODO - fix this so I can put this code outside
-                                 ;;; of this giant macro template.
-                                 (λ (destination-node
-                                     destination-field
-                                     type
-                                     lift-depth
-                                     lifted-ast-type
-                                     lifting-hole-node)
-                                   (λ ()
-                                     (define name
-                                       (if (nominal-record-definition-type? type)
-                                           (nominal-record-type-name
-                                            (nominal-record-definition-type-type
-                                             type))
-                                           (fresh-var-name "lift_")))
-                                     (define new-hole (make-hole lifted-ast-type))
-                                     (define lifting-hole-parent
-                                       (ast-parent lifting-hole-node))
-                                     (define hole-index-in-parent
-                                       (ast-child-index lifting-hole-node))
-                                     ;; TODO - these field names should probably be looked up...
-                                     (rewrite-terminal 'name new-hole name)
-                                     (rewrite-terminal 'xsmithliftdepth
-                                                       new-hole lift-depth)
-                                     (rewrite-terminal 'type new-hole type)
-
-                                     (define choices
-                                       (att-value 'xsmith_hole->choice-list new-hole))
-                                     (when (not (equal? (length choices) 1))
-                                       (error
-                                        'xsmith
-                                        (format
-                                         "lift attempted for node type with more than 1 replacement choice: ~a"
-                                         lifted-ast-type)))
-                                     (define new-declaration
-                                       (send (car choices) xsmith_fresh
-                                             ;; TODO -
-                                             ;; I don't actually want to send the type
-                                             ;; here, because function definitions
-                                             ;; need to know the type before they set
-                                             ;; the formal params.  So the fresh
-                                             ;; property on function definitions needs
-                                             ;; to read the value on the hole node
-                                             ;; instead of getting it here...
-                                             (hash 'xsmithliftdepth lift-depth
-                                                   ;'type type
-                                                   )))
-                                     (enqueue-inter-choice-transform
-                                      (λ ()
-                                        (rewrite-insert
-                                         (ast-child destination-field
-                                                    destination-node)
-                                         ;; 1-based index?
-                                         1
-                                         new-declaration)
-                                        (rewrite-terminal
-                                         'xsmithlifterwrapped
-                                         new-declaration
-                                         ;; This is boxed so that it won't be
-                                         ;; an ast node, so it won't interfere
-                                         ;; with things that just look at all
-                                         ;; child nodes of its parent.
-                                         (box-immutable
-                                          (ast-child hole-index-in-parent
-                                                     lifting-hole-parent)))))
-                                     name))])
+                                 (xsmith_make-lift-do-proc-function
+                                  (λ (ast-type) (make-hole ast-type)))])
                        (ag-rule find-descendants
                                 [base-node-name find-descendants-function])
                        (ag-rule find-a-descendant

@@ -145,7 +145,7 @@ hole for the type.
                   [else (list #'#f #'#f)]))))
 
     ;; I need to create a lambda (of zero args) that evaluates the given expression (if it exists), then calls a thunk to get the default value for any fields not specified in the list received.
-    (define rule-info
+    (define xsmith_fresh-info
       (for/hash ([node nodes])
         (define fields (dict-ref field-info-hash node))
         (define field-hash (for/hash ([field fields])
@@ -256,7 +256,7 @@ hole for the type.
                (create-ast (current-racr-spec)
                            '#,node
                            all-values+xsmith-injected))))))
-    (list rule-info)))
+    (list xsmith_fresh-info)))
 
 (define-property child-node-name-dict
   #:reads (grammar)
