@@ -846,6 +846,43 @@ few of these methods.
           (hash-set! ref-choices-filtered-hash self legal+lift)
           legal+lift))))
 
+(define (xsmith_type-constraint-from-parent-func node node-type-name)
+  (define (parent-node-type)
+    (and (ast-has-parent? node)
+         (ast-node-type (parent-node node))))
+  (define parent-child-type-dict
+    (if (ast-has-parent? node)
+        (att-value 'xsmith_children-type-dict (ast-parent node))
+        (hash node (fresh-type-variable))))
+  (define my-type-from-parent/func
+    (dict-ref parent-child-type-dict
+              node
+              (λ () (dict-ref
+                     parent-child-type-dict
+                     (att-value 'xsmith_node-field-name-in-parent node)
+                     (λ ()
+                       (error
+                        'type-info
+                        (string-append
+                         "No type info provided by parent for node "
+                         "(of AST type ~a, with parent of AST type ~a, "
+                         "and field name ~a).")
+                        node-type-name
+                        (parent-node-type)
+                        (att-value 'xsmith_node-field-name-in-parent
+                                   node)))))))
+  (define my-type-from-parent (if (procedure? my-type-from-parent/func)
+                                  (my-type-from-parent/func node)
+                                  my-type-from-parent/func))
+  (when (not (type? my-type-from-parent))
+    (error
+     'type-info
+     "Got a value that was not a type: ~a, while typechecking node of AST type ~a and parent of AST type ~a"
+     my-type-from-parent
+     node-type-name
+     (parent-node-type)))
+  my-type-from-parent)
+
 #|
 The type-info property is two-armed.
 The first arm is an expression that must return a type (which should be fresh if it is a [maybe constrained] variable) that the AST node can fulfill.
@@ -938,42 +975,7 @@ The second arm is a function that takes the type that the node has been assigned
       (for/hash ([n nodes])
         (values
          n
-         #`(λ (node)
-             (define (parent-node-type)
-               (and (ast-has-parent? node)
-                    (ast-node-type (parent-node node))))
-             (define parent-child-type-dict
-               (if (ast-has-parent? node)
-                   (att-value 'xsmith_children-type-dict (ast-parent node))
-                   (hash node (fresh-type-variable))))
-             (define my-type-from-parent/func
-               (dict-ref parent-child-type-dict
-                         node
-                         (λ () (dict-ref
-                                parent-child-type-dict
-                                (att-value 'xsmith_node-field-name-in-parent node)
-                                (λ ()
-                                  (error
-                                   'type-info
-                                   (string-append
-                                    "No type info provided by parent for node "
-                                    "(of AST type ~a, with parent of AST type ~a, "
-                                    "and field name ~a).")
-                                   (quote #,n)
-                                   (parent-node-type)
-                                   (att-value 'xsmith_node-field-name-in-parent
-                                              node)))))))
-             (define my-type-from-parent (if (procedure? my-type-from-parent/func)
-                                             (my-type-from-parent/func node)
-                                             my-type-from-parent/func))
-             (when (not (type? my-type-from-parent))
-               (error
-                'type-info
-                "Got a value that was not a type: ~a, while typechecking node of AST type ~a and parent of AST type ~a"
-                my-type-from-parent
-                (quote #,n)
-                (parent-node-type)))
-             my-type-from-parent))))
+         #`(λ (node) (xsmith_type-constraint-from-parent-func node (quote #,n))))))
     (define xsmith_type-info
       (for/hash ([n nodes])
         (values
