@@ -290,14 +290,7 @@
  fresh
  [VariableReference
   ;; TODO - getting a name for a reference should be automatic.
-  (hash 'name
-        (λ ()
-          (let* ([choice* (random-ref (send this
-                                            xsmith_reference-options!))]
-                 [choice (if (procedure? choice*)
-                             (choice*)
-                             choice*)])
-            (binding-name choice))))]
+  (hash 'name (binding-name (send this xsmith_get-reference!)))]
  [Lambda (let* ([type (att-value 'xsmith_type current-hole)]
                 [ftype (function-type
                         (product-type #f)

@@ -186,8 +186,7 @@
           [AssignmentExpression
            (hash
             'name
-            (let* ([choice* (random-ref (send this xsmith_reference-options!))]
-                   [choice (if (procedure? choice*) (choice*) choice*)])
+            (let* ([choice (send this xsmith_get-reference!)])
               (binding-name choice)))]
           [FunctionApplicationExpression
            (hash 'function (make-hole 'VariableReference)
@@ -206,11 +205,7 @@
                               (ast-subtype? parent 'StructSetField)
                               (ast-subtype? parent 'LiteralStruct))
                           (eq? (current-hole) (ast-child 'structdefref parent))))
-                   (let* ([options (send this xsmith_reference-options!)]
-                          [choice* (random-ref options)]
-                          [choice (if (procedure? choice*)
-                                      (choice*)
-                                      choice*)]
+                   (let* ([choice (send this xsmith_get-reference!)]
                           [parent (parent-node (current-hole))])
                      (when (and (ast-subtype? parent 'FunctionApplicationExpression)
                                 (eq? (current-hole) (ast-child 'function parent)))

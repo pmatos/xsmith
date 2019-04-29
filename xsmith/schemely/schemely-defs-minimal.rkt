@@ -156,14 +156,7 @@
  fresh
  [VariableReference
   ;; TODO - getting a name for a reference should be automatic.
-  (hash 'name
-        (λ ()
-          (let* ([choice* (random-ref (send this
-                                            xsmith_reference-options!))]
-                 [choice (if (procedure? choice*)
-                             (choice*)
-                             choice*)])
-            (binding-name choice))))]
+  (hash 'name (binding-name (send this xsmith_get-reference!)))]
  ;; TODO - this should not be necessary
  [Definition (let* ([hole-name (ast-child 'name current-hole)]
                     [name (if (string? hole-name)

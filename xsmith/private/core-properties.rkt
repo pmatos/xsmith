@@ -762,6 +762,17 @@ few of these methods.
 |#
 (define ref-choices-filtered-hash (make-weak-hasheq))
 
+(define (get-reference!-func self lift-probability)
+  (let* ([options/all (send self xsmith_reference-options!)]
+         [options/lift (if (<= (random) lift-probability)
+                           options/all
+                           (filter (λ (x) (not (procedure? x))) options/all))]
+         [options (if (null? options/lift) options/all options/lift)]
+         ;; TODO - add some tunable heuristics to make good choices here.
+         [choice/proc (random-ref options)]
+         [choice (if (procedure? choice/proc) (choice/proc) choice/proc)])
+    choice))
+
 #|
 The type-info property is two-armed.
 The first arm is an expression that must return a type (which should be fresh if it is a [maybe constrained] variable) that the AST node can fulfill.
@@ -782,6 +793,7 @@ The second arm is a function that takes the type that the node has been assigned
   (ag-rule xsmith_type)
   (choice-rule xsmith_satisfies-type-constraint?)
   (choice-rule xsmith_reference-options!)
+  (choice-rule xsmith_get-reference!)
   #:transformer
   (λ (this-prop-info grammar-info reference-info-info binder-info-info)
     (define nodes (dict-keys grammar-info))
@@ -1037,6 +1049,12 @@ The second arm is a function that takes the type that the node has been assigned
                       legal+lift))))))
        #f #'(λ () (error 'xsmith_reference-options!
                          "Only defined for nodes with reference-info property"))))
+    (define xsmith_get-reference!-info
+      (for/hash ([n nodes])
+        (values
+         n
+         #`(λ (#:lift-probability [lift-probability 0])
+             (get-reference!-func this lift-probability)))))
 
     (list
      xsmith_my-type-constraint-info/ag-rule
@@ -1045,7 +1063,9 @@ The second arm is a function that takes the type that the node has been assigned
      xsmith_type-constraint-from-parent-info
      xsmith_type-info
      xsmith_satisfies-type-constraint?-info
-     xsmith_reference-options!-info)))
+     xsmith_reference-options!-info
+     xsmith_get-reference!-info
+     )))
 
 (define (satisfies-type-constraint? hole type-constraint)
   #|
