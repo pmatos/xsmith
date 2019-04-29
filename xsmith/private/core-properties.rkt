@@ -1013,35 +1013,30 @@ The second arm is a function that takes the type that the node has been assigned
                                             [i node-reference-info-cleansed])
                                    (values n (second i))))
     (define binder-type-field
-      (for/hash ([node nodes])
-        (values node
-                (syntax-parse (dict-ref binder-info-info node #'#f)
-                  [(name-field-name type-field-name def/param)
-                   #''type-field-name]
-                  [else #'#f]))))
+      (for/hash ([n nodes])
+        (values n (syntax-parse (dict-ref binder-info-info n #'#f)
+                    [(name-field-name type-field-name def/param)
+                     #''type-field-name]
+                    [else #'#f]))))
 
     (define xsmith_children-type-dict-info
       (for/hash ([n (dict-keys node-child-dict-funcs)])
-        (values
-         n
-         #`(λ (node)
-             (define my-type (att-value 'xsmith_type node))
-             (define my-type->child-type-dict
-               #,(dict-ref node-child-dict-funcs n))
-             (my-type->child-type-dict node my-type)))))
+        (values n #`(λ (node)
+                      (define my-type (att-value 'xsmith_type node))
+                      (define my-type->child-type-dict
+                        #,(dict-ref node-child-dict-funcs n))
+                      (my-type->child-type-dict node my-type)))))
     (define xsmith_type-constraint-from-parent-info
       (for/hash ([n nodes])
-        (values
-         n
-         #`(λ (node) (xsmith_type-constraint-from-parent-func node (quote #,n))))))
+        (values n #`(λ (node) (xsmith_type-constraint-from-parent-func
+                               node
+                               (quote #,n))))))
     (define xsmith_type-info
       (for/hash ([n nodes])
-        (values
-         n
-         #`(λ (node)
-             (xsmith_type-info-func node
-                                    #,(dict-ref node-reference-field n)
-                                    #,(dict-ref binder-type-field n))))))
+        (values n #`(λ (node)
+                      (xsmith_type-info-func node
+                                             #,(dict-ref node-reference-field n)
+                                             #,(dict-ref binder-type-field n))))))
     (define xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
                    (satisfies-type-constraint?
@@ -1050,20 +1045,16 @@ The second arm is a function that takes the type that the node has been assigned
     (define xsmith_reference-options!-info
       (hash-set
        (for/hash ([n nodes])
-         (values
-          n
-          #`(λ ()
-              (xsmith_reference-options!-func this
-                                              (current-hole)
-                                              #,(dict-ref node-r/w-type n)))))
+         (values n #`(λ () (xsmith_reference-options!-func
+                            this
+                            (current-hole)
+                            #,(dict-ref node-r/w-type n)))))
        #f #'(λ () (error 'xsmith_reference-options!
                          "Only defined for nodes with reference-info property"))))
     (define xsmith_get-reference!-info
       (for/hash ([n nodes])
-        (values
-         n
-         #`(λ (#:lift-probability [lift-probability 0])
-             (xsmith_get-reference!-func this lift-probability)))))
+        (values n #`(λ (#:lift-probability [lift-probability 0])
+                      (xsmith_get-reference!-func this lift-probability)))))
 
     (list
      xsmith_my-type-constraint-info/ag-rule
