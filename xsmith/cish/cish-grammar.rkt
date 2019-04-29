@@ -256,62 +256,38 @@
                            vals-children))))
                      (binding-name choice))))]
           [VariableDeclaration
-           (let* ([hole-name (ast-child 'name current-hole)]
-                  [name (if (string? hole-name)
-                            hole-name
-                            (if (equal? (top-ancestor-node current-hole)
-                                        (parent-node current-hole))
-                                (fresh-var-name "global_")
-                                (fresh-var-name "local_")))]
-                  [hole-type (ast-child 'type current-hole)]
-                  [type (if (and hole-type
-                                 (not (and (ast-node? hole-type)
-                                           (ast-bud-node? hole-type))))
-                            hole-type
-                            (fresh-concrete-var-type))])
-             (hash 'name name
-                   'type (concretize-type type)))]
+           (hash 'name (if (equal? (top-ancestor-node (current-hole))
+                                   (parent-node (current-hole)))
+                           (fresh-var-name "global_")
+                           (fresh-var-name "local_"))
+                 'type (fresh-concrete-var-type))]
           [StructDefinition
-           (let* ([hole-type (ast-child 'type current-hole)]
-                  [type (if (and hole-type
-                                 (not (and (ast-node? hole-type)
-                                           (ast-bud-node? hole-type))))
-                            hole-type
-                            (nominal-record-definition-type
-                             (concretize-type (nominal-record-type #f '()))))]
-                  [hole-name (ast-child 'name current-hole)]
-                  [name (if (string? hole-name)
-                            hole-name
-                            (nominal-record-type-name
-                             (nominal-record-definition-type-type type)))])
+           (let* ([type (nominal-record-definition-type
+                         (concretize-type (nominal-record-type #f '())))]
+                  [name (nominal-record-type-name
+                         (nominal-record-definition-type-type type))])
              (hash 'name name
                    'type type))]
           [FunctionDefinition
-           (let* ([p (parent-node current-hole)]
-                  [main? (and (eq? (node-type p) 'Program)
-                              (eq? (ast-child 'main p) current-hole))]
-                  [hole-name (ast-child 'name current-hole)]
-                  [name (if (string? hole-name)
-                            hole-name
-                            (if main?
-                                "main_inner"
-                                (fresh-var-name "func_")))]
-                  [hole-type (ast-child 'type current-hole)]
-                  [type (if (and hole-type
-                                 (not (and (ast-node? hole-type)
-                                           (ast-bud-node? hole-type))))
-                            hole-type
-                            (if main?
-                                (function-type (product-type '()) int)
-                                (fresh-concrete-function-type)))]
-                  [params (map (λ (t) (make-fresh-node 'FormalParam
-                                                       (hash 'type t)))
-                               (product-type-inner-type-list
-                                (function-type-arg-type type)))])
-             (hash
-              'name name
-              'type (concretize-type type)
-              'params params))]
+           (λ (lift-fields)
+             (let* ([parent (parent-node (current-hole))]
+                    [main? (and (eq? (node-type parent) 'Program)
+                                (eq? (ast-child 'main parent) current-hole))]
+                    [name (or (dict-ref lift-fields 'name #f)
+                              (if main?
+                                  "main_inner"
+                                  (fresh-var-name "func_")))]
+                    [type (or (dict-ref lift-fields 'type #f)
+                              (if main?
+                                  (function-type (product-type '()) int)
+                                  (fresh-concrete-function-type)))])
+               (hash 'name name
+                     'type type
+                     'params (map (λ (t) (make-fresh-node 'FormalParam
+                                                          (hash 'type t)))
+                                  (product-type-inner-type-list
+                                   (function-type-arg-type
+                                    type))))))]
           [LiteralInt (hash 'val (* (random 100)
                                     (if (equal? 0 (random 2))
                                         1

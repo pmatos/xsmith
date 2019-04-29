@@ -349,22 +349,11 @@
            (hash
             'type type
             'params params))]
- ;; TODO - this should not be necessary
- [Definition (let* ([hole-name (ast-child 'name current-hole)]
-                    [name (if (string? hole-name)
-                              hole-name
-                              (if (equal? (top-ancestor-node current-hole)
-                                          (parent-node current-hole))
-                                  (fresh-var-name "global-")
-                                  (fresh-var-name "local-")))]
-                    [hole-type (ast-child 'type current-hole)]
-                    [type (if (and hole-type
-                                   (not (and (ast-node? hole-type)
-                                             (ast-bud-node? hole-type))))
-                              hole-type
-                              (fresh-concrete-var-type))])
-               (hash 'name name
-                     'type (concretize-type type)))]
+ [Definition (hash 'name (if (equal? (top-ancestor-node current-hole)
+                                     (parent-node current-hole))
+                             (fresh-var-name "global-")
+                             (fresh-var-name "local-"))
+                   'type (fresh-concrete-var-type))]
  )
 
 

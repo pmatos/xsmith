@@ -123,15 +123,27 @@ is specified and no type is known for the field, or an appropriate
 hole for the type.
 |#
 (define-property fresh
-  #:reads (grammar)
+  #:reads
+  (grammar)
+  (property binder-info)
   #:appends (choice-rule xsmith_fresh)
   #:transformer
-  (λ (this-prop-info grammar-info)
+  (λ (this-prop-info grammar-info binder-info-info)
     (define nodes (dict-keys grammar-info))
     (define field-info-hash
       (for/hash ([node-name nodes])
         (values node-name
                 (grammar-node-name->field-info-list node-name grammar-info))))
+
+    (define binder-field-names-dict
+      (for/hash ([node nodes])
+        (values node
+                (syntax-parse (dict-ref binder-info-info node #'#f)
+                  [(name-field-name:id type-field-name:id def/param)
+                   (list #''name-field-name
+                         #''type-field-name)]
+                  [else (list #'#f #'#f)]))))
+
     ;; I need to create a lambda (of zero args) that evaluates the given expression (if it exists), then calls a thunk to get the default value for any fields not specified in the list received.
     (define rule-info
       (for/hash ([node nodes])
@@ -177,17 +189,46 @@ hole for the type.
                                                '#,(datum->syntax #'here f-type))]
                                     [else #'#f])))))
                        field-names))))
-               (define prop-given-values fresh-expr)
+               (define binder-name-field
+                 #,(first (hash-ref binder-field-names-dict node)))
+               (define binder-type-field
+                 #,(second (hash-ref binder-field-names-dict node)))
+               ;; TODO - get name and type directly for lift nodes
+               (define binder-hash
+                 (if binder-name-field
+                     (let* ([hole-name (ast-child binder-name-field (current-hole))]
+                            [hole-type (ast-child binder-type-field (current-hole))]
+                            [hole-type (if (and hole-type
+                                                (not
+                                                 (and
+                                                  (ast-node? hole-type)
+                                                  (ast-bud-node? hole-type))))
+                                           hole-type
+                                           #f)])
+                       (if hole-type
+                           (hash binder-name-field hole-name
+                                 binder-type-field hole-type)
+                           (hash)))
+                     (hash)))
+               (define fresh-expr-result fresh-expr)
+               (define prop-given-values (if (procedure? fresh-expr-result)
+                                             (fresh-expr-result binder-hash)
+                                             fresh-expr-result))
                (define all-values-hash
                  (for/hash ([f-name (list field-name ...)])
                    (values
                     f-name
                     (let ([v (dict-ref
-                              field-dict
+                              binder-hash
                               f-name
-                              (λ () (dict-ref prop-given-values
-                                              f-name
-                                              (dict-ref thunk-hash f-name))))])
+                              (λ ()
+                                (dict-ref
+                                 field-dict
+                                 f-name
+                                 (λ ()
+                                   (dict-ref prop-given-values
+                                             f-name
+                                             (dict-ref thunk-hash f-name))))))])
                       (if (procedure? v) (v) v)))))
                (define all-values-hash/seq-transformed
                  (for/hash ([f-name (list field-name ...)]
