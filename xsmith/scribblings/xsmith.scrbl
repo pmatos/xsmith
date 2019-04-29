@@ -211,6 +211,10 @@ Accepts the node it is called on, and no other arguments.
 Returns the tree depth at that node.
 Determined by @racket[depth-increase].
 }
+@item{@racket['xsmith_get-reference!]
+This is a choice method that can be used when creating a reference node.
+If no binding of the appropriate type for the current node is in scope, this method will cause a fresh appropriate definition to be lifted into a node that can hold definitions.
+}
 ]
 
 
@@ -870,7 +874,8 @@ Example:
 @;xsmith_my-type-constraint -- returns the type that a node must fulfill (the first half of the type info property)
 @;xsmith_children-type-dict -- returns a dict mapping nodes (or node field names) to types
 @;xsmith_satisfies-type-constraint? -- choice predicate -- tests if a hole's type and a choice object are compatible
-@;xsmith_reference-options! -- returns a list of options for a variable to reference that are type compatible.  BUT - it unifies the type of the reference with a fully concrete version.
+@;xsmith_reference-options! -- returns a list of options for a variable to reference that are type compatible.  BUT - it unifies the type of the reference with a fully concrete version.  One of the list members is a thunk that can be applied to get a lifted binding.
+@;xsmith_get-reference! -- like xsmith_reference-options! but it just returns one (pre-called in the case of lifts).
 
 This property is used to specify the type system used by the generator.
 You should specify a type system even for dynamically typed languages so that programs don't just crash with dynamic type errors.
