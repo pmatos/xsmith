@@ -266,14 +266,15 @@ Example:
 }
 
 @defform[(add-to-grammar spec-component grammar-clause ...)
-#:grammar [(grammar-clause (node-name parent-name (field ...)))
+#:grammar [(grammar-clause (node-name parent-name (field ...) maybe-prop ..))
            (parent-name identifier #f)
            (field name/type-id
                   (name/type-id maybe-type-id maybe-kleene-star maybe-init-expr))
            (maybe-type-id (code:line)
                           (code:line : type-name))
            (maybe-kleene-star (code:line) *)
-           (maybe-init-expr (code:line) (code:line = init-expr))]]{
+           (maybe-init-expr (code:line) (code:line = init-expr))
+           (maybe-prop (code:line #:prop prop-id prop-val))]]{
 
 Adds grammar productions to @racket[spec-component].
 
