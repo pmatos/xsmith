@@ -682,9 +682,7 @@ Example:
 @;This property defines the @tt{xsmith_fresh} choice-rule.
 This property determines how fresh nodes are constructed (by the @racket[make-fresh-node] function).
 
-Acceptable values for this property are expressions which produce a @racket[dict?] object.  Keys of the dictionary must be field names of the node being generated.  The values in the dictionary are used to fill node fields of the appropriate name.  Any field whose name is not in the dictionary will be filled by evaluating the default init-expr defined in the grammar (via @racket[add-to-grammar]).
-
-If the value in the dictionary is a procedure, it will be called with 0 arguments.  This allows the fresh property to provide a default value that is not evaluated when @racket[make-fresh-node] is called with an appropriate value.
+Acceptable values for this property are expressions which produce a @racket[dict?] object, or expressions which produce a function of type (-> dict? dict?).  Keys of the dictionary must be field names of the node being generated.  The values in the dictionary are used to fill node fields of the appropriate name.  Any field whose name is not in the dictionary will be filled by evaluating the default init-expr defined in the grammar (via @racket[add-to-grammar]).
 
 Example:
 @racketblock[
@@ -703,6 +701,11 @@ Example:
 This is useful for fields that must be determined together.  For examlpe, a function call needs the function name and the number of arguments to be chosen together rather than independently.
 
 As with all choice-rules, @racket[this] and @racket[current-hole] are available for use in expressions, which you may want to do for eg. accessing available bindings or mutable information connected to the choice object.
+
+If the result is a procedure instead of a dictionary, that procedure must accept and return a dictionary.  It is called with a dictionary that is empty unless the node being created is the result of lifting a definition.  In that case it will have the appropriate name and type fields with the name and type chosen by the lifting mechanism.  In the case of lifting a definition, the name and type fields in the return dictionary are ignored.  This procedure option is allowed because your fresh expression may need access to the name or type to determine the values of other fields.  If a definition node only has a name and type field then a fresh property is unnecessary when lifting, and if lifting is the only way you generate definitions then fresh properties or initializers for definition nodes are unnecessary.
+
+If the value for a field (IE values inside the result dictionary) is a procedure, it will be called with 0 arguments.  This allows the fresh property to provide a default value that is not evaluated when @racket[make-fresh-node] is called with an appropriate value.
+
 }
 
 @defform[#:kind "spec-property" #:id wont-over-deepen wont-over-deepen]{
