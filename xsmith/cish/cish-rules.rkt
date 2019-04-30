@@ -387,44 +387,6 @@
 
 
 
-(ag
- illegal-variable-names
- [Node (λ (n) '())]
- [Program (λ (n) (map (λ (cn) (ast-child 'name cn))
-                      (ast-children (ast-child 'declarations n))))]
- [Block (λ (n) (map (λ (cn) (ast-child 'name cn))
-                    (ast-children (ast-child 'declarations n))))]
- [Declaration (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
- [AssignmentExpression
-  (λ (n) (cons (ast-child 'name n)
-               (att-value 'illegal-variable-names (parent-node n))))]
- [Expression (λ (n) (att-value 'illegal-variable-names (parent-node n)))]
- )
-
-
-(ag
- block-last-statement
- [Block (λ (n) (let ([ns (ast-children (ast-child 'statements n))])
-                 (and (not (null? ns)) (car (reverse ns)))))])
-(ag
- children-return-position-dict
- ;; Dictionary that will contain true for children that are in return position.
- ;; Else nothing or #f -- IE check with #f as default.
- [Block (λ (n) (if (att-value 'in-return-position? n)
-                   (hasheq (att-value 'block-last-statement n) #t)
-                   (hasheq)))]
- [IfElseStatement (λ (n) (if (att-value 'in-return-position? n)
-                             (hasheq (ast-child 'then n) #t
-                                     (ast-child 'else n) #t)
-                             (hasheq)))]
- [Statement (λ (n) (hasheq))]
- [FunctionDefinition (λ (n) (hasheq (ast-child 'Block n) #t))])
-(ag
- in-return-position?
- [Statement (λ (n) (let ([rp-dict (att-value 'children-return-position-dict
-                                             (parent-node n))])
-                     (dict-ref rp-dict n #f)))]
- [Node (λ (n) #f)])
 
 (ag
  children-hint-dict
@@ -1500,15 +1462,6 @@
 (define-syntax-parser cm
   [(_ method [node-name lambda-body] ...+)
    #'(add-choice-rule cish-rules method [node-name (λ () lambda-body)] ...)])
-
-#|
-Apparently class definitions don't let public methods be defined with
-let-over-lambda (maybe the class macro rewrites the lambdas...).
-So let's have a weak hash table store the mutable state we need in a
-few of these methods.
-|#
-
-(define ref-choices-filtered-hash (make-weak-hasheq))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
