@@ -65,11 +65,6 @@
    #'(add-ag-rule cish-rules arg ...)])
 
 
-(define fresh-int-counter 0)
-(define (fresh-int!)
-  (begin0
-      fresh-int-counter
-    (set! fresh-int-counter (add1 fresh-int-counter))))
 
 (ag ast-serial-number
     ;; This is basically just a hack to signal stale state for the Rosette assertion stack.
