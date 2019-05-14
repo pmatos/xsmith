@@ -121,6 +121,9 @@
  [LiteralInt Expression (val)]
  [LiteralFloat Expression (val)]
  [VariableReference Expression (name)]
+ [VolatileVariableReference Expression (VariableReference)]
+ ;; to massage types.
+ [VolatileInitializer Expression (Expression)]
  [LiteralStruct Expression ([structdefref : VariableReference]
                             [vals : Expression *])]
  [StructReference Expression (fieldname
@@ -168,11 +171,15 @@
           ;; some nodes should never increase depth
           [ExpressionStatement (λ(n)0)]
           [AssignmentExpression (λ(n)0)]
+          [VolatileVariableReference (λ(n)0)]
+          [VolatileInitializer (λ(n)0)]
           [Declaration (λ(n)0)])
 
 (add-prop cish-grammar
           wont-over-deepen
           [LiteralStruct #t]
+          [VolatileVariableReference #t]
+          [VolatileInitializer #t]
           )
 
 
@@ -314,7 +321,9 @@
           )
 (add-prop cish-grammar
           io
-          [StructSetField #t])
+          [StructSetField #t]
+          [VolatileVariableReference #t]
+          )
 (add-prop cish-grammar
           strict-child-order?
           [Program #t]
@@ -473,6 +482,13 @@ Type definitions are in cish-utils.rkt
  [LiteralInt [(fresh-type-variable int bool) (no-child-types)]]
  [LiteralFloat [float (no-child-types)]]
  [VariableReference [(fresh-type-variable) (no-child-types)]]
+ [VolatileVariableReference [(fresh-type-variable int bool float)
+                             (λ (n t) (hash 'VariableReference (volatile-type t)))]]
+ [VolatileInitializer [(volatile-type (fresh-type-variable))
+                       (λ (n t)
+                         (define vt (volatile-type (fresh-type-variable)))
+                         (unify! vt t)
+                         (hash 'Expression (volatile-type-type vt)))]]
  [StructReference [(fresh-type-variable)
                    (λ (n t)
                      (define type-with-field

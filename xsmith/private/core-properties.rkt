@@ -1218,7 +1218,7 @@ The second arm is a function that takes the type that the node has been assigned
         (values
          n
          #`(λ (n) (filter (λ(x)x)
-                          (list #,(dict-ref io-info n)
+                          (list (and #,(dict-ref io-info n) (effect-io))
                                 #,(if read-or-write
                                       #`(#,read-or-write
                                          (att-value

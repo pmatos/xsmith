@@ -187,6 +187,17 @@ New types
          (concrete-types)))
 (define no-child-types (λ (n t) (hash)))
 
+(define (volatile-type x)
+  (generic-type 'volatile (list x)))
+(define (volatile-type? x)
+  (and (generic-type? x)
+       (eq? (generic-type-name x)
+            'volatile)))
+(define (volatile-type-type x)
+  (when (not (volatile-type? (concretize-type x)))
+    (error 'volatile-type-type "given ~a\n" x))
+  (car (generic-type-type-arguments (concretize-type x))))
+
 (define (fresh-concrete-var-type)
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])

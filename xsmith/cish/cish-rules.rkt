@@ -81,6 +81,8 @@
 (define (type->string t)
   (cond [(base-type? t) (base-type->string t)]
         [(nominal-record-type? t) (format "struct ~a" (nominal-record-type-name t))]
+        [(volatile-type? t) (format "volatile ~a"
+                                    (type->string (volatile-type-type t)))]
         [else (error 'type->string "not yet implemented for type ~a" t)]))
 
 (ag
@@ -315,6 +317,10 @@
     (h-comment
      n
      (text (ast-child 'name n))))]
+ [VolatileVariableReference
+  (λ (n) (att-value 'pretty-print (ast-child 'VariableReference n)))]
+ [VolatileInitializer
+  (λ (n) (att-value 'pretty-print (ast-child 'Expression n)))]
  [FunctionApplicationExpression
   (λ (n)
     (h-comment
@@ -1496,6 +1502,7 @@
     [LiteralInt #t]
     [LiteralFloat #t]
     [LiteralStruct #t]
+    [VolatileInitializer #t]
     [VariableReference
      (or (let ([p (parent-node (current-hole))])
            (and (ast-subtype? p 'LiteralStruct)
