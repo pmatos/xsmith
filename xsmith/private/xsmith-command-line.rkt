@@ -51,7 +51,8 @@
 (define (xsmith-command-line generate-and-print-func
                              #:comment-wrap [comment-func (λ (lines) "")])
   (define features-disabled (dict-ref options 'features-disabled))
-  (define port 8080)
+  (define server-port 8080)
+  (define listen-ip "127.0.0.1")
   (define given-seed #f)
   (define server? #f)
 
@@ -75,8 +76,12 @@
                    [else (error
                           (format"Expected “true” or “false” for --server.  Got “~a”."
                                  run-as-server?))])]
-   [("--port") n "Use port n instead of 8080 (when running as server)."
-               (set! port (string->number n))]
+   [("--server-port") n "Use port n instead of 8080 (when running as server)."
+                      (set! server-port (string->number n))]
+   [("--server-ip")
+    ip
+    "Make the server listen on given IP address.  Use `false` to listen on all IP addresses.  Defaults to 127.0.0.1"
+    (set! listen-ip (if (equal? ip "false") #f ip))]
 
    #:help-labels
    "[[LANGUAGE-GENERATION OPTIONS]]"
@@ -172,8 +177,11 @@
                          (string->bytes/utf-8 (get-output-string out))
                          op)))))
         (eprintf "Starting server...\n")
-        (eprintf "Visit: http://localhost:~a/servlets/standalone.rkt\n" port)
-        (serve/servlet servlet-start #:port port #:command-line? #t))
+        (eprintf "Visit: http://localhost:~a/servlets/standalone.rkt\n" server-port)
+        (serve/servlet servlet-start
+                       #:port server-port
+                       #:command-line? #t
+                       #:listen-ip listen-ip))
       (generate-and-print!))
   )
 
