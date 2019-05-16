@@ -1216,7 +1216,7 @@ TODO - this should probably follow the dict-ref interface and accept a default v
 
 Cish is a C program generator made with the Xsmith library.  It has co-evolved with Xsmith, and is essentially the reference Xsmith program generator.
 
-When xsmith is installed as a Racket package, an @tt{xsmith-cish} executable is placed in your Racket package @tt{bin} directory (usually at @tt{$HOME/.racket/racket-<version>/bin}).  Additinally, Cish can be run with the command @tt{racket -l xsmith/cish --} (the final @tt{--} causes further flags to be parsed by cish and not by Racket).
+When xsmith is installed as a Racket package, an @tt{xsmith-cish} executable is placed in your Racket package @tt{bin} directory (usually at @tt{$HOME/.racket/racket-<version>/bin} on Linux and maybe at @tt{$HOME/Library/Racket/<version>/bin} on MacOS).  Additinally, Cish can be run with the command @tt{racket -l xsmith/cish --} (the final @tt{--} causes further flags to be parsed by cish and not by Racket).
 
 To see command-line options, run Cish with the @tt{--help} flag.  The options are the same as with any program that uses @racket[xsmith-command-line].
 
