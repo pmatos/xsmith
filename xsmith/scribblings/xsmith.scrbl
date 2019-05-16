@@ -651,7 +651,7 @@ TODO - these are also provided by scope-graph.rkt, but maybe should be private t
 @subsection{core-properties.rkt}
 
 @defform[#:kind "spec-property" #:id may-be-generated may-be-generated]{
-#;This property defines the @tt{xsmith_may-be-generated-method} non-inheriting choice-rule.
+@;This property defines the @tt{xsmith_may-be-generated-method} non-inheriting choice-rule.
 Acceptable values for this property are @racket[#t] or @racket[#f], and the default is @racket[#t].
 
 If may-be-generated is false, the node is not added to the list of possibile choices to replace an appropriate AST hole.
