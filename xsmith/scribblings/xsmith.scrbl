@@ -52,6 +52,8 @@ racket/file
 @title{Xsmith}
 @defmodule[xsmith]
 
+@(define (racr)
+  @seclink["racr"]{RACR})
 
 @section{Overview}
 
@@ -59,7 +61,7 @@ Xsmith is a library for creating fuzzers.  It has a DSL for specifying a grammar
 
 To create a fuzzer, users create a specification by combining @italic{spec components}, defined with @racket[define-spec-component].
 Each spec component can have portions of grammar as well as @italic{properties} added to them (using @racket[add-to-grammar] and @racket[add-prop]).
-The grammar and properties are used to generate a RACR grammar, attributes for the grammar, and @italic{choice objects}, which guide AST generation.
+The grammar and properties are used to generate a @(racr) grammar, attributes for the grammar, and @italic{choice objects}, which guide AST generation.
 
 Program generation starts by generating an AST hole for a given grammar production.
 Generation continues by filling holes with concrete AST nodes (which may introduce new holes as child nodes).
@@ -68,16 +70,16 @@ A choice object is created for each legal replacement.
 Choice objects have methods (choice-rules) which aid in choosing a concrete replacement.
 Some of these methods act as predicates to filter out choices that are not legal in a particular context, such as choices that introduce more holes when the maximum tree depth has been reached.
 The @racket[choice-weight] property defines a method which determines the relative probability of each choice being chosen.
-The @racket[fresh] property defines a method which determines how the choice is instantiated as a RACR node.
+The @racket[fresh] property defines a method which determines how the choice is instantiated as a @(racr) node.
 Additional methods may be defined as helpers.
-Choice objects have access to the @racket[current-hole], so they may query RACR attributes in method bodies.
-Choice object classes follow the same hierarchy as the grammar, so method inheritance for choice objects is similar to attribute inheritance for RACR nodes.
+Choice objects have access to the @racket[current-hole], so they may query @(racr) attributes in method bodies.
+Choice object classes follow the same hierarchy as the grammar, so method inheritance for choice objects is similar to attribute inheritance for @(racr) nodes.
 
-RACR attributes may be added directly with @racket[add-ag-rule] and @racket[add-choice-rule], but many are defined indirectly by various Xsmith properties.
+@(racr) attributes may be added directly with @racket[add-ag-rule] and @racket[add-choice-rule], but many are defined indirectly by various Xsmith properties.
 Properties allow users to specify various attributes and choice rules in a more declarative fashion.
 
 
-@subsection{RACR overview}
+@subsection[#:tag "racr"]{RACR overview}
 
 RACR is a library for Reference Attribute Grammars.  Xsmith's DSL defines a RACR grammar specification as well as various attributes.  The attributes are queried to determine how to generate the AST.
 
@@ -107,8 +109,8 @@ Full RACR documentation is @hyperlink["https://github.com/christoff-buerger/racr
 
 
 @subsection{Holes and Choice Objects}
-Hole nodes are RACR AST nodes.
-For every node type in the grammar, a hole node is created as a subclass of it, inheriting all of its RACR attributes.
+Hole nodes are @(racr) AST nodes.
+For every node type in the grammar, a hole node is created as a subclass of it, inheriting all of its @(racr) attributes.
 A hole can be recognized by the @racket['is-hole?] attribute.
 
 Consider the following (partial) grammar:
@@ -123,7 +125,7 @@ Consider the following (partial) grammar:
 When a fresh AdditionExpression is created, it will include two Expression hole nodes.
 When the generator gets to those holes, a choice object is created for each subclass of Expression (including Expression itself unless it is disabled with the @racket[may-be-generated] property).
 The choice objects have types corresponding to LiteralInt and AdditionExpression, and therefore may have different implementations for various choice methods.
-The choice objects all have access to the Expression hole (through @racket[current-hole]), but while choice objects have access to their specialized choice method implementations, the hole is of type Expression, and so all RACR attributes (ag-rules) that may be queried are specialized only as far as Expression, not to LiteralInt or AdditionExpression.
+The choice objects all have access to the Expression hole (through @racket[current-hole]), but while choice objects have access to their specialized choice method implementations, the hole is of type Expression, and so all @(racr) attributes (ag-rules) that may be queried are specialized only as far as Expression, not to LiteralInt or AdditionExpression.
 
 Note that hole node types are created for every type in the grammar (including LiteralInt and AdditionExpression), but more specialized holes are only used if the grammar specifies that a node's child must be specifically that kind of expression, or if a custom @racket[fresh] implementation uses @racket[make-hole] with the specific kind of expression.
 
@@ -242,15 +244,15 @@ Example:
           @;[list-of-properties (property ...)]
           ]{
 
-Combines spec components and generates a RACR specification.
+Combines spec components and generates a @(racr) specification.
 
-Defines @racket[spec-name] as a RACR specification.
+Defines @racket[spec-name] as a @(racr) specification.
 
 Defines @tt{<spec-name>-generate-ast} as a function.  The function accepts the name of a grammar production as a symbol and produces a random tree starting from a fresh node of that nonterminal.  Essentially, given the name of the top-level program node, this function generates a random program.
 
 Various ag-rules are automatically defined within the spec, see @secref{generated-rules}.
 
-Properties (defined with @racket[define-property]) are used to derive more RACR ag-rules as well as Xsmith choice-rules.
+Properties (defined with @racket[define-property]) are used to derive more @(racr) ag-rules as well as Xsmith choice-rules.
 Each property may have a transformer function that alters other properties, ag-rules, or choice-rules.
 All properties referenced within a spec-component are used to generate ag-rules and choice-rules, as well as any properties specified in the @racket[maybe-properties] list.
 Unless values for that property have also been specified within a spec component, properties in the @racket[maybe-properties] list will only be able to generate rules based on the default value for the property.
@@ -282,7 +284,7 @@ Example:
 
 Adds grammar productions to @racket[spec-component].
 
-@racket[node-name] will be the name of the grammar production in RACR.
+@racket[node-name] will be the name of the grammar production in @(racr).
 @racket[parent-name] is either the name of the parent grammar production or @racket[#f].
 
 Names for the node and fields are limited to alphabetic characters.  You may want to use camelCase style names since kebab-style or snake_style names due to this limitation.
@@ -328,7 +330,7 @@ When a fresh @tt{SumExpression} is generated, its @tt{addends} field will be pop
 
 @defform[(add-ag-rule spec-component rule-name rule-clause ...)
 #:grammar [(rule-clause (nonterminal-name rule-function))]]{
-Adds a RACR ag-rule to the spec-component.
+Adds a @(racr) ag-rule to the spec-component.
 
 Example:
 @racketblock[
@@ -352,7 +354,7 @@ Xsmith creates a choice object class for each node type in the specification gra
 Choice rules are methods on the choice objects.  Some choice rules are used by @racket[choice-filters-to-apply] to filter choices.  Other choice rules may be used by those filters or in the body of the @racket[fresh] property as helper methods.  While most information about the AST and the current choice are probably computed using ag-rules, information about choosing a specific node type to fill in an abstract hole (such as an expression hole which may be filled with many different types of expressions) are computed using choice rules.
 
 Choice rules are methods in Racket's class system and therefore have the @racket[this] macro available for use in their bodies to access other methods (eg. with the @racket[send] macro).
-Choice rules also have the @racket[current-hole] macro available within their body so that they can query attributes of the RACR AST being elaborated (eg. with @tt{att-value} to access ag-rules and @tt{ast-parent} to inspect other nodes in the AST).
+Choice rules also have the @racket[current-hole] macro available within their body so that they can query attributes of the @(racr) AST being elaborated (eg. with @tt{att-value} to access ag-rules and @tt{ast-parent} to inspect other nodes in the AST).
 
 Since choice rules are methods in Racket's @racket[class] system, they must be defined with a literal @racket[lambda] (with no parameter for the implicit @racket[this] argument).  If a method needs to modify state (such as to cache the computation of available references of the appropriate type), I would normally recommend the “let-over-lambda” pattern, but that is not allowed in this case.  To make up for this, I recommend using @racket[make-weak-hasheq] to hold the state, using the @racket[this] object as a key.
 
@@ -383,7 +385,7 @@ Since property transformers are macros that may accept arbitrary domain-specific
 }
 
 @defform[(current-racr-spec)]{
-In code within the context of a spec component (eg. in the body of @racket[add-ag-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[(current-racr-spec)] returns the RACR spec object for the grammar ultimately combined by @racket[assemble-spec-components].
+In code within the context of a spec component (eg. in the body of @racket[add-ag-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[(current-racr-spec)] returns the @(racr) spec object for the grammar ultimately combined by @racket[assemble-spec-components].
 
 Elsewhere it raises a syntax error.
 
@@ -666,7 +668,7 @@ Example:
 @defform[#:kind "spec-property" #:id depth-increase depth-increase]{
 This property defines the @tt{ast-depth} non-inheriting ag-rule.
 
-The property accepts an expression which much evaluate to a function of one argument (the RACR AST node) which returns a truthy value for nodes which increase the depth of the AST and #f otherwise.  The default is @racket[(λ (n) #t)].
+The property accepts an expression which much evaluate to a function of one argument (the @(racr) AST node) which returns a truthy value for nodes which increase the depth of the AST and #f otherwise.  The default is @racket[(λ (n) #t)].
 This property is NOT inherited by subclasses.
 
 This is useful to allow node re-use.  For example, the body of an @tt{if} or @tt{for} statement might be a block and have the same semantics, but you might want a block inside an @tt{if} to only be considered a depth increase of 1, not 2.
@@ -1146,7 +1148,7 @@ Parameter holding the current xsmith generator state.
 }
 
 @subsubsection{RACR convenience functions}
-These are a group of convenience functions around RACR.  They are not necessary, and some may not be the best choices.  I should probably revisit them.  TODO.
+These are a group of convenience functions around @(racr).  They are not necessary, and some may not be the best choices.  I should probably revisit them.  TODO.
 
 @defproc[(ast-children/flat [n ast-node?]) (listof/c any/c)]{
 Returns a list containing all of @racket[n]'s children (IE fields).
