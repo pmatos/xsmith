@@ -45,6 +45,9 @@
  ancestor-nodes
  top-ancestor-node
  node-subtype?
+
+ xd-printf
+ get-xsmith-debug-log!
  )
 
 (require
@@ -133,6 +136,17 @@
   (when (not (ast-node? n))
     (error 'node-subtype? "called on non-ast-node.  Arguments: ~a ~a" n t))
   (and (ast-node? n) (ast-subtype? n t)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; logging
+(define xsmith-debug-log-port (open-output-string))
+(define (xd-printf . args)
+  (apply fprintf xsmith-debug-log-port args))
+(define (get-xsmith-debug-log!)
+  (begin0
+      (get-output-string xsmith-debug-log-port)
+    (set! xsmith-debug-log-port (open-output-string))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

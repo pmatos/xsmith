@@ -36,6 +36,7 @@
  racket/dict
  racket/string
  racket/exn
+ racket/port
  "xsmith-utils.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
@@ -116,29 +117,40 @@
   (define (generate-and-print!)
     (parameterize ([xsmith-options options]
                    [xsmith-state (make-generator-state)])
-      ;; XXX also need to reset the seed, or increase a generation counter,
-      ;; or something.  Right now, the seed printed in output program is
-      ;; wrong!
       (let ([seed (xsmith-option 'random-seed)])
         (random-seed seed)
-        (define lines (list "This is a RANDOMLY GENERATED PROGRAM."
-                            (format "Generator: ~a" xsmith-version-string)
-                            (format "Options: ~a" (string-join
-                                                   (vector->list
-                                                    (xsmith-option 'command-line))))
-                            (format "Seed: ~a" seed)))
-        (printf "~a\n" (comment-func lines))
-        (with-handlers ([(λ(e)#t)
-                         (λ (e)
-                           ;; TODO - what should we print when there is an error?
-                           ;; Maybe we should put it all in comments?
-                           ;; TODO - also, I have some `eprintf` error messages
-                           ;;  other places.  I should convert them into some sort
-                           ;;  of log that I can extract here.
-                           (printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
-                           (printf "Error generating program!\n")
-                           (printf "~a\n" (exn->string e)))])
-          (generate-and-print-func))
+        (define option-lines
+          (list (format "Generator: ~a" xsmith-version-string)
+                (format "Options: ~a" (string-join
+                                       (vector->list
+                                        (xsmith-option 'command-line))))
+                (format "Seed: ~a" seed)))
+        (define error? #f)
+        (define program
+          (with-output-to-string
+            (λ ()
+              (with-handlers ([(λ(e)#t)
+                               (λ (e)
+                                 (set! error? #t)
+                                 (printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
+                                 (printf "Error generating program!\n\n")
+                                 (printf "Options:\n")
+                                 (for ([line option-lines])
+                                   (printf "~a\n" line))
+                                 (printf "\nDebug Log:\n~a\n\n"
+                                         (get-xsmith-debug-log!))
+                                 (printf "Exception:\n~a\n" (exn->string e))
+                                 )])
+                (generate-and-print-func)))))
+        (if error?
+            ;; TODO - I think there should be some signal here that there is an
+            ;;   error that a driver script can check for...
+            (printf "~a\n" program)
+            (begin
+              (printf "~a\n" (comment-func
+                              (cons "This is a RANDOMLY GENERATED PROGRAM."
+                                    option-lines)))
+              (printf "~a\n" program)))
         (dict-set! (xsmith-options)
                    'random-seed
                    (add1 seed)))))

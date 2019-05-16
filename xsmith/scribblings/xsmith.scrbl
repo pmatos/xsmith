@@ -1185,6 +1185,11 @@ Calls @racket[parent-node] until it reaches the last parent, and returns it.
 Wrapper for @racket[ast-subtype?] that returns #f rather than erroring when the given node is a bud, list, or non-node.
 }
 
+@subsection{Debug Logging}
+@defproc[(xd-printf [format-string string?] [args (listof any/c)] ...) any/c]{
+Like @racket[printf], but it prints to a buffer that is output when an exception is raised during program generation.
+}
+
 
 @subsection{xsmith-options}
 

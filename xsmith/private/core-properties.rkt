@@ -894,11 +894,11 @@ few of these methods.
     (with-handlers
       ([(λ(x)#t)
         (λ (e)
-          (eprintf "error while unifying types: ~a and ~a\n"
-                   my-type-from-parent my-type-constraint)
-          (eprintf "for node of AST type: ~a\n" (ast-node-type node))
-          (eprintf "with parent of AST type: ~a\n" (ast-node-type
-                                                    (parent-node node)))
+          (xd-printf "error while unifying types: ~a and ~a\n"
+                    my-type-from-parent my-type-constraint)
+          (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
+          (xd-printf "with parent of AST type: ~a\n" (ast-node-type
+                                                     (parent-node node)))
           (raise e))])
       (unify! my-type-from-parent my-type-constraint)))
   (when (and reference-field (not (att-value 'is-hole? node)))
@@ -911,12 +911,12 @@ few of these methods.
       (with-handlers
         ([(λ(x)#t)
           (λ (e)
-            (eprintf "Error unifying types for reference of AST type: ~a\n"
-                     (ast-node-type node))
-            (eprintf "Type received from parent AST node: ~a\n"
-                     my-type-from-parent)
-            (eprintf "Type annotated at variable definition: ~a\n"
-                     var-type)
+            (xd-printf "Error unifying types for reference of AST type: ~a\n"
+                       (ast-node-type node))
+            (xd-printf "Type received from parent AST node: ~a\n"
+                       my-type-from-parent)
+            (xd-printf "Type annotated at variable definition: ~a\n"
+                       var-type)
             (raise e))])
         (unify! my-type-from-parent var-type))
       ;; This shouldn't be necessary, but something is going wrong,
@@ -924,12 +924,12 @@ few of these methods.
       (with-handlers
         ([(λ(x)#t)
           (λ (e)
-            (eprintf "Error unifying types for reference of AST type: ~a\n"
-                     (ast-node-type node))
-            (eprintf "Type annotated at variable definition: ~a\n"
-                     binding-node-type)
-            (eprintf "Type that was recorded in scope graph: ~a\n"
-                     var-type)
+            (xd-printf "Error unifying types for reference of AST type: ~a\n"
+                       (ast-node-type node))
+            (xd-printf "Type annotated at variable definition: ~a\n"
+                       binding-node-type)
+            (xd-printf "Type that was recorded in scope graph: ~a\n"
+                       var-type)
             (raise e))])
         (unify! binding-node-type var-type))))
   (when (and definition-type-field (not (att-value 'is-hole? node)))
