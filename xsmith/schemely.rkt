@@ -1,7 +1,7 @@
-#lang info
+#lang racket/base
 ;; -*- mode: Racket -*-
 ;;
-;; Copyright (c) 2017-2019 The University of Utah
+;; Copyright (c) 2018-2019 The University of Utah
 ;; All rights reserved.
 ;;
 ;; This file is part of Xsmith, a generator of highly effective fuzz testers.
@@ -30,22 +30,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define name "xsmith")
-(define version "0.0.0")
-(define git-commit "$Format:%h$")
-
-(define racket-launcher-names '("xsmith-cish" "xsmith-schemely"))
-(define racket-launcher-libraries '("cish.rkt" "schemely.rkt"))
-(define scribblings '(("scribblings/xsmith.scrbl" () (library))))
-(define deps '("base"
-               "rackunit-lib"
-               "pprint"
-               "racr"
-               "rosette"
-               ))
-(define build-deps '("scribble-lib"
-                     "racket-doc"
-                     ))
+(require "schemely/schemely-5.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

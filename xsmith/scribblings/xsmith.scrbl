@@ -58,9 +58,21 @@ racket/file
 @(define (racr)
   @seclink["racr"]{RACR})
 
-@section{Overview}
+@section{How to install Xsmith}
+
+First, install Racket.  If your operating system's package manager doesn't have a package or you want a fresher version, @hyperlink["https://download.racket-lang.org/"]{download it}.
+
+Then run @verb{raco pkg install xsmith}.
+
+TODO - this won't work until xsmith is publicly available and listed on Racket's package repository.
+
+
+@section{Xsmith Overview}
 
 Xsmith is a library for creating fuzzers.
+
+It also comes bundled with some program generators created with the library.  If you just want to run them, see @secref["running-fuzzers"].
+
 Xsmith includes a DSL which defines a function which generates random ASTs for the language.
 The Xsmith DSL is used to specify a language's grammar, typing rules, and other information which guides generation choices.
 Xsmith also includes utilities for creating a command-line interface for generating a single program or starting a web server that generates one program per request.
@@ -1139,6 +1151,9 @@ Based on options supplied, it may print a help message and terminate the program
   (string-join
    (map (λ (x) (format "# ~a" x)) lines)
    "\n"))]
+
+The command-line options given by @racket[xsmith-command-line] are listed in @secref["running-fuzzers"].
+
 }
 
 
@@ -1217,13 +1232,31 @@ TODO - this should probably follow the dict-ref interface and accept a default v
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-@section{Cish}
+@section[#:tag "running-fuzzers"]{Xsmith's bundled generators (and how to run them)}
+
+When xsmith is installed as a Racket package, executables for the bundled generators are placed in your Racket package @verb{bin} directory.
+Usually this directory is @verb{$HOME/.racket/racket-<version>/bin} on Linux, maybe @verb{$HOME/Library/Racket/<version>/bin} on normal MacOS installs, and maybe @verb{/usr/local/bin} for MacOS Homebrew installs.
+
+These fuzzers can be run on the command line to generate a single program or as an http server that generates one program per request.
+
+The following command-line options are available on all Xsmith generators (they are provided by @racket[xsmith-command-line]):
+
+@itemlist[
+  @item{@verb{--help} -- see all command-line options.  The @verb{--help} list will automatically stay up to date, unlike this documentation.}
+  @item{@verb{--server <true-or-false>} -- whether to run the web server.  Defaults to false.}
+  @item{@verb{--port <port-number>} -- Port to use when running server.  Defaults to 8080.}
+  @item{@verb{--seed} -- Random seed for program generation.  Defaults to whatever Racket does to initialize randomness normally.}
+  @item{@verb{--output-file <filename>} -- Outputs to <filename> instead of standard output when not used with @verb{--server}.}
+  @item{@verb{--max-depth <n>} -- Maximum depth of the generated program tree.}
+  @item{@verb{--with <language-feature>} -- enables a fuzzer-dependent feature.  See the documentation specific to the fuzzer for a list of features.}
+  @item{@verb{--without <language-feature>} -- disables a fuzzer-dependent feature.}
+]
+
+@subsection[#:tag "cish"]{Cish}
 
 Cish is a C program generator made with the Xsmith library.  It has co-evolved with Xsmith, and is essentially the reference Xsmith program generator.
 
-When xsmith is installed as a Racket package, an @verb{xsmith-cish} executable is placed in your Racket package @verb{bin} directory (usually at @verb{$HOME/.racket/racket-<version>/bin} on Linux, maybe at @verb{$HOME/Library/Racket/<version>/bin} on normal MacOS installs, and maybe at @verb{/usr/local/bin} for MacOS Homebrew installs).
-
-Additionally, Cish can be run with the command @verb{racket -l xsmith/cish --} (the final @verb{--} causes further flags to be parsed by cish and not by Racket).
+The executable for Cish is called @verb{xsmith-cish}.  Additionally, Cish can be run with the command @verb{racket -l xsmith/cish --} (the final @verb{--} causes further flags to be parsed by cish and not by Racket).
 
 To see command-line options, run Cish with the @verb{--help} flag.  The options are the same as with any program that uses @racket[xsmith-command-line].
 
@@ -1251,6 +1284,13 @@ Cish supports the following features for the @verb{--with} and @verb{--without} 
     ]
   }
 ]
+
+
+@subsection[#:tag "schemely"]{Schemely}
+
+The executable for Schemely is called @verb{xsmith-schemely}.  Additionally, Schemely can be run with the command @verb{racket -l xsmith/schemely --} (the final @verb{--} causes further flags to be parsed by cish and not by Racket).
+
+TODO - at the time of writing, Schemely really just supports Racket.  At some future point it should generate portable Scheme code.
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
