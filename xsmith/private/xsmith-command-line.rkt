@@ -162,7 +162,7 @@
           (let ((out (open-output-string)))
             (parameterize ((current-output-port out))
               (generate-and-print!))
-            (response 301
+            (response 200
                       #"OK"
                       (current-seconds)
                       #"text/plain"
