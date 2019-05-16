@@ -35,6 +35,7 @@
 (require
  racket/dict
  racket/string
+ racket/exn
  "xsmith-utils.rkt"
  "xsmith-options.rkt"
  "xsmith-version.rkt"
@@ -127,21 +128,37 @@
                                                     (xsmith-option 'command-line))))
                             (format "Seed: ~a" seed)))
         (printf "~a\n" (comment-func lines))
-        (generate-and-print-func)
+        (with-handlers ([(λ(e)#t)
+                         (λ (e)
+                           ;; TODO - what should we print when there is an error?
+                           ;; Maybe we should put it all in comments?
+                           ;; TODO - also, I have some `eprintf` error messages
+                           ;;  other places.  I should convert them into some sort
+                           ;;  of log that I can extract here.
+                           (printf "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
+                           (printf "Error generating program!\n")
+                           (printf "~a\n" (exn->string e)))])
+          (generate-and-print-func))
         (dict-set! (xsmith-options)
                    'random-seed
                    (add1 seed)))))
 
   (if server?
       (let ([serve/servlet (dynamic-require 'web-server/servlet-env 'serve/servlet)]
-            [response/xexpr (dynamic-require 'web-server/servlet 'response/xexpr)])
+            [response (dynamic-require 'web-server/http/response-structs 'response)])
         (define (servlet-start req)
           (let ((out (open-output-string)))
             (parameterize ((current-output-port out))
               (generate-and-print!))
-            (response/xexpr
-             `(html (head (title "Random C Program"))
-                    (body (pre ,(get-output-string out)))))))
+            (response 301
+                      #"OK"
+                      (current-seconds)
+                      #"text/plain"
+                      '()
+                      (λ (op)
+                        (write-bytes
+                         (string->bytes/utf-8 (get-output-string out))
+                         op)))))
         (eprintf "Starting server...\n")
         (eprintf "Visit: http://localhost:~a/servlets/standalone.rkt\n" port)
         (serve/servlet servlet-start #:port port #:command-line? #t))
