@@ -76,7 +76,9 @@
    (current-output-port)
    1))
 
-(xsmith-command-line generate-and-print)
+(module+ main
+  (xsmith-command-line generate-and-print)
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

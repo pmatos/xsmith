@@ -348,4 +348,6 @@
     (for ([form forms])
       (pp form))))
 
-(xsmith-command-line generate-and-print)
+(module+ main
+  (xsmith-command-line generate-and-print)
+  )

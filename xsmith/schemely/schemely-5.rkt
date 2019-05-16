@@ -376,8 +376,11 @@
       (pp `(write ,(string->symbol (ast-child 'name def))))
       (pp '(newline)))))
 
-(xsmith-command-line generate-and-print
-                     #:comment-wrap (λ (lines)
-                                      (string-join
-                                       (map (λ (x) (format ";; ~a" x)) lines)
-                                       "\n")))
+(module+ main
+  (xsmith-command-line generate-and-print
+                       #:comment-wrap (λ (lines)
+                                        (string-join
+                                         (map (λ (x) (format ";; ~a" x)) lines)
+                                         "\n")))
+  )
+
