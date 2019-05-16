@@ -1135,6 +1135,21 @@ Sum types
 
 @subsection{xsmith-command-line}
 
+
+@(define (command-line-options-table)
+@itemlist[
+  @item{@verb{--help} -- see all command-line options.  The @verb{--help} list will automatically stay up to date, unlike this documentation.}
+  @item{@verb{--server <true-or-false>} -- whether to run the web server.  Defaults to false.}
+  @item{@verb{--port <port-number>} -- Port to use when running server.  Defaults to 8080.}
+  @item{@verb{--seed} -- Random seed for program generation.  Defaults to whatever Racket does to initialize randomness normally.}
+  @item{@verb{--output-file <filename>} -- Outputs to <filename> instead of standard output when not used with @verb{--server}.}
+  @item{@verb{--max-depth <n>} -- Maximum depth of the generated program tree.}
+  @item{@verb{--with <language-feature>} -- enables a fuzzer-dependent feature.  See the documentation specific to the fuzzer for a list of features.}
+  @item{@verb{--without <language-feature>} -- disables a fuzzer-dependent feature.}
+  @item{@verb{--version} -- prints the version info of xsmith and exits.}
+  @; TODO - the version option should be able to print the xsmith version AND the version of a fuzzer made using xsmith.  There should be an argument for giving a program version.
+])
+
 @defproc[(xsmith-command-line
 [generate-and-print-func (-> any/c)]
 [#:comment-wrap comment-wrap (-> (listof string?) string?)])
@@ -1152,7 +1167,9 @@ Based on options supplied, it may print a help message and terminate the program
    (map (λ (x) (format "# ~a" x)) lines)
    "\n"))]
 
-The command-line options given by @racket[xsmith-command-line] are listed in @secref["running-fuzzers"].
+
+The command-line options given by @racket[xsmith-command-line] are:
+@(command-line-options-table)
 
 }
 
@@ -1239,18 +1256,8 @@ Usually this directory is @verb{$HOME/.racket/racket-<version>/bin} on Linux, ma
 
 These fuzzers can be run on the command line to generate a single program or as an http server that generates one program per request.
 
-The following command-line options are available on all Xsmith generators (they are provided by @racket[xsmith-command-line]):
+Command-line options for bundled Xsmith generators are all the same, and provided by @racket[xsmith-command-line].
 
-@itemlist[
-  @item{@verb{--help} -- see all command-line options.  The @verb{--help} list will automatically stay up to date, unlike this documentation.}
-  @item{@verb{--server <true-or-false>} -- whether to run the web server.  Defaults to false.}
-  @item{@verb{--port <port-number>} -- Port to use when running server.  Defaults to 8080.}
-  @item{@verb{--seed} -- Random seed for program generation.  Defaults to whatever Racket does to initialize randomness normally.}
-  @item{@verb{--output-file <filename>} -- Outputs to <filename> instead of standard output when not used with @verb{--server}.}
-  @item{@verb{--max-depth <n>} -- Maximum depth of the generated program tree.}
-  @item{@verb{--with <language-feature>} -- enables a fuzzer-dependent feature.  See the documentation specific to the fuzzer for a list of features.}
-  @item{@verb{--without <language-feature>} -- disables a fuzzer-dependent feature.}
-]
 
 @subsection[#:tag "cish"]{Cish}
 
@@ -1258,7 +1265,9 @@ Cish is a C program generator made with the Xsmith library.  It has co-evolved w
 
 The executable for Cish is called @verb{xsmith-cish}.  Additionally, Cish can be run with the command @verb{racket -l xsmith/cish --} (the final @verb{--} causes further flags to be parsed by cish and not by Racket).
 
-To see command-line options, run Cish with the @verb{--help} flag.  The options are the same as with any program that uses @racket[xsmith-command-line].
+The command-line options available in Cish are:
+
+@(command-line-options-table)
 
 Cish supports the following features for the @verb{--with} and @verb{--without} flags:
 
@@ -1289,6 +1298,12 @@ Cish supports the following features for the @verb{--with} and @verb{--without} 
 @subsection[#:tag "schemely"]{Schemely}
 
 The executable for Schemely is called @verb{xsmith-schemely}.  Additionally, Schemely can be run with the command @verb{racket -l xsmith/schemely --} (the final @verb{--} causes further flags to be parsed by cish and not by Racket).
+
+The command-line options available in Schemely are:
+
+@(command-line-options-table)
+
+Schemely currently has no features for the @verb{--with} or @verb{--without} flags.
 
 TODO - at the time of writing, Schemely really just supports Racket.  At some future point it should generate portable Scheme code.
 
