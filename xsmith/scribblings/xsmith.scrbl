@@ -44,9 +44,12 @@ racket/dict
 @(require
 racket/runtime-path
 racket/file
+(only-in scribble/core make-element)
 )
 
 @(define-runtime-path minimal-example-path "minimal-example.rkt")
+@(define (verb . content)
+   (make-element 'tt content))
 
 
 @title{Xsmith}
@@ -62,13 +65,16 @@ Xsmith includes a DSL which defines a function which generates random ASTs for t
 The Xsmith DSL is used to specify a language's grammar, typing rules, and other information which guides generation choices.
 Xsmith also includes utilities for creating a command-line interface for generating a single program or starting a web server that generates one program per request.
 
-To create a fuzzer, users create a specification by combining @italic{spec components}, defined with @racket[define-spec-component].
+Xsmith uses @(racr), an attribute grammar library, in its implementation, and some knowledge of @(racr) is necessary when using Xsmith.
+
+To create a fuzzer with Xsmith, users create a specification by combining @italic{spec components}, defined with @racket[define-spec-component].
 Each spec component can have portions of grammar as well as @italic{properties} added to them (using @racket[add-to-grammar] and @racket[add-prop]).
 The grammar and properties are used to generate a @(racr) grammar, attributes for the grammar, and @italic{choice objects}, which guide AST generation.
 
 Program generation starts by generating an AST hole for a given grammar production.
 Generation continues by filling holes with concrete AST nodes (which may introduce new holes as child nodes).
-Each time a hole is to be filled, the grammar specification is used to determine potential replacements, such as an addition expression or a subtraction expression for an expression hole.
+Each time a hole is to be filled, the grammar specification is used to determine potential replacements.
+For example, in a grammar with addition and subtraction expressions, an expression hole may be replaced by an addition or subtraction node.
 A choice object is created for each legal replacement.
 Choice objects have methods (choice-rules) which aid in choosing a concrete replacement.
 Some of these methods act as predicates to filter out choices that are not legal in a particular context, such as choices that introduce more holes when the maximum tree depth has been reached.
@@ -78,7 +84,7 @@ Additional methods may be defined as helpers.
 Choice objects have access to the @racket[current-hole], so they may query @(racr) attributes in method bodies.
 Choice object classes follow the same hierarchy as the grammar, so method inheritance for choice objects is similar to attribute inheritance for @(racr) nodes.
 
-@(racr) attributes may be added directly with @racket[add-ag-rule] and @racket[add-choice-rule], but many are defined indirectly by various Xsmith properties.
+@(racr) attributes and choice object methods may be added directly with @racket[add-ag-rule] and @racket[add-choice-rule], respectively, but many are defined indirectly by various Xsmith properties.
 Properties allow users to specify various attributes and choice rules in a more declarative fashion.
 
 
@@ -223,7 +229,7 @@ If no binding of the appropriate type for the current node is in scope, this met
 ]
 
 
-Node type names, attribute names, and choice rule names are just symbols, so they are not hygienic.  The names of implementation-private symbols start with @tt{xsmith}.  So don't name your attributes and methods similarly.
+Node type names, attribute names, and choice rule names are just symbols, so they are not hygienic.  The names of implementation-private symbols start with @verb{xsmith}.  So don't name your attributes and methods similarly.
 
 
 @subsection{grammar-macros.rkt}
@@ -251,7 +257,7 @@ Combines spec components and generates a @(racr) specification.
 
 Defines @racket[spec-name] as a @(racr) specification.
 
-Defines @tt{<spec-name>-generate-ast} as a function.  The function accepts the name of a grammar production as a symbol and produces a random tree starting from a fresh node of that nonterminal.  Essentially, given the name of the top-level program node, this function generates a random program.
+Defines @verb{<spec-name>-generate-ast} as a function.  The function accepts the name of a grammar production as a symbol and produces a random tree starting from a fresh node of that nonterminal.  Essentially, given the name of the top-level program node, this function generates a random program.
 
 Various ag-rules are automatically defined within the spec, see @secref{generated-rules}.
 
@@ -325,10 +331,10 @@ Example:
 ]
 
 The example defines a piece of a grammath that includes some kinds of expressions.
-When a @tt{LiteralInt} expression is generated, it's @tt{v} field will be populated with a random number.
-Since the @racket[random] expression is evaluated for each fresh @tt{LiteralInt}, they will (probably) receive different values for @tt{v}.
-When an @tt{AditionExpression} node is generated, it will be populated with an @tt{Expression} hole node for each of its @tt{left} and @tt{right} fields.
-When a fresh @tt{SumExpression} is generated, its @tt{addends} field will be populated with a list of zero to four @tt{Expression} hole nodes.
+When a @verb{LiteralInt} expression is generated, it's @verb{v} field will be populated with a random number.
+Since the @racket[random] expression is evaluated for each fresh @verb{LiteralInt}, they will (probably) receive different values for @verb{v}.
+When an @verb{AditionExpression} node is generated, it will be populated with an @verb{Expression} hole node for each of its @verb{left} and @verb{right} fields.
+When a fresh @verb{SumExpression} is generated, its @verb{addends} field will be populated with a list of zero to four @verb{Expression} hole nodes.
 }
 
 @defform[(add-ag-rule spec-component rule-name rule-clause ...)
@@ -357,7 +363,7 @@ Xsmith creates a choice object class for each node type in the specification gra
 Choice rules are methods on the choice objects.  Some choice rules are used by @racket[choice-filters-to-apply] to filter choices.  Other choice rules may be used by those filters or in the body of the @racket[fresh] property as helper methods.  While most information about the AST and the current choice are probably computed using ag-rules, information about choosing a specific node type to fill in an abstract hole (such as an expression hole which may be filled with many different types of expressions) are computed using choice rules.
 
 Choice rules are methods in Racket's class system and therefore have the @racket[this] macro available for use in their bodies to access other methods (eg. with the @racket[send] macro).
-Choice rules also have the @racket[current-hole] macro available within their body so that they can query attributes of the @(racr) AST being elaborated (eg. with @tt{att-value} to access ag-rules and @tt{ast-parent} to inspect other nodes in the AST).
+Choice rules also have the @racket[current-hole] macro available within their body so that they can query attributes of the @(racr) AST being elaborated (eg. with @verb{att-value} to access ag-rules and @verb{ast-parent} to inspect other nodes in the AST).
 
 Since choice rules are methods in Racket's @racket[class] system, they must be defined with a literal @racket[lambda] (with no parameter for the implicit @racket[this] argument).  If a method needs to modify state (such as to cache the computation of available references of the appropriate type), I would normally recommend the “let-over-lambda” pattern, but that is not allowed in this case.  To make up for this, I recommend using @racket[make-weak-hasheq] to hold the state, using the @racket[this] object as a key.
 
@@ -405,7 +411,7 @@ Elsewhere it raises a syntax error.
 @defform[(make-hole hole-type-expression)]{
 Within the context of a spec component (eg. in the body of @racket[add-ag-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-hole] is a function to generate a hole of a given type.
 
-For example, to make a hole node that will eventually be replaced with some type of @tt{Expression} node:
+For example, to make a hole node that will eventually be replaced with some type of @verb{Expression} node:
 @racketblock[(make-hole 'Expression)]
 
 This function is essentially used by @racket[add-to-grammar] as the default value for grammar fields with nonterminal types that lack an init-expr.
@@ -416,7 +422,7 @@ Outside of a spec component context, it raises a syntax error.
 @defform[(make-fresh-node node-type-expression optional-field-value-dict)]{
 Within the context of a spec component (eg. in the body of @racket[add-ag-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-fresh-node] is a function to generate a fresh node of the given type.  Construction of the new node is guided by the @racket[fresh] property.
 
-For example, to generate a fresh @tt{AdditionExpression} node, specifying values for some of its fields:
+For example, to generate a fresh @verb{AdditionExpression} node, specifying values for some of its fields:
 @racketblock[(make-fresh-node 'AdditionExpression
                                (hash 'left (make-fresh-node 'LiteralInt
                                                             (hash 'v 5))))]
@@ -476,7 +482,7 @@ The syntax object value for a property can be anything, since property transform
 
 The syntax object value for ag-rules and choice-rules should be a syntax object specifying a function (IE a @racket[lambda]).  Ag-rules may be any syntax that evaluates to a function (so you may return an identifier that references a function or an expression that computes a function such as let-over-lambda), but choice-rule syntax is provided to Racket's @racket[class] macro, which requires literal @racket[lambda] forms.
 
-The syntax object value for grammar productions when @tt{(grammar)} is read is a syntax object of class @racket[grammar-clause].
+The syntax object value for grammar productions when @verb{(grammar)} is read is a syntax object of class @racket[grammar-clause].
 
 Dictionaries may or may not contain an entry for each nonterminal in the grammar (except the grammar dictionary which always contains all nonterminals).  A dictionary may even be empty.
 
@@ -501,7 +507,7 @@ TODO - a real example.  Maybe something from core-properties.rkt, or something s
                               (code:line #:transformer transformer-func))]]{
 Defines a property that generates an ag-rule or a choice-rule that does NOT inherit its implementation from its superclass.
 
-@racket[rule-name] must be either @tt{ag-rule} or @tt{choice-rule}.
+@racket[rule-name] must be either @verb{ag-rule} or @verb{choice-rule}.
 
 @racket[rule-name] defaults to @racket[property-name], but you can make it give the rule a different name than the property.
 
@@ -529,7 +535,7 @@ Example:
  [C #t])
 ]
 
-Normally @tt{B} would inherit a method from @tt{A} when none was specified for it.  But in this case it inherits the default (@racket[#f]).  When a user tries @tt{(att-value 'some-bool-flag <node-of-type-B>)} it will return @racket[#f], not @racket[#t].
+Normally @verb{B} would inherit a method from @verb{A} when none was specified for it.  But in this case it inherits the default (@racket[#f]).  When a user tries @verb{(att-value 'some-bool-flag <node-of-type-B>)} it will return @racket[#f], not @racket[#t].
 }
 
 
@@ -539,9 +545,9 @@ Normally @tt{B} would inherit a method from @tt{A} when none was specified for i
 This is a syntax class used for parsing grammar clauses.  If you parse one with @racket[syntax-parse], you will have access to the following fields:
 
 @itemlist[
-@item{@tt{node-name} - the node name as an identifier}
-@item{@tt{parent} - the parent node name as an identifier or @racket[#f] (as syntax, not as a bare @racket[#f]) if the node has no parent.}
-@item{@tt{component ...} - a list of @racket[grammar-components]}
+@item{@verb{node-name} - the node name as an identifier}
+@item{@verb{parent} - the parent node name as an identifier or @racket[#f] (as syntax, not as a bare @racket[#f]) if the node has no parent.}
+@item{@verb{component ...} - a list of @racket[grammar-components]}
 ]
 
 TODO - (properties and the grammar) should this be in the public interface?  Yes if I allow properties to change the grammar, but otherwise I'm not sure.  For reading, it would probably be easier to get a dict full of a struct with: node name, chain of parent nodes, field list (of grammar-node-field-structs).  It will also be faster if I construct that once, because in various properties I am reconstructing some of that info multiple times.
@@ -558,10 +564,10 @@ Example:
 This is a syntax class used for parsing the fields of @racket[grammar-clause]s.
 If you parse one with @racket[syntax-parse], you will have access to the following fields:
 @itemlist[
-@item{@tt{name} - the field name as an identifier}
-@item{@tt{type} - optional: the field type as an identifier if there is one, otherwise @racket[#f] (IE use @racket[attribute] to check if it is present).}
-@item{@tt{kleene-star} - optional: literal @tt{*} character as an identifier if the field is a list type, otherwise @racket[#f] (IE use @racket[attribute] to check if it is present).}
-@item{@tt{init-expr} - optional: syntax object for the initial expression if present, otherwise @racket[#f] (IE use @racket[attribute] to check if it is present).}
+@item{@verb{name} - the field name as an identifier}
+@item{@verb{type} - optional: the field type as an identifier if there is one, otherwise @racket[#f] (IE use @racket[attribute] to check if it is present).}
+@item{@verb{kleene-star} - optional: literal @verb{*} character as an identifier if the field is a list type, otherwise @racket[#f] (IE use @racket[attribute] to check if it is present).}
+@item{@verb{init-expr} - optional: syntax object for the initial expression if present, otherwise @racket[#f] (IE use @racket[attribute] to check if it is present).}
 ]
 
 TODO - the name should be changed to grammar-field or grammar-clause-field or something.
@@ -651,7 +657,7 @@ TODO - these are also provided by scope-graph.rkt, but maybe should be private t
 @subsection{core-properties.rkt}
 
 @defform[#:kind "spec-property" #:id may-be-generated may-be-generated]{
-@;This property defines the @tt{xsmith_may-be-generated-method} non-inheriting choice-rule.
+@;This property defines the @verb{xsmith_may-be-generated-method} non-inheriting choice-rule.
 Acceptable values for this property are @racket[#t] or @racket[#f], and the default is @racket[#t].
 
 If may-be-generated is false, the node is not added to the list of possibile choices to replace an appropriate AST hole.
@@ -669,12 +675,12 @@ Example:
 }
 
 @defform[#:kind "spec-property" #:id depth-increase depth-increase]{
-This property defines the @tt{ast-depth} non-inheriting ag-rule.
+This property defines the @verb{ast-depth} non-inheriting ag-rule.
 
 The property accepts an expression which much evaluate to a function of one argument (the @(racr) AST node) which returns a truthy value for nodes which increase the depth of the AST and #f otherwise.  The default is @racket[(λ (n) #t)].
 This property is NOT inherited by subclasses.
 
-This is useful to allow node re-use.  For example, the body of an @tt{if} or @tt{for} statement might be a block and have the same semantics, but you might want a block inside an @tt{if} to only be considered a depth increase of 1, not 2.
+This is useful to allow node re-use.  For example, the body of an @verb{if} or @verb{for} statement might be a block and have the same semantics, but you might want a block inside an @verb{if} to only be considered a depth increase of 1, not 2.
 
 Example:
 @racketblock[
@@ -689,7 +695,7 @@ Example:
 }
 
 @defform[#:kind "spec-property" #:id fresh fresh]{
-@;This property defines the @tt{xsmith_fresh} choice-rule.
+@;This property defines the @verb{xsmith_fresh} choice-rule.
 This property determines how fresh nodes are constructed (by the @racket[make-fresh-node] function).
 
 Acceptable values for this property are expressions which produce a @racket[dict?] object, or expressions which produce a function of type (-> dict? dict?).  Keys of the dictionary must be field names of the node being generated.  The values in the dictionary are used to fill node fields of the appropriate name.  Any field whose name is not in the dictionary will be filled by evaluating the default init-expr defined in the grammar (via @racket[add-to-grammar]).
@@ -739,7 +745,7 @@ TODO (code) - this property should be in a base set that is always run by defaul
 This property is used to mark nodes that define bindings.
 The property consists of a length-3 list.
 The first two are field names, one for the name of the field that stores the binding name, one for the name of the field that stores the binding type.
-The last field is either @tt{definition} or @tt{parameter}, reflecting whether the binding is a function parameter.  This is used by some Xsmith analyses about higher order values.
+The last field is either @verb{definition} or @verb{parameter}, reflecting whether the binding is a function parameter.  This is used by some Xsmith analyses about higher order values.
 
 Example:
 @racketblock[
@@ -757,7 +763,7 @@ Example:
 This property marks nodes that are reference nodes.  The argument for the property is a list containing:
 
 @itemlist[
-@item{The identifier @tt{read} or the identifier @tt{write}, indicating whether the reference reads or writes the variable}
+@item{The identifier @verb{read} or the identifier @verb{write}, indicating whether the reference reads or writes the variable}
 @item{The name of the field that stores the reference name (as an identifier).}
 ]
 
@@ -773,7 +779,7 @@ Example:
 @defform[#:kind "spec-property" #:id binding-structure binding-structure]{
 This property is used on nodes that can have binders as children.
 It determines the visibility of those binders to their siblings.
-Options are @racket['serial] (like @tt{let*} in scheme), @racket['parallel] (like @tt{let} in scheme), and @racket['recursive] (like @tt{letrec} in scheme).
+Options are @racket['serial] (like @verb{let*} in scheme), @racket['parallel] (like @verb{let} in scheme), and @racket['recursive] (like @verb{letrec} in scheme).
 
 If the property is not specified, @racket['serial] is assumed and used as a default.
 
@@ -935,7 +941,7 @@ Example:
 }
 
 @defform[#:kind "spec-property" #:id choice-filters-to-apply choice-filters-to-apply]{
-@;This property defines the @tt{xsmith_apply-choice-filters} choice-rule.
+@;This property defines the @verb{xsmith_apply-choice-filters} choice-rule.
 
 This property accepts a syntax list of choice-rule names to use as a filter for the node type.  Generally this should be set on the greatest super node type (or @racket[#f] if there is no explicit super node type in your grammar).  Each choice-rule in the list is called on the choice object with no arguments.  Each rule that returns @racket[#f] rules the node out as a choice for filling in a hole.
 
@@ -1142,7 +1148,6 @@ Based on options supplied, it may print a help message and terminate the program
 @defstruct[generator-state ([fresh-name-counter exact-integer?]) #:omit-constructor]{
 Contains mutable state for program generation.
 
-TODO - cish has a separate counter that I use somewhere that needs to be rolled into this.
 }
 @defproc[(make-generator-state) generator-state?]{}
 
@@ -1216,31 +1221,31 @@ TODO - this should probably follow the dict-ref interface and accept a default v
 
 Cish is a C program generator made with the Xsmith library.  It has co-evolved with Xsmith, and is essentially the reference Xsmith program generator.
 
-When xsmith is installed as a Racket package, an @tt{xsmith-cish} executable is placed in your Racket package @tt{bin} directory (usually at @tt{$HOME/.racket/racket-<version>/bin} on Linux and maybe at @tt{$HOME/Library/Racket/<version>/bin} on MacOS).  Additinally, Cish can be run with the command @tt{racket -l xsmith/cish --} (the final @tt{--} causes further flags to be parsed by cish and not by Racket).
+When xsmith is installed as a Racket package, an @verb{xsmith-cish} executable is placed in your Racket package @verb{bin} directory (usually at @verb{$HOME/.racket/racket-<version>/bin} on Linux and maybe at @verb{$HOME/Library/Racket/<version>/bin} on MacOS).  Additinally, Cish can be run with the command @verb{racket -l xsmith/cish --} (the final @verb{--} causes further flags to be parsed by cish and not by Racket).
 
-To see command-line options, run Cish with the @tt{--help} flag.  The options are the same as with any program that uses @racket[xsmith-command-line].
+To see command-line options, run Cish with the @verb{--help} flag.  The options are the same as with any program that uses @racket[xsmith-command-line].
 
-Cish supports the following features for the @tt{--with} and @tt{--without} flags:
+Cish supports the following features for the @verb{--with} and @verb{--without} flags:
 
 @itemlist[
   @item{
     These features are enabled by default:
     @itemlist[
-    @item{@tt{null-statement}}
-    @item{@tt{if-statement}}
-    @item{@tt{if-expression}}
-    @item{@tt{loop-statement}}
-    @item{@tt{float}}
+    @item{@verb{null-statement}}
+    @item{@verb{if-statement}}
+    @item{@verb{if-expression}}
+    @item{@verb{loop-statement}}
+    @item{@verb{float}}
     @; Technically you can disable int, but then it can't make choices because main is hard-coded to be an int.
     @; This really ought to be changed -- we should generate a sub-main function to be called by main, which can have any return type.  Then we should have "main" always be the same (accepting arguments, calculating a checksum, printing something...) but calling the sub-main function with appropriate arguments.
-    @;@item{@tt{int}}
+    @;@item{@verb{int}}
     ]
   }
   @item{
     These features are disabled by default:
     @itemlist[
-    @item{@tt{unsafe-math/range} -- Use a range analysis to convert safe math operations to bare unsafe math operations (when shown to be safe).}
-    @item{@tt{unsafe-math/symbolic} -- Use a symbolic analysis to convert safe math operations to bare unsafe math operations (when shown to be safe).}
+    @item{@verb{unsafe-math/range} -- Use a range analysis to convert safe math operations to bare unsafe math operations (when shown to be safe).}
+    @item{@verb{unsafe-math/symbolic} -- Use a symbolic analysis to convert safe math operations to bare unsafe math operations (when shown to be safe).}
     ]
   }
 ]
