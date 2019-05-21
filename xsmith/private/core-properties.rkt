@@ -975,14 +975,16 @@ The second arm is a function that takes the type that the node has been assigned
         (if c (hash-set h n c) h)))
 
     (define constraints-checked
-      (for/hash ([n (dict-keys node-type-constraints)])
-        (values n #`(let ([t #,(dict-ref node-type-constraints n)])
-                      (if (type? t)
-                          t
-                          (error 'type-info
-                                 "Type constraint returned for node of AST type ~a was not a type: ~a\n"
-                                 (quote #,n)
-                                 t))))))
+      (hash-set
+       (for/hash ([n (dict-keys node-type-constraints)])
+         (values n #`(let ([t #,(dict-ref node-type-constraints n)])
+                       (if (type? t)
+                           t
+                           (error 'type-info
+                                  "Type constraint returned for node of AST type ~a was not a type: ~a\n"
+                                  (quote #,n)
+                                  t)))))
+       #f #'(error 'type-info "No type constraint info given for node.")))
     (define xsmith_my-type-constraint-info/ag-rule
       (for/hash ([n (dict-keys constraints-checked)])
         (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n)))))
@@ -991,12 +993,14 @@ The second arm is a function that takes the type that the node has been assigned
         (values n #`(λ () #,(dict-ref constraints-checked n)))))
 
     (define node-child-dict-funcs
-      (for/fold ([h (hash)])
-                ([n nodes])
-        (define f (syntax-parse (dict-ref this-prop-info n default-prop-info)
-                    [(_ f:expr) #'f]
-                    [else #f]))
-        (if f (hash-set h n f) h)))
+      (hash-set
+       (for/fold ([h (hash)])
+                 ([n nodes])
+         (define f (syntax-parse (dict-ref this-prop-info n default-prop-info)
+                     [(_ f:expr) #'f]
+                     [else #f]))
+         (if f (hash-set h n f) h))
+       #f #'(λ (n t) (error 'type-info "Missing parent-child type relation."))))
 
     (define node-reference-info-cleansed
       (for/list ([n nodes])
