@@ -159,8 +159,6 @@ The theory of scope graphs is described in the paper “A Theory of Name Resolut
 
 @subsection{Minimal Example}
 
-TODO - this example should be... more minimal.
-
 @(verbatim (file->string minimal-example-path))
 
 @section{API Reference}
