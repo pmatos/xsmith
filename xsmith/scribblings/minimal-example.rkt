@@ -1,5 +1,5 @@
 #lang racket/base
-(require xsmith racr)
+(require xsmith racr racket/string)
 
 (define-spec-component arith)
 
@@ -33,4 +33,8 @@
 (define (arithmetic-generate-and-print)
   (displayln (att-value 'ugly-print (arithmetic-generate-ast 'Program))))
 
-(xsmith-command-line arithmetic-generate-and-print)
+(xsmith-command-line arithmetic-generate-and-print
+                     #:comment-wrap (λ (lines)
+                                      (string-join
+                                       (map (λ (x) (format "// ~a" x)) lines)
+                                       "\n")))
