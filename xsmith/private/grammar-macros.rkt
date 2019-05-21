@@ -968,142 +968,140 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                  ;; in that scope are not available.
                  (define fresh-node-func #f)
 
-                 (splicing-letrec
-                     ;; The bindings in this splicing-letrec are needed for
-                     ;; the `make-hole` macro
-                     ([node-attr-length-hash
+                 (define node-attr-length-hash
+                   (make-immutable-hash
+                    (list
+                     (cons 'g-part.node-name 'node-attr-length)
+                     ...)))
+                 (define hole-name-hash
+                   (make-immutable-hash
+                    (list
+                     (cons 'g-part.node-name 'ast-hole-name)
+                     ...)))
+                 (define make-hole-function
+                   (λ (node-type)
+                     ;; do a dict-ref here just for error checking.
+                     (dict-ref hole-name-hash node-type
+                               (λ ()
+                                 (error
+                                  'make-hole
+                                  "Not in the defined grammar: ~a, expected one of: ~a"
+                                  node-type
+                                  (dict-keys hole-name-hash))))
+                     (create-ast
+                      spec
+                      (dict-ref hole-name-hash node-type)
+                      (append
+                       ;; This first list is for xsmithliftdepth and xsmithlifterwrapped
+                       (list #f #f)
+                       (map (λ (x) (create-ast-bud))
+                            (make-list (dict-ref node-attr-length-hash
+                                                 node-type)
+                                       #f))))))
+
+                 (splicing-syntax-parameterize
+                     ([current-racr-spec (syntax-rules () [(_) spec])]
+                      [make-hole (syntax-parser
+                                   [(_ node-type-sym:expr)
+                                    #'(make-hole-function node-type-sym)])])
+                   (with-specification spec
+                     ;; Define the grammar nodes
+                     (ast-rule 'base-node-spec)
+                     (ast-rule 'ast-rule-sym)
+                     ...
+                     (ast-rule 'ast-hole-rule-sym)
+                     ...
+                     (compile-ast-specifications 'base-node-name)
+
+                     ;; Define the ag-rules for the grammar nodes
+                     (splicing-syntax-parameterize
+                         ([make-fresh-node
+                           (syntax-parser [(_ node-sym:expr (~optional dict-expr:expr))
+                                           #`(fresh-node-func
+                                              node-sym
+                                              #,(or (attribute dict-expr)
+                                                    #'(hash)))])])
+                       (ag-rule ag-rule-name
+                                [ag-rule-node.node-name ag-rule-node.prop-val]
+                                ...)
+                       ...
+
+                       ;; Define choice objects mirroring grammar.
+                       ;; Choice rules are methods within the choice objects.
+                       (define base-node-choice
+                         (class ast-choice%
+                           (cdef-pub-or-override-for-base
+                            choice-method-name
+                            cdef-body-for-base)
+                           ...
+                           (super-new)))
+                       (define choice-name
+                         (class choice-parent
+                           (define c-method.prop-name
+                             c-method.prop-val)
+                           ...
+                           (override c-method.prop-name)
+                           ...
+                           (super-new)))
+                       ...)
+
+                     (define choice-object-hash
                        (make-immutable-hash
                         (list
-                         (cons 'g-part.node-name 'node-attr-length)
-                         ...))]
-                      [hole-name-hash
-                       (make-immutable-hash
-                        (list
-                         (cons 'g-part.node-name 'ast-hole-name)
-                         ...))]
-                      [make-hole-function
-                       (λ (node-type)
-                         ;; do a dict-ref here just for error checking.
-                         (dict-ref hole-name-hash node-type
-                                   (λ ()
-                                     (error
-                                      'make-hole
-                                      "Not in the defined grammar: ~a, expected one of: ~a"
-                                      node-type
-                                      (dict-keys hole-name-hash))))
-                         (create-ast
-                          spec
-                          (dict-ref hole-name-hash node-type)
-                          (append
-                           ;; This first list is for xsmithliftdepth and xsmithlifterwrapped
-                           (list #f #f)
-                           (map (λ (x) (create-ast-bud))
-                                (make-list (dict-ref node-attr-length-hash
-                                                     node-type)
-                                           #f)))))])
-                   (splicing-syntax-parameterize
-                       ([current-racr-spec (syntax-rules () [(_) spec])]
-                        [make-hole (syntax-parser
-                                     [(_ node-type-sym:expr)
-                                      #'(make-hole-function node-type-sym)])])
-                     (with-specification spec
-                       ;; Define the grammar nodes
-                       (ast-rule 'base-node-spec)
-                       (ast-rule 'ast-rule-sym)
-                       ...
-                       (ast-rule 'ast-hole-rule-sym)
-                       ...
-                       (compile-ast-specifications 'base-node-name)
+                         (cons 'g-part.node-name choice-name)
+                         ...)))
+                     (define (fresh-node-func-impl node-type [field-dict (hash)])
+                       (dict-ref hole-name-hash node-type
+                                 ;; This dict-ref is done solely for the
+                                 ;; side-effect of erroring when a key is not found
+                                 (λ ()
+                                   (error
+                                    'fresh-node-func
+                                    "Not in the defined grammar: ~a, expected one of: ~a"
+                                    node-type
+                                    (dict-keys hole-name-hash))))
+                       (send (new (dict-ref choice-object-hash node-type)
+                                  [hole (make-hole node-type)])
+                             xsmith_fresh
+                             field-dict))
+                     ;; Since with-specification creates a new scope,
+                     ;; fresh-node-func can't be defined here and visible
+                     ;; outside.  So we `set!` it in place.
+                     (set! fresh-node-func fresh-node-func-impl)
 
-                       ;; Define the ag-rules for the grammar nodes
-                       (splicing-syntax-parameterize
-                           ([make-fresh-node
-                             (syntax-parser [(_ node-sym:expr (~optional dict-expr:expr))
-                                             #`(fresh-node-func
-                                                node-sym
-                                                #,(or (attribute dict-expr)
-                                                      #'(hash)))])])
-                         (ag-rule ag-rule-name
-                                  [ag-rule-node.node-name ag-rule-node.prop-val]
-                                  ...)
-                         ...
-
-                         ;; Define choice objects mirroring grammar.
-                         ;; Choice rules are methods within the choice objects.
-                         (define base-node-choice
-                           (class ast-choice%
-                             (cdef-pub-or-override-for-base
-                              choice-method-name
-                              cdef-body-for-base)
-                             ...
-                             (super-new)))
-                         (define choice-name
-                           (class choice-parent
-                             (define c-method.prop-name
-                               c-method.prop-val)
-                             ...
-                             (override c-method.prop-name)
-                             ...
-                             (super-new)))
-                         ...)
-
-                       (define choice-object-hash
-                         (make-immutable-hash
-                          (list
-                           (cons 'g-part.node-name choice-name)
-                           ...)))
-                       (define (fresh-node-func-impl node-type [field-dict (hash)])
-                         (dict-ref hole-name-hash node-type
-                                   ;; This dict-ref is done solely for the
-                                   ;; side-effect of erroring when a key is not found
-                                   (λ ()
-                                     (error
-                                      'fresh-node-func
-                                      "Not in the defined grammar: ~a, expected one of: ~a"
-                                      node-type
-                                      (dict-keys hole-name-hash))))
-                         (send (new (dict-ref choice-object-hash node-type)
-                                    [hole (make-hole node-type)])
-                               xsmith_fresh
-                               field-dict))
-                       ;; Since with-specification creates a new scope,
-                       ;; fresh-node-func can't be defined here and visible
-                       ;; outside.  So we `set!` it in place.
-                       (set! fresh-node-func fresh-node-func-impl)
-
-                       ;; define some core ag-rules
-                       (ag-rule xsmith_hole->choice-list
-                                [base-node-name
-                                 (λ (n) (error 'xsmith_hole->choice-list
-                                               "only implemented for grammar hole nodes"))]
-                                [ast-hole-name
-                                 (λ (n) (list (new subtype-choice-name [hole n]) ...))]
-                                ...)
-                       (ag-rule is-hole?
-                                [base-node-name (λ (n) #f)]
-                                [ast-hole-name (λ (n) #t)]
-                                ...)
-                       (ag-rule xsmith_hole->replacement
-                                [base-node-name xsmith_hole->replacement-function])
-                       (ag-rule xsmith_make-lift-do-proc
-                                [base-node-name
-                                 (xsmith_make-lift-do-proc-function
-                                  (λ (ast-type) (make-hole ast-type)))])
-                       (ag-rule find-descendants
-                                [base-node-name find-descendants-function])
-                       (ag-rule find-a-descendant
-                                [base-node-name find-a-descendant-function])
-                       (ag-rule resolve-reference-name
-                                [base-node-name resolve-reference-name-function])
-                       (ag-rule xsmith_visible-bindings
-                                [base-node-name visible-bindings-function])
-                       (ag-rule xsmith_node-field-name-in-parent
-                                [base-node-name node-field-name-in-parent-function])
-                       (ag-rule xsmith_effect-constraints
-                                [base-node-name xsmith_effect-constraints-function])
-                       (ag-rule xsmith_in-lift-branch
-                                [base-node-name xsmith_in-lift-branch-function])
-                       (compile-ag-specifications))))
+                     ;; define some core ag-rules
+                     (ag-rule xsmith_hole->choice-list
+                              [base-node-name
+                               (λ (n) (error 'xsmith_hole->choice-list
+                                             "only implemented for grammar hole nodes"))]
+                              [ast-hole-name
+                               (λ (n) (list (new subtype-choice-name [hole n]) ...))]
+                              ...)
+                     (ag-rule is-hole?
+                              [base-node-name (λ (n) #f)]
+                              [ast-hole-name (λ (n) #t)]
+                              ...)
+                     (ag-rule xsmith_hole->replacement
+                              [base-node-name xsmith_hole->replacement-function])
+                     (ag-rule xsmith_make-lift-do-proc
+                              [base-node-name
+                               (xsmith_make-lift-do-proc-function
+                                (λ (ast-type) (make-hole ast-type)))])
+                     (ag-rule find-descendants
+                              [base-node-name find-descendants-function])
+                     (ag-rule find-a-descendant
+                              [base-node-name find-a-descendant-function])
+                     (ag-rule resolve-reference-name
+                              [base-node-name resolve-reference-name-function])
+                     (ag-rule xsmith_visible-bindings
+                              [base-node-name visible-bindings-function])
+                     (ag-rule xsmith_node-field-name-in-parent
+                              [base-node-name node-field-name-in-parent-function])
+                     (ag-rule xsmith_effect-constraints
+                              [base-node-name xsmith_effect-constraints-function])
+                     (ag-rule xsmith_in-lift-branch
+                              [base-node-name xsmith_in-lift-branch-function])
+                     (compile-ag-specifications)))
 
                  ;; Define an ast-generator with a hygiene-bending name
                  (define generate-ast-func (ast-generator-generator fresh-node-func))
