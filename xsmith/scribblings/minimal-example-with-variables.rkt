@@ -36,17 +36,21 @@
 
 (add-ag-rule
  arith to-s-exp
- [LetStar (λ (n) `(let* (,@(map (λ (d) `[,(string->symbol (ast-child 'name d))
-                                         ,(att-value 'to-s-exp
-                                                     (ast-child 'Expression d))])
-                                (ast-children (ast-child 'definitions n))))
-                    ,@(map (λ (c) (att-value 'to-s-exp c))
-                           (ast-children (ast-child 'sideEs n)))
-                    ,(att-value 'to-s-exp (ast-child 'Expression n))))]
+ [LetStar
+  (λ (n)
+    `(let* (,@(map (λ (d)
+                     `[,(string->symbol (ast-child 'name d))
+                       ,(att-value 'to-s-exp
+                                   (ast-child 'Expression d))])
+                   (ast-children (ast-child 'definitions n))))
+       ,@(map (λ (c) (att-value 'to-s-exp c))
+              (ast-children (ast-child 'sideEs n)))
+       ,(att-value 'to-s-exp (ast-child 'Expression n))))]
  [LiteralInt (λ (n) (ast-child 'v n))]
  [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
  [SetBangRet (λ (n) `(begin (set! ,(string->symbol (ast-child 'name n))
-                                  ,(att-value 'to-s-exp (ast-child 'Expression n)))
+                                  ,(att-value 'to-s-exp
+                                              (ast-child 'Expression n)))
                             ,(string->symbol (ast-child 'name n))))]
  [Addition (λ (n) `(+ ,@(map (λ (c) (att-value 'to-s-exp c))
                              (ast-children (ast-child 'es n)))))])
