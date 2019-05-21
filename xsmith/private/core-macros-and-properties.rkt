@@ -68,6 +68,7 @@
          lift-type->ast-binder-type
          binding-structure
          io
+         strict-child-order?
          ;; user-added props
          prop-name ...
          )
