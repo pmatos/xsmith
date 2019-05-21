@@ -190,11 +190,6 @@
                             (make-hole 'Block)
                             'else
                             (make-hole 'Block))]
-          [AssignmentExpression
-           (hash
-            'name
-            (let* ([choice (send this xsmith_get-reference!)])
-              (binding-name choice)))]
           [FunctionApplicationExpression
            (hash 'function (make-hole 'VariableReference)
                  ;; Make an empty args list which will be rewritten

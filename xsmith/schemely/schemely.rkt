@@ -315,12 +315,6 @@
 (add-prop
  schemely-core
  fresh
- [VariableReference
-  ;; TODO - getting a name for a reference should be automatic.
-  (hash 'name (binding-name (send this xsmith_get-reference!)))]
- [SetBangRet
-  ;; TODO - getting a name for a reference should be automatic.
-  (hash 'name (binding-name (send this xsmith_get-reference!)))]
  [Lambda (let* ([type (att-value 'xsmith_type current-hole)]
                 [ftype (function-type
                         (product-type #f)

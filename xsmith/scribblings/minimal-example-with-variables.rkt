@@ -1,5 +1,5 @@
 #lang racket/base
-(require xsmith racr racket/pretty racket/class racket/string)
+(require xsmith racr racket/pretty racket/string)
 
 (define-spec-component arith)
 
@@ -21,11 +21,6 @@
  [Addition Expression ([es : Expression * = (+ 1 (random 5))])
            #:prop choice-weight 50])
 
-(add-prop
- arith fresh
- ;; TODO - this should not be necessary, this should be the default for references.
- [VariableReference (hash 'name (binding-name (send this xsmith_get-reference!)))]
- [SetBangRet (hash 'name (binding-name (send this xsmith_get-reference!)))])
 
 (define int (base-type 'int))
 (add-prop arith type-info

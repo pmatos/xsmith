@@ -126,9 +126,10 @@ hole for the type.
   #:reads
   (grammar)
   (property binder-info)
+  (property reference-info)
   #:appends (choice-rule xsmith_fresh)
   #:transformer
-  (λ (this-prop-info grammar-info binder-info-info)
+  (λ (this-prop-info grammar-info binder-info-info reference-info-info)
     (define nodes (dict-keys grammar-info))
     (define field-info-hash
       (for/hash ([node-name nodes])
@@ -143,6 +144,13 @@ hole for the type.
                    (list #''name-field-name
                          #''type-field-name)]
                   [else (list #'#f #'#f)]))))
+
+    (define reference-field-names-dict
+      (for/hash ([node nodes])
+        (values node
+                (syntax-parse (dict-ref reference-info-info node #'#f)
+                  [(_ name:id) (syntax->datum #'name)]
+                  [else #f]))))
 
     ;; I need to create a lambda (of zero args) that evaluates the given expression (if it exists), then calls a thunk to get the default value for any fields not specified in the list received.
     (define xsmith_fresh-info
@@ -181,12 +189,19 @@ hole for the type.
                                        [f-type (grammar-node-field-struct-type
                                                 fstruct)]
                                        [seq? (grammar-node-field-struct-kleene-star?
-                                              fstruct)])
+                                              fstruct)]
+                                       [reference? (equal? fname
+                                                           (dict-ref
+                                                            reference-field-names-dict
+                                                            node
+                                                            #f))])
                                   (cond
                                     [init-e init-e]
                                     [seq? #'(create-ast-list (list))]
                                     [f-type #`(make-hole
                                                '#,(datum->syntax #'here f-type))]
+                                    [reference? #'(binding-name
+                                                   (send this xsmith_get-reference!))]
                                     [else #'#f])))))
                        field-names))))
                (define binder-name-field
