@@ -48,6 +48,8 @@ racket/file
 )
 
 @(define-runtime-path minimal-example-path "minimal-example.rkt")
+@(define-runtime-path minimal-example-with-variables-path
+  "minimal-example-with-variables.rkt")
 @(define (verb . content)
    (make-element 'tt content))
 
@@ -160,6 +162,10 @@ The theory of scope graphs is described in the paper “A Theory of Name Resolut
 @subsection{Minimal Example}
 
 @(verbatim (file->string minimal-example-path))
+
+@subsection{Minimal Example With Variables}
+
+@(verbatim (file->string minimal-example-with-variables-path))
 
 @section{API Reference}
 
