@@ -1120,7 +1120,7 @@ Returns a fully concrete (no type variables) type that @racket[can-unify?] with 
 
 This function can be useful if you want to generate a random type.  But beware!  You should probably NOT generate random types unless you also store them in the grammar node that represents that type.  The type-checking code defined in the @racket[type-info] property can be run many times for each node, so a node that randomly chooses its type will not be stable.  Because the type algorithm imperatively unifies types, this causes mayhem.  Don't do it.
 
-Note that to use this function you must parameterize @racket[current-xsmith-type-constructor-thunks].  Probably in the @verb[generate-and-print] function passed to @racket[xsmith-command-line].
+Note that to use this function you must parameterize @racket[current-xsmith-type-constructor-thunks].  Probably in the @verb{generate-and-print} function passed to @racket[xsmith-command-line].
 }
 
 @defparam[current-xsmith-type-constructor-thunks thunk-list (listof (-> type?))]{
