@@ -37,7 +37,6 @@
  fresh-var-name
  fresh-int!
 
- ast-children/flat
  expr->ast-list
  node-type
  parent-node
@@ -49,6 +48,10 @@
  xd-printf
  get-xsmith-debug-log!
  )
+(module+ for-private
+  (provide
+   ast-children/flat
+   ))
 
 (require
  racket/list

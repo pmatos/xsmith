@@ -81,6 +81,7 @@
  "choice.rkt"
  "define-grammar-property.rkt"
  "xsmith-utils.rkt"
+ (submod "xsmith-utils.rkt" for-private)
  "scope-graph.rkt"
  ;; for re-provide
  "types.rkt"
