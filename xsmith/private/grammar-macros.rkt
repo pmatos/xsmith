@@ -443,7 +443,7 @@
              [(ast-list-node? n) #f]
              [(att-value 'xsmith_is-hole? n)
               (begin
-                (rewrite-subtree n (att-value 'xsmith_hole->replacement n))
+                (rewrite-subtree n (att-value '_xsmith_hole->replacement n))
                 (execute-inter-choice-transform-queue)
                 #t)]
              [else #f]))])
@@ -468,7 +468,7 @@
         (cons n matches)
         matches)))
 
-(define xsmith_make-lift-do-proc-function
+(define _xsmith_make-lift-do-proc-function
   (λ (make-hole-func)
     (λ (destination-node
         destination-field
@@ -495,7 +495,7 @@
         (rewrite-terminal 'type new-hole type)
 
         (define choices
-          (att-value 'xsmith_hole->choice-list new-hole))
+          (att-value '_xsmith_hole->choice-list new-hole))
         (when (not (equal? (length choices) 1))
           (error
            'xsmith
@@ -503,7 +503,7 @@
             "lift attempted for node type with more than 1 replacement choice: ~a"
             lifted-ast-type)))
         (define new-declaration
-          (send (car choices) xsmith_fresh
+          (send (car choices) _xsmith_fresh
                 (hash 'xsmithliftdepth lift-depth)))
         (enqueue-inter-choice-transform
          (λ ()
@@ -525,33 +525,33 @@
                         lifting-hole-parent)))))
         name))))
 
-(define xsmith_hole->replacement-function
+(define _xsmith_hole->replacement-function
   (λ (n)
     (if (att-value 'xsmith_is-hole? n)
-        (let* ([choices (att-value 'xsmith_hole->choice-list n)]
+        (let* ([choices (att-value '_xsmith_hole->choice-list n)]
                [choice? (λ (x) (is-a? x ast-choice%))]
                [should-force-deepen?
                 ;; If all choices, before filtering, will over-deepen, don't use
                 ;; that filter.  This is for cases where a deepening choice requires
                 ;; deepening children -- eg. a form that uses a block child for
                 ;; re-use purposes that is chosen at maximum-depth - 1.
-                (andmap (λ (x) (not (send x xsmith_wont-over-deepen)))
+                (andmap (λ (x) (not (send x _xsmith_wont-over-deepen)))
                         choices)]
                [choices-or-reasons
                 (parameterize ([current-force-deepen should-force-deepen?])
-                  (map (λ (c) (send c xsmith_apply-choice-filters))
+                  (map (λ (c) (send c _xsmith_apply-choice-filters))
                        choices))]
                [filtered (filter choice? choices-or-reasons)]
                #;[choices-or-reasons
-                  (map (λ (c) (send c xsmith_apply-choice-filters))
+                  (map (λ (c) (send c _xsmith_apply-choice-filters))
                        choices)]
                #;[choices-or-reasons/no-deepen
                   (map (λ (x) (if (choice? x)
-                                  (let ([result (send x xsmith_wont-over-deepen)])
+                                  (let ([result (send x _xsmith_wont-over-deepen)])
                                     (if (not result)
                                         (format "Choice ~a: filtered out by ~a method."
                                                 x
-                                                'xsmith_wont-over-deepen)
+                                                '_xsmith_wont-over-deepen)
                                         result))
                                   x))
                        choices-or-reasons)]
@@ -577,35 +577,35 @@
                       "\n\n"
                       (if (ast-has-parent? n)
                           (format "Type of this node expected by its parent: ~a\n"
-                                  (att-value 'xsmith_type-constraint-from-parent n))
+                                  (att-value '_xsmith_type-constraint-from-parent n))
                           "")))
-              (send (choose-ast filtered) xsmith_fresh)))
-        (error 'xsmith_hole->replacement
+              (send (choose-ast filtered) _xsmith_fresh)))
+        (error '_xsmith_hole->replacement
                "called on non-hole node"))))
 (define xsmith_resolve-reference-name-function
   (λ (node name)
     (resolve-reference
-     (reference name (att-value 'xsmith_scope-graph-scope node)))))
-(define visible-bindings-function
+     (reference name (att-value '_xsmith_scope-graph-scope node)))))
+(define _xsmith_visible-bindings-function
   (λ (n)
-    (visible-bindings (att-value 'xsmith_scope-graph-scope n))))
-(define node-field-name-in-parent-function
+    (visible-bindings (att-value '_xsmith_scope-graph-scope n))))
+(define _xsmith_node-field-name-in-parent-function
   (λ (n)
     ;; Parent might be the desired node OR a list node.
     (define parent (ast-parent n))
     (define parent* (parent-node n))
-    (dict-ref (att-value 'xsmith_child-node-name-dict parent*)
+    (dict-ref (att-value '_xsmith_child-node-name-dict parent*)
               (if (eq? parent parent*) n parent))))
-(define xsmith_effect-constraints-function
+(define _xsmith_effect-constraints-function
   (λ (n)
     (if (ast-has-parent? n)
-        (att-value 'xsmith_effect-constraints-for-child (parent-node n) n)
+        (att-value '_xsmith_effect-constraints-for-child (parent-node n) n)
         '())))
-(define xsmith_in-lift-branch-function
+(define _xsmith_in-lift-branch-function
   (λ (n)
     (or (ast-child 'xsmithliftdepth n)
         (and (ast-has-parent? n)
-             (att-value 'xsmith_in-lift-branch (parent-node n))))))
+             (att-value '_xsmith_in-lift-branch (parent-node n))))))
 
 
 
@@ -621,13 +621,13 @@ It defines:
 * spec-generate-ast (with `spec` replaced for the id given as spec), which is a function that accepts the symbol name of a node and generates an AST starting at that node.  IE you give it the top level node name and it gives you a program.
 
 Additionally, it defines the following att-rules within the RACR spec:
-* xsmith_hole->choice-list
+* _xsmith_hole->choice-list
 * xsmith_is-hole?
-* xsmith_hole->replacement
+* _xsmith_hole->replacement
 * xsmith_find-descendants
 * xsmith_find-a-descendant
 * xsmith_resolve-reference-name
-* xsmith_visible-bindings
+* _xsmith_visible-bindings
 
 It also defines within the RACR spec all att-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
 |#
@@ -908,7 +908,7 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                   ;; choice base class, which I have to override.
                   [(cdef-pub-or-override-for-base ...)
                    (map (λ (name) (if (member (syntax->datum name)
-                                              '(xsmith_choice-weight))
+                                              '(_xsmith_choice-weight))
                                       #'define/override
                                       #'define/public))
                         (syntax->list #'(choice-method-name ...)))]
@@ -1062,7 +1062,7 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                                     (dict-keys hole-name-hash))))
                        (send (new (dict-ref choice-object-hash node-type)
                                   [hole (make-hole node-type)])
-                             xsmith_fresh
+                             _xsmith_fresh
                              field-dict))
                      ;; Since with-specification creates a new scope,
                      ;; fresh-node-func can't be defined here and visible
@@ -1070,9 +1070,9 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                      (set! fresh-node-func fresh-node-func-impl)
 
                      ;; define some core att-rules
-                     (ag-rule xsmith_hole->choice-list
+                     (ag-rule _xsmith_hole->choice-list
                               [base-node-name
-                               (λ (n) (error 'xsmith_hole->choice-list
+                               (λ (n) (error '_xsmith_hole->choice-list
                                              "only implemented for grammar hole nodes"))]
                               [ast-hole-name
                                (λ (n) (list (new subtype-choice-name [hole n]) ...))]
@@ -1081,11 +1081,11 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                               [base-node-name (λ (n) #f)]
                               [ast-hole-name (λ (n) #t)]
                               ...)
-                     (ag-rule xsmith_hole->replacement
-                              [base-node-name xsmith_hole->replacement-function])
-                     (ag-rule xsmith_make-lift-do-proc
+                     (ag-rule _xsmith_hole->replacement
+                              [base-node-name _xsmith_hole->replacement-function])
+                     (ag-rule _xsmith_make-lift-do-proc
                               [base-node-name
-                               (xsmith_make-lift-do-proc-function
+                               (_xsmith_make-lift-do-proc-function
                                 (λ (ast-type) (make-hole ast-type)))])
                      (ag-rule xsmith_find-descendants
                               [base-node-name xsmith_find-descendants-function])
@@ -1093,14 +1093,14 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                               [base-node-name xsmith_find-a-descendant-function])
                      (ag-rule xsmith_resolve-reference-name
                               [base-node-name xsmith_resolve-reference-name-function])
-                     (ag-rule xsmith_visible-bindings
-                              [base-node-name visible-bindings-function])
-                     (ag-rule xsmith_node-field-name-in-parent
-                              [base-node-name node-field-name-in-parent-function])
-                     (ag-rule xsmith_effect-constraints
-                              [base-node-name xsmith_effect-constraints-function])
-                     (ag-rule xsmith_in-lift-branch
-                              [base-node-name xsmith_in-lift-branch-function])
+                     (ag-rule _xsmith_visible-bindings
+                              [base-node-name _xsmith_visible-bindings-function])
+                     (ag-rule _xsmith_node-field-name-in-parent
+                              [base-node-name _xsmith_node-field-name-in-parent-function])
+                     (ag-rule _xsmith_effect-constraints
+                              [base-node-name _xsmith_effect-constraints-function])
+                     (ag-rule _xsmith_in-lift-branch
+                              [base-node-name _xsmith_in-lift-branch-function])
                      (compile-ag-specifications)))
 
                  ;; Define an ast-generator with a hygiene-bending name

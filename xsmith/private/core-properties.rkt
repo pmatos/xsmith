@@ -74,7 +74,7 @@
 (define-non-inheriting-rule-property
   may-be-generated
   choice-rule
-  #:rule-name xsmith_may-be-generated
+  #:rule-name _xsmith_may-be-generated
   #:default #t
   #:transformer (syntax-parser [#t #'(λ () this)]
                                [#f #'(λ () #f)]))
@@ -98,7 +98,7 @@
                        (+ increment parent-depth))]))
 
 (define-property choice-weight
-  #:appends (choice-rule xsmith_choice-weight)
+  #:appends (choice-rule _xsmith_choice-weight)
   #:transformer
   (λ (this-prop-info)
     (define this-prop/defaulted
@@ -127,7 +127,7 @@ hole for the type.
   (grammar)
   (property binder-info)
   (property reference-info)
-  #:appends (choice-rule xsmith_fresh)
+  #:appends (choice-rule _xsmith_fresh)
   #:transformer
   (λ (this-prop-info grammar-info binder-info-info reference-info-info)
     (define nodes (dict-keys grammar-info))
@@ -153,7 +153,7 @@ hole for the type.
                   [else #f]))))
 
     ;; I need to create a lambda (of zero args) that evaluates the given expression (if it exists), then calls a thunk to get the default value for any fields not specified in the list received.
-    (define xsmith_fresh-info
+    (define _xsmith_fresh-info
       (for/hash ([node nodes])
         (define fields (dict-ref field-info-hash node))
         (define field-hash (for/hash ([field fields])
@@ -271,11 +271,11 @@ hole for the type.
                (create-ast (current-racr-spec)
                            '#,node
                            all-values+xsmith-injected))))))
-    (list xsmith_fresh-info)))
+    (list _xsmith_fresh-info)))
 
 (define-property child-node-name-dict
   #:reads (grammar)
-  #:appends (att-rule xsmith_child-node-name-dict)
+  #:appends (att-rule _xsmith_child-node-name-dict)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -303,7 +303,7 @@ hole for the type.
 
 (define-property wont-over-deepen
   #:reads (grammar)
-  #:appends (choice-rule xsmith_wont-over-deepen)
+  #:appends (choice-rule _xsmith_wont-over-deepen)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -338,9 +338,9 @@ hole for the type.
                                            node
                                            (dict-ref wont-over-deepen-info-defaults
                                                      node))]
-                          [ref-in-lift? (and (att-value 'xsmith_in-lift-branch
+                          [ref-in-lift? (and (att-value '_xsmith_in-lift-branch
                                                         current-hole)
-                                             (send this xsmith_is-reference-choice?))])
+                                             (send this _xsmith_is-reference-choice?))])
                       ;; TODO - I should prevent circles of lifting where a lift
                       ;; variable is defined as another variable reference that
                       ;; gets lifted, etc.
@@ -351,7 +351,7 @@ hole for the type.
 
 
 #|
-Helper function for xsmith_scope-graph-child-scope-dict.
+Helper function for _xsmith_scope-graph-child-scope-dict.
 * cb-pairs is a list of (cons child-node binding), where binding is #f or a binding struct.
 * parent scope is the scope that the parent node is in.
 * serial/parallel/recursive-flag is a symbol
@@ -388,7 +388,7 @@ Helper function for xsmith_scope-graph-child-scope-dict.
 (define (default-lift-destinations-impl n type lift-depth origin-hole)
   (if (ast-has-parent? n)
       (att-value
-       'xsmith_lift-destinations
+       '_xsmith_lift-destinations
        (ast-parent n) type lift-depth origin-hole)
       '()))
 
@@ -401,7 +401,7 @@ Helper function for xsmith_scope-graph-child-scope-dict.
   (λ ()
     (define depth (att-value 'xsmith_ast-depth lift-origin-hole))
     (define destinations
-      (att-value 'xsmith_lift-destinations
+      (att-value '_xsmith_lift-destinations
                  lift-origin-hole type depth lift-origin-hole))
     (when (equal? 0 (length destinations))
       (error 'xsmith
@@ -429,10 +429,10 @@ The scope-graph-scope attribute returns the scope that the node in question resi
   (property binding-structure)
   #:appends
   ;; TODO - I don't think introduces-scope? is used anywhere anymore...  should it be removed?
-  (att-rule xsmith_scope-graph-child-scope-dict)
-  (att-rule xsmith_scope-graph-scope)
-  (att-rule xsmith_lift-predicate)
-  (att-rule xsmith_lift-destinations)
+  (att-rule _xsmith_scope-graph-child-scope-dict)
+  (att-rule _xsmith_scope-graph-scope)
+  (att-rule _xsmith_lift-predicate)
+  (att-rule _xsmith_lift-destinations)
   #:transformer
   (λ (this-prop-info
       grammar-info
@@ -518,7 +518,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
                                              (~datum recursive))))
                    #''flag]
                   [#f #''serial]))))
-    (define xsmith_lift-predicate-info
+    (define _xsmith_lift-predicate-info
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref lift-predicate-info node #'#t)
@@ -526,7 +526,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
                   [#f #'(λ (n type) #f)]
                   [predicate #'predicate]))))
 
-    (define xsmith_lift-destinations-info
+    (define _xsmith_lift-destinations-info
       (for/fold ([rule-info (hash #f #'default-lift-destinations-impl)])
                 ([node nodes])
         (define has-definition (dict-ref has-potential-definition-child-hash node))
@@ -537,7 +537,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
              node
              #`(λ (n type lift-depth lifting-hole-node)
                  (define ast-type
-                   ((att-value 'xsmith_lift-type-to-ast-binder-type
+                   ((att-value '_xsmith_lift-type-to-ast-binder-type
                                n)
                     type))
 
@@ -558,8 +558,8 @@ The scope-graph-scope attribute returns the scope that the node in question resi
                    (default-lift-destinations-impl
                      n type lift-depth lifting-hole-node))
                  (if (and field
-                          (att-value 'xsmith_lift-predicate n type))
-                     (cons (att-value 'xsmith_make-lift-do-proc
+                          (att-value '_xsmith_lift-predicate n type))
+                     (cons (att-value '_xsmith_make-lift-do-proc
                                       n
                                       field
                                       type
@@ -571,13 +571,13 @@ The scope-graph-scope attribute returns the scope that the node in question resi
             rule-info)))
 
 
-    (define scope-graph-scope-child-dict-info
+    (define _xsmith_scope-graph-scope-child-dict-info
       (for/fold ([rule-info (hash #f #'(λ (n)
                                          ;; If a node does not introduce a scope,
                                          ;; it just passes through its own.
                                          (define children (ast-children/flat n))
                                          (define scope
-                                           (att-value 'xsmith_scope-graph-scope n))
+                                           (att-value '_xsmith_scope-graph-scope n))
                                          (for/hash ([c children])
                                            (values c scope))))])
                 ([node nodes])
@@ -589,34 +589,34 @@ The scope-graph-scope attribute returns the scope that the node in question resi
              #`(λ (n)
                  (define children (filter ast-node? (ast-children/flat n)))
                  (define children-bindings
-                   (map (λ (c) (att-value 'xsmith_scope-graph-binding c))
+                   (map (λ (c) (att-value '_xsmith_scope-graph-binding c))
                         children))
                  (define cb-pairs (map cons children children-bindings))
                  (define parent-scope
-                   (att-value 'xsmith_scope-graph-scope n))
+                   (att-value '_xsmith_scope-graph-scope n))
                  (make-child-scope-dict cb-pairs
                                         parent-scope
                                         #,binding-structure-for-node)))
             rule-info)))
-    (define scope-graph-scope-info
+    (define _xsmith_scope-graph-scope-info
       (hash #f
             #'(λ (n) (if (ast-has-parent? n)
                          (let ([parent-dict (att-value
-                                             'xsmith_scope-graph-child-scope-dict
+                                             '_xsmith_scope-graph-child-scope-dict
                                              (parent-node n))])
                            (dict-ref parent-dict n))
                          ;; dummy program parent scope to simplify child-dict lookup
                          (scope #f '() '())))))
 
     (list ;scope-graph-introduces-scope?-info
-     scope-graph-scope-child-dict-info
-     scope-graph-scope-info
-     xsmith_lift-predicate-info
-     xsmith_lift-destinations-info)))
+     _xsmith_scope-graph-scope-child-dict-info
+     _xsmith_scope-graph-scope-info
+     _xsmith_lift-predicate-info
+     _xsmith_lift-destinations-info)))
 
 (define-property binder-info
   #:reads (grammar)
-  #:appends (att-rule xsmith_scope-graph-binding)
+  #:appends (att-rule _xsmith_scope-graph-binding)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -648,13 +648,13 @@ The scope-graph-scope attribute returns the scope that the node in question resi
 (define-property reference-info
   #:reads (grammar)
   #:appends
-  (choice-rule xsmith_is-reference-choice?)
-  (att-rule xsmith_is-reference-node?)
-  (att-rule xsmith_resolve-reference)
+  (choice-rule _xsmith_is-reference-choice?)
+  (att-rule _xsmith_is-reference-node?)
+  (att-rule _xsmith_resolve-reference)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
-    (define xsmith_is-reference-info
+    (define _xsmith_is-reference-info
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref this-prop-info
@@ -662,24 +662,24 @@ The scope-graph-scope attribute returns the scope that the node in question resi
                                         #'#f)
                   [((~datum read) field-name:id) #''field-name]
                   [else #'#f]))))
-    (define xsmith_is-reference-choice?-info
+    (define _xsmith_is-reference-choice?-info
       (for/hash ([node nodes])
-        (values node #`(λ () #,(dict-ref xsmith_is-reference-info node)))))
-    (define xsmith_is-reference-node?-info
+        (values node #`(λ () #,(dict-ref _xsmith_is-reference-info node)))))
+    (define _xsmith_is-reference-node?-info
       (for/hash ([node nodes])
-        (values node #`(λ (n) #,(dict-ref xsmith_is-reference-info node)))))
-    (define xsmith_resolve-reference
+        (values node #`(λ (n) #,(dict-ref _xsmith_is-reference-info node)))))
+    (define _xsmith_resolve-reference
       (for/hash ([node nodes])
         (values node
                 #`(λ (n)
-                    (define field #,(dict-ref xsmith_is-reference-info node))
-                    (when (not field) (error 'xsmith_resolve-reference
+                    (define field #,(dict-ref _xsmith_is-reference-info node))
+                    (when (not field) (error '_xsmith_resolve-reference
                                              "not a reference node"))
                     (att-value 'xsmith_resolve-reference-name
                                n (ast-child field n))))))
-    (list xsmith_is-reference-choice?-info
-          xsmith_is-reference-node?-info
-          xsmith_resolve-reference)))
+    (list _xsmith_is-reference-choice?-info
+          _xsmith_is-reference-node?-info
+          _xsmith_resolve-reference)))
 
 ;; TODO - this is not a great design, but I need the user to specify
 ;; one function for this and make it available to the xsmith machinery.
@@ -689,7 +689,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
 ;; ast node a lifted definition should be.
 (define-property lift-type->ast-binder-type
   #:reads (property binder-info)
-  #:appends (att-rule xsmith_lift-type-to-ast-binder-type)
+  #:appends (att-rule _xsmith_lift-type-to-ast-binder-type)
   #:transformer
   (λ (this-prop-info binder-info)
     (define definitions (filter (λ (n) (syntax-parse (dict-ref binder-info n)
@@ -720,7 +720,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
 (define-property binding-structure)
 
 (define-property choice-filters-to-apply
-  #:appends (choice-rule xsmith_apply-choice-filters)
+  #:appends (choice-rule _xsmith_apply-choice-filters)
   #:transformer
   (λ (this-prop-info)
 
@@ -737,10 +737,10 @@ The scope-graph-scope attribute returns the scope that the node in question resi
     (define (get-filters node-name)
       (let ([user-filters (dict-ref this-info/defaults node-name #'())])
         ;; Add user-specified filters to the core filters.
-        #`(xsmith_may-be-generated
-           xsmith_wont-over-deepen
-           xsmith_satisfies-type-constraint?
-           xsmith_no-io-conflict?
+        #`(_xsmith_may-be-generated
+           _xsmith_wont-over-deepen
+           _xsmith_satisfies-type-constraint?
+           _xsmith_no-io-conflict?
            #,@user-filters)))
     (define (helper filter-method-stx filter-failure-set!-id)
       (syntax-parse filter-method-stx
@@ -779,7 +779,7 @@ few of these methods.
 (define ref-choices-filtered-hash (make-weak-hasheq))
 
 (define (xsmith_get-reference!-func self lift-probability)
-  (let* ([options/all (send self xsmith_reference-options!)]
+  (let* ([options/all (send self _xsmith_reference-options!)]
          [options/lift (if (<= (random) lift-probability)
                            options/all
                            (filter (λ (x) (not (procedure? x))) options/all))]
@@ -789,7 +789,7 @@ few of these methods.
          [choice (if (procedure? choice/proc) (choice/proc) choice/proc)])
     choice))
 
-(define (xsmith_reference-options!-func self hole node-r/w-type)
+(define (_xsmith_reference-options!-func self hole node-r/w-type)
   (define type-needed (att-value 'xsmith_type hole))
   (let ([ref-choices-filtered
          (hash-ref ref-choices-filtered-hash self #f)])
@@ -801,12 +801,12 @@ few of these methods.
             (filter (if write?
                         (λ (x) (not (effect-io? x)))
                         effect-write-variable?)
-                    (att-value 'xsmith_effect-constraints hole)))
+                    (att-value '_xsmith_effect-constraints hole)))
           (define effect-variable-names
             (map effect-variable effects-to-avoid))
 
           (define visibles
-            (att-value 'xsmith_visible-bindings hole))
+            (att-value '_xsmith_visible-bindings hole))
           (define visibles-with-type
             (filter (λ (b) (and b
                                 (concrete-type? (binding-type b))
@@ -862,20 +862,20 @@ few of these methods.
           (hash-set! ref-choices-filtered-hash self legal+lift)
           legal+lift))))
 
-(define (xsmith_type-constraint-from-parent-func node node-type-name)
+(define (_xsmith_type-constraint-from-parent-func node node-type-name)
   (define (parent-node-type)
     (and (ast-has-parent? node)
          (ast-node-type (parent-node node))))
   (define parent-child-type-dict
     (if (ast-has-parent? node)
-        (att-value 'xsmith_children-type-dict (ast-parent node))
+        (att-value '_xsmith_children-type-dict (ast-parent node))
         (hash node (fresh-type-variable))))
   (define my-type-from-parent/func
     (dict-ref parent-child-type-dict
               node
               (λ () (dict-ref
                      parent-child-type-dict
-                     (att-value 'xsmith_node-field-name-in-parent node)
+                     (att-value '_xsmith_node-field-name-in-parent node)
                      (λ ()
                        (error
                         'type-info
@@ -885,7 +885,7 @@ few of these methods.
                          "and field name ~a).")
                         node-type-name
                         (parent-node-type)
-                        (att-value 'xsmith_node-field-name-in-parent
+                        (att-value '_xsmith_node-field-name-in-parent
                                    node)))))))
   (define my-type-from-parent (if (procedure? my-type-from-parent/func)
                                   (my-type-from-parent/func node)
@@ -903,9 +903,9 @@ few of these methods.
   (define my-type-constraint
     (if (att-value 'xsmith_is-hole? node)
         #f
-        (att-value 'xsmith_my-type-constraint node)))
+        (att-value '_xsmith_my-type-constraint node)))
   (define my-type-from-parent
-    (att-value 'xsmith_type-constraint-from-parent node))
+    (att-value '_xsmith_type-constraint-from-parent node))
   (when my-type-constraint
     (with-handlers
       ([(λ(x)#t)
@@ -970,13 +970,13 @@ The second arm is a function that takes the type that the node has been assigned
   (property reference-info)
   (property binder-info)
   #:appends
-  (att-rule xsmith_my-type-constraint)
-  (choice-rule xsmith_my-type-constraint)
-  (att-rule xsmith_children-type-dict)
-  (att-rule xsmith_type-constraint-from-parent)
+  (att-rule _xsmith_my-type-constraint)
+  (choice-rule _xsmith_my-type-constraint)
+  (att-rule _xsmith_children-type-dict)
+  (att-rule _xsmith_type-constraint-from-parent)
   (att-rule xsmith_type)
-  (choice-rule xsmith_satisfies-type-constraint?)
-  (choice-rule xsmith_reference-options!)
+  (choice-rule _xsmith_satisfies-type-constraint?)
+  (choice-rule _xsmith_reference-options!)
   (choice-rule xsmith_get-reference!)
   #:transformer
   (λ (this-prop-info grammar-info reference-info-info binder-info-info)
@@ -1001,10 +1001,10 @@ The second arm is a function that takes the type that the node has been assigned
                                   (quote #,n)
                                   t)))))
        #f #'(error 'type-info "No type constraint info given for node.")))
-    (define xsmith_my-type-constraint-info/att-rule
+    (define _xsmith_my-type-constraint-info/att-rule
       (for/hash ([n (dict-keys constraints-checked)])
         (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n)))))
-    (define xsmith_my-type-constraint-info/choice-rule
+    (define _xsmith_my-type-constraint-info/choice-rule
       (for/hash ([n (dict-keys constraints-checked)])
         (values n #`(λ () #,(dict-ref constraints-checked n)))))
 
@@ -1039,16 +1039,16 @@ The second arm is a function that takes the type that the node has been assigned
                      #''type-field-name]
                     [else #'#f]))))
 
-    (define xsmith_children-type-dict-info
+    (define _xsmith_children-type-dict-info
       (for/hash ([n (dict-keys node-child-dict-funcs)])
         (values n #`(λ (node)
                       (define my-type (att-value 'xsmith_type node))
                       (define my-type->child-type-dict
                         #,(dict-ref node-child-dict-funcs n))
                       (my-type->child-type-dict node my-type)))))
-    (define xsmith_type-constraint-from-parent-info
+    (define _xsmith_type-constraint-from-parent-info
       (for/hash ([n nodes])
-        (values n #`(λ (node) (xsmith_type-constraint-from-parent-func
+        (values n #`(λ (node) (_xsmith_type-constraint-from-parent-func
                                node
                                (quote #,n))))))
     (define xsmith_type-info
@@ -1057,19 +1057,19 @@ The second arm is a function that takes the type that the node has been assigned
                       (xsmith_type-info-func node
                                              #,(dict-ref node-reference-field n)
                                              #,(dict-ref binder-type-field n))))))
-    (define xsmith_satisfies-type-constraint?-info
+    (define _xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
                    (satisfies-type-constraint?
                     (current-hole)
-                    (send this xsmith_my-type-constraint)))))
-    (define xsmith_reference-options!-info
+                    (send this _xsmith_my-type-constraint)))))
+    (define _xsmith_reference-options!-info
       (hash-set
        (for/hash ([n nodes])
-         (values n #`(λ () (xsmith_reference-options!-func
+         (values n #`(λ () (_xsmith_reference-options!-func
                             this
                             (current-hole)
                             #,(dict-ref node-r/w-type n)))))
-       #f #'(λ () (error 'xsmith_reference-options!
+       #f #'(λ () (error '_xsmith_reference-options!
                          "Only defined for nodes with reference-info property"))))
     (define xsmith_get-reference!-info
       (for/hash ([n nodes])
@@ -1077,13 +1077,13 @@ The second arm is a function that takes the type that the node has been assigned
                       (xsmith_get-reference!-func this lift-probability)))))
 
     (list
-     xsmith_my-type-constraint-info/att-rule
-     xsmith_my-type-constraint-info/choice-rule
-     xsmith_children-type-dict-info
-     xsmith_type-constraint-from-parent-info
+     _xsmith_my-type-constraint-info/att-rule
+     _xsmith_my-type-constraint-info/choice-rule
+     _xsmith_children-type-dict-info
+     _xsmith_type-constraint-from-parent-info
      xsmith_type-info
-     xsmith_satisfies-type-constraint?-info
-     xsmith_reference-options!-info
+     _xsmith_satisfies-type-constraint?-info
+     _xsmith_reference-options!-info
      xsmith_get-reference!-info
      )))
 
@@ -1156,16 +1156,16 @@ The second arm is a function that takes the type that the node has been assigned
 
                      ;; If the node is a binder, mark it so we don't look at it
                      ;; repeatedly when we hit references to it.
-                     (when (att-value 'xsmith_scope-graph-binding n)
+                     (when (att-value '_xsmith_scope-graph-binding n)
                        (set! binding-nodes-finished
                              (cons n binding-nodes-finished)))
 
                      ;; If the node is a reference, the definition site
                      ;; may have nodes that will affect the type.
-                     (when (att-value 'xsmith_is-reference-node? n)
+                     (when (att-value '_xsmith_is-reference-node? n)
                        (let ([binding-node (binding-ast-node
                                             (att-value
-                                             'xsmith_resolve-reference n))])
+                                             '_xsmith_resolve-reference n))])
                          (when (not (memq binding-node binding-nodes-started))
                            (set! binding-nodes-started
                                  (cons binding-node binding-nodes-started))
@@ -1197,15 +1197,15 @@ The second arm is a function that takes the type that the node has been assigned
 
 
 (define-property strict-child-order?
-  #:appends (att-rule xsmith_strict-child-order?)
+  #:appends (att-rule _xsmith_strict-child-order?)
   #:transformer
   (λ (this-prop-info)
-    (define xsmith_strict-child-order?-info
+    (define _xsmith_strict-child-order?-info
       (for/fold ([out-info (hash #f #'(λ (n) #f))])
                 ([n (dict-keys this-prop-info)])
         (dict-set out-info n (syntax-parse (dict-ref this-prop-info n)
                                [b:boolean #'(λ (n) b)]))))
-    (list xsmith_strict-child-order?-info)))
+    (list _xsmith_strict-child-order?-info)))
 
 (define (non-hole-node? x)
   (and (ast-node? x) (not (att-value 'xsmith_is-hole? x))))
@@ -1215,10 +1215,10 @@ The second arm is a function that takes the type that the node has been assigned
   (grammar)
   (property reference-info)
   #:appends
-  (att-rule xsmith_effects/no-children) ;; effects directly caused by a node
-  (att-rule xsmith_effects) ;; effects caused by a node and its children
-  (att-rule xsmith_effect-constraints-for-child)
-  (choice-rule xsmith_no-io-conflict?)
+  (att-rule _xsmith_effects/no-children) ;; effects directly caused by a node
+  (att-rule _xsmith_effects) ;; effects caused by a node and its children
+  (att-rule _xsmith_effect-constraints-for-child)
+  (choice-rule _xsmith_no-io-conflict?)
   #:transformer
   (λ (this-prop-info grammar-info reference-info)
     (define nodes (dict-keys grammar-info))
@@ -1226,7 +1226,7 @@ The second arm is a function that takes the type that the node has been assigned
                       (values node
                               (syntax-parse (dict-ref this-prop-info node #'#f)
                                 [b:boolean #'b]))))
-    (define xsmith_effects/no-children-info
+    (define _xsmith_effects/no-children-info
       (for/hash ([n nodes])
         (define-values (read-or-write varname)
           (syntax-parse (dict-ref reference-info n #'#f)
@@ -1257,13 +1257,13 @@ The second arm is a function that takes the type that the node has been assigned
                                 ;; can have arbitrary expressions around a lambda,
                                 ;; or even different lambdas behind conditionals.
                                 (and (equal? #,read-or-write effect-read-variable)
-                                     (att-value 'xsmith_effects
+                                     (att-value '_xsmith_effects
                                                 (binding-ast-node
                                                  (att-value
                                                   'xsmith_resolve-reference-name
                                                   n
                                                   (ast-child '#,varname n)))))))))))
-    (define xsmith_effects-info
+    (define _xsmith_effects-info
       ;; TODO - this is not node specific, but I think I want att-rule caching on it...
       (hash
        #f
@@ -1271,51 +1271,51 @@ The second arm is a function that takes the type that the node has been assigned
            (remove-duplicates
             (flatten
              (cons
-              (att-value 'xsmith_effects/no-children n)
+              (att-value '_xsmith_effects/no-children n)
               (for/list ([child (filter non-hole-node? (ast-children/flat n))])
-                (att-value 'xsmith_effects child))))))))
-    (define xsmith_effect-constraints-for-child-info
+                (att-value '_xsmith_effects child))))))))
+    (define _xsmith_effect-constraints-for-child-info
       ;; TODO - this is not node specific, but I think I want att-rule caching on it...
       (hash
        #f
        #`(λ (n c)
            (define extended-family-constraints
              (if (ast-has-parent? n)
-                 (att-value 'xsmith_effect-constraints-for-child (ast-parent n) n)
+                 (att-value '_xsmith_effect-constraints-for-child (ast-parent n) n)
                  '()))
            (define lift-constraints
              (if (ast-has-child? 'xsmithlifterwrapped n)
                  (let ([lifter (ast-child 'xsmithlifterwrapped n)])
                    (if lifter
-                       (att-value 'xsmith_effects (unbox lifter))
+                       (att-value '_xsmith_effects (unbox lifter))
                        '()))
                  '()))
            (define direct-constraints
-             (if (att-value 'xsmith_strict-child-order? n)
+             (if (att-value '_xsmith_strict-child-order? n)
                  '()
                  (for/list ([sibling (filter non-hole-node? (ast-children/flat n))])
                    (if (eq? c sibling)
                        '()
-                       (att-value 'xsmith_effects sibling)))))
+                       (att-value '_xsmith_effects sibling)))))
            (remove-duplicates
             (flatten (cons lift-constraints
                            (cons extended-family-constraints
                                  direct-constraints)))))))
-    (define xsmith_no-io-conflict?-info
+    (define _xsmith_no-io-conflict?-info
       (for/hash ([n nodes])
         (values
          n
          (syntax-parse (dict-ref io-info n)
            [#t #'(λ () (or (not (ast-has-parent? (current-hole)))
                            (not (memf effect-io?
-                                      (att-value 'xsmith_effect-constraints-for-child
+                                      (att-value '_xsmith_effect-constraints-for-child
                                                  (ast-parent (current-hole))
                                                  (current-hole))))))]
            [#f #'(λ () #t)]))))
-    (list xsmith_effects/no-children-info
-          xsmith_effects-info
-          xsmith_effect-constraints-for-child-info
-          xsmith_no-io-conflict?-info)))
+    (list _xsmith_effects/no-children-info
+          _xsmith_effects-info
+          _xsmith_effect-constraints-for-child-info
+          _xsmith_no-io-conflict?-info)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

@@ -94,7 +94,7 @@
          [well-formed-rs (filter well-formed?
                                  resolutions)]
          [err (when (null? well-formed-rs)
-                (error 'xsmith_resolve-reference
+                (error '_xsmith_resolve-reference
                        (format "Unbound reference: ~a\n(With visible bindings: ~a)\n"
                                (reference-name reference)
                                (visible-bindings
