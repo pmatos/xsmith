@@ -1,4 +1,4 @@
-#lang racket
+#lang racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -30,7 +30,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require (for-syntax racket/port
+(require (for-syntax racket/base
+                     racket/port
                      racket/string
                      racket/system))
 (require setup/getinfo)
