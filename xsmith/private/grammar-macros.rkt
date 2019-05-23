@@ -33,7 +33,7 @@
 (provide
  define-spec-component
  add-to-grammar
- add-ag-rule
+ add-att-rule
  add-choice-rule
  add-prop
  assemble-spec-components/core
@@ -135,7 +135,7 @@
 (begin-for-syntax
 
   ;;;; This begin-for-syntax includes a few syntax classes for parsing
-  ;;;; add-ag-rule, add-to-grammar, etc,
+  ;;;; add-att-rule, add-to-grammar, etc,
   ;;;; then it has a bunch of helper functions for the spec assembly macro.
 
   (define-syntax-class prop-clause
@@ -343,7 +343,7 @@
   (define (spec-component-merge spec-components)
     (for/fold ([bighash (hash)])
               ([component-project (list spec-component-struct-grammar-info
-                                        spec-component-struct-ag-rule-info
+                                        spec-component-struct-att-rule-info
                                         spec-component-struct-choice-rule-info
                                         spec-component-struct-property-info)]
                [subhash-key '(grammar-info ag-info cm-info props-info)])
@@ -414,10 +414,10 @@
                            component-setter
                            #'((prop/ag/cm-name node-name) ...)
                            #'([prop/ag/cm-name node-name prop] ...))]))
-(define-syntax-parser add-ag-rule
+(define-syntax-parser add-att-rule
   [(_ arg ...) (add-prop-generic
-                #'spec-component-struct-ag-rule-info
-                #'set-spec-component-struct-ag-rule-info
+                #'spec-component-struct-att-rule-info
+                #'set-spec-component-struct-att-rule-info
                 #'(arg ...))])
 (define-syntax-parser add-choice-rule
   [(_ arg ...) (add-prop-generic
@@ -543,22 +543,22 @@
                        choices))]
                [filtered (filter choice? choices-or-reasons)]
                #;[choices-or-reasons
-                (map (λ (c) (send c xsmith_apply-choice-filters))
-                     choices)]
+                  (map (λ (c) (send c xsmith_apply-choice-filters))
+                       choices)]
                #;[choices-or-reasons/no-deepen
-                (map (λ (x) (if (choice? x)
-                                (let ([result (send x xsmith_wont-over-deepen)])
-                                  (if (not result)
-                                      (format "Choice ~a: filtered out by ~a method."
-                                              x
-                                              'xsmith_wont-over-deepen)
-                                      result))
-                                x))
-                     choices-or-reasons)]
+                  (map (λ (x) (if (choice? x)
+                                  (let ([result (send x xsmith_wont-over-deepen)])
+                                    (if (not result)
+                                        (format "Choice ~a: filtered out by ~a method."
+                                                x
+                                                'xsmith_wont-over-deepen)
+                                        result))
+                                  x))
+                       choices-or-reasons)]
                #;[filtered/no-deepen (filter choice? choices-or-reasons/no-deepen)]
                #;[filtered (if (null? filtered/no-deepen)
-                             (filter choice? choices-or-reasons)
-                             filtered/no-deepen)])
+                               (filter choice? choices-or-reasons)
+                               filtered/no-deepen)])
           (if (null? filtered)
               (error 'replace-hole
                      (string-append
@@ -620,7 +620,7 @@ It defines:
 * the spec name as a RACR spec
 * spec-generate-ast (with `spec` replaced for the id given as spec), which is a function that accepts the symbol name of a node and generates an AST starting at that node.  IE you give it the top level node name and it gives you a program.
 
-Additionally, it defines the following ag-rules within the RACR spec:
+Additionally, it defines the following att-rules within the RACR spec:
 * xsmith_hole->choice-list
 * is-hole?
 * xsmith_hole->replacement
@@ -629,7 +629,7 @@ Additionally, it defines the following ag-rules within the RACR spec:
 * resolve-reference-name
 * xsmith_visible-bindings
 
-It also defines within the RACR spec all ag-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
+It also defines within the RACR spec all att-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
 |#
 (define-syntax-parser assemble-spec-components/core
   [(_ spec:id
@@ -684,7 +684,7 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
       (pre ... (ag1:prop-clause ag2:prop-clause c ...) post ...)
       cm-clauses
       prop-clauses)
-   (raise-syntax-error #f "duplicate definitions for ag-rule"
+   (raise-syntax-error #f "duplicate definitions for att-rule"
                        #'ag1 #f #'ag2)]
   [(_ spec
       extra-props
@@ -923,8 +923,8 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                    (map (syntax-parser [#f #'base-node-choice]
                                        [p (node->choice #'p)])
                         (syntax->list #'(g-part.parent ...)))]
-                  [(ag-rule-name ...) (remove-duplicates
-                                       (syntax->datum #'(ag-clause.prop-name ...)))]
+                  [(att-rule-name ...) (remove-duplicates
+                                        (syntax->datum #'(ag-clause.prop-name ...)))]
                   [choice-hash-name (format-id #'spec "~a-choice-hash" #'spec)]
                   )
      ;; capture a couple names with syntax-parse (to have stx classes/attributes)
@@ -934,9 +934,9 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                      (equal? (syntax->datum #'c.prop-name)
                                              rule-name)])
                                   (syntax->list #'(ag-clause ...))))
-                        (syntax->datum #'(ag-rule-name ...)))
-       ;; ag-rule-node is now grouped by rule name
-       [((ag-rule-node:prop-clause ...) ...)
+                        (syntax->datum #'(att-rule-name ...)))
+       ;; att-rule-node is now grouped by rule name
+       [((att-rule-node:prop-clause ...) ...)
         (syntax-parse (map (λ (node-name)
                              (filter (syntax-parser
                                        [c:prop-clause
@@ -1013,7 +1013,7 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                      ...
                      (compile-ast-specifications 'base-node-name)
 
-                     ;; Define the ag-rules for the grammar nodes
+                     ;; Define the att-rules for the grammar nodes
                      (splicing-syntax-parameterize
                          ([make-fresh-node
                            (syntax-parser [(_ node-sym:expr (~optional dict-expr:expr))
@@ -1021,8 +1021,8 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                                               node-sym
                                               #,(or (attribute dict-expr)
                                                     #'(hash)))])])
-                       (ag-rule ag-rule-name
-                                [ag-rule-node.node-name ag-rule-node.prop-val]
+                       (ag-rule att-rule-name
+                                [att-rule-node.node-name att-rule-node.prop-val]
                                 ...)
                        ...
 
@@ -1069,7 +1069,7 @@ It also defines within the RACR spec all ag-rules and choice-rules added by prop
                      ;; outside.  So we `set!` it in place.
                      (set! fresh-node-func fresh-node-func-impl)
 
-                     ;; define some core ag-rules
+                     ;; define some core att-rules
                      (ag-rule xsmith_hole->choice-list
                               [base-node-name
                                (λ (n) (error 'xsmith_hole->choice-list

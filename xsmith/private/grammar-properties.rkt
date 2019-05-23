@@ -48,7 +48,7 @@ Grammar property names are bound with define-syntax to grammar-property structs 
  grammar-property-stx
  property-arg
  property-arg-property
- property-arg-ag-rule
+ property-arg-att-rule
  property-arg-choice-rule
  property-arg-grammar
  )
@@ -68,16 +68,16 @@ Grammar property names are bound with define-syntax to grammar-property structs 
 ;;; of property transformers.
 (define-syntax-class property-arg-property
   (pattern ((~datum property) name:id)))
-(define-syntax-class property-arg-ag-rule
-  (pattern ((~datum ag-rule) name:id)))
+(define-syntax-class property-arg-att-rule
+  (pattern ((~datum att-rule) name:id)))
 (define-syntax-class property-arg-choice-rule
   (pattern ((~datum choice-rule) name:id)))
 (define-syntax-class property-arg-grammar
   (pattern (~and ((~datum grammar)) grammar-flag)))
 (define-syntax-class property-arg
-  #:datum-literals (property ag-rule choice-rule grammar)
+  #:datum-literals (property att-rule choice-rule grammar)
   (pattern (~or prop:property-arg-property
-                ag:property-arg-ag-rule
+                ag:property-arg-att-rule
                 cm:property-arg-choice-rule
                 gram:property-arg-grammar)))
 
@@ -106,8 +106,8 @@ Run the transformer for a grammar property.
 
 * grammar-prop-name-stx is an identifier whose syntax-local-value is a grammar-property struct.
 * infos-hash is a hash which contains the keys 'props-info, 'ag-info, 'cm-info, and 'grammar-info
-  The 'grammar-info key maps to a hash of node-name->node-spec-stx
-  The other three keys map to hashes of rule-name -> node-name -> val-stx
+The 'grammar-info key maps to a hash of node-name->node-spec-stx
+The other three keys map to hashes of rule-name -> node-name -> val-stx
 
 This function is only used in one place, so its interface is tightly bound with that use.  Maybe it ought to be improved.
 |#
@@ -121,9 +121,9 @@ This function is only used in one place, so its interface is tightly bound with 
       [p:property-arg-property (hash-ref (hash-ref infos-hash 'props-info)
                                          (syntax-local-value #'p.name)
                                          (hash))]
-      [p:property-arg-ag-rule (hash-ref (hash-ref infos-hash 'ag-info)
-                                        (syntax->datum #'p.name)
-                                        (hash))]
+      [p:property-arg-att-rule (hash-ref (hash-ref infos-hash 'ag-info)
+                                         (syntax->datum #'p.name)
+                                         (hash))]
       [p:property-arg-choice-rule (hash-ref (hash-ref infos-hash 'cm-info)
                                             (syntax->datum #'p.name)
                                             (hash))]
@@ -132,7 +132,7 @@ This function is only used in one place, so its interface is tightly bound with 
   ;; Helper to merge hashes returned by property transformer functions back into
   ;; the master infos-hash.
   (define (section->infos prop-arg new-hash infos append?)
-    ;; Sub-helper for ag-rule/choice-method cases because they are basically the same.
+    ;; Sub-helper for att-rule/choice-method cases because they are basically the same.
     (define (ag/cm-branch ag/cm-name-stx ag/cm-flag)
       (define props-hash (hash-ref infos ag/cm-flag))
       (define this-prop-hash
@@ -153,7 +153,7 @@ This function is only used in one place, so its interface is tightly bound with 
                                 ;;        for a rule right-hand-side.
                                 (hash-set combined k new-val))))
           (raise-syntax-error 'grammar-property-transform
-                              "rewrite is not supported for ag-rules or choice-rules"
+                              "rewrite is not supported for att-rules or choice-rules"
                               grammar-prop-name-stx)))
     ;; Parse the prop-arg (which tells what type the hash is) to merge it back in
     ;; to the right section of the infos-hash.
@@ -180,7 +180,7 @@ This function is only used in one place, so its interface is tightly bound with 
                                  (hash-set combined k (append old-val
                                                               new-val)))
                                new-hash)))]
-      [p:property-arg-ag-rule
+      [p:property-arg-att-rule
        (ag/cm-branch #'p.name 'ag-info)]
       [p:property-arg-choice-rule
        (ag/cm-branch #'p.name 'cm-info)]
@@ -233,7 +233,7 @@ This function is only used in one place, so its interface is tightly bound with 
 (struct grammar-property
   #|
   * reads, rewrites, and appends are all lists of property-args, specifically
-    they refer to grammar-property instances, the grammar, or ag-rule
+    they refer to grammar-property instances, the grammar, or att-rule
     or choice-rule names.  They specify the argument and return types
     of the property transformer.
   * transformer is a function that receives as arguments a hash for the
@@ -242,7 +242,7 @@ This function is only used in one place, so its interface is tightly bound with 
     list.  It must return a list of hashes, one for each property in the
     rewrite list, then one for each property in the appends list.
 
-    The hashes that are returned for ag-rules or choice-rules must be
+    The hashes that are returned for att-rules or choice-rules must be
     hashes of grammar-node-name->rule-stx (IE syntax for a lambda),
     the hashes that are returned for properties must be
     grammar-node-name->(val-stx-list-as-stx) (IE a syntax object encapsulating

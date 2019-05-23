@@ -75,7 +75,7 @@
   (λ (n) `(,sym ,@(map (λ (x) (att-value 'to-s-exp x))
                        (ast-children (ast-child children-ref n))))))
 
-(add-ag-rule
+(add-att-rule
  schemely-core
  to-s-exp
  ;[Program (λ (n) `(begin ,@(map (λ (x) (att-value 'to-s-exp x))

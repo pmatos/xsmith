@@ -33,7 +33,7 @@
 (provide
  (struct-out spec-component-struct)
  set-spec-component-struct-grammar-info
- set-spec-component-struct-ag-rule-info
+ set-spec-component-struct-att-rule-info
  set-spec-component-struct-choice-rule-info
  set-spec-component-struct-property-info
 
@@ -46,15 +46,15 @@
 (require syntax/parse)
 
 (struct spec-component-struct
-  (grammar-info ag-rule-info choice-rule-info property-info)
+  (grammar-info att-rule-info choice-rule-info property-info)
   #:transparent
   )
 (define (set-spec-component-struct-grammar-info s v)
   (struct-copy spec-component-struct s
                [grammar-info v]))
-(define (set-spec-component-struct-ag-rule-info s v)
+(define (set-spec-component-struct-att-rule-info s v)
   (struct-copy spec-component-struct s
-               [ag-rule-info v]))
+               [att-rule-info v]))
 (define (set-spec-component-struct-choice-rule-info s v)
   (struct-copy spec-component-struct s
                [choice-rule-info v]))

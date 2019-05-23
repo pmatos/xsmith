@@ -19,7 +19,7 @@
           [LiteralInt [int (λ (n t) (hash))]]
           [Addition [int (λ (n t) (hash 'l int 'r int))]])
 
-(add-ag-rule
+(add-att-rule
  arith ugly-print
  [Program (λ (n) (att-value 'ugly-print (ast-child 'Expression n)))]
  [LiteralInt (λ (n) (number->string (ast-child 'v n)))]

@@ -34,7 +34,7 @@
           [SetBangRet [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [Addition [int (λ (n t) (hash 'es t))]])
 
-(add-ag-rule
+(add-att-rule
  arith to-s-exp
  [LetStar
   (λ (n)

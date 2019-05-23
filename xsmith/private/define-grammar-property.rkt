@@ -87,7 +87,7 @@
 
 (define-syntax (define-non-inheriting-rule-property stx)
   (define-syntax-class rule-type
-    (pattern (~or (~datum choice-rule) (~datum ag-rule))))
+    (pattern (~or (~datum choice-rule) (~datum att-rule))))
   (syntax-parse stx
     [(_ property-name:id
         rt:rule-type

@@ -81,7 +81,7 @@
 
 (define-non-inheriting-rule-property
   depth-increase
-  ag-rule
+  att-rule
   #:rule-name ast-depth
   #:default (λ (n) 1)
   #:transformer (syntax-parser
@@ -275,7 +275,7 @@ hole for the type.
 
 (define-property child-node-name-dict
   #:reads (grammar)
-  #:appends (ag-rule xsmith_child-node-name-dict)
+  #:appends (att-rule xsmith_child-node-name-dict)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -429,10 +429,10 @@ The scope-graph-scope attribute returns the scope that the node in question resi
   (property binding-structure)
   #:appends
   ;; TODO - I don't think introduces-scope? is used anywhere anymore...  should it be removed?
-  (ag-rule xsmith_scope-graph-child-scope-dict)
-  (ag-rule xsmith_scope-graph-scope)
-  (ag-rule xsmith_lift-predicate)
-  (ag-rule xsmith_lift-destinations)
+  (att-rule xsmith_scope-graph-child-scope-dict)
+  (att-rule xsmith_scope-graph-scope)
+  (att-rule xsmith_lift-predicate)
+  (att-rule xsmith_lift-destinations)
   #:transformer
   (λ (this-prop-info
       grammar-info
@@ -609,14 +609,14 @@ The scope-graph-scope attribute returns the scope that the node in question resi
                          (scope #f '() '())))))
 
     (list ;scope-graph-introduces-scope?-info
-          scope-graph-scope-child-dict-info
-          scope-graph-scope-info
-          xsmith_lift-predicate-info
-          xsmith_lift-destinations-info)))
+     scope-graph-scope-child-dict-info
+     scope-graph-scope-info
+     xsmith_lift-predicate-info
+     xsmith_lift-destinations-info)))
 
 (define-property binder-info
   #:reads (grammar)
-  #:appends (ag-rule xsmith_scope-graph-binding)
+  #:appends (att-rule xsmith_scope-graph-binding)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -649,8 +649,8 @@ The scope-graph-scope attribute returns the scope that the node in question resi
   #:reads (grammar)
   #:appends
   (choice-rule xsmith_is-reference-choice?)
-  (ag-rule xsmith_is-reference-node?)
-  (ag-rule xsmith_resolve-reference)
+  (att-rule xsmith_is-reference-node?)
+  (att-rule xsmith_resolve-reference)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -688,7 +688,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
 ;; ast node a lifted definition should be.
 (define-property lift-type->ast-binder-type
   #:reads (property binder-info)
-  #:appends (ag-rule xsmith_lift-type-to-ast-binder-type)
+  #:appends (att-rule xsmith_lift-type-to-ast-binder-type)
   #:transformer
   (λ (this-prop-info binder-info)
     (define definitions (filter (λ (n) (syntax-parse (dict-ref binder-info n)
@@ -910,10 +910,10 @@ few of these methods.
       ([(λ(x)#t)
         (λ (e)
           (xd-printf "error while unifying types: ~a and ~a\n"
-                    my-type-from-parent my-type-constraint)
+                     my-type-from-parent my-type-constraint)
           (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
           (xd-printf "with parent of AST type: ~a\n" (ast-node-type
-                                                     (parent-node node)))
+                                                      (parent-node node)))
           (raise e))])
       (unify! my-type-from-parent my-type-constraint)))
   (when (and reference-field (not (att-value 'is-hole? node)))
@@ -969,11 +969,11 @@ The second arm is a function that takes the type that the node has been assigned
   (property reference-info)
   (property binder-info)
   #:appends
-  (ag-rule xsmith_my-type-constraint)
+  (att-rule xsmith_my-type-constraint)
   (choice-rule xsmith_my-type-constraint)
-  (ag-rule xsmith_children-type-dict)
-  (ag-rule xsmith_type-constraint-from-parent)
-  (ag-rule xsmith_type)
+  (att-rule xsmith_children-type-dict)
+  (att-rule xsmith_type-constraint-from-parent)
+  (att-rule xsmith_type)
   (choice-rule xsmith_satisfies-type-constraint?)
   (choice-rule xsmith_reference-options!)
   (choice-rule xsmith_get-reference!)
@@ -1000,7 +1000,7 @@ The second arm is a function that takes the type that the node has been assigned
                                   (quote #,n)
                                   t)))))
        #f #'(error 'type-info "No type constraint info given for node.")))
-    (define xsmith_my-type-constraint-info/ag-rule
+    (define xsmith_my-type-constraint-info/att-rule
       (for/hash ([n (dict-keys constraints-checked)])
         (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n)))))
     (define xsmith_my-type-constraint-info/choice-rule
@@ -1076,7 +1076,7 @@ The second arm is a function that takes the type that the node has been assigned
                       (xsmith_get-reference!-func this lift-probability)))))
 
     (list
-     xsmith_my-type-constraint-info/ag-rule
+     xsmith_my-type-constraint-info/att-rule
      xsmith_my-type-constraint-info/choice-rule
      xsmith_children-type-dict-info
      xsmith_type-constraint-from-parent-info
@@ -1172,7 +1172,7 @@ The second arm is a function that takes the type that the node has been assigned
 
                      ;; Check children nodes if they are relevant
                      (when (contains-type-variables? n-type variables)
-                           (sibling-loop (ast-children n)))
+                       (sibling-loop (ast-children n)))
                      (rec ns)]))))
       (sibling-loop (ast-children p))
       (when (and (ast-has-parent? p)
@@ -1196,7 +1196,7 @@ The second arm is a function that takes the type that the node has been assigned
 
 
 (define-property strict-child-order?
-  #:appends (ag-rule xsmith_strict-child-order?)
+  #:appends (att-rule xsmith_strict-child-order?)
   #:transformer
   (λ (this-prop-info)
     (define xsmith_strict-child-order?-info
@@ -1214,9 +1214,9 @@ The second arm is a function that takes the type that the node has been assigned
   (grammar)
   (property reference-info)
   #:appends
-  (ag-rule xsmith_effects/no-children) ;; effects directly caused by a node
-  (ag-rule xsmith_effects) ;; effects caused by a node and its children
-  (ag-rule xsmith_effect-constraints-for-child)
+  (att-rule xsmith_effects/no-children) ;; effects directly caused by a node
+  (att-rule xsmith_effects) ;; effects caused by a node and its children
+  (att-rule xsmith_effect-constraints-for-child)
   (choice-rule xsmith_no-io-conflict?)
   #:transformer
   (λ (this-prop-info grammar-info reference-info)
@@ -1263,7 +1263,7 @@ The second arm is a function that takes the type that the node has been assigned
                                                   n
                                                   (ast-child '#,varname n)))))))))))
     (define xsmith_effects-info
-      ;; TODO - this is not node specific, but I think I want ag-rule caching on it...
+      ;; TODO - this is not node specific, but I think I want att-rule caching on it...
       (hash
        #f
        #`(λ (n)
@@ -1274,7 +1274,7 @@ The second arm is a function that takes the type that the node has been assigned
               (for/list ([child (filter non-hole-node? (ast-children/flat n))])
                 (att-value 'xsmith_effects child))))))))
     (define xsmith_effect-constraints-for-child-info
-      ;; TODO - this is not node specific, but I think I want ag-rule caching on it...
+      ;; TODO - this is not node specific, but I think I want att-rule caching on it...
       (hash
        #f
        #`(λ (n c)

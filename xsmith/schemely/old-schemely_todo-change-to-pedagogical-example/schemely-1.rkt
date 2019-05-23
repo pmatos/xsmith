@@ -45,7 +45,7 @@
            #:prop choice-weight 20])
 
 
-(add-ag-rule
+(add-att-rule
  schemely-core
  to-s-exp
  [Program (λ (n) `(begin ,@(map (λ (x) (att-value 'to-s-exp x))
