@@ -44,10 +44,12 @@
    (list (cons 'features-disabled (make-hasheq))
          (cons 'max-depth 5))))
 
-(define (xsmith-option key)
+(define (xsmith-option
+         key
+         [default (λ () (error 'xsmith-option "key not found: ~a" key))])
   (when (not (dict? (xsmith-options)))
     (error 'xsmith-options "xsmith options not parameterized."))
-  (dict-ref (xsmith-options) key))
+  (dict-ref (xsmith-options) key default))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

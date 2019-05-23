@@ -182,7 +182,13 @@
                        #:port server-port
                        #:command-line? #t
                        #:listen-ip listen-ip))
-      (generate-and-print!))
+      (if (dict-ref options 'output-filename #f)
+          (call-with-output-file (dict-ref options 'output-filename)
+            #:exists 'replace
+            (lambda (out)
+              (parameterize ([current-output-port out])
+                (generate-and-print!))))
+          (generate-and-print!)))
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

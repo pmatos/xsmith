@@ -110,21 +110,14 @@
                       (ast-add-unsafe-math/symbolic ast)))]
            [post-analysis-print (printf "*/\n")]
            )
-      (if (dict-has-key? (xsmith-options) 'output-filename)
-          (call-with-output-file (xsmith-option 'output-filename)
-            #:exists 'replace
-            (lambda (out)
-              (pretty-print (att-value 'pretty-print ast)
-                            out
-                            page-width)))
-          (begin
-            (pretty-print (att-value 'pretty-print ast)
-                          (current-output-port)
-                          page-width)
-            #;(printf "\n\n/*\nabstract return: ~a\n*/\n"
-                      (car
-                       (abstract-interp-wrap/range ast range-store-top
-                                                   empty-abstract-flow-control-return)))))
+      (begin
+        (pretty-print (att-value 'pretty-print ast)
+                      (current-output-port)
+                      page-width)
+        #;(printf "\n\n/*\nabstract return: ~a\n*/\n"
+                  (car
+                   (abstract-interp-wrap/range ast range-store-top
+                                               empty-abstract-flow-control-return))))
       )))
 
 (module+ main
