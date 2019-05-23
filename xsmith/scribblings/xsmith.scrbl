@@ -508,8 +508,6 @@ In addition to nonterminals, each dictionary may include a mapping for the value
 
 If the @racket[#:allow-duplicates?] argument is supplied and is @racket[#t], then @racket[add-prop] may be used more than once for the property for the same node, and the syntax object in the dictionary for the property will be a syntax list of the syntax objects specified in the various @racket[add-prop] calls.  But by default only one use of @racket[add-prop] is allowed per property per node type, and the syntax object in the dict is the single syntax object from the one call.
 
-TODO - is that feature really necessary?  I could cut out #:allow-duplicates? without affecting any of my properties, but somehow I felt like I should allow it...
-
 TODO - a real example.  Maybe something from core-properties.rkt, or something simplified.
 }
 
@@ -1120,22 +1118,18 @@ Getter.
 @defproc[(concretize-type [t type?]) type?]{
 Returns a fully concrete (no type variables) type that @racket[can-unify?] with @racket[t].
 
-TODO - this function is used for lifting, but I'm not sure whether it's a good idea for this to be available to users.  At any point user code is inspecting a type, it may have been lazily unified and @racket[concretize-type] may return a type that can't actually unify with @racket[t] if the lazy unification is forced.  So unless I provide a way to force lazy unification this is not a good function for users to use.
+This function can be useful if you want to generate a random type.  But beware!  You should probably NOT generate random types unless you also store them in the grammar node that represents that type.  The type-checking code defined in the @racket[type-info] property can be run many times for each node, so a node that randomly chooses its type will not be stable.  Because the type algorithm imperatively unifies types, this causes mayhem.  Don't do it.
+
+Note that to use this function you must parameterize @racket[current-xsmith-type-constructor-thunks].  Probably in the @verb[generate-and-print] function passed to @racket[xsmith-command-line].
 }
 
 @defparam[current-xsmith-type-constructor-thunks thunk-list (listof (-> type?))]{
-TODO
-
-This needs to be parameterized for @racket[concretize-type], which is called for lifting.
+This needs to be parameterized for @racket[concretize-type], which is needed in code dealing with variable definition and reference.
 It should consist of a list of thunks that each produce a fully concrete type when called.
-Cish parameterizes this in multiple places, and it should be something that can be set somewhere once.
+
+The @verb{generate-and-print} function passed to @racket[xsmith-command-line] needs to parameterize this.
 }
 
-TODO
-
-Record types -- they are only partially implemented.
-
-Sum types
 
 
 
@@ -1164,7 +1158,7 @@ any/c]{
 This function parses the current command-line arguments for xsmith fuzzers.  It is basically to be used in the main function of a fuzzer.
 Based on options supplied, it may print a help message and terminate the program, generate a single program, or start a web server to generate many programs.
 
-@racket[generate-and-print-func] must be a function that generates and prints a single program.  It is called within @racket[xsmith-command-line] with the random seed parameterized according to command-line options (and for the web server reset and incremented for each call), and with all xsmith-options parameterized according to the command line.
+@racket[generate-and-print-func] must be a function that generates and prints a single program.  It is called within @racket[xsmith-command-line] with the random seed parameterized according to command-line options (and for the web server reset and incremented for each call), and with all xsmith-options parameterized according to the command line.  The @racket[generate-and-print-func] needs to parameterize @racket[current-type-thunks-for-concretization] if your language is to support variable definitions and references.
 
 @racket[comment-wrap] takes a list of strings which contain info about the generated program, such as the command line used to generate it and the random seed number.  It should return a string representing those lines commented out.  Such as the following, assuming the "#" character is the line-comment character in your language:
 

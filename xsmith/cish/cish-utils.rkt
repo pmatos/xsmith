@@ -199,14 +199,10 @@ New types
   (car (generic-type-type-arguments (concretize-type x))))
 
 (define (fresh-concrete-var-type)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (concretize-type (fresh-type-variable))))
+  (concretize-type (fresh-type-variable)))
 (define (fresh-concrete-function-type)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (concretize-type (function-type (product-type #f)
-                                    (fresh-type-variable)))))
+  (concretize-type (function-type (product-type #f)
+                                  (fresh-type-variable))))
 
 ;#|
 ;TYPES

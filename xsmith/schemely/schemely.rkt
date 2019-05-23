@@ -215,9 +215,7 @@
 (define no-child-types (λ (n t) (hash)))
 
 (define (fresh-concrete-var-type)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (concretize-type (fresh-type-variable))))
+  (concretize-type (fresh-type-variable)))
 
 
 (define numeric-bin-op-type (λ (n t) (hash 'l number 'r number)))
