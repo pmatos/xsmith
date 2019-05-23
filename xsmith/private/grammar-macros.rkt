@@ -441,7 +441,7 @@
          (λ (n)
            (cond
              [(ast-list-node? n) #f]
-             [(att-value 'is-hole? n)
+             [(att-value 'xsmith_is-hole? n)
               (begin
                 (rewrite-subtree n (att-value 'xsmith_hole->replacement n))
                 (execute-inter-choice-transform-queue)
@@ -450,19 +450,19 @@
     (perform-rewrites n 'top-down fill-in))
   n)
 
-(define find-a-descendant-function
+(define xsmith_find-a-descendant-function
   ;;; Find the first node that satisfies the predicate (the given node included)
   (λ (n predicate)
     (if (predicate n)
         n
         (for/or ([c (filter ast-node? (ast-children/flat n))])
-          (att-value 'find-a-descendant c predicate)))))
-(define find-descendants-function
+          (att-value 'xsmith_find-a-descendant c predicate)))))
+(define xsmith_find-descendants-function
   ;;; Find all nodes that satisfy the predicate (the given node not included)
   (λ (n predicate)
     (define children (filter ast-node? (ast-children/flat n)))
     (define matches
-      (apply append (map (λ (x) (att-value 'find-descendants x predicate))
+      (apply append (map (λ (x) (att-value 'xsmith_find-descendants x predicate))
                          children)))
     (if (predicate n)
         (cons n matches)
@@ -527,7 +527,7 @@
 
 (define xsmith_hole->replacement-function
   (λ (n)
-    (if (att-value 'is-hole? n)
+    (if (att-value 'xsmith_is-hole? n)
         (let* ([choices (att-value 'xsmith_hole->choice-list n)]
                [choice? (λ (x) (is-a? x ast-choice%))]
                [should-force-deepen?
@@ -582,7 +582,7 @@
               (send (choose-ast filtered) xsmith_fresh)))
         (error 'xsmith_hole->replacement
                "called on non-hole node"))))
-(define resolve-reference-name-function
+(define xsmith_resolve-reference-name-function
   (λ (node name)
     (resolve-reference
      (reference name (att-value 'xsmith_scope-graph-scope node)))))
@@ -622,11 +622,11 @@ It defines:
 
 Additionally, it defines the following att-rules within the RACR spec:
 * xsmith_hole->choice-list
-* is-hole?
+* xsmith_is-hole?
 * xsmith_hole->replacement
-* find-descendants
-* find-a-descendant
-* resolve-reference-name
+* xsmith_find-descendants
+* xsmith_find-a-descendant
+* xsmith_resolve-reference-name
 * xsmith_visible-bindings
 
 It also defines within the RACR spec all att-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
@@ -1077,7 +1077,7 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                               [ast-hole-name
                                (λ (n) (list (new subtype-choice-name [hole n]) ...))]
                               ...)
-                     (ag-rule is-hole?
+                     (ag-rule xsmith_is-hole?
                               [base-node-name (λ (n) #f)]
                               [ast-hole-name (λ (n) #t)]
                               ...)
@@ -1087,12 +1087,12 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                               [base-node-name
                                (xsmith_make-lift-do-proc-function
                                 (λ (ast-type) (make-hole ast-type)))])
-                     (ag-rule find-descendants
-                              [base-node-name find-descendants-function])
-                     (ag-rule find-a-descendant
-                              [base-node-name find-a-descendant-function])
-                     (ag-rule resolve-reference-name
-                              [base-node-name resolve-reference-name-function])
+                     (ag-rule xsmith_find-descendants
+                              [base-node-name xsmith_find-descendants-function])
+                     (ag-rule xsmith_find-a-descendant
+                              [base-node-name xsmith_find-a-descendant-function])
+                     (ag-rule xsmith_resolve-reference-name
+                              [base-node-name xsmith_resolve-reference-name-function])
                      (ag-rule xsmith_visible-bindings
                               [base-node-name visible-bindings-function])
                      (ag-rule xsmith_node-field-name-in-parent

@@ -82,7 +82,7 @@
 (define-non-inheriting-rule-property
   depth-increase
   att-rule
-  #:rule-name ast-depth
+  #:rule-name xsmith_ast-depth
   #:default (λ (n) 1)
   #:transformer (syntax-parser
                   [inc:expr
@@ -93,7 +93,7 @@
                                      (number? (ast-child 'xsmithliftdepth n)))
                                 (ast-child 'xsmithliftdepth n)]
                                [(ast-has-parent? n)
-                                (att-value 'ast-depth (parent-node n))]
+                                (att-value 'xsmith_ast-depth (parent-node n))]
                                [else 0]))
                        (+ increment parent-depth))]))
 
@@ -331,7 +331,7 @@ hole for the type.
       (for/hash ([node nodes])
         (values node
                 #`(λ ()
-                    (let ([ok? (<= (att-value 'ast-depth current-hole)
+                    (let ([ok? (<= (att-value 'xsmith_ast-depth current-hole)
                                    (xsmith-option 'max-depth))]
                           [override-ok? #,(dict-ref
                                            this-prop-info
@@ -399,7 +399,7 @@ Helper function for xsmith_scope-graph-child-scope-dict.
 ;;; struct.
 (define (make-lift-reference-choice-proc lift-origin-hole type)
   (λ ()
-    (define depth (att-value 'ast-depth lift-origin-hole))
+    (define depth (att-value 'xsmith_ast-depth lift-origin-hole))
     (define destinations
       (att-value 'xsmith_lift-destinations
                  lift-origin-hole type depth lift-origin-hole))
@@ -675,7 +675,8 @@ The scope-graph-scope attribute returns the scope that the node in question resi
                     (define field #,(dict-ref xsmith_is-reference-info node))
                     (when (not field) (error 'xsmith_resolve-reference
                                              "not a reference node"))
-                    (att-value 'resolve-reference-name n (ast-child field n))))))
+                    (att-value 'xsmith_resolve-reference-name
+                               n (ast-child field n))))))
     (list xsmith_is-reference-choice?-info
           xsmith_is-reference-node?-info
           xsmith_resolve-reference)))
@@ -900,7 +901,7 @@ few of these methods.
 
 (define (xsmith_type-info-func node reference-field definition-type-field)
   (define my-type-constraint
-    (if (att-value 'is-hole? node)
+    (if (att-value 'xsmith_is-hole? node)
         #f
         (att-value 'xsmith_my-type-constraint node)))
   (define my-type-from-parent
@@ -916,8 +917,8 @@ few of these methods.
                                                       (parent-node node)))
           (raise e))])
       (unify! my-type-from-parent my-type-constraint)))
-  (when (and reference-field (not (att-value 'is-hole? node)))
-    (let* ([binding (att-value 'resolve-reference-name
+  (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
+    (let* ([binding (att-value 'xsmith_resolve-reference-name
                                node
                                (ast-child reference-field node))]
            [binding-node (binding-ast-node binding)]
@@ -947,7 +948,7 @@ few of these methods.
                        var-type)
             (raise e))])
         (unify! binding-node-type var-type))))
-  (when (and definition-type-field (not (att-value 'is-hole? node)))
+  (when (and definition-type-field (not (att-value 'xsmith_is-hole? node)))
     (let ([def-type (ast-child definition-type-field node)])
       (when (type? def-type)
         ;; TODO - in my existing fuzzers this is sometimes not set for parameters, but it should be... I'm just not sure about the timing of setting it all up right now...
@@ -1143,7 +1144,7 @@ The second arm is a function that takes the type that the node has been assigned
                                   ns))]
                     [(ast-bud-node? n)
                      (rec ns)]
-                    [(att-value 'is-hole? n)
+                    [(att-value 'xsmith_is-hole? n)
                      (rec ns)]
                     [(memq n binding-nodes-finished)
                      (rec ns)]
@@ -1207,7 +1208,7 @@ The second arm is a function that takes the type that the node has been assigned
     (list xsmith_strict-child-order?-info)))
 
 (define (non-hole-node? x)
-  (and (ast-node? x) (not (att-value 'is-hole? x))))
+  (and (ast-node? x) (not (att-value 'xsmith_is-hole? x))))
 
 (define-property io
   #:reads
@@ -1241,7 +1242,7 @@ The second arm is a function that takes the type that the node has been assigned
                                 #,(if read-or-write
                                       #`(#,read-or-write
                                          (att-value
-                                          'resolve-reference-name
+                                          'xsmith_resolve-reference-name
                                           n
                                           (ast-child '#,varname n)))
                                       #'#f)
@@ -1259,7 +1260,7 @@ The second arm is a function that takes the type that the node has been assigned
                                      (att-value 'xsmith_effects
                                                 (binding-ast-node
                                                  (att-value
-                                                  'resolve-reference-name
+                                                  'xsmith_resolve-reference-name
                                                   n
                                                   (ast-child '#,varname n)))))))))))
     (define xsmith_effects-info

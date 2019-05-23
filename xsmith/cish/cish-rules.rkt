@@ -515,7 +515,7 @@
               ([a altered-refs])
       (dict-set s a abstract-value/range/top)))
   (define has-return?
-    (att-value 'find-a-descendant
+    (att-value 'xsmith_find-a-descendant
                n
                (λ (node)
                  (and (ast-node? node)
@@ -1152,7 +1152,7 @@
               ([a altered-refs])
       (dict-set s a (fresh-symbolic-var (binding-type a)))))
   (define has-return?
-    (att-value 'find-a-descendant
+    (att-value 'xsmith_find-a-descendant
                n
                (λ (node)
                  (and (ast-node? node)
@@ -1411,7 +1411,7 @@
  [Node (λ (n node-type)
          (remove-duplicates
           (map resolve-variable-reference-node
-               (att-value 'find-descendants
+               (att-value 'xsmith_find-descendants
                           n (λ (cn) (node-subtype? cn node-type))))))])
 (ag
  find-direct-assignments
@@ -1489,7 +1489,7 @@
     [(_ base-weight)
      #'(max 0
             (- base-weight
-               (* 2 (att-value 'ast-depth current-hole))))]))
+               (* 2 (att-value 'xsmith_ast-depth current-hole))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1534,7 +1534,7 @@
   (hinted-choice-weight application-hint)]
  [VariableDeclaration 20]
  ;; Don't choose variable reference often when I'm already in a max-depth lift.
- [VariableReference (if (>= (att-value 'ast-depth current-hole)
+ [VariableReference (if (>= (att-value 'xsmith_ast-depth current-hole)
                             (xsmith-option 'max-depth))
                         1
                         10)]

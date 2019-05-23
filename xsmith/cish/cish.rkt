@@ -59,7 +59,7 @@
 
 
 (define ({ast-add-unsafe-math refinement-func} ast)
-  (define ops (att-value 'find-descendants ast
+  (define ops (att-value 'xsmith_find-descendants ast
                          (λ (n) (member (ast-node-type n)
                                         '(AdditionExpression
                                           SubtractionExpression

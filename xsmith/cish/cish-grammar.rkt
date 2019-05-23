@@ -166,8 +166,8 @@
                                       ForStatement
                                       WhileStatement
                                       DoWhileStatement))
-                            (att-value 'ast-depth (parent-node n))
-                            (add1 (att-value 'ast-depth (parent-node n)))))]
+                            (att-value 'xsmith_ast-depth (parent-node n))
+                            (add1 (att-value 'xsmith_ast-depth (parent-node n)))))]
           ;; some nodes should never increase depth
           [ExpressionStatement (λ(n)0)]
           [AssignmentExpression (λ(n)0)]
@@ -450,7 +450,7 @@ Type definitions are in cish-utils.rkt
      (define arg-nodes (ast-children (ast-child 'args n)))
      (define func-node (ast-child 'function n))
      (define arg-types (map (λ (c) (fresh-type-variable)) arg-nodes))
-     (when (not (att-value 'is-hole? func-node))
+     (when (not (att-value 'xsmith_is-hole? func-node))
        (unify! args-type (product-type arg-types)))
      (for/fold ([dict (hash 'function (function-type args-type t))])
                ([a arg-nodes]
@@ -502,11 +502,11 @@ Type definitions are in cish-utils.rkt
  [LiteralStruct
   [(nominal-record-type #f '())
    (λ (n t)
-     (if (att-value 'is-hole? (ast-child 'structdefref n))
+     (if (att-value 'xsmith_is-hole? (ast-child 'structdefref n))
          (hash 'structdefref (nominal-record-definition-type t))
          (let* ([vals (ast-children (ast-child 'vals n))]
                 [struct-ref (ast-child 'structdefref n)]
-                [struct-name-bind (att-value 'resolve-reference-name
+                [struct-name-bind (att-value 'xsmith_resolve-reference-name
                                              struct-ref
                                              (ast-child 'name struct-ref))]
                 [inners (nominal-record-type-inners

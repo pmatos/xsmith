@@ -429,7 +429,7 @@ New types
         list)]))
 
 (define (resolve-variable-reference-node n)
-  (att-value 'resolve-reference-name n (ast-child 'name n)))
+  (att-value 'xsmith_resolve-reference-name n (ast-child 'name n)))
 
 
 
