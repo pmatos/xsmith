@@ -770,7 +770,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
     (list rule-info)))
 
 #|
-ref-choices-filtered-hash is for xsmith_constrain-type.
+ref-choices-filtered-hash is for _xsmith_reference-options!
 Apparently class definitions don't let public methods be defined with
 let-over-lambda (maybe the class macro rewrites the lambdas...).
 So let's have a weak hash table store the mutable state we need in a
@@ -972,12 +972,17 @@ The second arm is a function that takes the type that the node has been assigned
   #:appends
   (att-rule _xsmith_my-type-constraint)
   (choice-rule _xsmith_my-type-constraint)
+  ;_xsmith_my-type-constraint -- returns the type that a node must fulfill (the first half of the type info property), both in att-rule and choice-rule form.
   (att-rule _xsmith_children-type-dict)
+  ;_xsmith_children-type-dict -- returns a dict mapping nodes (or node field names) to types
   (att-rule _xsmith_type-constraint-from-parent)
   (att-rule xsmith_type)
   (choice-rule _xsmith_satisfies-type-constraint?)
+  ;_xsmith_satisfies-type-constraint? -- choice predicate -- tests if a hole's type and a choice object are compatible
   (choice-rule _xsmith_reference-options!)
+  ;_xsmith_reference-options! -- returns a list of options for a variable to reference that are type compatible.  BUT - it unifies the type of the reference with a fully concrete version.  One of the list members is a thunk that can be applied to get a lifted binding.
   (choice-rule xsmith_get-reference!)
+  ;xsmith_get-reference! -- like xsmith_reference-options! but it just returns one (pre-called in the case of lifts).
   #:transformer
   (λ (this-prop-info grammar-info reference-info-info binder-info-info)
     (define nodes (dict-keys grammar-info))
