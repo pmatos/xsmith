@@ -105,6 +105,6 @@ The theory of scope graphs is described in the paper “A Theory of Name Resolut
 
 @(verbatim (file->string minimal-example-path))
 
-@section{Minimal Example With Variables}
+@section{Another Small Example With Variables}
 
 @(verbatim (file->string minimal-example-with-variables-path))
