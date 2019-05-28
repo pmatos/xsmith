@@ -198,19 +198,8 @@
 
 (define (type-thunks-for-concretization) (list (λ()number) (λ()bool) (λ()string)))
 
-(define (list-type x)
-  (generic-type 'list (list x)))
-(define (list-type? x)
-  (and (generic-type? x)
-       (eq? (generic-type-name x)
-            'list)))
+(define-generic-type list-type (type))
 (define (fresh-list-type) (list-type (fresh-type-variable)))
-(define (list-type-type x)
-  (when (not (list-type? (concretize-type x)))
-    (error 'list-type-type "given ~a\n" x))
-  (define fl (fresh-list-type))
-  (unify! x fl)
-  (car (generic-type-type-arguments fl)))
 
 (define no-child-types (λ (n t) (hash)))
 

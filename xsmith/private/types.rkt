@@ -42,7 +42,8 @@
  ;product-type-inner-type-list
  ;record-type?
  ;record-type-name
- (struct-out generic-type)
+ ;(struct-out generic-type)
+ define-generic-type
  nominal-record-type
  nominal-record-type?
  nominal-record-type-name
@@ -82,7 +83,11 @@
  racket/set
  "scope-graph.rkt"
  "xsmith-utils.rkt"
- )
+ (for-syntax
+  racket/base
+  syntax/parse
+  racket/syntax
+  ))
 (module+ test (require rackunit))
 
 
@@ -200,7 +205,37 @@ TODO - when generating a record ref, I'll need to compare something like (record
   ;; TODO - this should be verified to be actually a nominal-record-type
   (nominal-record-definition-type nominal-record-type))
 
-(struct generic-type (name type-arguments) #:transparent)
+(struct generic-type (name constructor type-arguments) #:transparent)
+
+(define-syntax (define-generic-type stx)
+  (syntax-parse stx
+    [(_ name:id (field:id ...))
+     (define field-length (length (syntax->list #'(field ...))))
+     (with-syntax ([(accessor-name ...) (map (λ (x) (format-id #'name
+                                                               "~a-~a"
+                                                               #'name
+                                                               x))
+                                             (syntax->list #'(field ...)))]
+                   [(accessor-index ...)
+                    (map (λ (x) (datum->syntax
+                                 #'name
+                                 (- field-length
+                                    (length
+                                     (member x (syntax->list #'(field ...)))))))
+                         (syntax->list #'(field ...)))]
+                   [predicate-name (format-id #'name "~a?" #'name)]
+                   [field-length-stx (datum->syntax #f field-length)])
+       #'(begin
+           (define (name field ...)
+             (generic-type 'name name (list field ...)))
+           (define (predicate-name x)
+             (and (generic-type? x)
+                  (eq? name (generic-type-constructor x))))
+           (define (accessor-name x)
+             (when (not (predicate-name x))
+               (error 'accessor-name "not a ~a: ~a" 'predicate-name x))
+             (list-ref (generic-type-type-arguments x) accessor-index))
+           ...))]))
 
 ;; TODO - maybe I should have a base struct with no fields called type, then allow the user to define their own new types with custom rules for subtyping (at least to specify which fields are covariant, contravariant, or invariant) and for where to recur during unification.
 (define (type? x)
@@ -392,10 +427,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     #;[(list (record-type n1 s1) (record-type n2 s2))
      ;; TODO - for now let's assume records start fully specified, but eventually I need to recur on the names and subtypes
      (equal? s1 s2)]
-    [(list (generic-type name1 inners1) (generic-type name2 inners2))
-     (and (equal? name1 name2)
-          ;; This is redundant...
-          (equal? (length inners1) (length inners2))
+    [(list (generic-type name1 ctor1 inners1) (generic-type name2 ctor2 inners2))
+     (and (equal? ctor1 ctor2)
           (andmap rec inners1 inners2))]
     [(list (function-type a1 r1) (function-type a2 r2))
      (and (rec a1 a2)
@@ -450,7 +483,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (nominal-record-definition-type (r inner))]
       [(function-type arg return) (function-type (r arg)
                                                  (r return))]
-      [(generic-type name inners) (generic-type name (map r inners))]
+      [(generic-type name ctor inners) (generic-type name ctor (map r inners))]
       [else (error 'concretize-type "internal error -- no case for type: ~a" t)]))
   (recur t 0))
 
@@ -547,7 +580,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(product-type itl)
      (define itl* (unbox* itl))
      (and (list? itl*) (andmap concrete? itl*))]
-    [(generic-type _ inners)
+    [(generic-type _ _ inners)
      (andmap concrete? inners)]))
 
 (define (at-least-as-concrete v constraint-type)
@@ -584,8 +617,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 [(? generic-type?)
                  (ormap (λ (c) (at-least-as-concrete t c))
                         (filter (λ (c) (and (generic-type? c)
-                                            (equal? (generic-type-name c)
-                                                    (generic-type-name t))))
+                                            (eq? (generic-type-constructor c)
+                                                 (generic-type-constructor t))))
                                 cs))]))
             ;; check if they have nothing in common
             (for/and ([c cs])
@@ -630,8 +663,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
      (at-least-as-concrete inner1 inner2)]
-    [(list (generic-type v-name v-inners) (generic-type c-name c-inners))
-     (if (equal? v-name c-name)
+    [(list (generic-type v-n v-ctor v-inners) (generic-type c-n c-ctor c-inners))
+     (if (eq? v-ctor c-ctor)
          (andmap at-least-as-concrete v-inners c-inners)
          #t)]
     [else #t]))
@@ -681,7 +714,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(nominal-record-type name inners)
      (ormap rec (dict-values inners))]
     [(nominal-record-definition-type inner) (rec inner)]
-    [(generic-type name inners)
+    [(generic-type name constructor inners)
      (ormap rec inners)]
     [(type-variable t-innard)
      (or (memq t-innard innards)
@@ -704,7 +737,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
       ;[(record-type)]
       [(nominal-record-type name inners) (flatten (map rec (dict-values inners)))]
       [(nominal-record-definition-type inner) (rec inner)]
-      [(generic-type name inners) (flatten (map rec inners))]
+      [(generic-type name constructor inners) (flatten (map rec inners))]
       [(type-variable innard)
        (match innard
          [(type-variable-innard _ (list its ...))
