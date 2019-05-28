@@ -303,19 +303,31 @@ For example, to generate a fresh @verb{AdditionExpression} node, specifying valu
            ]]{
 Defines a property for use with @racket[add-prop].
 
+Custom properties are probably only useful for shared infrastructure for multiple languages (with the exception of @racket[define-non-inheriting-rule-property]).
+
 Properties are used to create domain-specific languages or terse declarative syntax for specifying att-rules and choice-rules.
 
-The transformer function accepts dictionaries of syntax specifying values for grammar nodes for the property itself or other properties that the property reads.  The function must return a list of dictionaries for the values of att-rules, choice-rules, or properties that it writes.
+Properties can have a transformer function that produce att-rules, choice-rules, or other property values.
+Property transformers can read the values set for the property by @racket[add-prop], and optionally the values of other properties as well.
+Not all properties must have a transformer -- some properties may just be a single place to store information that is used by (multiple) other properties.
 
-Property transformers are run during @racket[assemble-spec-components] in an order determined by the properties read and written by each property transformer.
+The transformer function accepts a dictionary mapping grammar node names (as symbols) to the syntax objects from the right-hand-side of @racket[add-prop] uses for each property that it reads.
+The transformer function must return a list of dictionaries mapping grammar node names (as symbols) to syntax objects for the properties, att-rules, and choice-rules that it writes.
 
-A property that is read by a property transformer (an argument of the @racket[#:reads] keyword) will be received as an argument by the transformer.  Other properties and the grammar produced by combining spec components may be read, but att-rules and choice-rules may not be read.
+Property transformers are run during @racket[assemble-spec-components] in an order determined by the read/write dependencies among the properties.
+Appending goes before rewriting, which goes before reading.
 
-A property that is appended to by a property transformer (an argument of the @racket[#:appends] keyword) must have a dictionary specifying values returned by the transformer.  The values returned will be mixed with values appended by other properties or specified by the user.  If an att-rule or choice-rule for a node is specified more than once by any of these parties, an error is raised.  Other properties, att-rules, and choice-rules may be appended to.
+If a property appends (using the #:appends keyword) to a property or rule, its return dictionary will be appended to the existing dictionary for that property/rule.
+This allows a property or rule to be specified in part by the property that appends and in part by another property or the user.
+If an appended rule (or property that disallows multiple values) ends up with two values for any node, an error is raised.
 
-A property that is rewritten by a property transformer (an argument of the @racket[#:rewrites] keyword) is received as a dictionary argument to be read, and a similar dictionary must be returned in the return list.  The returned dictionary replaces the received dictionary.  Only other properties may be rewritten.
+If a property rewrites (using the #:rewrites keyword) to a property or rule, its return dictionary replaces any previous dictionary for that property/rule.
+Rewriting a property also automatically implies reading that property.
+A property or rule may only be rewritten by one property transformer.
 
 Example showing the arguments and return type needed by transformers:
+The transformer argument order is its own property, then #:reads dictionaries in the order declared, then #:rewrites dictionaries in the order declared.
+The transformer return order is #:rewrites dictionaries in the order declared then #:writes dictionaries in the order declared.
 @racketblock[
 (define-property my-property
   #:reads (property a) (property b)
@@ -328,21 +340,48 @@ Example showing the arguments and return type needed by transformers:
     ))
 ]
 
-Each dictionary maps grammar node type names (as symbols) to syntax objects.
-
 The syntax object value for a property can be anything, since property transformers define the grammar and semantics of properties.
 
-The syntax object value for att-rules and choice-rules should be a syntax object specifying a function (IE a @racket[lambda]).  att-rules may be any syntax that evaluates to a function (so you may return an identifier that references a function or an expression that computes a function such as let-over-lambda), but choice-rule syntax is provided to Racket's @racket[class] macro, which requires literal @racket[lambda] forms.
+The syntax object value for @verb{att-rules} and @verb{choice-rules} should be a syntax object specifying a function (IE a @racket[lambda]).
+@verb{att-rules} may be any syntax that evaluates to a function (so you may return an identifier that references a function or an expression that computes a function such as let-over-lambda), but choice-rule syntax is provided to Racket's @racket[class] macro, which requires literal @racket[lambda] forms.
 
-The syntax object value for grammar productions when @verb{(grammar)} is read is a syntax object of class @racket[grammar-clause].
+@; TODO - internal properties read the grammar, but the API for that is horrible.
+@;The syntax object value for grammar productions when @verb{(grammar)} is read is a syntax object of class @racket[grammar-clause].
 
-Dictionaries may or may not contain an entry for each nonterminal in the grammar (except the grammar dictionary which always contains all nonterminals).  A dictionary may even be empty.
+Dictionaries may or may not contain an entry for each nonterminal in the grammar.
+@;(Except the grammar dictionary which always contains all nonterminals.)
+A dictionary may even be empty.
 
-In addition to nonterminals, each dictionary may include a mapping for the value @racket[#f], which will define a default value used for the (super secret) parent node that @racket[assemble-spec-components] defines.  If nothing is specified for #f, att-rules and choice-rules will have a default which errors, providing a helpful error message.
+In addition to nonterminals, each dictionary may include a mapping for the value @racket[#f], which will define a default value used for the (super secret) parent node that @racket[assemble-spec-components] defines.
+If nothing is specified for #f, att-rules and choice-rules will have a default which errors, providing a helpful error message.
 
-If the @racket[#:allow-duplicates?] argument is supplied and is @racket[#t], then @racket[add-prop] may be used more than once for the property for the same node, and the syntax object in the dictionary for the property will be a syntax list of the syntax objects specified in the various @racket[add-prop] calls.  But by default only one use of @racket[add-prop] is allowed per property per node type, and the syntax object in the dict is the single syntax object from the one call.
+If the @racket[#:allow-duplicates?] argument is supplied and is @racket[#t], then @racket[add-prop] may be used more than once for the property for the same node, and the syntax object in the dictionary for the property will be a syntax list of the syntax objects specified in the various @racket[add-prop] calls.
+But by default only one use of @racket[add-prop] is allowed per property per node type, and the syntax object in the dict is the single syntax object from the one call.
 
-TODO - a real example.  Maybe something from core-properties.rkt, or something simplified.
+Here is a simple example that basically desugars straight to an att-rule with a default:
+
+@racketblock[
+(define-property strict-child-order?
+  #:appends (att-rule _xsmith_strict-child-order?)
+  #:transformer
+  (λ (this-prop-info)
+    (define _xsmith_strict-child-order?-info
+      (hash-set
+       (for/hash ([(n v) (in-dict this-prop-info)])
+         (values n (syntax-parse v [b:boolean #'(λ (n) b)])))
+       #f #'(λ (n) #f)))
+    (list _xsmith_strict-child-order?-info)))
+]
+
+The rationale for this example property is to:
+@itemlist[
+@item{Allow values to be specified by just @racket[#t] or @racket[#f], rather than @racket[(λ (n) #t)]}
+@item{To implicitly provide a default value to the root node (@racket[#f]).}
+]
+
+For more realistic examples of properties, see the file @verb{private/core-properties.rkt} in the Xsmith implementation.
+Generally they are big, hairy macros.
+
 }
 
 @defform[(define-non-inheriting-rule-property property-name
@@ -357,13 +396,17 @@ TODO - a real example.  Maybe something from core-properties.rkt, or something s
                               (code:line #:transformer transformer-func))]]{
 Defines a property that generates an att-rule or a choice-rule that does NOT inherit its implementation from its superclass.
 
-@racket[rule-name] must be either @verb{att-rule} or @verb{choice-rule}.
+@racket[rule-type] must be either @verb{att-rule} or @verb{choice-rule}.
 
 @racket[rule-name] defaults to @racket[property-name], but you can make it give the rule a different name than the property.
 
 @racket[default-expr] is the default value of the property.  Any nonterminal that does not have a different value specified gets this one.
 
-@racket[transformer-func] is an optional transformer to transform the value.  It is not called with a dictionary like the transformers of @racket[define-property], but rather it receives each value individually.  This allows a small amount of sugar.  Note that the value supplied as the @racket[default-expr] is also transformed by the @racket[transformer-func] when it is supplied.  When no @racket[transformer-func] is supplied, values are passed through literally.
+@racket[transformer-func] is an optional transformer to transform the value.
+It is not called with a dictionary like the transformers of @racket[define-property], but rather it receives each value individually.
+This allows a small amount of sugar.
+Note that the value supplied as the @racket[default-expr] is also transformed by the @racket[transformer-func] when it is supplied.
+When no @racket[transformer-func] is supplied, values are passed through literally.
 
 Example:
 @racketblock[
@@ -385,7 +428,9 @@ Example:
  [C #t])
 ]
 
-Normally @verb{B} would inherit a method from @verb{A} when none was specified for it.  But in this case it inherits the default (@racket[#f]).  When a user tries @verb{(att-value 'some-bool-flag <node-of-type-B>)} it will return @racket[#f], not @racket[#t].
+Normally @verb{B} would inherit a method from @verb{A} when none was specified for it.
+But in this case it inherits the default (@racket[#f]).
+When a user tries @verb{(att-value 'some-bool-flag <node-of-type-B>)} it will return @racket[#f], not @racket[#t].
 }
 
 

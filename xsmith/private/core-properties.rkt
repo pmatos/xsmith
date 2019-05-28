@@ -1201,16 +1201,15 @@ The second arm is a function that takes the type that the node has been assigned
               type-constraint))
 
 
-
 (define-property strict-child-order?
   #:appends (att-rule _xsmith_strict-child-order?)
   #:transformer
   (λ (this-prop-info)
     (define _xsmith_strict-child-order?-info
-      (for/fold ([out-info (hash #f #'(λ (n) #f))])
-                ([n (dict-keys this-prop-info)])
-        (dict-set out-info n (syntax-parse (dict-ref this-prop-info n)
-                               [b:boolean #'(λ (n) b)]))))
+      (hash-set
+       (for/hash ([(n v) (in-dict this-prop-info)])
+         (values n (syntax-parse v [b:boolean #'(λ (n) b)])))
+       #f #'(λ (n) #f)))
     (list _xsmith_strict-child-order?-info)))
 
 (define (non-hole-node? x)
