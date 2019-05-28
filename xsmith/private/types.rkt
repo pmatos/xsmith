@@ -42,8 +42,12 @@
  ;product-type-inner-type-list
  ;record-type?
  ;record-type-name
- ;(struct-out generic-type)
+
  define-generic-type
+ generic-type?
+ generic-type-name
+ generic-type-type-arguments
+
  nominal-record-type
  nominal-record-type?
  nominal-record-type-name

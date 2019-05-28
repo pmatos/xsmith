@@ -874,29 +874,40 @@ Predicate for product types.
 TODO - this is the raw struct accessor, but what it can return is somewhat complicated because product types are actually a kind of type variable since they can have a #f “list” and then be unified.  So this needs a wrapper if it is actually to be used by xsmith users.
 }
 
-@defproc[(generic-type [name symbol?] [args (listof type?)]) type?]{
+@defform[(define-generic-type name (type-argument ...))]{
 Used to create generic types.
+
+This form defines a constructor @racket[name], a predicate @racket[name]@verb{?}, and one accessor for each type-argument @racket[name]@verb{-}@racket[type-argument] a la @racket[struct].
+
+Each instance of a generic type can be unified with other instances of the same generic.
 
 Example:
 @racketblock[
-(define (vector-type t)
-  (generic-type 'vector (list t)))
+(define int (base-type 'int))
+(define-generic-type list-type (type))
+
+(define t1 (list-type int))
+(generic-type? t1) (code:comment "#t")
+(list-type? t1) (code:comment "#t")
+(generic-type-type-arguments t1) (code:comment "(list int)")
+(list-type-type t1) (code:comment "int")
+
+(define t2 (list-type (fresh-type-variable)))
+(can-unify? t1 t2) (code:comment "#t")
+(unify! t1 t2)
 ]
-
-Generic types can be unified with other generic types with the same name and argument list length.
-
-TODO - This should probably have some kind of wrapper that guarantees that all instances of a given generic have the same name and argument length.  Maybe a function that generates a constructor function?
 }
 
 @defproc[(generic-type? [t any/c]) bool?]{
-Predicate for generic types.
+Returns true when @racket[t] is a generic type.
+Not very useful, since you probably want to know if it is an instance of a specific generic.
 }
 
 @defproc[(generic-type-name [t generic-type?]) symbol?]{
 Returns the name of a generic type.
 }
 @defproc[(generic-type-type-arguments [t generic-type?]) (listof type?)]{
-Returns the inner types of a generic type.
+Returns the inner types of a generic type as a list.
 }
 
 @defproc[(function-type [arg-type type?] [return-type type?]) type?]{
