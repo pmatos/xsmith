@@ -920,12 +920,14 @@ Predicate for function types.
 @defproc[(function-type-return-type [t function-type?]) type?]{
 }
 
-@defproc[(nominal-record-type [name any/c] [inners dict?]) type?]{
-@racket[name] should be a @racket[string?].
 
-@racket[inners] should be a dictionary from names (as @racket[string?]s) to types.
+@defproc[(nominal-record-type? [t any/c]) bool?]{
+Predicate for nominal record types.
 
-A partially defined @racket[nominal-record-type] can be created that will @racket[unify!] with a fully defined one by giving #f as the name and a dictionary containing a mapping from #f to a needed type.
+Partially specified @racket[nominal-record-type?]s are created with @racket[nominal-record-type-with].
+Fully specified @racket[nominal-record-type?]s are created by using @racket[concretize-type] on a partially specified one.
+Rather than making them manually, simply rely on Xsmith's definition-lifting mechanism to create appropriate fully-specified @racket[nominal-record-type?]s.
+
 When a partially defined @racket[nominal-record-type] is @racket[unify!]-ed with a fully defined @racket[nominal-record-type], the partially defined one is mutated to become the same as the fully defined one.
 When two partially defined @racket[nominal-record-type]s are unified together, an error is raised.
 
@@ -933,13 +935,6 @@ Every node in a language grammar that stands for a @racket[nominal-record-type] 
 
 The reason for this is that nominal types must be defined in the program.
 @racket[nominal-record-definition-type]s are necessary because the lookups of these type names are a different type than uses of the record type that the name is bound to.
-
-You should probably not bother manually creating fully specified @racket[nominal-record-type]s.
-Rather, you should probably rely on Xsmith's definition-lifting mechanism to lift appropriate nominal record definitions.
-But if you do really want to manually create fully specified nominal-record types, be sure to use a dictionary type that has consistent key orderings (or remember to consistently sort the keys each time you use nominal record types, for instance to generate or pretty print constructor calls or the definition itself).
-When creating a partially defined @racket[nominal-record-type], the dictionary type used doesn't matter, because it will be replaced with the fully specified one it is @racket[unify!]-ed with.
-The definition-lifting mechanism in Xsmith, and @racket[concretize-type] which it relies upon, always use alists for dictionaries in @racket[nominal-record-type]s, so this is not an issue.
-But if you introduce a fully-specified @racket[nominal-record-type] that uses a @racket[hash], you will suddenly have to deal with inconsistent key ordering, which is no fun.
 
 Example:
 @racketblock[
@@ -960,7 +955,7 @@ Example:
  [StructReference [(fresh-type-variable)
                    (λ (n t)
                      (define type-with-field
-                       (nominal-record-type #f (hash (ast-child 'fieldname n) t)))
+                       (nominal-record-type-with (ast-child 'fieldname n) t))
                      (hash 'structval type-with-field
                            'structdefref (nominal-record-definition-type
                                           type-with-field)))]]
@@ -968,19 +963,29 @@ Example:
  )
 ]
 }
-@defproc[(nominal-record-type? [t any/c]) bool?]{
-Predicate for nominal record types.
+
+@defproc[(nominal-record-type-with [fieldname string?] [fieldtype type?])
+type?]{
+Creates a partially-specified @racket[nominal-record-type?].
+Use it to specify that you want a record that contains a certain type.
 }
+
+@defproc[(any-nominal-record-type) type?]{
+Creates a completely unconstrained @racket[nominal-record-type?].
+It will unify with any fully constrained @racket[nominal-record-type?].
+}
+
 @defproc[(nominal-record-type-name [t nominal-record-type?]) any/c]{
-Getter for the name.
+Getter for the name of a @racket[nominal-record-type?].
 }
 @defproc[(nominal-record-type-inners [t nominal-record-type?]) dict?]{
 Getter for the inner type dictionary.
+If you use this on a partially-specified @racket[nominal-record-type?], you will get an incomplete dictionary.
 }
 
 @defproc[(nominal-record-definition-type [t nominal-record-type?]) type?]{
 Constructor.
-See note in @racket[nominal-record-type] for how it is used.
+See note in @racket[nominal-record-type?] for how it is used.
 }
 @defproc[(nominal-record-definition-type? [t any/c]) bool?]{
 Predicate for nominal record definition types constructed with @racket[nominal-record-definition-type].

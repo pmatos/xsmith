@@ -48,7 +48,9 @@
  generic-type-name
  generic-type-type-arguments
 
- nominal-record-type
+ ;nominal-record-type
+ nominal-record-type-with
+ any-nominal-record-type
  nominal-record-type?
  nominal-record-type-name
  nominal-record-type-inners
@@ -198,6 +200,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (name inners)
   #:mutable
   #:transparent)
+
+(define (nominal-record-type-with field type)
+  (nominal-record-type #f (hash field type)))
+(define (any-nominal-record-type)
+  (nominal-record-type #f (hash)))
 
 (struct nominal-record-definition-type
   ;; This is a wrapper to be the type for the definition site of a nominal-record-type.

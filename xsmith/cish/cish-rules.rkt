@@ -151,7 +151,7 @@
                   (for/list ([(field-name field-type)
                               (in-dict
                                (let ([t (nominal-record-definition-type
-                                         (nominal-record-type #f '()))])
+                                         (any-nominal-record-type))])
                                  (unify! t (ast-child 'type n))
                                  (nominal-record-type-inners
                                   (nominal-record-definition-type-type

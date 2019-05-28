@@ -260,7 +260,7 @@
                  'type (fresh-concrete-var-type))]
           [StructDefinition
            (let* ([type (nominal-record-definition-type
-                         (concretize-type (nominal-record-type #f '())))]
+                         (concretize-type (any-nominal-record-type)))]
                   [name (nominal-record-type-name
                          (nominal-record-definition-type-type type))])
              (hash 'name name
@@ -487,20 +487,20 @@ Type definitions are in cish-utils.rkt
  [StructReference [(fresh-type-variable)
                    (λ (n t)
                      (define type-with-field
-                       (nominal-record-type #f (hash (ast-child 'fieldname n) t)))
+                       (nominal-record-type-with (ast-child 'fieldname n) t))
                      (hash 'structval type-with-field
                            'structdefref (nominal-record-definition-type
                                           type-with-field)))]]
  [StructSetField [(fresh-type-variable)
                   (λ (n t)
                     (define type-with-field
-                      (nominal-record-type #f (hash (ast-child 'fieldname n) t)))
+                      (nominal-record-type-with (ast-child 'fieldname n) t))
                     (hash 'structval type-with-field
                           'updateval t
                           'structdefref (nominal-record-definition-type
                                          type-with-field)))]]
  [LiteralStruct
-  [(nominal-record-type #f '())
+  [(any-nominal-record-type)
    (λ (n t)
      (if (att-value 'xsmith_is-hole? (ast-child 'structdefref n))
          (hash 'structdefref (nominal-record-definition-type t))
