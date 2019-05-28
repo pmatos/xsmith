@@ -801,7 +801,6 @@ If you don't make custom filtering rules you don't need to specify this property
 
 While there are various predicates for different types, at any point in type checking you might actually have a type variable instead of a concrete type.  So if you want to check if you have a particular type (and maybe deconstruct it), you should maybe create an instance of the type you are interested in, check if it @racket[can-unify?], then @racket[unify!]-ing it if you want to deconstruct it.
 
-TODO - write a bit about nominal-record-types, because they are a little more complicated to use than other types.
 
 @defproc[(type? [t any/c]) bool?]{
 Predicate for types.
@@ -921,31 +920,73 @@ Predicate for function types.
 @defproc[(function-type-return-type [t function-type?]) type?]{
 }
 
-@defproc[(nominal-record-type? [t any/c]) bool?]{
-Predicate for nominal record types.
-}
 @defproc[(nominal-record-type [name any/c] [inners dict?]) type?]{
 @racket[name] should be a @racket[string?].
 
-@racket[inners] should be a dictionary from names to types.
+@racket[inners] should be a dictionary from names (as @racket[string?]s) to types.
 
-A partially defined nominal-record-type can be created that will @racket[unify!] with a fully defined one by giving #f as the name and a dictionary containing a mapping from #f to a needed type.
+A partially defined @racket[nominal-record-type] can be created that will @racket[unify!] with a fully defined one by giving #f as the name and a dictionary containing a mapping from #f to a needed type.
+When a partially defined @racket[nominal-record-type] is @racket[unify!]-ed with a fully defined @racket[nominal-record-type], the partially defined one is mutated to become the same as the fully defined one.
+When two partially defined @racket[nominal-record-type]s are unified together, an error is raised.
+
+Every node in a language grammar that stands for a @racket[nominal-record-type] constructor, accessor, or mutator must include a reference to a @racket[nominal-record-definition-type] containing the @racket[nominal-record-type] being used.
+
+The reason for this is that nominal types must be defined in the program.
+@racket[nominal-record-definition-type]s are necessary because the lookups of these type names are a different type than uses of the record type that the name is bound to.
+
+You should probably not bother manually creating fully specified @racket[nominal-record-type]s.
+Rather, you should probably rely on Xsmith's definition-lifting mechanism to lift appropriate nominal record definitions.
+But if you do really want to manually create fully specified nominal-record types, be sure to use a dictionary type that has consistent key orderings (or remember to consistently sort the keys each time you use nominal record types, for instance to generate or pretty print constructor calls or the definition itself).
+When creating a partially defined @racket[nominal-record-type], the dictionary type used doesn't matter, because it will be replaced with the fully specified one it is @racket[unify!]-ed with.
+The definition-lifting mechanism in Xsmith, and @racket[concretize-type] which it relies upon, always use alists for dictionaries in @racket[nominal-record-type]s, so this is not an issue.
+But if you introduce a fully-specified @racket[nominal-record-type] that uses a @racket[hash], you will suddenly have to deal with inconsistent key ordering, which is no fun.
+
+Example:
+@racketblock[
+(add-to-grammar my-grammar
+ ...
+ [VariableReference Expression (name)]
+ ...
+ [StructReference Expression (fieldname
+                              [structdefref : VariableReference]
+                              [structval : Expression])]
+ ...
+ )
+
+(add-prop
+ my-grammar
+ type-info
+ ...
+ [StructReference [(fresh-type-variable)
+                   (λ (n t)
+                     (define type-with-field
+                       (nominal-record-type #f (hash (ast-child 'fieldname n) t)))
+                     (hash 'structval type-with-field
+                           'structdefref (nominal-record-definition-type
+                                          type-with-field)))]]
+ ...
+ )
+]
+}
+@defproc[(nominal-record-type? [t any/c]) bool?]{
+Predicate for nominal record types.
 }
 @defproc[(nominal-record-type-name [t nominal-record-type?]) any/c]{
+Getter for the name.
 }
 @defproc[(nominal-record-type-inners [t nominal-record-type?]) dict?]{
+Getter for the inner type dictionary.
 }
 
-@defproc[(nominal-record-definition-type? [t any/c]) bool?]{
-Predicate for nominal record definition types.
-
-Nominal records need to be defined to their name.  This is the type to give to that definition.
-}
 @defproc[(nominal-record-definition-type [t nominal-record-type?]) type?]{
 Constructor.
+See note in @racket[nominal-record-type] for how it is used.
+}
+@defproc[(nominal-record-definition-type? [t any/c]) bool?]{
+Predicate for nominal record definition types constructed with @racket[nominal-record-definition-type].
 }
 @defproc[(nominal-record-definition-type-type [t nominal-record-definition-type?]) nominal-record-type?]{
-Getter.
+Getter for the @racket[nominal-record-type] inside a @racket[nominal-record-definition-type].
 }
 
 @defproc[(concretize-type [t type?]) type?]{
