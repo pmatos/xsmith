@@ -83,7 +83,7 @@ Node type names, attribute names, and choice rule names are just symbols, so the
 The names of symbols used or defined by the xsmith library start with @verb{xsmith} or @verb{_xsmith}, so don't tread on those namespaces.
 
 
-@section{grammar-macros.rkt}
+@section{Forms for defining a grammar and its attributes}
 
 @defform[(define-spec-component component-name)]{
 Defines a spec component.  Spec components include information about a language grammar and attributes, and can be combined to generate an xsmith fuzzer.  You add grammar productions with @racket[add-to-grammar], you add properties with @racket[add-prop], and you can add att-rules and choice-rules with @racket[add-att-rule] and @racket[add-choice-rule], respectively.  Spec components are combined with @racket[assemble-spec-components].
@@ -272,13 +272,20 @@ Outside of a spec component context, it raises a syntax error.
 }
 
 @defform[(make-fresh-node node-type-expression optional-field-value-dict)]{
-Within the context of a spec component (eg. in the body of @racket[add-att-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-fresh-node] is a function to generate a fresh node of the given type.  Construction of the new node is guided by the @racket[fresh] property.
+Within the context of a spec component (eg. in the body of @racket[add-att-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-fresh-node] is a function to generate a fresh node of the given type.
+Construction of the new node is guided by the @racket[fresh] property.
 
 For example, to generate a fresh @verb{AdditionExpression} node, specifying values for some of its fields:
 @racketblock[(make-fresh-node 'AdditionExpression
                                (hash 'left (make-fresh-node 'LiteralInt
                                                             (hash 'v 5))))]
 }
+
+@section{Custom Properties}
+
+Properties are used to create domain-specific languages or terse declarative syntax for specifying att-rules and choice-rules.
+Custom properties are probably only useful for shared infrastructure for multiple languages (perhaps with the exception of @racket[define-non-inheriting-rule-property]).
+
 
 @defform[(define-property name
                           maybe-dups
@@ -302,10 +309,6 @@ For example, to generate a fresh @verb{AdditionExpression} node, specifying valu
                                  (grammar))
            ]]{
 Defines a property for use with @racket[add-prop].
-
-Custom properties are probably only useful for shared infrastructure for multiple languages (with the exception of @racket[define-non-inheriting-rule-property]).
-
-Properties are used to create domain-specific languages or terse declarative syntax for specifying att-rules and choice-rules.
 
 Properties can have a transformer function that produce att-rules, choice-rules, or other property values.
 Property transformers can read the values set for the property by @racket[add-prop], and optionally the values of other properties as well.
@@ -434,7 +437,9 @@ When a user tries @verb{(att-value 'some-bool-flag <node-of-type-B>)} it will re
 }
 
 
-@subsection{grammar-macros.rkt for-syntax}
+@subsection{Helpers for creating properties}
+
+TODO - the APIs in this section are not very good.  Frankly I would like to rewrite them all.  Also, I don't think this section is important for a first version.  So I'm considering commenting the whole section out.
 
 @defform[#:kind "syntax class" #:id grammar-clause grammar-clause]{
 This is a syntax class used for parsing grammar clauses.  If you parse one with @racket[syntax-parse], you will have access to the following fields:
@@ -507,29 +512,34 @@ TODO - (properties and the grammar) Properties asking to read the grammar should
                    #:omit-constructor]{
 Struct for binding information of nodes that create bindings.
 
-TODO - example, better explanation...
+Notably this is returned by the att-rule @racket['xsmith_resolve-reference-name].
+
+The @racket[ast-node] field is the grammar node containing the definition of @racket[name].
+The @racket[def-or-param] field is there to distinguish names that are bound as function parameters vs names that are bound as (local or global) definitions.
+
+Probably all you need to do with this, though, is get the @racket[name] field and stuff it in the name field of your definition nodes in the @racket[fresh] method.
 }
 
 @defparam[current-well-formedness-regexp r regexp?
           #:value #px"rp*i?d"]{
 
-TODO - explanation of scope graphs so this makes sense.
+For most languages you probably don't need to fuss with this.
 
-When the attributes @racket['xsmith_resolve-reference-name] and @racket['xsmith_visible-bindings] are used, this regexp determines valid scope-graph resolution paths.
+When the @racket['xsmith_resolve-reference-name] attribute is used or when Xsmith searches for a valid reference with @racket['xsmith_get-reference], this regexp determines valid scope-graph resolution paths.
 The path elements (reference, parent, import, definition) are turned into characters (r, p, i, and d respectively).
 If the path from reference to definition matches this regexp, it is valid.
 If two definitions have the same name and paths from a reference to both definitions are valid, the definition that is in scope for the reference is determined by @racket[current-path-greater-than].
 
-For most languages you probably don't need to fuss with this.
+Because Xsmith doesn't currently support import elements at all, modifying this regexp is somewhat of a moot point.
+
 }
 
 @defparam[current-path-greater-than comparator
          (-> (listof/c (or/c 'reference 'parent 'import 'declaration))
              (listof/c (or/c 'reference 'parent 'import 'declaration))
              any/c)]{
-TODO - explanation of scope graphs so this makes sense.
 
-If there are two valid resolution paths (determined by @racket[current-well-formedness-regexp])for a name, this comparator determines which path is chosen.
+If there are two valid resolution paths (determined by @racket[current-well-formedness-regexp]) for a name, this comparator determines which path is chosen.
 The comparator must return a non-false value if the left operand is greater than the right, otherwise @racket[#f]
 The greatest path is chosen.
 
@@ -551,7 +561,10 @@ For most languages you probably don't need to fuss with this.
 
 
 
-@section{core-properties.rkt}
+@section{Core Properties}
+
+These properties are available for specification on Xsmith grammars.
+Many of them define or modify the behavior of core functionality, such as @racket[fresh] modifying how fresh program nodes are instantiated, or @racket[type-info] defining a language's type rules.
 
 @defform[#:kind "spec-property" #:id may-be-generated may-be-generated]{
 Acceptable values for this property are @racket[#t] or @racket[#f], and the default is @racket[#t].
@@ -842,9 +855,13 @@ If you don't make custom filtering rules you don't need to specify this property
 
 }
 
-@section{types}
+@section{Types}
 
-While there are various predicates for different types, at any point in type checking you might actually have a type variable instead of a concrete type.  So if you want to check if you have a particular type (and maybe deconstruct it), you should maybe create an instance of the type you are interested in, check if it @racket[can-unify?], then @racket[unify!]-ing it if you want to deconstruct it.
+These type constructors and other functions are largely useful for specifying the @racket[type-info] property.
+
+While there are various predicates for different types, at any point in type checking you might actually have a type variable instead of a concrete type.
+So if you want to check if you have a particular type (and maybe deconstruct it), you should maybe create an instance of the type you are interested in, check if it @racket[can-unify?], then @racket[unify!]-ing it if you want to deconstruct it.
+Note that if you do @racket[unify!] a type variable, that unification needs to be consistent between multiple runs of type checking (since it runs multiple times as the tree is constructed).
 
 
 @defproc[(type? [t any/c]) bool?]{
