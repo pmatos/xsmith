@@ -5,7 +5,10 @@
 (require
  (only-in scribble/core make-element)
  scribble/base
- )
+ (for-syntax
+  racket/base
+  syntax/parse
+  ))
 
 (define (verb . content)
   (make-element 'tt content))
@@ -13,6 +16,11 @@
 
 (define (racr)
   @seclink["racr"]{RACR})
+
+(define-syntax (rule stx)
+  (syntax-parse stx
+    [(_ name:id)
+     #'@seclink["generated-rules" (symbol->string 'name)]]))
 
 
 (define (command-line-options-table)

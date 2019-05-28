@@ -76,7 +76,7 @@ Full RACR documentation is @hyperlink["https://github.com/christoff-buerger/racr
 @section{Holes and Choice Objects}
 Hole nodes are @(racr) AST nodes.
 For every node type in the grammar, a hole node is created as a subclass of it, inheriting all of its @(racr) attributes.
-A hole can be recognized by the @racket['xsmith_is-hole?] attribute.
+A hole can be recognized by the @rule[xsmith_is-hole?] attribute.
 
 Consider the following (partial) grammar:
 @racketblock[

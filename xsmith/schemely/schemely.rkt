@@ -317,6 +317,7 @@
            (hash
             'type type
             'params params))]
+ ;; TODO -- these name and type fields should have sensible default values given by Xsmith (so the user doesn't have to provide a value), because due to the binder-info property the xsmith machinery knows what these fields mean.
  [Definition (hash 'name (if (equal? (top-ancestor-node current-hole)
                                      (parent-node current-hole))
                              (fresh-var-name "global-")
