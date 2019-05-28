@@ -38,6 +38,7 @@
  racket/exn
  racket/port
  "xsmith-utils.rkt"
+ (submod "xsmith-utils.rkt" for-private)
  "xsmith-options.rkt"
  "xsmith-version.rkt"
  )

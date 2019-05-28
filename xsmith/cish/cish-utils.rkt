@@ -32,10 +32,12 @@
 
 (provide
  (all-defined-out)
+ (all-from-out "../racr-convenience.rkt")
  )
 
 (require
  "../main.rkt"
+ "../racr-convenience.rkt"
  racr
  pprint
  racket/random

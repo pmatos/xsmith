@@ -31,7 +31,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require xsmith racr racket/pretty racket/random racket/list racket/class)
+(require xsmith racr xsmith/racr-convenience racket/pretty racket/random racket/list racket/class)
 
 (define-spec-component schemely-core)
 

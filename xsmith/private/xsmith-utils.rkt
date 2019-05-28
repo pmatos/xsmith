@@ -31,19 +31,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (provide
- xsmith-state
- (struct-out generator-state)
- make-generator-state
  fresh-var-name
  fresh-int!
-
- expr->ast-list
- node-type
- parent-node
- ast-ancestors
- ancestor-nodes
- top-ancestor-node
- node-subtype?
 
  xd-printf
  get-xsmith-debug-log!
@@ -51,6 +40,29 @@
 (module+ for-private
   (provide
    ast-children/flat
+   make-generator-state
+   xsmith-state
+   (struct-out generator-state)
+
+   expr->ast-list
+   expr->ast-list
+   node-type
+   parent-node
+   ast-ancestors
+   ancestor-nodes
+   top-ancestor-node
+   node-subtype?
+   ))
+(module+ for-racr-convenience
+  (provide
+   expr->ast-list
+   expr->ast-list
+   node-type
+   parent-node
+   ast-ancestors
+   ancestor-nodes
+   top-ancestor-node
+   node-subtype?
    ))
 
 (require

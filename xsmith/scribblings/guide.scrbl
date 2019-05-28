@@ -95,7 +95,7 @@ The choice objects all have access to the Expression hole (through @racket[curre
 Note that hole node types are created for every type in the grammar (including LiteralInt and AdditionExpression), but more specialized holes are only used if the grammar specifies that a node's child must be specifically that kind of expression, or if a custom @racket[fresh] implementation uses @racket[make-hole] with the specific kind of expression.
 
 
-@section{Scope Graphs}
+@section[#:tag "scope-graph"]{Scope Graphs}
 Xsmith uses the language-independent resolution algorithm of scope graphs.
 
 The theory of scope graphs is described in the paper “A Theory of Name Resolution with Extended Coverage and Proofs”, (available at @url{https://researchr.org/publication/NeronTVW15}).

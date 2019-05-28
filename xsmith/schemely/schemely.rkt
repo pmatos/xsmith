@@ -34,6 +34,7 @@
 (require
  xsmith
  racr
+ xsmith/racr-convenience
  racket/pretty
  racket/random
  racket/list
