@@ -39,6 +39,7 @@
 (define scribblings '(("scribblings/xsmith.scrbl" () (library))))
 (define deps '("base"
                "rackunit-lib"
+               "at-exp-lib"
                "pprint"
                "racr"
                "rosette"
