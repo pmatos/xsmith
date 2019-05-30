@@ -988,6 +988,24 @@ If unification fails an exception is raised.  Right now a failure to unify might
 Creates a base type.  Base types with the same name are the same.
 }
 
+
+@defproc[(function-type [arg-type type?] [return-type type?]) type?]{
+Creates a function type.
+For multi-argument functions, use a @racket[product-type] for the argument type.
+}
+@defproc[(function-type? [t any/c]) bool?]{
+Predicate for function types.
+}
+@defproc[(function-type-arg-type [t function-type?]) type?]{
+Get the argument type.
+Remember that you can't deconstruct type variables that are not fully constrained!
+}
+@defproc[(function-type-return-type [t function-type?]) type?]{
+Get the return type.
+Remember that you can't deconstruct type variables that are not fully constrained!
+}
+
+
 @defproc[(product-type [types (or/c (listof types?) #f)]) type?]{
 Creates a product type (tuple).  If @racket[types] is @racket[#f], the length of the tuple is unspecified, and it can be @racket[unify!]-ed with a product type of any length.
 
@@ -1044,20 +1062,11 @@ Not very useful, since you probably want to know if it is an instance of a speci
 
 @defproc[(generic-type-name [t generic-type?]) symbol?]{
 Returns the name of a generic type.
+Remember that you can't deconstruct type variables that are not fully constrained!
 }
 @defproc[(generic-type-type-arguments [t generic-type?]) (listof type?)]{
 Returns the inner types of a generic type as a list.
-}
-
-@defproc[(function-type [arg-type type?] [return-type type?]) type?]{
-Creates a function type.  For multi-argument functions, use a @racket[product-type] for the argument type.
-}
-@defproc[(function-type? [t any/c]) bool?]{
-Predicate for function types.
-}
-@defproc[(function-type-arg-type [t function-type?]) type?]{
-}
-@defproc[(function-type-return-type [t function-type?]) type?]{
+Remember that you can't deconstruct type variables that are not fully constrained!
 }
 
 
