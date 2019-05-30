@@ -618,7 +618,8 @@ Additionally, for any language with variables you need @racket[binder-info] and 
 Next, the @racket[fresh] property will likely become necessary for a few fields that Xsmith can't infer.
 Then the most important of the truly optional properties is likely @racket[choice-weight].
 
-@; TODO - the properties are not in any particular order right now.  I should look over them and see if there is a more sensible order than "haphazard" in which to present them.
+
+
 
 @defform[#:kind "spec-property" #:id may-be-generated may-be-generated]{
 Acceptable values for this property are @racket[#t] or @racket[#f], and the default is @racket[#t].
@@ -632,32 +633,53 @@ Example:
 (add-prop
  my-spec-component
  may-be-generated
- [MyAbstractNode #f]
- [UnsafeAddition #f])
+ (code:comment "Expression is abstract and should not be instantiated,")
+ (code:comment "only AdditionExpression, SubtractionExpression, etc.")
+ [Expression #f]
+ (code:comment "Only safe addition expressions should be generated,")
+ (code:comment "but maybe a later pass after generation swaps some")
+ (code:comment "safe addition expressions for unsafe ones after analysis.")
+ [UnsafeAdditionExpression #f])
 ]
 
 @; TODO - should I rename this to `abstract` (and flip its boolean interpretation)?  For most uses that probably makes sense.  Or better yet, perhaps I should add a separate `abstract` property that implies that it may not be generated, but also makes sure the node never ends up in the tree by any means.  As it is Cish uses nodes that may not be generated but may be added in a second pass (the unsafe math nodes).
 }
 
-@defform[#:kind "spec-property" #:id depth-increase depth-increase]{
-This property defines the @rule[xsmith_ast-depth] non-inheriting att-rule.
 
-The property accepts an expression which much evaluate to a function of one argument (the @(racr) AST node) which returns a truthy value for nodes which increase the depth of the AST and #f otherwise.  The default is @racket[(λ (n) #t)].
-This property is NOT inherited by subclasses.
 
-This is useful to allow node re-use.  For example, the body of an @verb{if} or @verb{for} statement might be a block and have the same semantics, but you might want a block inside an @verb{if} to only be considered a depth increase of 1, not 2.
+@defform[#:kind "spec-property" #:id type-info type-info]{
+
+This property is used to specify the type system used by the generator.
+You should specify a type system even for dynamically typed languages so that programs don't just crash with dynamic type errors.
 
 Example:
 @racketblock[
-(define no-depth-if-body-is-block
-  (λ (n) (if (node-subtype? (ast-child 'body n) 'Block) 0 1)))
+(define int (base-type 'int))
+(define float (base-type 'float))
+(define bool (base-type 'bool))
 (add-prop
  my-spec-component
- depth-increase
- [IfStatement no-depth-if-body-is-block]
- [ForStatement no-depth-if-body-is-block])
+ type-info
+ [AdditionExpression [(fresh-type-variable int float)
+                      (λ (n t) (hash 'l t 'r t))]]
+ [EqualityExpression [bool
+                      (λ (n t)
+                        (define arg-type (fresh-type-variable))
+                        (hash 'l arg-type 'r arg-type))]]
+ [Lambda [(function-type (fresh-type-variable) (fresh-type-variable))
+          (λ (n t) (hash 'arg (function-type-arg-type t)
+                         'Expression (function-type-return-type t)))]])
 ]
+
+The property is two armed.
+
+The first part is the type (or partially-constrained type variable) that the given node can inhabit.  The expression given is evaluated fresh every time a node is type checked or considered for generation.
+
+The second part is a function that takes a node, its type, and must return a dictionary mapping its children nodes to types.  The dictionary keys may be the node objects of the node's children OR the symbol of the field name the child inhabits.  For kleene-star children, use their node unless they all should receive the same type.
 }
+
+
+
 
 @defform[#:kind "spec-property" #:id fresh fresh]{
 This property determines how fresh nodes are constructed (by the @racket[make-fresh-node] function).
@@ -688,6 +710,53 @@ If the value for a field (IE values inside the result dictionary) is a procedure
 
 }
 
+
+
+
+@defform[#:kind "spec-property" #:id choice-weight choice-weight]{
+This property determines the probability that different kinds of nodes will be chosen.  When choices have been filtered (based on @racket[choice-filters-to-apply]), one of the remaining choices is chosen at random with probability (choice-weight / sum-of-choice-weights).
+
+The expression provided as the choice weight will be evaluated in the context of a method call, so @racket[this] and @racket[current-hole] are available.
+
+Choice weights should be positive integer values.  The default weight is 10 unless set explicitly.
+
+Example:
+@racketblock[
+(add-prop
+ my-spec-component
+ choice-weight
+ (code:line "The default choice weight.")
+ [#f (λ () 10)]
+ (code:line "Generate more AdditionExpressions")
+ [AdditionExpression 20]
+ [MultiplicationExpression 15]
+ (code:line "Generate fewer SumExpressions")
+ [SumExpression 5])
+]
+}
+
+
+
+@defform[#:kind "spec-property" #:id depth-increase depth-increase]{
+This property defines the @rule[xsmith_ast-depth] non-inheriting att-rule.
+
+The property accepts an expression which much evaluate to a function of one argument (the @(racr) AST node) which returns a truthy value for nodes which increase the depth of the AST and #f otherwise.  The default is @racket[(λ (n) #t)].
+This property is NOT inherited by subclasses.
+
+This is useful to allow node re-use.  For example, the body of an @verb{if} or @verb{for} statement might be a block and have the same semantics, but you might want a block inside an @verb{if} to only be considered a depth increase of 1, not 2.
+
+Example:
+@racketblock[
+(define no-depth-if-body-is-block
+  (λ (n) (if (node-subtype? (ast-child 'body n) 'Block) 0 1)))
+(add-prop
+ my-spec-component
+ depth-increase
+ [IfStatement no-depth-if-body-is-block]
+ [ForStatement no-depth-if-body-is-block])
+]
+}
+
 @defform[#:kind "spec-property" #:id wont-over-deepen wont-over-deepen]{
 The default for this property is probably what you want, so probably just be sure to add this to the extra #:properties flag of @racket[assemble-part-specs].
 
@@ -701,7 +770,8 @@ The property accepts expressions which will evaluate to booleans (IE anything bu
 This property is used to mark nodes that define bindings.
 The property consists of a length-3 list.
 The first two are field names, one for the name of the field that stores the binding name, one for the name of the field that stores the binding type.
-The last field is either @verb{definition} or @verb{parameter}, reflecting whether the binding is a function parameter.  This is used by some Xsmith analyses about higher order values.
+The last field is either @verb{definition} or @verb{parameter}, reflecting whether the binding is a function parameter.
+This is used by some Xsmith analyses about higher order values.
 
 Example:
 @racketblock[
@@ -787,7 +857,8 @@ Example:
 (add-prop
  my-spec-component
  io
- [Print #t])
+ [Print #t]
+ [SetRecordField #t])
 ]
 }
 
@@ -843,59 +914,6 @@ Example:
 ]
 }
 
-@defform[#:kind "spec-property" #:id type-info type-info]{
-
-This property is used to specify the type system used by the generator.
-You should specify a type system even for dynamically typed languages so that programs don't just crash with dynamic type errors.
-
-Example:
-@racketblock[
-(define int (base-type 'int))
-(define float (base-type 'float))
-(define bool (base-type 'bool))
-(add-prop
- my-spec-component
- type-info
- [AdditionExpression [(fresh-type-variable int float)
-                      (λ (n t) (hash 'l t 'r t))]]
- [EqualityExpression [bool
-                      (λ (n t)
-                        (define arg-type (fresh-type-variable))
-                        (hash 'l arg-type 'r arg-type))]]
- [Lambda [(function-type (fresh-type-variable) (fresh-type-variable))
-          (λ (n t) (hash 'arg (function-type-arg-type t)
-                         'Expression (function-type-return-type t)))]])
-]
-
-The property is two armed.
-
-The first part is the type (or partially-constrained type variable) that the given node can inhabit.  The expression given is evaluated fresh every time a node is type checked or considered for generation.
-
-The second part is a function that takes a node, its type, and must return a dictionary mapping its children nodes to types.  The dictionary keys may be the node objects of the node's children OR the symbol of the field name the child inhabits.  For kleene-star children, use their node unless they all should receive the same type.
-}
-
-
-@defform[#:kind "spec-property" #:id choice-weight choice-weight]{
-This property determines the probability that different kinds of nodes will be chosen.  When choices have been filtered (based on @racket[choice-filters-to-apply]), one of the remaining choices is chosen at random with probability (choice-weight / sum-of-choice-weights).
-
-The expression provided as the choice weight will be evaluated in the context of a method call, so @racket[this] and @racket[current-hole] are available.
-
-Choice weights should be positive integer values.  The default weight is 10 unless set explicitly.
-
-Example:
-@racketblock[
-(add-prop
- my-spec-component
- choice-weight
- (code:line "The default choice weight.")
- [#f (λ () 10)]
- (code:line "Generate more AdditionExpressions")
- [AdditionExpression 20]
- [MultiplicationExpression 15]
- (code:line "Generate fewer SumExpressions")
- [SumExpression 5])
-]
-}
 
 @defform[#:kind "spec-property" #:id choice-filters-to-apply choice-filters-to-apply]{
 
