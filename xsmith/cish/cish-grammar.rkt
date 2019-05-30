@@ -296,12 +296,6 @@
                                           -1)))]
           )
 
-#;(add-prop cish-grammar
-          introduces-scope
-          [Program #t]
-          [FunctionDefinition #t]
-          [Block #t]
-          [ForStatement #t])
 (add-prop cish-grammar
           binder-info
           [Declaration (name type definition)]

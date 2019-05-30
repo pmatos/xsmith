@@ -40,6 +40,7 @@
 (require
  "grammar-macros.rkt"
  "core-properties.rkt"
+ (submod "core-properties.rkt" for-private)
  syntax/parse/define
  (for-syntax
   racket/base

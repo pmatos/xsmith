@@ -38,7 +38,6 @@
  child-node-name-dict
  wont-over-deepen
  type-info
- introduces-scope
  binder-info
  reference-info
  strict-child-order?
@@ -50,6 +49,9 @@
 
  make-lift-reference-choice-proc
  )
+
+(module+ for-private
+  (provide introduces-scope))
 
 (require
  "grammar-macros.rkt"
@@ -415,12 +417,12 @@ Helper function for _xsmith_scope-graph-child-scope-dict.
     (binding lift-name #f type 'definition)))
 
 #|
-TODO - This property now takes NO arguments and isn't even checked!
-       But it does a bunch of stuff by reading other properties...
-
 The introduces-scope property generates RACR attributes for resolving bindings via scope graphs.
 The scope-graph-descendant-bindings attribute returns a list of all bindings on descendant nodes that are not under a different scope.  In other words, you call it on a node that introduces a scope and it returns all bindings within that scope.  It does not return bindings in child scopes.
 The scope-graph-scope attribute returns the scope that the node in question resides in.  For nodes that introduce a scope, it is their own.
+
+Note that this property doesn't have arguments and isn't public so users can't even set a value for it.
+It just reads the values of several other properties and produces the results for them.
 |#
 (define-property introduces-scope
   #:reads
@@ -429,7 +431,6 @@ The scope-graph-scope attribute returns the scope that the node in question resi
   (property lift-predicate)
   (property binding-structure)
   #:appends
-  ;; TODO - I don't think introduces-scope? is used anywhere anymore...  should it be removed?
   (att-rule _xsmith_scope-graph-child-scope-dict)
   (att-rule _xsmith_scope-graph-scope)
   (att-rule _xsmith_lift-predicate)
