@@ -1535,7 +1535,7 @@
  [VariableDeclaration 20]
  ;; Don't choose variable reference often when I'm already in a max-depth lift.
  [VariableReference (if (>= (att-value 'xsmith_ast-depth current-hole)
-                            (xsmith-option 'max-depth))
+                            (xsmith-max-depth))
                         1
                         10)]
  )
@@ -1551,9 +1551,8 @@
  )
 
 (cm features-enabled
-    [Node (let ((disabled (xsmith-option 'features-disabled)))
-            (not (ormap (λ (f) (dict-ref disabled f #f))
-                        (send this features))))])
+    [Node (andmap xsmith-feature-enabled?
+                  (send this features))])
 
 (cm features
     [Node '()]

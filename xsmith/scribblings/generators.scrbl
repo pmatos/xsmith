@@ -32,6 +32,9 @@
 
 @(require
 "util.rkt"
+;; for cish features list
+"../cish/cish.rkt"
+racket/list
 )
 
 @title[#:tag "running-fuzzers"]{Xsmith's Bundled Generators (And How to Run Them)}
@@ -54,30 +57,14 @@ The command-line options available in Cish are:
 
 @(command-line-options-table)
 
-Cish supports the following features for the @verb{--with} and @verb{--without} flags:
+Cish supports the following features for the @verb{--with-<feature>} flags:
 
-@itemlist[
-  @item{
-    These features are enabled by default:
-    @itemlist[
-    @item{@verb{null-statement}}
-    @item{@verb{if-statement}}
-    @item{@verb{if-expression}}
-    @item{@verb{loop-statement}}
-    @item{@verb{float}}
-    @; Technically you can disable int, but then it can't make choices because main is hard-coded to be an int.
-    @; This really ought to be changed -- we should generate a sub-main function to be called by main, which can have any return type.  Then we should have "main" always be the same (accepting arguments, calculating a checksum, printing something...) but calling the sub-main function with appropriate arguments.
-    @;@item{@verb{int}}
-    ]
-  }
-  @item{
-    These features are disabled by default:
-    @itemlist[
-    @item{@verb{unsafe-math/range} -- Use a range analysis to convert safe math operations to bare unsafe math operations (when shown to be safe).}
-    @item{@verb{unsafe-math/symbolic} -- Use a symbolic analysis to convert safe math operations to bare unsafe math operations (when shown to be safe).}
-    ]
-  }
-]
+@(apply itemlist
+(map
+(λ (name default)
+@item{@tt{@(symbol->string name)} -- defaults to @(format "~a" default)})
+(map first cish-features-list)
+(map second cish-features-list)))
 
 To compile cish output, you need to include Csmith's runtime directory in your header path to get safe_math.h.
 
@@ -94,7 +81,7 @@ The command-line options available in Schemely are:
 
 @(command-line-options-table)
 
-Schemely currently has no features for the @verb{--with} or @verb{--without} flags.
+Schemely currently has no features for the @verb{--with-<feature>} flags.
 
 TODO - at the time of writing, Schemely really just supports Racket.  At some future point it should generate portable Scheme code.
 

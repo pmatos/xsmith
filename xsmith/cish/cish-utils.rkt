@@ -149,13 +149,11 @@ New types
 (define (bool-type? x) (can-unify? x bool))
 
 (define (type-thunks-for-concretization)
-  (let ([disabled (xsmith-option 'features-disabled)])
-    ;; TODO - look up available record types
-    (filter (λ(x)x)
-            (list (and (not (dict-ref disabled 'int #f)) (λ () int))
-                  (and (not (dict-ref disabled 'int #f)) (λ () bool))
-                  (and (not (dict-ref disabled 'float #f)) (λ () float))
-                  ))))
+  (filter (λ(x)x)
+          (list (and (xsmith-feature-enabled? 'int) (λ () int))
+                (and (xsmith-feature-enabled? 'int) (λ () bool))
+                (and (xsmith-feature-enabled? 'float) (λ () float))
+                )))
 (define (concrete-types) (map (λ(x)(x)) (type-thunks-for-concretization)))
 
 (define-generic-type return-type (type))

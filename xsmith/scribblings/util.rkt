@@ -62,10 +62,9 @@
             @item{@verb{--seed} -- Random seed for program generation.  Defaults to whatever Racket does to initialize randomness normally.}
             @item{@verb{--output-file <filename>} -- Outputs to <filename> instead of standard output when not used with @verb{--server}.}
             @item{@verb{--max-depth <n>} -- Maximum depth of the generated program tree.}
-            @item{@verb{--with <language-feature>} -- enables a fuzzer-dependent feature.  See the documentation specific to the fuzzer for a list of features.}
-            @item{@verb{--without <language-feature>} -- disables a fuzzer-dependent feature.}
             @item{@verb{--version} -- prints the version info of xsmith and exits.}
             @; TODO - the version option should be able to print the xsmith version AND the version of a fuzzer made using xsmith.  There should be an argument for giving a program version.
+            @item{@verb{--with-<feature> <bool>} -- enables or disables generator-specific features, where @verb{<feature>} is replaced with concrete feature names.}
             ])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

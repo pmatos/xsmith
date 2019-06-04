@@ -42,7 +42,6 @@
  "private/core-macros-and-properties.rkt"
  "private/scope-graph.rkt"
  "private/xsmith-command-line.rkt"
- "private/xsmith-options.rkt"
  "private/xsmith-utils.rkt"
  "private/xsmith-version.rkt"
  )

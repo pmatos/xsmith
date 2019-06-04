@@ -30,35 +30,121 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(provide xsmith-command-line)
+(require racket/contract)
+(provide
+ (contract-out
+  [xsmith-command-line (->* ((-> void?))
+                            (#:comment-wrap (-> (listof string?) string?)
+                             #:features (listof (list/c symbol? boolean?)))
+                            void?)]
+  )
+ xsmith-feature-enabled?
+ (rename-out
+  [get-current-xsmith-max-depth xsmith-max-depth]
+  ))
+
 
 (require
  racket/dict
+ racket/cmdline
  racket/string
  racket/exn
  racket/port
+ racket/list
+ raco/command-name
  "xsmith-utils.rkt"
  (submod "xsmith-utils.rkt" for-private)
- "xsmith-options.rkt"
  "xsmith-version.rkt"
  )
 
-(define options (xsmith-options-defaults))
+(define random-seed-max (expt 2 31))
+
+(define (xsmith-options-defaults)
+  (make-hasheq
+   (list (cons 'max-depth 5)
+         (cons 'random-seed (random random-seed-max)))))
+
+(define xsmith-options (make-parameter #f))
+(define (xsmith-option
+         key
+         [default (λ () (error 'xsmith-option "key not found: ~a" key))])
+  (when (not (dict? (xsmith-options)))
+    (error 'xsmith-options "xsmith options not parameterized."))
+  (dict-ref (xsmith-options) key default))
+
+(define current-xsmith-max-depth (make-parameter 5))
+(define (get-current-xsmith-max-depth)
+  (current-xsmith-max-depth))
+(define current-xsmith-features (make-parameter (hash)))
+
+(define (xsmith-feature-enabled? key)
+  (dict-ref (current-xsmith-features)
+            key
+            (λ () (error
+                   'xsmith-feature
+                   "Feature not in dictionary: ~a.  Did you set it in xsmith-command-line?"
+                   key))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require racket/cmdline)
 
 (define (xsmith-command-line generate-and-print-func
-                             #:comment-wrap [comment-func (λ (lines) "")])
-  (define features-disabled (dict-ref options 'features-disabled))
+                             #:comment-wrap [comment-func (λ (lines) "")]
+                             #:features [features-list '()])
+
+  (define true-strings  '("true"  "t" "#t" "yes" "y"))
+  (define false-strings '("false" "f" "#f" "no"  "n"))
+  (define (string->bool bool-string var-name)
+    (define s (string-downcase bool-string))
+    (cond [(member s true-strings) #t]
+          [(member s false-strings) #f]
+          [else (error
+                 'string->bool
+                 (string-append
+                  "While parsing argument for ~a,\n"
+                  "expected “true”, “t”, “#t”, “false”, “f”, or “#f”.\n"
+                  "Got ~a.\n")
+                 var-name
+                 bool-string)]))
+
+
+  (define features (for/hash ([x features-list])
+                     (values (first x) (second x))))
+  (define (set-feature! k v)
+    (set! features (dict-set features k v)))
   (define server-port 8080)
   (define listen-ip "127.0.0.1")
   (define given-seed #f)
   (define server? #f)
+  (define max-depth 5)
+  (define options (xsmith-options-defaults))
+
+  ;; Save the command-line options so that we can output them into the
+  ;; generated program.
+  (hash-set! options 'command-line (current-command-line-arguments))
+
+
+  (define features-command-line-segment
+    (if (null? features-list)
+        '()
+        `((help-labels "")
+          (help-labels "[[LANGUAGE-SPECIFIC FEATURES]]")
+          (help-labels "Default to #t unless otherwise specified.")
+          (once-each
+           ,@(map (λ (name default)
+                    `[(,(string-append "--with-" (symbol->string name)))
+                      ,(λ (flag v) (set-feature! name (string->bool v name)))
+                      ([,@(filter (λ(x)x)
+                                  (list
+                                   (format "Whether to enable ~a feature." name)
+                                   (and (not default)
+                                        (format "Defaults to ~a" default))))]
+                       "bool")])
+                  (map first features-list)
+                  (map second features-list))))))
 
   (parse-command-line
-   "TODO-name/path"
+   (short-program+command-name)
    (current-command-line-arguments)
    `((help-labels "[[GENERAL OPTIONS]]")
      (once-each
@@ -71,12 +157,7 @@
        ("Output generated program to <filename>" "filename")]
       [("--server")
        ,(λ (flag run-as-server?)
-          (cond
-            [(equal? run-as-server? "true") (set! server? #t)]
-            [(equal? run-as-server? "false") (set! server? #f)]
-            [else (error
-                   (format"Expected “true” or “false” for --server.  Got “~a”."
-                          run-as-server?))]))
+          (set! server? (string->bool run-as-server? 'run-as-server?)))
        ("Run as a web server instead of generating a single program."
         "run-as-server?")]
       [("--server-port")
@@ -84,33 +165,29 @@
        ("Use port n instead of 8080 (when running as server)." "n")]
 
       [("--server-ip")
-       ,(λ (flag ip) (set! listen-ip (if (equal? ip "false") #f ip)))
+       ,(λ (flag ip) (set! listen-ip (if (member (string-downcase ip)
+                                                 false-strings)
+                                         #f ip)))
        (["Make the server listen on given IP address."
          "Use `false` to listen on all IP addresses."
          "Defaults to 127.0.0.1"]
         "ip")]
       )
+     (help-labels "")
      (help-labels "[[LANGUAGE-GENERATION OPTIONS]]")
      (once-each
       [("--max-depth")
-       ,(λ (flag n) (dict-set! options 'max-depth (string->number n)))
-       ("Set maximum tree depth" "n")])
-     (multi
-      [("--with")
-       ,(λ (flag feature-name)
-          (dict-set! features-disabled (string->symbol feature-name) #f))
-       ("Enable language <feature-name>" "feature-name")]
-      [("--without")
-       ,(λ (flag feature-name)
-          (dict-set! features-disabled (string->symbol feature-name) #t))
-       ("Disable language <feature-name>" "feature-name")]
-      )
+       ,(λ (flag n) (set! max-depth (string->number n)))
+       ("Set maximum tree depth" "number")])
+     ,@features-command-line-segment
+
+     (help-labels "")
      (help-labels "[[INFORMATION OPTIONS]]")
      (once-each
       [("--version" "-v")
        ,(λ (flag)
-         (displayln xsmith-version-string)
-         (exit 0))
+          (displayln xsmith-version-string)
+          (exit 0))
        ("Show program version information and exit")])
      )
    ;; Finish-proc
@@ -122,17 +199,11 @@
    ;; unknown-proc
    )
 
-  ;; Save the command-line options so that we can output them into the
-  ;; generated program.
-  (dict-set! options 'command-line (current-command-line-arguments))
-
-  ;; Use an explicit random seed --- again, so that we can output it into the
-  ;; generated program.
-  (unless (dict-has-key? options 'random-seed)
-    (dict-set! options 'random-seed (random (expt 2 31))))
 
   (define (generate-and-print!)
-    (parameterize ([xsmith-options options]
+    (parameterize ([current-xsmith-max-depth max-depth]
+                   [current-xsmith-features features]
+                   [xsmith-options options]
                    [xsmith-state (make-generator-state)])
       (let ([seed (xsmith-option 'random-seed)])
         (random-seed seed)
@@ -170,7 +241,8 @@
               (printf "~a\n" program)))
         (dict-set! (xsmith-options)
                    'random-seed
-                   (add1 seed)))))
+                   (modulo (add1 seed)
+                           random-seed-max)))))
 
   (if server?
       (let ([serve/servlet (dynamic-require 'web-server/servlet-env 'serve/servlet)]

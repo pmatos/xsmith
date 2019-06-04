@@ -57,7 +57,7 @@
  "grammar-macros.rkt"
  "xsmith-utils.rkt"
  (submod "xsmith-utils.rkt" for-private)
- "xsmith-options.rkt"
+ "xsmith-command-line.rkt"
  "scope-graph.rkt"
  "types.rkt"
  "effects.rkt"
@@ -335,7 +335,7 @@ hole for the type.
         (values node
                 #`(λ ()
                     (let ([ok? (<= (att-value 'xsmith_ast-depth current-hole)
-                                   (xsmith-option 'max-depth))]
+                                   (xsmith-max-depth))]
                           [override-ok? #,(dict-ref
                                            this-prop-info
                                            node

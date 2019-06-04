@@ -1201,7 +1201,8 @@ Like @racket[printf], but it prints to a buffer that is output when an exception
 
 @defproc[(xsmith-command-line
 [generate-and-print-func (-> any/c)]
-[#:comment-wrap comment-wrap (-> (listof string?) string?)])
+[#:comment-wrap comment-wrap (-> (listof string?) string?)]
+[#:features features (listof (list/c symbol? boolean?))])
 any/c]{
 This function parses the current command-line arguments for xsmith fuzzers.  It is basically to be used in the main function of a fuzzer.
 Based on options supplied, it may print a help message and terminate the program, generate a single program, or start a web server to generate many programs.
@@ -1210,8 +1211,6 @@ Based on options supplied, it may print a help message and terminate the program
 
 @racket[comment-wrap] takes a list of strings which contain info about the generated program, such as the command line used to generate it and the random seed number.  It should return a string representing those lines commented out.  Such as the following, assuming the "#" character is the line-comment character in your language:
 
-@; TODO - There should also be a way to list what optional features are available for the language with a default value.  Then those features should be listed in the --help, and using the `xsmith-option` function should not need a default value (IE if no value is supplied it always has the default set).
-
 @racketblock[
 (λ (lines)
   (string-join
@@ -1219,23 +1218,21 @@ Based on options supplied, it may print a help message and terminate the program
    "\n"))]
 
 
+@racket[features] takes a list of two-element lists containing a feature name (as a symbol) and a default value (as a boolean).  Each feature will be included in the command-line options as @verb{--with-<feature-name>}.  The values of these features is available via @racket[xsmith-feature-enabled?].
+
+
 The command-line options given by @racket[xsmith-command-line] are:
 @(command-line-options-table)
 
 }
 
+@defproc[(xsmith-feature-enabled? [feature symbol?]) boolean?]{
+Returns the value set by the user via @racket[xsmith-command-line] for the given feature.
+The feature name must have been supplied to the #:features argument of @racket[xsmith-command-line], or an error will be raised.
+}
 
-@defproc[(xsmith-option [key any/c] [default any/c (λ () (error 'xsmith-option))])
-any/c]{
-Gets the current option for the key, as set by @racket[xsmith-command-line].
-If no value exists for the key, the @racket[default] is used, a la @racket[hash-ref].
-When the @racket[default] is a procedure, it is called with no arguments.
-If @racket[default] is not a procedure, it is returned.
-
-TODO - document keys available.
-@; TODO - this includes a `features-disabled` key that contains info about --with/--without options.  But really there should just be a function to query these features directly.  There are few other options, really...  Maybe there should just be a (max-depth) function available in the public API for what appears to be the only other key a user might query.
-@;Keys include @racket['max-depth] and features enabled/disabled with @verb{--with} and @verb{--without} command line arguments.
-
+@defproc[(xsmith-max-depth) number?]{
+Returns the maximum tree generation depth as set by the user via @racket[xsmith-command-line].
 }
 
 

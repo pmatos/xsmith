@@ -31,6 +31,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(provide cish-features-list)
+
 (require
  "../main.rkt"
  "cish-grammar.rkt"
@@ -96,18 +98,16 @@
                   (type-thunks-for-concretization)])
     (let* ([ast (cish-generate-ast 'Program)]
            [pre-analysis-print (printf "/*\n")]
-           [ast (if (hash-ref (xsmith-option 'features-disabled)
-                              'unsafe-math/range #t)
-                    ast
+           [ast (if (xsmith-feature-enabled? 'unsafe-math/range)
                     (begin
                       (printf "Starting range analysis...\n")
-                      (ast-add-unsafe-math/range ast)))]
-           [ast (if (hash-ref (xsmith-option 'features-disabled)
-                              'unsafe-math/symbolic #t)
-                    ast
+                      (ast-add-unsafe-math/range ast))
+                    ast)]
+           [ast (if (xsmith-feature-enabled? 'unsafe-math/symbolic)
                     (begin
                       (printf "Starting symbolic analysis...\n")
-                      (ast-add-unsafe-math/symbolic ast)))]
+                      (ast-add-unsafe-math/symbolic ast))
+                    ast)]
            [post-analysis-print (printf "*/\n")]
            )
       (begin
@@ -120,11 +120,33 @@
                                                empty-abstract-flow-control-return))))
       )))
 
+(define cish-features-list
+  '([int #t]
+    [float #t]
+
+    [addition #t]
+    [subtraction #t]
+    [multiplication #t]
+    [division #t]
+    [modulus #t]
+
+    [comparisons #t]
+
+    [if-expression #t]
+    [if-statement #t]
+    [loop-statement #t]
+    [null-statement #t]
+
+    [unsafe-math/range #f]
+    [unsafe-math/symbolic #f]
+    ))
+
 (module+ main
   (require "../main.rkt")
   (xsmith-command-line cish-generate-and-print
                        #:comment-wrap (λ (lines) (format "/*\n~a\n*/"
-                                                         (string-join lines "\n")))))
+                                                         (string-join lines "\n")))
+                       #:features cish-features-list))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
