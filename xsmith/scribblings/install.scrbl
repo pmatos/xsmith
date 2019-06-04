@@ -40,7 +40,6 @@ First, install Racket.  If your operating system's package manager doesn't have 
 
 Then run @verb{raco pkg install xsmith}.
 
-TODO - this won't work until xsmith is publicly available and listed on Racket's package repository.
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
