@@ -57,58 +57,69 @@
   (define given-seed #f)
   (define server? #f)
 
-  (command-line
-   #:help-labels
-   "[[GENERAL OPTIONS]]"
-   #:once-each
-   [("--seed" "-s")
-    seed
-    "Set the random seed"
-    (dict-set! options 'random-seed (string->number seed))]
-   [("--output-file" "-o")
-    filename
-    "Output generated program to <filename>"
-    (dict-set! options 'output-filename filename)]
-   [("--server") run-as-server?
-                 "Run as a web server instead of generating a single program."
-                 (cond
-                   [(equal? run-as-server? "true") (set! server? #t)]
-                   [(equal? run-as-server? "false") (set! server? #f)]
-                   [else (error
-                          (format"Expected “true” or “false” for --server.  Got “~a”."
-                                 run-as-server?))])]
-   [("--server-port") n "Use port n instead of 8080 (when running as server)."
-                      (set! server-port (string->number n))]
-   [("--server-ip")
-    ip
-    "Make the server listen on given IP address.  Use `false` to listen on all IP addresses.  Defaults to 127.0.0.1"
-    (set! listen-ip (if (equal? ip "false") #f ip))]
+  (parse-command-line
+   "TODO-name/path"
+   (current-command-line-arguments)
+   `((help-labels "[[GENERAL OPTIONS]]")
+     (once-each
+      [("--seed" "-s")
+       ,(λ (flag seed)
+          (dict-set! options 'random-seed (string->number seed)))
+       ("Set the random seed" "seed")]
+      [("--output-file" "-o")
+       ,(λ (flag filename) (dict-set! options 'output-filename filename))
+       ("Output generated program to <filename>" "filename")]
+      [("--server")
+       ,(λ (flag run-as-server?)
+          (cond
+            [(equal? run-as-server? "true") (set! server? #t)]
+            [(equal? run-as-server? "false") (set! server? #f)]
+            [else (error
+                   (format"Expected “true” or “false” for --server.  Got “~a”."
+                          run-as-server?))]))
+       ("Run as a web server instead of generating a single program."
+        "run-as-server?")]
+      [("--server-port")
+       ,(λ (flag n) (set! server-port (string->number n)))
+       ("Use port n instead of 8080 (when running as server)." "n")]
 
-   #:help-labels
-   "[[LANGUAGE-GENERATION OPTIONS]]"
-   #:once-each
-   ["--max-depth"
-    n
-    "Set maximum tree depth"
-    (dict-set! options 'max-depth (string->number n))]
-   #:multi
-   ["--with"
-    feature-name
-    "Enable language <feature-name>"
-    ;; Or, one could just remove the key from the dict...
-    (dict-set! features-disabled (string->symbol feature-name) #f)]
-   ["--without"
-    feature-name
-    "Disable language <feature-name>"
-    (dict-set! features-disabled (string->symbol feature-name) #t)]
-
-   #:help-labels
-   "[[INFORMATION OPTIONS]]"
-   #:once-each
-   [("--version" "-v")
-    "Show program version information and exit"
-    (displayln xsmith-version-string)
-    (exit 0)]
+      [("--server-ip")
+       ,(λ (flag ip) (set! listen-ip (if (equal? ip "false") #f ip)))
+       (["Make the server listen on given IP address."
+         "Use `false` to listen on all IP addresses."
+         "Defaults to 127.0.0.1"]
+        "ip")]
+      )
+     (help-labels "[[LANGUAGE-GENERATION OPTIONS]]")
+     (once-each
+      [("--max-depth")
+       ,(λ (flag n) (dict-set! options 'max-depth (string->number n)))
+       ("Set maximum tree depth" "n")])
+     (multi
+      [("--with")
+       ,(λ (flag feature-name)
+          (dict-set! features-disabled (string->symbol feature-name) #f))
+       ("Enable language <feature-name>" "feature-name")]
+      [("--without")
+       ,(λ (flag feature-name)
+          (dict-set! features-disabled (string->symbol feature-name) #t))
+       ("Disable language <feature-name>" "feature-name")]
+      )
+     (help-labels "[[INFORMATION OPTIONS]]")
+     (once-each
+      [("--version" "-v")
+       ,(λ (flag)
+         (displayln xsmith-version-string)
+         (exit 0))
+       ("Show program version information and exit")])
+     )
+   ;; Finish-proc
+   (λ (flag-accum)
+     (void))
+   ;; arg-help-strs
+   '()
+   ;; help-proc
+   ;; unknown-proc
    )
 
   ;; Save the command-line options so that we can output them into the
