@@ -83,7 +83,7 @@ The command-line options available in Schemely are:
 
 Schemely currently has no features for the @verb{--with-<feature>} flags.
 
-TODO - at the time of writing, Schemely really just supports Racket.  At some future point it should generate portable Scheme code.
+At the time of writing, Schemely really just supports Racket.  At some future point it should generate portable Scheme code.
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
