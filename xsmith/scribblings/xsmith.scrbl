@@ -47,6 +47,8 @@
 @include-section["generators.scrbl"]
 @include-section["acknowledgments.scrbl"]
 
+@include-section["code-and-license.scrbl"]
+
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 @; End of file.
