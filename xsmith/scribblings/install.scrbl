@@ -1,7 +1,7 @@
 #lang scribble/manual
 @; -*- mode: Scribble -*-
 @;
-@; Copyright (c) 2018-2019 The University of Utah
+@; Copyright (c) 2019 The University of Utah
 @; All rights reserved.
 @;
 @; This file is part of Xsmith, a generator of highly effective fuzz testers.
@@ -34,17 +34,13 @@
 "util.rkt"
 )
 
-@title{Xsmith}
-@defmodule[xsmith]
+@title{How to Install Xsmith}
 
-@author[(@author+email "William Hatch" "william@hatch.uno")
-        (@author+email "Eric Eide" "eeide@cs.utah.edu")]
+First, install Racket.  If your operating system's package manager doesn't have a package or you want a fresher version, @hyperlink["https://download.racket-lang.org/"]{download it}.
 
-@include-section["introduction.scrbl"]
-@include-section["install.scrbl"]
-@include-section["guide.scrbl"]
-@include-section["reference.scrbl"]
-@include-section["generators.scrbl"]
+Then run @verb{raco pkg install xsmith}.
+
+TODO - this won't work until xsmith is publicly available and listed on Racket's package repository.
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
