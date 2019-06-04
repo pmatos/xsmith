@@ -43,14 +43,6 @@ racket/file
 
 @title{Xsmith Guide}
 
-Xsmith is a library for creating fuzzers.
-
-It also comes bundled with some program generators created with the library.  If you just want to run them, see @secref["running-fuzzers"].
-
-Xsmith includes a DSL which defines a function which generates random ASTs for the language.
-The Xsmith DSL is used to specify a language's grammar, typing rules, and other information which guides generation choices.
-Xsmith also includes utilities for creating a command-line interface for generating a single program or starting a web server that generates one program per request.
-
 Xsmith uses @(racr), an attribute grammar library, in its implementation, and some knowledge of @(racr) is necessary when using Xsmith.
 
 To create a fuzzer with Xsmith, users create a specification by combining @italic{spec components}, defined with @racket[define-spec-component].

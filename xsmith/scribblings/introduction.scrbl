@@ -1,7 +1,7 @@
 #lang scribble/manual
 @; -*- mode: Scribble -*-
 @;
-@; Copyright (c) 2018-2019 The University of Utah
+@; Copyright (c) 2019 The University of Utah
 @; All rights reserved.
 @;
 @; This file is part of Xsmith, a generator of highly effective fuzz testers.
@@ -34,28 +34,17 @@
 "util.rkt"
 )
 
+@title{Introduction}
 
-@title{Xsmith}
-@defmodule[xsmith]
+Xsmith is a library for creating fuzz testers, also known as @italic{fuzzers},
+for programming language compilers and interpreters.  In other words, Xsmith is
+a library for creating @italic{random program generators}.
 
-@author[(@author+email "William Hatch" "william@hatch.uno")
-        (@author+email "Eric Eide" "eeide@cs.utah.edu")]
+It comes bundled with some program generators created with the library.  If you just want to run them, see @secref["running-fuzzers"].
 
-@include-section["introduction.scrbl"]
-
-@section{How to Install Xsmith}
-
-First, install Racket.  If your operating system's package manager doesn't have a package or you want a fresher version, @hyperlink["https://download.racket-lang.org/"]{download it}.
-
-Then run @verb{raco pkg install xsmith}.
-
-TODO - this won't work until xsmith is publicly available and listed on Racket's package repository.
-
-@include-section["guide.scrbl"]
-
-@include-section["reference.scrbl"]
-
-@include-section["generators.scrbl"]
+Xsmith implements a domain-specific language (DSL) for defining random program generators.
+The Xsmith DSL is used to specify a language's grammar, typing rules, and other information which guides generation choices.
+Xsmith also includes utilities for creating a command-line interface for generating a single program or starting a web server that generates one program per request.
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
