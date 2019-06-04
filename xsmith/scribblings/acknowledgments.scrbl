@@ -1,7 +1,7 @@
 #lang scribble/manual
 @; -*- mode: Scribble -*-
 @;
-@; Copyright (c) 2018-2019 The University of Utah
+@; Copyright (c) 2019 The University of Utah
 @; All rights reserved.
 @;
 @; This file is part of Xsmith, a generator of highly effective fuzz testers.
@@ -34,18 +34,14 @@
 "util.rkt"
 )
 
-@title{Xsmith}
-@defmodule[xsmith]
+@title{Acknowledgments}
 
-@author[(@author+email "William Hatch" "william@hatch.uno")
-        (@author+email "Eric Eide" "eeide@cs.utah.edu")]
-
-@include-section["introduction.scrbl"]
-@include-section["install.scrbl"]
-@include-section["guide.scrbl"]
-@include-section["reference.scrbl"]
-@include-section["generators.scrbl"]
-@include-section["acknowledgments.scrbl"]
+This material is based upon work supported by the National Science
+Foundation under Grant Number 1527638.
+@;
+Any opinions, findings, and conclusions or recommendations expressed in this
+material are those of the author(s) and do not necessarily reflect the views of
+the National Science Foundation.
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
