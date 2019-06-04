@@ -44,7 +44,7 @@ Choice object classes follow the same hierarchy as the grammar, so method inheri
 Properties allow users to specify various attributes and choice rules in a more declarative fashion.
 
 
-@section[#:tag "racr"]{RACR overview}
+@section[#:tag "racr"]{RACR Overview}
 
 RACR is a library for Reference Attribute Grammars.  Xsmith's DSL defines a RACR grammar specification as well as various attributes.  The attributes are queried to determine how to generate the AST.
 

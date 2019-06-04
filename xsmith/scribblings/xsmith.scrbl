@@ -38,7 +38,7 @@
 @title{Xsmith}
 @defmodule[xsmith]
 
-@section{How to install Xsmith}
+@section{How to Install Xsmith}
 
 First, install Racket.  If your operating system's package manager doesn't have a package or you want a fresher version, @hyperlink["https://download.racket-lang.org/"]{download it}.
 

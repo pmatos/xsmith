@@ -4,7 +4,7 @@
 "util.rkt"
 )
 
-@title[#:tag "running-fuzzers"]{Xsmith's bundled generators (and how to run them)}
+@title[#:tag "running-fuzzers"]{Xsmith's Bundled Generators (And How to Run Them)}
 
 When xsmith is installed as a Racket package, executables for the bundled generators are placed in your Racket package @verb{bin} directory.
 Usually this directory is @verb{$HOME/.racket/racket-<version>/bin} on Linux, maybe @verb{$HOME/Library/Racket/<version>/bin} on normal MacOS installs, and maybe @verb{/usr/local/bin} for MacOS Homebrew installs.
