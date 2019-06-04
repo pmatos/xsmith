@@ -172,6 +172,12 @@ New types
 
 (define-generic-type volatile-type (type))
 
+(define (type-qualifier-unwrap t)
+  (define rec type-qualifier-unwrap)
+  (cond [(volatile-type? t) (rec (volatile-type-type t))]
+        ;; TODO - add other types here...
+        [else t]))
+
 (define (fresh-concrete-var-type)
   (concretize-type (fresh-type-variable)))
 (define (fresh-concrete-function-type)

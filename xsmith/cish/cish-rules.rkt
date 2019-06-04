@@ -109,12 +109,14 @@
              (text "  main_ret = main_inner();")
              (apply v-append
                     (map (λ (v) (text (format "  printf(\"~a\\n\", ~a);\n"
-                                              (match (ast-child 'type v)
+                                              (match (type-qualifier-unwrap
+                                                      (ast-child 'type v))
                                                 [(? int-type?) "%d"]
                                                 [(? bool-type?) "%d"]
                                                 [(? float-type?) "%f"])
                                               (ast-child 'name v))))
-                         (filter (λ (x) (base-type? (ast-child 'type x)))
+                         (filter (λ (x) (base-type? (type-qualifier-unwrap
+                                                     (ast-child 'type x))))
                                  global-vars)))
              (text "  printf(\"%d\\n\", main_ret);")
              (text "  return 0;")
