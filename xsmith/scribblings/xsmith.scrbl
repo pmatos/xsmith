@@ -32,6 +32,7 @@
 
 @(require
 "util.rkt"
+"../private/xsmith-version.rkt"
 )
 
 @title{Xsmith}
@@ -39,6 +40,8 @@
 
 @author[(@author+email "William Hatch" "william@hatch.uno")
         (@author+email "Eric Eide" "eeide@cs.utah.edu")]
+
+Version @xsmith-version-string
 
 @include-section["introduction.scrbl"]
 @include-section["install.scrbl"]
