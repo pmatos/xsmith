@@ -38,6 +38,9 @@
 @title{Xsmith}
 @defmodule[xsmith]
 
+@author[(@author+email "William Hatch" "william@hatch.uno")
+        (@author+email "Eric Eide" "eeide@cs.utah.edu")]
+
 @section{How to Install Xsmith}
 
 First, install Racket.  If your operating system's package manager doesn't have a package or you want a fresher version, @hyperlink["https://download.racket-lang.org/"]{download it}.
