@@ -320,13 +320,6 @@ Adds property values to the spec-component.
 Since property transformers are macros that may accept arbitrary domain-specific syntax, the grammar of prop-value varies for each property.
 }
 
-@;@defform[(current-racr-spec)]{
-@;In code within the context of a spec component (eg. in the body of @racket[add-att-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[(current-racr-spec)] returns the @(racr) spec object for the grammar ultimately combined by @racket[assemble-spec-components].
-@;
-@;Elsewhere it raises a syntax error.
-@;
-@;TODO - this should probably be private (It's really only needed for the @racket[fresh] property)
-@;}
 
 @defform[(current-hole)]{
 Within the body of a choice-rule, @racket[(current-hole)] returns the hole node being considered for replacement.
