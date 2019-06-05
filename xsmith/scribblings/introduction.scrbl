@@ -46,6 +46,21 @@ Xsmith also includes utilities for creating a command-line interface for generat
 
 Xsmith is bundled with some random program generators that were created using the library.  If you just want to run them, you can jump ahead to @secref["running-fuzzers"].
 
+
+@bold{Reporting bugs.}
+@;
+Please send bug reports and fixes to
+@hyperlink["mailto:xsmith-bugs@flux.utah.edu"]{xsmith-bugs@"@"flux.utah.edu}.
+
+@bold{Getting help.}
+@;
+There is a mailing list,
+@hyperlink["mailto:xsmith-dev@flux.utah.edu"]{xsmith-dev@"@"flux.utah.edu}, for
+discussing Xsmith.  Visit
+@hyperlink["http://www.flux.utah.edu/mailman/listinfo/xsmith-dev"]{the
+xsmith-dev list management website} to subscribe.  To post messages to the
+list, you must first subscribe to the list.
+
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 @; End of file.
