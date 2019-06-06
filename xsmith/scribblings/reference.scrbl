@@ -1195,7 +1195,8 @@ Like @racket[printf], but it prints to a buffer that is output when an exception
 @defproc[(xsmith-command-line
 [generate-and-print-func (-> any/c)]
 [#:comment-wrap comment-wrap (-> (listof string?) string?)]
-[#:features features (listof (list/c symbol? boolean?))])
+[#:features features (listof (or/c (list/c symbol? boolean?)
+                                   (list/c symbol? boolean? string?)))])
 any/c]{
 This function parses the current command-line arguments for xsmith fuzzers.  It is basically to be used in the main function of a fuzzer.
 Based on options supplied, it may print a help message and terminate the program, generate a single program, or start a web server to generate many programs.
@@ -1211,7 +1212,10 @@ Based on options supplied, it may print a help message and terminate the program
    "\n"))]
 
 
-@racket[features] takes a list of two-element lists containing a feature name (as a symbol) and a default value (as a boolean).  Each feature will be included in the command-line options as @verb{--with-<feature-name>}.  The values of these features is available via @racket[xsmith-feature-enabled?].
+@racket[features] takes a list of lists containing a feature name (as a symbol) and a default value (as a boolean), and optionally a list of documentation strings.
+Each feature will be included in the command-line options as @verb{--with-<feature-name>}.
+Documentation strings will be displayed in the @verb{--help} text, one per line.
+The values of these features is available via @racket[xsmith-feature-enabled?].
 
 
 The command-line options given by @racket[xsmith-command-line] are:

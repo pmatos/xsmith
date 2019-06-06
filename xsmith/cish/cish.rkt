@@ -140,8 +140,12 @@
     [structs #t]
     [volatile #t]
 
-    [unsafe-math/range #f]
-    [unsafe-math/symbolic #f]
+    [unsafe-math/range
+     #f ("Replace “safe math” operations with raw C operators"
+         "where a range analysis proves they're safe.")]
+    [unsafe-math/symbolic
+     #f ("Replace “safe math” operations with raw C operators"
+         "where a symbolic interpretation proves they're safe.")]
     ))
 
 (module+ main

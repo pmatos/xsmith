@@ -33,10 +33,13 @@
 (require racket/contract)
 (provide
  (contract-out
-  [xsmith-command-line (->* ((-> void?))
-                            (#:comment-wrap (-> (listof string?) string?)
-                             #:features (listof (list/c symbol? boolean?)))
-                            void?)]
+  [xsmith-command-line
+   (->* ((-> void?))
+        (#:comment-wrap (-> (listof string?) string?)
+         #:features (listof
+                     (or/c (list/c symbol? boolean?)
+                           (list/c symbol? boolean? (listof string?)))))
+        void?)]
   )
  xsmith-feature-enabled?
  (rename-out
@@ -46,6 +49,7 @@
 
 (require
  racket/dict
+ racket/match
  racket/cmdline
  racket/string
  racket/exn
@@ -133,18 +137,21 @@
           (help-labels "[[LANGUAGE-SPECIFIC FEATURES]]")
           (help-labels "Default to true unless otherwise specified.")
           (once-each
-           ,@(map (λ (name default)
+           ,@(map (λ (spec)
+                    (define-values (name default docstrings)
+                      (match spec
+                        [(list n d (list doc ...)) (values n d doc)]
+                        [(list n d) (values n d '(""))]))
                     `[(,(string-append "--with-" (symbol->string name)))
                       ,(λ (flag v) (set-feature! name (string->bool v name)))
-                      ([,@(filter (λ(x)x)
-                                  (list
-                                   (format "Whether to enable ~a feature." name)
-                                   (and (not default)
-                                        (format "Defaults to ~a"
-                                                (bool->string default)))))]
+                      ([,@(append docstrings
+                                  (filter (λ(x)x)
+                                          (list
+                                           (and (not default)
+                                                (format "Defaults to ~a"
+                                                        (bool->string default))))))]
                        "bool")])
-                  (map first features-list)
-                  (map second features-list))))))
+                  features-list)))))
 
   (parse-command-line
    (short-program+command-name)
