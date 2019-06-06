@@ -601,7 +601,7 @@
                  'dead)
            ['dead (list 'dead 'dead)]
            [(list (list vals stores always-rets assert-sets) ...)
-            (define fv (fresh-symbolic-var (att-value 'type-context n)))
+            (define fv (fresh-symbolic-var (att-value 'xsmith_type n)))
             (define val-assert (apply rt:|| (map (λ (v) (rt:= fv v)) vals)))
             (list fv (apply set-union (list val-assert) assert-sets))]))])
 (ag
@@ -674,7 +674,7 @@
     (define init-store
       (for/fold ([store range-store-top])
                 ([global (filter (λ (cn) (node-subtype? cn 'VariableDeclaration))
-                                 (ast-children (ast-child 'declarations n)))])
+                                 (ast-children (ast-child 'globalvariables n)))])
         (match-let* ([(list v n-store n-rets)
                       (abstract-interp-wrap/range
                        global
@@ -845,6 +845,13 @@
             store
             flow-returns)))]
 
+ [VolatileVariableReference
+  (λ (n store flow-returns)
+    (list abstract-value/range/top store flow-returns))]
+ [StructReference
+  (λ (n store flow-returns)
+    (list abstract-value/range/top store flow-returns))]
+
  [AdditionExpression
   {abstract-binary-op/range addition-op/range}]
  [UnsafeAdditionExpression
@@ -956,7 +963,7 @@
   ;; The safety-clause should be true if undefined behavior would be tripped,
   ;; the result-clause should be the result of the unsafe operation.
   (λ (n store path-condition return-variable assertions)
-    (define type (att-value 'type-context n))
+    (define type (att-value 'xsmith_type n))
     (match-let* ([(list v-l s-l ar-l asserts-l)
                   (symbolic-interp-wrap
                    (ast-child 'l n)
@@ -977,7 +984,7 @@
                                        (rt:=> (rt:! (rt:= 0 v-r))
                                               (rt:= v-r fresh-r))
                                        #t)]
-                 [fv (fresh-symbolic-var (att-value 'type-context n))])
+                 [fv (fresh-symbolic-var (att-value 'xsmith_type n))])
       (cond [make-violation-condition
              (let* ([violation-condition (make-violation-condition v-l v-r)]
                     [safety-assertion (rt:&& (rt:=> violation-condition
@@ -1220,7 +1227,8 @@
  ;; analyzing for potential code transformations.
  [FunctionDefinition
   (λ (n store path-condition return-variable assertions)
-    (define ret-var (fresh-symbolic-var (car (reverse (ast-child 'type n)))))
+    (define ret-var (fresh-symbolic-var (function-type-return-type
+                                         (ast-child 'type n))))
     (symbolic-interp-wrap
      (ast-child 'Block n)
      symbolic-store-top
@@ -1318,7 +1326,7 @@
                                        (resolve-variable-reference-node fp)
                                        arg)))
 
-    (define ret-type (car (reverse (ast-child 'type def-node))))
+    (define ret-type (function-type-return-type (ast-child 'type def-node)))
     (define return-var-for-func (fresh-symbolic-var ret-type))
 
     (match (symbolic-interp-wrap func-block
@@ -1331,8 +1339,8 @@
  [IfExpression
   (λ (n store path-condition return-variable assertions)
     ({symbolic-if-interp #f
-                         (or (att-value 'type-context n)
-                             (att-value 'type-context
+                         (or (att-value 'xsmith_type n)
+                             (att-value 'xsmith_type
                                         (ast-child 'then n)))}
      n store path-condition return-variable assertions))]
  [VariableReference
