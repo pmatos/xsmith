@@ -123,13 +123,15 @@
   ;; generated program.
   (hash-set! options 'command-line (current-command-line-arguments))
 
+  (define (bool->string b)
+    (if b "true" "false"))
 
   (define features-command-line-segment
     (if (null? features-list)
         '()
         `((help-labels "")
           (help-labels "[[LANGUAGE-SPECIFIC FEATURES]]")
-          (help-labels "Default to #t unless otherwise specified.")
+          (help-labels "Default to true unless otherwise specified.")
           (once-each
            ,@(map (λ (name default)
                     `[(,(string-append "--with-" (symbol->string name)))
@@ -138,7 +140,8 @@
                                   (list
                                    (format "Whether to enable ~a feature." name)
                                    (and (not default)
-                                        (format "Defaults to ~a" default))))]
+                                        (format "Defaults to ~a"
+                                                (bool->string default)))))]
                        "bool")])
                   (map first features-list)
                   (map second features-list))))))
