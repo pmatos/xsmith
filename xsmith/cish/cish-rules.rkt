@@ -1574,6 +1574,12 @@
     [GreaterThanExpression '(comparisons)]
     [LessOrEqualExpression '(comparisons)]
     [GreaterOrEqualExpression '(comparisons)]
+    [VolatileVariableReference '(volatile)]
+    [VolatileInitializer '(volatile)]
+    [StructDefinition '(structs)]
+    [LiteralStruct '(structs)]
+    [StructReference '(structs)]
+    [StructSetField '(structs)]
     )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

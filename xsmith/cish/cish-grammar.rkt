@@ -53,7 +53,10 @@
  cish-grammar
  [Node #f ([precomment = empty-doc]
            [postcomment = empty-doc])]
- [Program Node ([structdefinitions : StructDefinition * = (random 3)]
+ [Program Node ([structdefinitions : StructDefinition * =
+                                   (if (xsmith-feature-enabled? 'structs)
+                                       (random 3)
+                                       0)]
                 [globalvariables : VariableDeclaration * = (random 5)]
                 [functions : FunctionDefinition * = (random 3)]
                 [main : FunctionDefinition])]

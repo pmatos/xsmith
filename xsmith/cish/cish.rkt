@@ -137,6 +137,9 @@
     [loop-statement #t]
     [null-statement #t]
 
+    [structs #t]
+    [volatile #t]
+
     [unsafe-math/range #f]
     [unsafe-math/symbolic #f]
     ))
