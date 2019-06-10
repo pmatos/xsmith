@@ -1,4 +1,4 @@
-#lang racket/base
+#lang racket
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -30,17 +30,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require (for-syntax racket/base
-                     racket/port
+(require (for-syntax racket/port
                      racket/string
                      racket/system))
-(require setup/getinfo)
+(require pkg/lib
+         setup/getinfo)
 (provide xsmith-version-string)
 
 (define xsmith-info (get-info (list "xsmith")))
 
 ;;
-;; Determine the short hash of the git commit reerenced by HEAD at the time
+;; Determine the short hash of the git commit referenced by HEAD at the time
 ;; this source file is compiled, i.e., "the current git commit."  Return this
 ;; as a string syntax object.
 ;;
@@ -58,20 +58,46 @@
              #'"unknown"))]))
 
 ;;
+;; Determine the short hash of the git commit referenced by HEAD in the package
+;; directory.  This is determined *dynamically*, not when this function is
+;; compiled.  Compare with `compile-time-git-commit-string` above.
+;;
+(define (package-git-commit-string)
+  (let [(package-directory (pkg-directory "xsmith"))]
+    (if package-directory
+        (let* [(rc #f)
+               (head-rev
+                (string-trim
+                 (parameterize [(current-directory package-directory)
+                                (current-error-port (open-output-nowhere))]
+                   (with-output-to-string
+                     (lambda ()
+                       (set! rc (system "git rev-parse --short HEAD")))))))]
+          (if rc
+              head-rev
+              #f))
+        #f)))
+
+;;
 ;; The short hash of the git commit corresponding to this version of Xsmith.
 ;;
-;; This is set by checking two sources.  First, look for the hash in file
-;; `info.rkt` (because `git archive` put it there).  Second, use the hash that
-;; was determined when this file was compiled.
+;; This is set by checking three sources.  First, look for the hash in file
+;; `info.rkt` (because `git archive` put it there).  Second, if the Xsmith
+;; package directory is a git sandbox, ask for the current git commit hash this
+;; that directory.  Third, use the hash that was determined when this file was
+;; compiled.
 ;;
 (define xsmith-git-commit-string
   (if xsmith-info
-      (let [(rev (xsmith-info 'git-commit))]
+      (let [(info-rev (xsmith-info 'git-commit))]
         ;; Was the git commit hash inserted into `info.rkt` by `git archive`?
         ;; If so, the first character of `rev` will not be #\$.
-        (if (not (char=? (string-ref rev 0) #\$))
-            rev
-            (compile-time-git-commit-string)))
+        (if (not (char=? (string-ref info-rev 0) #\$))
+            info-rev
+            (let ((package-rev (package-git-commit-string)))
+              (if package-rev
+                  package-rev
+                  (compile-time-git-commit-string)))))
       "unknown"))
 
 ;;
