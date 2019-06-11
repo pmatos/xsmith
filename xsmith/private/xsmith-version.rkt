@@ -1,4 +1,4 @@
-#lang racket
+#lang racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -29,13 +29,20 @@
 ;; POSSIBILITY OF SUCH DAMAGE.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(require (for-syntax racket/port
-                     racket/string
-                     racket/system))
-(require pkg/lib
-         setup/getinfo)
 (provide xsmith-version-string)
+
+(require
+ racket/string
+ racket/port
+ racket/system
+ pkg/lib
+ setup/getinfo
+ (for-syntax
+  racket/base
+  racket/port
+  racket/string
+  racket/system
+  ))
 
 (define xsmith-info (get-info (list "xsmith")))
 
