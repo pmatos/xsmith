@@ -38,7 +38,8 @@
         (#:comment-wrap (-> (listof string?) string?)
          #:features (listof
                      (or/c (list/c symbol? boolean?)
-                           (list/c symbol? boolean? (listof string?)))))
+                           (list/c symbol? boolean? (listof string?))))
+         #:default-max-depth number?)
         void?)]
   )
  xsmith-feature-enabled?
@@ -65,8 +66,7 @@
 
 (define (xsmith-options-defaults)
   (make-hasheq
-   (list (cons 'max-depth 5)
-         (cons 'random-seed (random random-seed-max)))))
+   (list (cons 'random-seed (random random-seed-max)))))
 
 (define xsmith-options (make-parameter #f))
 (define (xsmith-option
@@ -76,7 +76,7 @@
     (error 'xsmith-options "xsmith options not parameterized."))
   (dict-ref (xsmith-options) key default))
 
-(define current-xsmith-max-depth (make-parameter 5))
+(define current-xsmith-max-depth (make-parameter #f))
 (define (get-current-xsmith-max-depth)
   (current-xsmith-max-depth))
 (define current-xsmith-features (make-parameter (hash)))
@@ -94,7 +94,8 @@
 
 (define (xsmith-command-line generate-and-print-func
                              #:comment-wrap [comment-func (λ (lines) "")]
-                             #:features [features-list '()])
+                             #:features [features-list '()]
+                             #:default-max-depth [default-max-depth 5])
 
   (define true-strings  '("true"  "t" "#t" "yes" "y"))
   (define false-strings '("false" "f" "#f" "no"  "n"))
@@ -120,7 +121,7 @@
   (define listen-ip "127.0.0.1")
   (define given-seed #f)
   (define server? #f)
-  (define max-depth 5)
+  (define max-depth default-max-depth)
   (define options (xsmith-options-defaults))
 
   ;; Save the command-line options so that we can output them into the
@@ -188,7 +189,8 @@
      (once-each
       [("--max-depth")
        ,(λ (flag n) (set! max-depth (string->number n)))
-       ("Set maximum tree depth" "number")])
+       (,(format "Set maximum tree depth (default ~a)" default-max-depth)
+        "number")])
      ,@features-command-line-segment
 
      (help-labels "")

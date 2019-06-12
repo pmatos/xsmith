@@ -1202,7 +1202,8 @@ Like @racket[printf], but it prints to a buffer that is output when an exception
 [generate-and-print-func (-> any/c)]
 [#:comment-wrap comment-wrap (-> (listof string?) string?)]
 [#:features features (listof (or/c (list/c symbol? boolean?)
-                                   (list/c symbol? boolean? string?)))])
+                                   (list/c symbol? boolean? string?)))]
+[#:default-max-depth default-max-depth number?])
 any/c]{
 This function parses the current command-line arguments for xsmith fuzzers.  It is basically to be used in the main function of a fuzzer.
 Based on options supplied, it may print a help message and terminate the program, generate a single program, or start a web server to generate many programs.
