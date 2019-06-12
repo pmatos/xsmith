@@ -397,11 +397,13 @@ New types
                           (list v store #f assertions))))
 
 (define (fresh-symbolic-var type)
-  (define type-pred (cond [(int-type? type) rt:integer?]
-                          [(float-type? type) rt:real?]
-                          [(bool-type? type) rt:boolean?]
-                          [(member type (list rt:boolean? rt:real? rt:integer?)) type]
-                          [else (error 'fresh-symbolic-var "can't handle type: ~a" type)]))
+  (define t (type-qualifier-unwrap (concretize-type type)))
+  (define type-pred (cond [(int-type? t) rt:integer?]
+                          [(float-type? t) rt:real?]
+                          [(bool-type? t) rt:boolean?]
+                          [(member t (list rt:boolean? rt:real? rt:integer?)) t]
+                          [else (error 'fresh-symbolic-var
+                                       "can't handle type: ~a" t)]))
   (rt:define-symbolic* var type-pred)
   var)
 (define symbolic-store-top (hash))

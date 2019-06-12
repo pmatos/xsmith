@@ -1213,8 +1213,7 @@
     (define-values (init-store init-asserts)
       (for/fold ([store store]
                  [assertions assertions])
-                ([global (filter (λ (cn) (node-subtype? cn 'VariableDeclaration))
-                                 (ast-children (ast-child 'declarations n)))])
+                ([global (ast-children (ast-child 'globalvariables n))])
         (match-let* ([(list v n-store n-rets n-asserts)
                       (symbolic-interp-wrap
                        global
