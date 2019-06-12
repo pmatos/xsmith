@@ -588,10 +588,14 @@
     (resolve-reference
      (reference name (att-value '_xsmith_scope-graph-scope node)))))
 (define xsmith_binding-function
-  (λ (node)
+  (λ (node [require-binder-or-reference #t])
     (if (att-value '_xsmith_is-reference-node? node)
         (att-value '_xsmith_resolve-reference node)
-        (att-value 'xsmith_definition-binding node))))
+        (or (att-value 'xsmith_definition-binding node)
+            (and require-binder-or-reference
+                 (error 'xsmith_binding
+                        "Not a binder or a reference: ~a"
+                        (node-type node)))))))
 (define _xsmith_visible-bindings-function
   (λ (n)
     (visible-bindings (att-value '_xsmith_scope-graph-scope n))))
@@ -868,6 +872,34 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
 
    (with-syntax* ([base-node-name (format-id #'spec "XsmithBaseNode~a" #'spec)]
                   [base-node-choice (node->choice #'base-node-name)]
+                  [(att-rule-name/with-false ...)
+                   (remove-duplicates
+                    (syntax->datum #'(ag-clause.prop-name ...)))]
+                  ;; Generate some default ag-clauses for the base node where they
+                  ;; weren't given.
+                  [(fresh-ag-clause-for-base ...)
+                   (filter
+                    (λ(x)x)
+                    (map (λ (rule-name)
+                           (define existing-base-rule-list
+                             (filter (syntax-parser
+                                       [rule:prop-clause
+                                        (and (equal? (syntax->datum #'rule.prop-name)
+                                                     (syntax->datum rule-name))
+                                             (not (syntax->datum #'rule.node-name)))])
+                                     (syntax->list #'(ag-clause ...))))
+                           (if (null? existing-base-rule-list)
+                               #`(#,rule-name #f
+                                  (λ (n . args)
+                                    (error
+                                     '#,rule-name
+                                     "no default implementation (called on ~a node)"
+                                     (node-type n))))
+                               #f))
+                         (syntax->list #'(att-rule-name/with-false ...))))]
+                  ;; Add the fresh ag-clauses to the original ones.
+                  [(ag-clause ...) #`(#,@#'(ag-clause ...)
+                                      #,@#'(fresh-ag-clause-for-base ...))]
                   ;; Replace the ag-clauses with versions where
                   ;; #f node names are replaced with base-node-name
                   [(ag-clause ...)

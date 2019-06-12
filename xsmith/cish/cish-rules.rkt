@@ -848,6 +848,10 @@
  [VolatileVariableReference
   (λ (n store flow-returns)
     (list abstract-value/range/top store flow-returns))]
+ [VolatileInitializer
+  (λ (n store flow-returns)
+    (list abstract-value/range/top store flow-returns))]
+
  [StructReference
   (λ (n store flow-returns)
     (list abstract-value/range/top store flow-returns))]

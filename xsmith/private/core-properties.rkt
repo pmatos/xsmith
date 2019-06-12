@@ -343,7 +343,9 @@ hole for the type.
                                                      node))]
                           [ref-in-lift? (and (att-value '_xsmith_in-lift-branch
                                                         current-hole)
-                                             (send this _xsmith_is-reference-choice?))])
+                                             (send
+                                              this
+                                              _xsmith_is-read-reference-choice?))])
                       ;; TODO - I should prevent circles of lifting where a lift
                       ;; variable is defined as another variable reference that
                       ;; gets lifted, etc.
@@ -650,13 +652,14 @@ It just reads the values of several other properties and produces the results fo
 (define-property reference-info
   #:reads (grammar)
   #:appends
-  (choice-rule _xsmith_is-reference-choice?)
+  (choice-rule _xsmith_is-read-reference-choice?)
+  (att-rule _xsmith_is-read-reference-node?)
   (att-rule _xsmith_is-reference-node?)
   (att-rule _xsmith_resolve-reference)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
-    (define _xsmith_is-reference-info
+    (define _xsmith_is-read-reference-info
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref this-prop-info
@@ -664,9 +667,20 @@ It just reads the values of several other properties and produces the results fo
                                         #'#f)
                   [((~datum read) field-name:id) #''field-name]
                   [else #'#f]))))
-    (define _xsmith_is-reference-choice?-info
+    (define _xsmith_is-reference-info
       (for/hash ([node nodes])
-        (values node #`(λ () #,(dict-ref _xsmith_is-reference-info node)))))
+        (values node
+                (syntax-parse (dict-ref this-prop-info
+                                        node
+                                        #'#f)
+                  [((~or (~datum write) (~datum read)) field-name:id) #''field-name]
+                  [else #'#f]))))
+    (define _xsmith_is-read-reference-choice?-info
+      (for/hash ([node nodes])
+        (values node #`(λ () #,(dict-ref _xsmith_is-read-reference-info node)))))
+    (define _xsmith_is-read-reference-node?-info
+      (for/hash ([node nodes])
+        (values node #`(λ (n) #,(dict-ref _xsmith_is-read-reference-info node)))))
     (define _xsmith_is-reference-node?-info
       (for/hash ([node nodes])
         (values node #`(λ (n) #,(dict-ref _xsmith_is-reference-info node)))))
@@ -680,8 +694,8 @@ It just reads the values of several other properties and produces the results fo
                                              (node-type n)))
                     (att-value '_xsmith_resolve-reference-name
                                n (ast-child field n))))))
-    (list _xsmith_is-reference-choice?-info
-          _xsmith_is-reference-node?-info
+    (list _xsmith_is-read-reference-choice?-info
+          _xsmith_is-read-reference-node?-info
           _xsmith_resolve-reference)))
 
 ;; TODO - this is not a great design, but I need the user to specify
@@ -1170,7 +1184,7 @@ The second arm is a function that takes the type that the node has been assigned
 
                      ;; If the node is a reference, the definition site
                      ;; may have nodes that will affect the type.
-                     (when (att-value '_xsmith_is-reference-node? n)
+                     (when (att-value '_xsmith_is-read-reference-node? n)
                        (let ([binding-node (binding-ast-node
                                             (att-value
                                              '_xsmith_resolve-reference n))])

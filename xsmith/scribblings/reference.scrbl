@@ -93,14 +93,17 @@ It is mostly useful if you just want to know if there is any descendant matching
 
 
 @item{@racket['xsmith_binding]
-Accepts the node to call it on and no other arguments.
+Accepts the node to call it on and optionally a boolean @verb{require-binder-or-reference} flag (defaults to @racket[#t]).
 If the given node is a reference, as determined by the @racket[reference-info] property, then the reference is resolved and a @racket[binding] object is returned.
 If the given node is a binder, as determined by the @racket[binder-info] property, then its @racket[binding] object is returned.
-For any other node, @racket[#f] is returned.
+For any other node, @racket[#f] is returned when @verb{require-binder-or-reference} is false, otherwise an error is raised.
 
 Example:
 @racketblock[
+(code:comment "This raises an exception if `n` is not a binder or reference.")
 (att-value 'xsmith_binding n)
+(code:comment "If `n` is not a binder or a reference, return #f.")
+(att-value 'xsmith_binding n #f)
 ]
 
 The main use of this is to do analyses where you need to look up the declaration node that a reference refers to.
