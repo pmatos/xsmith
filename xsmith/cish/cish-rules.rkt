@@ -1439,7 +1439,9 @@
  find-direct-resolved
  [Node (λ (n node-type)
          (remove-duplicates
-          (map (λ (x) (att-value 'xsmith_binding x))
+          (map (λ (x) (cond [(node-subtype? x 'FunctionApplicationExpression)
+                             (att-value 'xsmith_binding (ast-child 'function x))]
+                            [else (att-value 'xsmith_binding x)]))
                (att-value 'xsmith_find-descendants
                           n (λ (cn) (node-subtype? cn node-type))))))])
 (ag
