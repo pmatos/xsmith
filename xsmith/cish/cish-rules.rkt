@@ -852,9 +852,27 @@
   (λ (n store flow-returns)
     (list abstract-value/range/top store flow-returns))]
 
+ ;; Structs -- struct values themselves are treated as top.
  [StructReference
   (λ (n store flow-returns)
     (list abstract-value/range/top store flow-returns))]
+ [LiteralStruct
+  (λ (n store flow-returns)
+    (define-values (new-store new-flow-returns)
+      (for/fold ([s store]
+                 [r flow-returns])
+                ([e (ast-children (ast-child 'vals n))])
+        (match-let* ([(list v n-store n-rets)
+                      (abstract-interp-wrap/range e s r)])
+          (values n-store n-rets))))
+    (list abstract-value/range/top new-store new-flow-returns))]
+ [StructSetField
+  (λ (n store flow-returns)
+    (match-let ([(list u-val u-sto u-ret) (abstract-interp-wrap/range
+                                           (ast-child 'updateval n)
+                                           store
+                                           flow-returns)])
+      (list u-val u-sto u-ret)))]
 
  [AdditionExpression
   {abstract-binary-op/range addition-op/range}]
