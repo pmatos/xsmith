@@ -591,7 +591,7 @@ It just reads the values of several other properties and produces the results fo
              #`(λ (n)
                  (define children (filter ast-node? (ast-children/flat n)))
                  (define children-bindings
-                   (map (λ (c) (att-value '_xsmith_scope-graph-binding c))
+                   (map (λ (c) (att-value 'xsmith_definition-binding c))
                         children))
                  (define cb-pairs (map cons children children-bindings))
                  (define parent-scope
@@ -618,11 +618,11 @@ It just reads the values of several other properties and produces the results fo
 
 (define-property binder-info
   #:reads (grammar)
-  #:appends (att-rule _xsmith_scope-graph-binding)
+  #:appends (att-rule xsmith_definition-binding)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
-    (define scope-graph-binding-info
+    (define xsmith_definition-binding-info
       (for/fold ([rule-info (hash #f #'(λ (n) #f))])
                 ([node nodes])
         (syntax-parse (dict-ref this-prop-info node #'#f)
@@ -642,7 +642,7 @@ It just reads the values of several other properties and produces the results fo
                                 n
                                 (ast-child 'type-field-name n)
                                 'def-or-param)))))])))
-    (list scope-graph-binding-info)))
+    (list xsmith_definition-binding-info)))
 
 ;; This property should be a list containing:
 ;; the identifier `read` or the identifier `write`,
@@ -652,7 +652,7 @@ It just reads the values of several other properties and produces the results fo
   #:appends
   (choice-rule _xsmith_is-reference-choice?)
   (att-rule _xsmith_is-reference-node?)
-  (att-rule _xsmith_resolve-reference)
+  (att-rule xsmith_resolve-reference)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -670,18 +670,19 @@ It just reads the values of several other properties and produces the results fo
     (define _xsmith_is-reference-node?-info
       (for/hash ([node nodes])
         (values node #`(λ (n) #,(dict-ref _xsmith_is-reference-info node)))))
-    (define _xsmith_resolve-reference
+    (define xsmith_resolve-reference
       (for/hash ([node nodes])
         (values node
                 #`(λ (n)
                     (define field #,(dict-ref _xsmith_is-reference-info node))
-                    (when (not field) (error '_xsmith_resolve-reference
-                                             "not a reference node"))
+                    (when (not field) (error 'xsmith_resolve-reference
+                                             "not a reference node: ~a"
+                                             (node-type n)))
                     (att-value 'xsmith_resolve-reference-name
                                n (ast-child field n))))))
     (list _xsmith_is-reference-choice?-info
           _xsmith_is-reference-node?-info
-          _xsmith_resolve-reference)))
+          xsmith_resolve-reference)))
 
 ;; TODO - this is not a great design, but I need the user to specify
 ;; one function for this and make it available to the xsmith machinery.
@@ -1163,7 +1164,7 @@ The second arm is a function that takes the type that the node has been assigned
 
                      ;; If the node is a binder, mark it so we don't look at it
                      ;; repeatedly when we hit references to it.
-                     (when (att-value '_xsmith_scope-graph-binding n)
+                     (when (att-value 'xsmith_definition-binding n)
                        (set! binding-nodes-finished
                              (cons n binding-nodes-finished)))
 
@@ -1172,7 +1173,7 @@ The second arm is a function that takes the type that the node has been assigned
                      (when (att-value '_xsmith_is-reference-node? n)
                        (let ([binding-node (binding-ast-node
                                             (att-value
-                                             '_xsmith_resolve-reference n))])
+                                             'xsmith_resolve-reference n))])
                          (when (not (memq binding-node binding-nodes-started))
                            (set! binding-nodes-started
                                  (cons binding-node binding-nodes-started))

@@ -61,6 +61,7 @@
 
 
 (define ({ast-add-unsafe-math refinement-func} ast)
+  (eprintf "in ast-add-unsafe-math\n")
   (define ops (att-value 'xsmith_find-descendants ast
                          (λ (n) (member (ast-node-type n)
                                         '(AdditionExpression
@@ -71,6 +72,7 @@
                                           )))))
   (define (transformer n)
     ;; Perform any rewrites and return #t if a rewrite was performed else #f
+    (eprintf "in ast-add-unsafe-math transformer with ~a\n" (node-type n))
     (if (member (node-type n)
                 '(AdditionExpression
                   SubtractionExpression
@@ -79,6 +81,7 @@
                   ModulusExpression
                   ))
         (let ([refined-type (refinement-func n)])
+          (eprintf "after refinement-func\n")
           (and refined-type
                (begin
                  (rewrite-refine n refined-type)

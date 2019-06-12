@@ -346,14 +346,21 @@ New types
     (let* ([result
             (if (member (ast-node-type n) '(FunctionApplicationExpression
                                             FunctionDefinition))
-                (let ([name (ast-child 'name n)])
+                (let* ([ref-node (if (eq? (ast-node-type n)
+                                          'FunctionDefinition)
+                                     n
+                                     (ast-child 'function n))]
+                       [name (ast-child 'name ref-node)])
+                  (eprintf "anchor left 1\n")
                   (if (member name (current-abstract-interp-call-stack))
                       (let* ([assignments
-                              (att-value 'find-transitive-assignments
-                                         (if (node-subtype? n 'FunctionDefinition)
-                                             n
-                                             (let ([ref (resolve-variable-reference-node n)])
-                                               (binding-ast-node ref))))]
+                              (att-value
+                               'find-transitive-assignments
+                               (if (node-subtype? n 'FunctionDefinition)
+                                   n
+                                   (let ([ref (att-value 'xsmith_resolve-reference
+                                                         ref-node)])
+                                     (binding-ast-node ref))))]
                              [new-store (for/fold ([store store])
                                                   ([a assignments])
                                           (store-member-to-top-func store a))])
@@ -363,6 +370,7 @@ New types
                         (apply do-function n store rest))))
                 (apply do-function n store rest))]
            [result-hash (get-result-hash-func n)])
+      (eprintf "anchor 2\n")
       (hash-set! result-hash n (cons result (hash-ref result-hash n '())))
       result)))
 
@@ -386,7 +394,7 @@ New types
                           (att-value 'symbolic-interp-result-hash n))
                         (λ (n store path-condition return-variable assertions)
                           (define node-type
-                            (binding-type (resolve-variable-reference-node n)))
+                            (binding-type (att-value 'xsmith_resolve-reference n)))
                           (define ret-type (first (reverse node-type)))
                           (define v (fresh-symbolic-var ret-type))
                           (list v store #f assertions))))
@@ -408,8 +416,6 @@ New types
         (λ () e ...)
         list)]))
 
-(define (resolve-variable-reference-node n)
-  (att-value 'xsmith_resolve-reference-name n (ast-child 'name n)))
 
 
 

@@ -90,21 +90,32 @@ Like @racket['xsmith_find-descendants], but it only returns one.
 If no descendant matching the predicate is found, it returns @racket[#f].
 It is mostly useful if you just want to know if there is any descendant matching a type, such as to determine whether to do an analysis based on the presence or absence of some feature.
 }
-@item{@racket['xsmith_resolve-reference-name]
+@item{@racket['xsmith_definition-binding]
+Accepts the node to call it on and no other arguments.
+The given node must be a binder, as determined by the @racket[binder-info] property.
+Returns the @racket[binding] object for the definition using the name field indicated by @racket[binder-info].
 
-Accepts the node to call it on and a name (as a @racket[string?]) to resolve.
-Returns the @racket[binding] object for the name at the given node.
+Example:
+@racketblock[
+(att-value 'xsmith_definition-binding n)
+]
+}
+@item{@racket['xsmith_resolve-reference]
+Accepts the node to call it on and no other arguments.
+The given node must be a reference, as determined by the @racket[reference-info] property.
+Returns the @racket[binding] object for the reference using the name field indicated by @racket[reference-info].
 The lookup is done using the @seclink["scope-graph"]{scope graph model}.
 If the name is not bound, an exception is raised.
 
 Example:
 @racketblock[
-(att-value 'xsmith_resolve-reference-name n (ast-child 'name n))
+(att-value 'xsmith_resolve-reference n)
 ]
 
 The main use of this is to do analyses where you need to look up the declaration node that a reference refers to.
 The @racket[binding] object returned by this function contains a reference to that node.
 }
+
 @item{@racket['xsmith_ast-depth]
 
 Accepts the node it is called on, and no other arguments.
