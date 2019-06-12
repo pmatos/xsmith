@@ -503,9 +503,7 @@ Type definitions are in cish-utils.rkt
          (hash 'structdefref (nominal-record-definition-type t))
          (let* ([vals (ast-children (ast-child 'vals n))]
                 [struct-ref (ast-child 'structdefref n)]
-                [struct-name-bind (att-value 'xsmith_resolve-reference-name
-                                             struct-ref
-                                             (ast-child 'name struct-ref))]
+                [struct-name-bind (att-value 'xsmith_binding struct-ref)]
                 [inners (nominal-record-type-inners
                          (nominal-record-definition-type-type
                           (binding-type struct-name-bind)))])

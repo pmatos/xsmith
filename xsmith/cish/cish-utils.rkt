@@ -358,8 +358,7 @@ New types
                                'find-transitive-assignments
                                (if (node-subtype? n 'FunctionDefinition)
                                    n
-                                   (let ([ref (att-value 'xsmith_resolve-reference
-                                                         ref-node)])
+                                   (let ([ref (att-value 'xsmith_binding ref-node)])
                                      (binding-ast-node ref))))]
                              [new-store (for/fold ([store store])
                                                   ([a assignments])
@@ -394,7 +393,7 @@ New types
                           (att-value 'symbolic-interp-result-hash n))
                         (λ (n store path-condition return-variable assertions)
                           (define node-type
-                            (binding-type (att-value 'xsmith_resolve-reference n)))
+                            (binding-type (att-value 'xsmith_binding n)))
                           (define ret-type (first (reverse node-type)))
                           (define v (fresh-symbolic-var ret-type))
                           (list v store #f assertions))))

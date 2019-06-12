@@ -688,7 +688,7 @@
      empty-abstract-flow-control-return))]
  [VariableDeclaration
   (λ (n store flow-returns)
-    (match-let* ([ref (att-value 'xsmith_definition-binding n)]
+    (match-let* ([ref (att-value 'xsmith_binding n)]
                  [(list v n-store n-rets)
                   (abstract-interp-wrap/range
                    (ast-child 'Expression n)
@@ -801,8 +801,7 @@
  ;; Function applications will be evaluated with the arguments given.
  [FunctionApplicationExpression
   (λ (n store flow-returns)
-    (match-let* ([binding (att-value 'xsmith_resolve-reference
-                                     (ast-child 'function n))]
+    (match-let* ([binding (att-value 'xsmith_binding (ast-child 'function n))]
                  [func-def-node (binding-ast-node binding)]
                  [func-block (ast-child 'Block func-def-node)]
                  [func-params (ast-children (ast-child 'params func-def-node))]
@@ -834,11 +833,11 @@
                   (ast-child 'Expression n)
                   store
                   flow-returns)]
-                [ref-node (att-value 'xsmith_resolve-reference n)])
+                [ref-node (att-value 'xsmith_binding n)])
       (list val (dict-set new-store ref-node val) new-rets)))]
  [VariableReference
   (λ (n store flow-returns)
-    (let ([ref-node (att-value 'xsmith_resolve-reference n)])
+    (let ([ref-node (att-value 'xsmith_binding n)])
       ;; TODO -- I'm using an empty hash to represent an unknown state of the store,
       ;; or at least an unknown state for a variable.  But once there are more than
       ;; ints and floats I'll need to look at the type of the reference to know what
@@ -1244,7 +1243,7 @@
     (let* ([name (ast-child 'name n)]
            [type (ast-child 'type n)]
            [sym-var (fresh-symbolic-var type)]
-           [ref (att-value 'xsmith_definition-binding n)])
+           [ref (att-value 'xsmith_binding n)])
       (match-define (list v n-store always-rets n-asserts)
         (symbolic-interp-wrap (ast-child 'Expression n)
                               store path-condition return-variable assertions))
@@ -1310,7 +1309,7 @@
   (λ (n store path-condition return-variable assertions)
     ;; TODO - this is almost the same as the one for abstract-interp/range
     ;; I should abstract over them somehow.
-    (define ref-node (att-value 'xsmith_resolve-reference (ast-child 'function n)))
+    (define ref-node (att-value 'xsmith_binding (ast-child 'function n)))
     (define def-node (binding-ast-node ref-node))
     (define func-block (ast-child 'Block def-node))
     (define func-params (ast-children (ast-child 'params def-node)))
@@ -1327,7 +1326,7 @@
                                      ([fp func-params]
                                       [arg (reverse reversed-args)])
                              (dict-set store
-                                       (att-value 'xsmith_definition-binding fp)
+                                       (att-value 'xsmith_binding fp)
                                        arg)))
 
     (define ret-type (function-type-return-type (ast-child 'type def-node)))
@@ -1349,7 +1348,7 @@
      n store path-condition return-variable assertions))]
  [VariableReference
   (λ (n store path-condition return-variable assertions)
-    (define ref (att-value 'xsmith_resolve-reference n))
+    (define ref (att-value 'xsmith_binding n))
     (define val (hash-ref store ref
                           (λ () (fresh-symbolic-var
                                  (binding-type ref)))))
@@ -1366,7 +1365,7 @@
                   path-condition
                   return-variable
                   assertions)]
-                [ref-node (att-value 'xsmith_resolve-reference n)])
+                [ref-node (att-value 'xsmith_binding n)])
       (list val (dict-set new-store ref-node val) #f n-asserts)))]
  [LiteralInt
   (λ (n store path-condition return-variable assertions)
@@ -1424,7 +1423,7 @@
  find-direct-resolved
  [Node (λ (n node-type)
          (remove-duplicates
-          (map (λ (x) (att-value 'xsmith_resolve-reference x))
+          (map (λ (x) (att-value 'xsmith_binding x))
                (att-value 'xsmith_find-descendants
                           n (λ (cn) (node-subtype? cn node-type))))))])
 (ag

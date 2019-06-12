@@ -583,10 +583,15 @@
               (send (choose-ast filtered) _xsmith_fresh)))
         (error '_xsmith_hole->replacement
                "called on non-hole node"))))
-(define xsmith_resolve-reference-name-function
+(define _xsmith_resolve-reference-name-function
   (λ (node name)
     (resolve-reference
      (reference name (att-value '_xsmith_scope-graph-scope node)))))
+(define xsmith_binding-function
+  (λ (node)
+    (if (att-value '_xsmith_is-reference-node? node)
+        (att-value '_xsmith_resolve-reference node)
+        (att-value 'xsmith_definition-binding node))))
 (define _xsmith_visible-bindings-function
   (λ (n)
     (visible-bindings (att-value '_xsmith_scope-graph-scope n))))
@@ -627,7 +632,7 @@ Additionally, it defines the following att-rules within the RACR spec:
 * _xsmith_hole->replacement
 * xsmith_find-descendants
 * xsmith_find-a-descendant
-* xsmith_resolve-reference-name
+* _xsmith_resolve-reference-name
 * _xsmith_visible-bindings
 
 It also defines within the RACR spec all att-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
@@ -1092,8 +1097,10 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                               [base-node-name xsmith_find-descendants-function])
                      (ag-rule xsmith_find-a-descendant
                               [base-node-name xsmith_find-a-descendant-function])
-                     (ag-rule xsmith_resolve-reference-name
-                              [base-node-name xsmith_resolve-reference-name-function])
+                     (ag-rule _xsmith_resolve-reference-name
+                              [base-node-name _xsmith_resolve-reference-name-function])
+                     (ag-rule xsmith_binding
+                              [base-node-name xsmith_binding-function])
                      (ag-rule _xsmith_visible-bindings
                               [base-node-name _xsmith_visible-bindings-function])
                      (ag-rule _xsmith_node-field-name-in-parent

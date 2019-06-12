@@ -652,7 +652,7 @@ It just reads the values of several other properties and produces the results fo
   #:appends
   (choice-rule _xsmith_is-reference-choice?)
   (att-rule _xsmith_is-reference-node?)
-  (att-rule xsmith_resolve-reference)
+  (att-rule _xsmith_resolve-reference)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -670,19 +670,19 @@ It just reads the values of several other properties and produces the results fo
     (define _xsmith_is-reference-node?-info
       (for/hash ([node nodes])
         (values node #`(λ (n) #,(dict-ref _xsmith_is-reference-info node)))))
-    (define xsmith_resolve-reference
+    (define _xsmith_resolve-reference
       (for/hash ([node nodes])
         (values node
                 #`(λ (n)
                     (define field #,(dict-ref _xsmith_is-reference-info node))
-                    (when (not field) (error 'xsmith_resolve-reference
+                    (when (not field) (error '_xsmith_resolve-reference
                                              "not a reference node: ~a"
                                              (node-type n)))
-                    (att-value 'xsmith_resolve-reference-name
+                    (att-value '_xsmith_resolve-reference-name
                                n (ast-child field n))))))
     (list _xsmith_is-reference-choice?-info
           _xsmith_is-reference-node?-info
-          xsmith_resolve-reference)))
+          _xsmith_resolve-reference)))
 
 ;; TODO - this is not a great design, but I need the user to specify
 ;; one function for this and make it available to the xsmith machinery.
@@ -921,7 +921,7 @@ few of these methods.
           (raise e))])
       (unify! my-type-from-parent my-type-constraint)))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
-    (let* ([binding (att-value 'xsmith_resolve-reference-name
+    (let* ([binding (att-value '_xsmith_resolve-reference-name
                                node
                                (ast-child reference-field node))]
            [binding-node (binding-ast-node binding)]
@@ -1173,7 +1173,7 @@ The second arm is a function that takes the type that the node has been assigned
                      (when (att-value '_xsmith_is-reference-node? n)
                        (let ([binding-node (binding-ast-node
                                             (att-value
-                                             'xsmith_resolve-reference n))])
+                                             '_xsmith_resolve-reference n))])
                          (when (not (memq binding-node binding-nodes-started))
                            (set! binding-nodes-started
                                  (cons binding-node binding-nodes-started))
@@ -1249,7 +1249,7 @@ The second arm is a function that takes the type that the node has been assigned
                                 #,(if read-or-write
                                       #`(#,read-or-write
                                          (att-value
-                                          'xsmith_resolve-reference-name
+                                          '_xsmith_resolve-reference-name
                                           n
                                           (ast-child '#,varname n)))
                                       #'#f)
@@ -1267,7 +1267,7 @@ The second arm is a function that takes the type that the node has been assigned
                                      (att-value '_xsmith_effects
                                                 (binding-ast-node
                                                  (att-value
-                                                  'xsmith_resolve-reference-name
+                                                  '_xsmith_resolve-reference-name
                                                   n
                                                   (ast-child '#,varname n)))))))))))
     (define _xsmith_effects-info

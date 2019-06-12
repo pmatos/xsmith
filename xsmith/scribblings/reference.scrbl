@@ -90,30 +90,22 @@ Like @racket['xsmith_find-descendants], but it only returns one.
 If no descendant matching the predicate is found, it returns @racket[#f].
 It is mostly useful if you just want to know if there is any descendant matching a type, such as to determine whether to do an analysis based on the presence or absence of some feature.
 }
-@item{@racket['xsmith_definition-binding]
+
+
+@item{@racket['xsmith_binding]
 Accepts the node to call it on and no other arguments.
-The given node must be a binder, as determined by the @racket[binder-info] property.
-Returns the @racket[binding] object for the definition using the name field indicated by @racket[binder-info].
+If the given node is a reference, as determined by the @racket[reference-info] property, then the reference is resolved and a @racket[binding] object is returned.
+If the given node is a binder, as determined by the @racket[binder-info] property, then its @racket[binding] object is returned.
+For any other node, @racket[#f] is returned.
 
 Example:
 @racketblock[
-(att-value 'xsmith_definition-binding n)
-]
-}
-@item{@racket['xsmith_resolve-reference]
-Accepts the node to call it on and no other arguments.
-The given node must be a reference, as determined by the @racket[reference-info] property.
-Returns the @racket[binding] object for the reference using the name field indicated by @racket[reference-info].
-The lookup is done using the @seclink["scope-graph"]{scope graph model}.
-If the name is not bound, an exception is raised.
-
-Example:
-@racketblock[
-(att-value 'xsmith_resolve-reference n)
+(att-value 'xsmith_binding n)
 ]
 
 The main use of this is to do analyses where you need to look up the declaration node that a reference refers to.
-The @racket[binding] object returned by this function contains a reference to that node.
+The @racket[binding] object returned by this function contains a reference to the binder node.
+When resolving references, the @seclink["scope-graph"]{scope graph model} is used.
 }
 
 @item{@racket['xsmith_ast-depth]
@@ -593,7 +585,7 @@ This section describes the API to the @seclink["scope-graph"]{Scope Graph} model
                    #:omit-constructor]{
 Struct for binding information of nodes that create bindings.
 
-Notably this is returned by the att-rule @rule[xsmith_resolve-reference-name].
+Notably this is returned by the att-rule @rule[xsmith_binding].
 
 The @racket[ast-node] field is the grammar node containing the definition of @racket[name].
 The @racket[def-or-param] field is there to distinguish names that are bound as function parameters vs names that are bound as (local or global) definitions.
@@ -606,7 +598,7 @@ Probably all you need to do with this, though, is get the @racket[name] field an
 
 For most languages you probably don't need to fuss with this.
 
-When the @rule[xsmith_resolve-reference-name] attribute is used or when Xsmith searches for a valid reference with @rule[xsmith_get-reference], this regexp determines valid scope-graph resolution paths.
+When the @rule[xsmith_binding] attribute is used or when Xsmith searches for a valid reference with @rule[xsmith_get-reference], this regexp determines valid scope-graph resolution paths.
 The path elements (reference, parent, import, definition) are turned into characters (r, p, i, and d respectively).
 If the path from reference to definition matches this regexp, it is valid.
 If two definitions have the same name and paths from a reference to both definitions are valid, the definition that is in scope for the reference is determined by @racket[current-path-greater-than].
