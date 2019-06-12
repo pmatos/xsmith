@@ -585,7 +585,6 @@
  symbolic-interp
  ;; Get the single global result
  [Node (λ (n)
-         (eprintf "in symbolic interp\n")
          (maybe-reset-rosette-assertions! n)
          ;; Interp the containing function to fill the result hash.
          (define result
@@ -943,11 +942,9 @@
                         (rt:! (rt:= r -1))))
           asserts))
 (define ({safe-binary-op-swap/symbolic unsafe-version safety-pred} n)
-  (eprintf "in safe-binary-op-swap/symbolic\n")
   ;; safety-pred is a predicate on two symbolic values
   (define l (ast-child 'l n))
   (define r (ast-child 'r n))
-  (eprintf "with children l: ~a, r: ~a\n" (node-type l) (node-type r))
   (match-define (list l-result l-asserts)
     (att-value 'symbolic-interp (ast-child 'l n)))
   (match-define (list r-result r-asserts)
@@ -1200,9 +1197,13 @@
  ;; the rosette environment has been prepared (eg. pushed/popped an
  ;; interpreter, so two interpretations don't step on each other).
 
- ;; Returns (list val=[symbolic expression] store=[binding->symbolic-expression hash] always-returns=[bool])
+ ;; Returns (list val=[symbolic expression] store=[binding->symbolic-expression hash] always-returns=[bool] asserts=[set of rosette assertions])
 
  ;;; Declarations
+ [#f (λ (n store path-condition return-variable assertions)
+       (error 'symbolic-interp-do
+              "Undefined for node: ~a"
+              (node-type n)))]
  [Program
   (λ (n store path-condition return-variable assertions)
     (define-values (init-store init-asserts)
@@ -1356,6 +1357,17 @@
           store
           #f
           assertions))]
+ [VolatileVariableReference
+  (λ (n store path-condition return-variable assertions)
+    (define type (att-value 'xsmith_type n))
+    (list (fresh-symbolic-var type) store #f assertions))]
+ [VolatileInitializer
+  (λ (n store path-condition return-variable assertions)
+    (define outer-type (att-value 'xsmith_type n))
+    (define v-type (volatile-type (fresh-type-variable)))
+    (unify! v-type outer-type)
+    (define inner-type (volatile-type-type v-type))
+    (list (fresh-symbolic-var inner-type) store #f assertions))]
  [AssignmentExpression
   (λ (n store path-condition return-variable assertions)
     (match-let ([(list val new-store always-rets n-asserts)

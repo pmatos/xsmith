@@ -351,7 +351,6 @@ New types
                                      n
                                      (ast-child 'function n))]
                        [name (ast-child 'name ref-node)])
-                  (eprintf "anchor left 1\n")
                   (if (member name (current-abstract-interp-call-stack))
                       (let* ([assignments
                               (att-value
@@ -369,7 +368,6 @@ New types
                         (apply do-function n store rest))))
                 (apply do-function n store rest))]
            [result-hash (get-result-hash-func n)])
-      (eprintf "anchor 2\n")
       (hash-set! result-hash n (cons result (hash-ref result-hash n '())))
       result)))
 
@@ -394,7 +392,7 @@ New types
                         (λ (n store path-condition return-variable assertions)
                           (define node-type
                             (binding-type (att-value 'xsmith_binding n)))
-                          (define ret-type (first (reverse node-type)))
+                          (define ret-type (function-type-return-type node-type))
                           (define v (fresh-symbolic-var ret-type))
                           (list v store #f assertions))))
 
