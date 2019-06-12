@@ -65,6 +65,10 @@ Choice object classes follow the same hierarchy as the grammar, so method inheri
 @(racr) attributes and choice object methods may be added directly with @racket[add-att-rule] and @racket[add-choice-rule], respectively, but many are defined indirectly by various Xsmith properties.
 Properties allow users to specify various attributes and choice rules in a more declarative fashion.
 
+The primary intended use case of Xsmith is differential compiler/interpreter testing.
+Therefore Xsmith takes pains to avoid producing programs that rely on commonly unspecified behaviors, such as the order of evaluation of function or operator arguments.
+Because the language-agnostic analysis within Xsmith is quite conservative, there are many valid programs that will not be generated.
+However, Xsmith makes it easy to create a fuzzer that obeys such rules without much language-specific work.
 
 @section[#:tag "racr"]{RACR Overview}
 
