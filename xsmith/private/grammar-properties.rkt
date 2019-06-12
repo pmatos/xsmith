@@ -210,6 +210,12 @@ This function is only used in one place, so its interface is tightly bound with 
           (define ret-list (apply transform (append (list (i->s #'(property gp)))
                                                     (map i->s rewrites)
                                                     (map i->s reads))))
+          (when (not (equal? (length ret-list)
+                             (length (append rewrites appends))))
+            (raise-syntax-error
+             'xsmith
+             "Too few hashes in return list from property transformer"
+             grammar-prop-name-stx))
           ;; Re-combine infos-hash.
           ;; The return list should be a hash for each rewrite
           ;; then a hash for each append.

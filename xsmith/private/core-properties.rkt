@@ -696,6 +696,7 @@ It just reads the values of several other properties and produces the results fo
                                n (ast-child field n))))))
     (list _xsmith_is-read-reference-choice?-info
           _xsmith_is-read-reference-node?-info
+          _xsmith_is-reference-node?-info
           _xsmith_resolve-reference)))
 
 ;; TODO - this is not a great design, but I need the user to specify
