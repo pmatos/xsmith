@@ -103,7 +103,7 @@
                       (printf "Starting range analysis...\n")
                       (ast-add-unsafe-math/range ast))
                     ast)]
-           [ast (if (xsmith-feature-enabled? 'unsafe-math/symbolic)
+           [ast (if #f #;(xsmith-feature-enabled? 'unsafe-math/symbolic)
                     (begin
                       (printf "Starting symbolic analysis...\n")
                       (ast-add-unsafe-math/symbolic ast))
@@ -143,7 +143,7 @@
     [unsafe-math/range
      #f ("Replace “safe math” operations with raw C operators"
          "where a range analysis proves they're safe.")]
-    [unsafe-math/symbolic
+    #;[unsafe-math/symbolic
      #f ("Replace “safe math” operations with raw C operators"
          "where a symbolic interpretation proves they're safe.")]
     ))
