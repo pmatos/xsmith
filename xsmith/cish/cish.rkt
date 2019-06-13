@@ -154,7 +154,7 @@
                        #:comment-wrap (λ (lines) (format "/*\n~a\n*/"
                                                          (string-join lines "\n")))
                        #:features cish-features-list
-                       #:default-max-depth 7))
+                       #:default-max-depth 10))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
