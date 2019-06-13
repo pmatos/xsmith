@@ -135,8 +135,8 @@
 
 (define bool-hint (hint 8))
 (define block-hint (hint 50))
-(define assignment-hint (hint 70))
-(define application-hint (hint 50))
+(define assignment-hint (hint 80))
+(define application-hint (hint 90))
 
 #|
 New types

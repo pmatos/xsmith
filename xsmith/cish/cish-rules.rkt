@@ -1584,8 +1584,8 @@
  ;; Don't choose variable reference often when I'm already in a max-depth lift.
  [VariableReference (if (>= (att-value 'xsmith_ast-depth current-hole)
                             (xsmith-max-depth))
-                        1
-                        10)]
+                        3
+                        15)]
  )
 
 
