@@ -40,12 +40,15 @@ Xsmith is a library for creating fuzz testers, also known as @italic{fuzzers},
 for programming language compilers and interpreters.  In other words, Xsmith is
 a library for creating @italic{random program generators}.
 
-Xsmith implements a domain-specific language (DSL) for defining random program generators.
-The Xsmith DSL is used to specify a language's grammar, typing rules, and other information which guides generation choices.
-Xsmith also includes utilities for creating a command-line interface for generating a single program or starting a web server that generates one program per request.
+Xsmith implements a domain-specific language (DSL) for defining random program
+generators.  The DSL is used to specify a programming language's grammar,
+typing rules, and other information that guides generation choices.  Xsmith
+also includes utilities for creating a command-line interface for generating a
+single program or starting a web server that generates one program per request.
 
-Xsmith is bundled with some random program generators that were created using the library.  If you just want to run them, you can jump ahead to @secref["running-fuzzers"].
-
+Xsmith is bundled with some example random program generators that were created
+using the library.  If you just want to run them, you can jump ahead to
+@secref["running-fuzzers"].
 
 @bold{Reporting bugs.}
 @;
