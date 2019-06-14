@@ -3,11 +3,11 @@
             Xsmith --- a generator of highly effective fuzz testers
 
                           William Hatch and Eric Eide
-		   <william@hatch.uno>, <eeide@cs.utah.edu>
+                   <william@hatch.uno>, <eeide@cs.utah.edu>
 
                     University of Utah School of Computing
                             https://www.cs.utah.edu/
-                                       
+
 
 Please send bug reports and fixes to <xsmith-bugs@flux.utah.edu>.
 
@@ -18,3 +18,8 @@ To post messages to the list, you must first subscribe to the list.
 Most Xsmith info can be found here:
 
   https://www.flux.utah.edu/project/xsmith
+
+This material is based upon work supported by the National Science Foundation
+under Grant Number 1527638.  Any opinions, findings, and conclusions or
+recommendations expressed in this material are those of the author(s) and do
+not necessarily reflect the views of the National Science Foundation.
