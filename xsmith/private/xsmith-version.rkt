@@ -29,47 +29,88 @@
 ;; POSSIBILITY OF SUCH DAMAGE.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (provide xsmith-version-string)
 
 (require
- racket/string
  racket/port
+ racket/string
  racket/system
  pkg/lib
- setup/getinfo
- (for-syntax
-  racket/base
-  racket/port
-  racket/string
-  racket/system
-  ))
+ setup/getinfo)
 
 (define xsmith-info (get-info (list "xsmith")))
 
 ;;
-;; Determine the short hash of the git commit referenced by HEAD at the time
-;; this source file is compiled, i.e., "the current git commit."  Return this
-;; as a string syntax object.
+;; Try to determine the short git commit hash of this version of Xsmith by
+;; looking for the hash in the package info, i.e., the `info.rkt` file.
 ;;
-(define-syntax (compile-time-git-commit-string stx)
-  (syntax-case stx ()
-    [_ (let* [(rc #f)
-              (head-rev
-               (string-trim
-                (parameterize [(current-error-port (open-output-nowhere))]
-                  (with-output-to-string
-                    (lambda ()
-                      (set! rc (system "git rev-parse --short HEAD")))))))]
-         (if rc
-             #`#,head-rev
-             #'"unknown"))]))
+;; If the sources for this Xsmith installation were made by `git archive`, then
+;; `git archive` may have put the short hash there.  I expect it will be rare
+;; to find source trees made by `git archive`, but in case we do, we should
+;; believe what `git archive` tells us.
+;;
+(define (find-package-info-git-commit-string)
+  (if xsmith-info
+      (let [(info-rev (xsmith-info 'git-commit))]
+        ;; Was the git commit hash inserted into `info.rkt` by `git archive`?
+        ;; If so, the first character of `rev` will not be #\$.
+        (if (not (char=? (string-ref info-rev 0) #\$))
+            info-rev
+            #f))
+      #f))
 
 ;;
-;; Determine the short hash of the git commit referenced by HEAD in the package
-;; directory.  This is determined *dynamically*, not when this function is
-;; compiled.  Compare with `compile-time-git-commit-string` above.
+;; Try to determine the short git commit hash of this version of Xsmith by
+;; looking for the hash associated with the installation of this package.
 ;;
-(define (package-git-commit-string)
+;; According to "2.2 Package Sources" of "Package Management in Racket", for a
+;; remote URL naming a git repository (or GitHub repository), "The package's
+;; checksum is the hash identifying <rev> if <rev> is a branch or tag,
+;; otherwise <rev> itself serves as the checksum."
+;; https://docs.racket-lang.org/pkg/Package_Concepts.html#%28part._concept~3asource%29
+;;
+;; And for packages that come from a package catalog, "A package catalog is
+;; consulted to determine the source and checksum for the package."
+;;
+;; The upshot of this is that, if users install Xsmith from a Racket package
+;; catalog, and that catalog obtains Xsmith from a git repository, then the
+;; package checksum is the (full version of the) git commit hash that we are
+;; looking for.
+;;
+;; We distribute Xsmith via the standard Racket package catalog as described
+;; above.  This is how I expect that most "regular users" will obtain Xsmith.
+;;
+(define (find-package-git-commit-string)
+  (let ((xsmith-pkg-info
+         (or (hash-ref (installed-pkg-table #:scope 'user)
+                       "xsmith"
+                       #f)
+             (hash-ref (installed-pkg-table #:scope 'installation)
+                       "xsmith"
+                       #f))))
+    (if (pkg-info? xsmith-pkg-info)
+        (let ((checksum (pkg-info-checksum xsmith-pkg-info)))
+          (if (string? checksum)
+              (substring checksum 0 7)
+              #f))
+        #f)))
+
+;;
+;; Try to determine the short git commit hash of this version of Xsmith by
+;; looking in the source directory of the package.
+;;
+;; If the source directory is part of a git repository's working tree, running
+;; `git rev-parse` there will give us the git commit hash that we are looking
+;; for.  If the source directory is not part of a git working tree, then
+;; running `git rev-parse` there won't do anything useful, but neither will it
+;; do any harm.
+;;
+;; This is how Xsmith developers would normally work with Xsmith, i.e.,
+;; installing the package from a local directory that is part of a git
+;; repository's working tree.
+;;
+(define (find-working-tree-git-commit-string)
   (let [(package-directory (pkg-directory "xsmith"))]
     (if package-directory
         (let* [(rc #f)
@@ -87,24 +128,12 @@
 
 ;;
 ;; The short hash of the git commit corresponding to this version of Xsmith.
-;;
-;; This is set by checking three sources.  First, look for the hash in file
-;; `info.rkt` (because `git archive` put it there).  Second, if the Xsmith
-;; package directory is a git sandbox, ask for the current git commit hash this
-;; that directory.  Third, use the hash that was determined when this file was
-;; compiled.
+;; If the hash cannot be determined, this is the string "unknown".
 ;;
 (define xsmith-git-commit-string
-  (if xsmith-info
-      (let [(info-rev (xsmith-info 'git-commit))]
-        ;; Was the git commit hash inserted into `info.rkt` by `git archive`?
-        ;; If so, the first character of `rev` will not be #\$.
-        (if (not (char=? (string-ref info-rev 0) #\$))
-            info-rev
-            (let ((package-rev (package-git-commit-string)))
-              (if package-rev
-                  package-rev
-                  (compile-time-git-commit-string)))))
+  (or (find-package-info-git-commit-string)
+      (find-package-git-commit-string)
+      (find-working-tree-git-commit-string)
       "unknown"))
 
 ;;
