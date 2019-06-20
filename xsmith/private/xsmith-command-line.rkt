@@ -220,7 +220,9 @@
       (let ([seed (xsmith-option 'random-seed)])
         (random-seed seed)
         (define option-lines
-          (list (format "Generator: ~a" xsmith-version-string)
+          (list (format "Generator: ~a in Racket ~a"
+                        xsmith-version-string
+                        (version))
                 (format "Options: ~a" (string-join
                                        (vector->list
                                         (xsmith-option 'command-line))))
