@@ -117,12 +117,17 @@ The following are maybe not variables but constrain how I need to think about th
 |#
 
 #|
-Type variable innards contain a set of handles (type variables with that innard)
-and either:
+Type variable innards contain a set of handles (type variables with that innard),
+a "type", which is either:
 • #f - unconstrained
 • a non-variable type (though it may contain type variables)
 • a list - constrained to be one of the types in the list
 A type variable list may not contain type variables and may not contain more than one of each compound type.  Eg. it may contain any number of base types but only one function type or record type.  However, the function or record type contained my be only partially specified (eg. may contain type variables).
+
+And upper and lower bounds lists (for subtyping).  The bounds lists include any number of other type variables and possibly the closest bound for any type in its type list.
+
+When type variables are subtype-unified, the variables are set in each other's upper/lower bound list.  Their type lists are filtered only to types that have a sub/super type in the other list.  This also affects transitive upper/lower bounds.
+If a (transitive) upper bound is ever equal to a (transitive) lower bound, that part of the lattice is unified into one type-variable-innard.
 |#
 (struct type-variable ([tvi #:mutable])
   #:methods gen:custom-write
@@ -133,7 +138,11 @@ A type variable list may not contain type variables and may not contain more tha
         (fprintf output-port
                  "#<type-variable ~a>"
                  t)]))])
-(struct type-variable-innard ([handle-set #:mutable] [type #:mutable]))
+(struct type-variable-innard
+  ([handle-set #:mutable]
+   [type #:mutable]
+   [lower-bounds #:mutable]
+   [upper-bounds #:mutable]))
 
 (define (fresh-type-variable . args)
   (when (memf type-variable? args)
@@ -152,7 +161,7 @@ A type variable list may not contain type variables and may not contain more tha
   ;; TODO - I probably only want to allow one of each kind of generic type
   (define type (if (null? args) #f args))
   (define handle-set (weak-seteq))
-  (define tvi (type-variable-innard handle-set type))
+  (define tvi (type-variable-innard handle-set type '() '()))
   (define tv (type-variable tvi))
   (set-add! handle-set tv)
   tv)
@@ -166,18 +175,22 @@ A type variable list may not contain type variables and may not contain more tha
 ;; Product types may have #f as the inner list to specify that the length and inner types are yet unconstrained.
 #|
 inner-type-list may be:
-• #f to signify that even the length is unconstrained
+• #f for unconstrained
 • a list of types (which may contain type variables)
-• a box which contains an inner-type-list (so #f product types can be unified without forcing a length.)
+upper-bounds and lower-bounds are lists of other product types that a given one has been subtype-unified with.  Once any product type among these has a list (instead of #f) for its inner type list, all the others will have a list of the same length created and filled with type variables.  Then they are all subtype-unified.
 |#
-(struct product-type ([inner-type-list #:mutable]) #:transparent)
+(struct product-type
+  ([inner-type-list #:mutable]
+   [lower-bounds #:mutable]
+   [upper-bounds #:mutable])
+  #:transparent)
 (define (mk-product-type inners)
   (if (not inners)
-      (product-type (box #f))
-      (product-type inners)))
+      (product-type #f '() '())
+      (product-type inners '() '())))
 (define (product-type-inner-type-list/resolve pt)
   (unbox* (product-type-inner-type-list pt)))
-(struct sum-type (inner-type-list) #:transparent)
+;(struct sum-type (inner-type-list) #:transparent)
 
 
 #|
@@ -445,6 +458,146 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (and (rec a1 a2)
           (rec r1 r2))]
     [else #f]))
+
+(define (subtype-unify! sub super)
+  #|
+  * Base types should have a subtyping hierarchy.
+  * `subtype-unify!` with base subtype and variable supertype should constrain the supertype to be one of the types in the chain up.
+  * `subtype-unify!` with variable subtype and base supertype should constrain the subtype to be... maybe just the supertype?  Or maybe I need a new kind of type variable that says “subtype of”...  The main question here is whether I allow things to say they must be invariant.  That seems important.
+  ** Ultimately `unify!` should be the same as two `subtype-unify!` calls, and `can-unify?` should be the same as two `can-subtype-unify?` calls (with arguments reversed).
+  * Maybe type variables need to have an `exactly` field that says it is invariant on a field?
+  * st-unify with two variables should be...
+
+  * ---------------------------------
+
+  * a type variable will have:
+  ** a list of its own possibilities
+  ** a list of aliases (Or rather, the innard will have a list of its handles)
+  ** a list of upper bounds
+  ** a list of lower bounds
+
+  * when a type variable is subtype unified, it will filter its list of possibilities based on things that can subtype unify with all of its *transitive* upper and lower bounds.  Each possibility in its list must be subtypable with each possibility in transitive bounds.
+  ** also this filters all of the transitive bounds, so all of them get filtered
+
+  * recursion into inner type structures (function, generic, etc) will operate on type-specific meanings of subtyping -- generics will have a way of specifying per field whether the field is invariant (the default), covariant, or contravariant
+
+  * When a (transitive) upper bound is equal to a (transitive) lower bound, the tower is squashed -- the type variables are mutated to share an innard and be aliases.
+
+  * diamond situations
+  ** type variables will form a set of lattices.  Whenever type variables are unified, it joins their lattices and the possibility filtering can transitively affect every variable in the lattice.
+  ** When type variables above and below ond the lattice become equal, that part of the lattice is compressed into a single node.
+
+  |#
+  (match (list sub super)
+    ;; type variable x2
+    [(list (type-variable tvi-sub)
+           (type-variable tvi-sup))
+     (todo-code)]
+    ;; type variable left
+    [(list (type-variable tvi-sub)
+           _)
+     (todo-code)]
+    ;; type variable right
+    [(list _
+           (type-variable tvi-sup))
+     (todo-code)]
+
+    ;; product type
+    [(list (product-type inner1 lowers1 uppers1)
+           (product-type inner2 lowers2 uppers2))
+
+     (define (inner-unify! sub super)
+       (for-each (λ (l r) (subtype-unify! l r))
+                 (product-type-inner-type-list sub)
+                 (product-type-inner-type-list super)))
+
+     (define (ripple-length! len pt done-list)
+       ;; Propagate length to all related product types.
+       ;; At each step, unify the lists.
+       ;; This basically initializes all of the inner lists of a graph
+       ;; of product-types that had been subtype-unified to each other
+       ;; with none of them having a concrete length yet.
+       ;; Once they are initialized, the inner type variables can carry
+       ;; all the info about subtype relations, and the outer product types
+       ;; are free to be simple lists.
+       (if (memq pt done-list)
+           done-list
+           (let ([supers (product-type-upper-bounds pt)]
+                 [subs (product-type-lower-bounds pt)])
+             (set-product-type-inner-type-list!
+              pt
+              (map (λ (x) (fresh-type-variable))
+                   (make-list len #f)))
+             (define done-list-1
+               (for/fold ([done-list (cons pt done-list)])
+                         ([super supers])
+                 (define new-list (ripple-length! len super done-list))
+                 (inner-unify! pt super)
+                 new-list))
+             (define done-list-2
+               (for/fold ([done-list done-list-1])
+                         ([sub subs])
+                 (define new-list (ripple-length! len sub done-list))
+                 (inner-unify! sub pt)
+                 new-list))
+             (set-product-type-upper-bounds! pt '())
+             (set-product-type-lower-bounds! pt '())
+             done-list-2)))
+
+     (define l1 (and inner1 (length inner1)))
+     (define l2 (and inner2 (length inner2)))
+
+     (when (and l1 l2 (not equal? l1 l2))
+       (error 'subtype-unify!
+              "Tried to unify two product types with unequal lengths: ~v, ~v"
+              sub super))
+
+     (match (list inner1 inner2)
+       [(list #f #f)
+        (set-product-type-upper-bounds!
+         sub
+         (cons super (product-type-upper-bounds sub)))
+        (set-product-type-lower-bounds!
+         super
+         (cons sub (product-type-lower-bounds super)))]
+       [(list #f _)
+        (ripple-length! l2 sub)
+        (inner-unify! sub super)]
+       [(list _ #f)
+        (ripple-length! l1 super)
+        (inner-unify! sub super)]
+       [else (inner-unify! sub super)])]
+
+
+    ;; nominal record type
+    [(list (nominal-record-type aoeu)
+           (nominal-record-type aoeu))
+     (todo-code)]
+    ;; function type
+    [(list (function-type arg-l ret-l)
+           (function-type arg-r ret-r))
+     ;; covariant return
+     (subtype-unify! ret-l ret-r)
+     ;; contravariant arguments
+     (subtype-unify! arg-r arg-l)]
+    ;; generic type
+    ;; TODO - generic types need to store the variance type for each field.
+    [(list (generic-type aoeu)
+           (generic-type aoeu))
+     (todo-code)]
+    ;; base type
+    ;; TODO - base types need to have a field for a super type
+    [(list (base-type aoeu)
+           (base-type aoeu))
+     (todo-code)]
+    ;; TODO - else with better error message?
+
+    )
+  )
+
+(define (can-subtype-unify? sub super)
+  (TODO-code)
+  )
 
 ;; A parameter to hold the list of constructors for base or composite types (with minimally constrained type variables inside).
 (define current-xsmith-type-constructor-thunks (make-parameter '()))
