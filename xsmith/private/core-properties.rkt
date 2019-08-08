@@ -1030,7 +1030,7 @@ The second arm is a function that takes the type that the node has been assigned
             (hash-set
              base-set
              #f #'(error 'type-info "No type constraint info given for node: ~a"
-                         (ast-node-type '#,n)))))
+                         (ast-node-type #,n)))))
       )
     (define _xsmith_my-type-constraint-info/att-rule
       (for/hash ([n (dict-keys constraints-checked)])
