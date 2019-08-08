@@ -1014,17 +1014,24 @@ The second arm is a function that takes the type that the node has been assigned
         (if c (hash-set h n c) h)))
 
     (define constraints-checked
-      (hash-set
-       (for/hash ([n (dict-keys node-type-constraints)])
-         (values n #`(let ([t #,(dict-ref node-type-constraints n)])
-                       (if (type? t)
-                           t
-                           (error 'type-info
-                                  "Type constraint returned for node of AST type ~a was not a type: ~a\n"
-                                  (quote #,n)
-                                  t)))))
-       #f #'(error 'type-info "No type constraint info given for node: ~a"
-                   (ast-node-type '#,n))))
+      (let ([base-set
+             (for/hash ([n (dict-keys node-type-constraints)])
+               (values
+                n
+                #`(let ([t #,(dict-ref node-type-constraints n)])
+                    (if (type? t)
+                        t
+                        (error 'type-info
+                               "Type constraint returned for node of AST type ~a was not a type: ~a\n"
+                               (quote #,n)
+                               t)))))])
+        (if (dict-has-key? base-set #f)
+            base-set
+            (hash-set
+             base-set
+             #f #'(error 'type-info "No type constraint info given for node: ~a"
+                         (ast-node-type '#,n)))))
+      )
     (define _xsmith_my-type-constraint-info/att-rule
       (for/hash ([n (dict-keys constraints-checked)])
         (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n)))))
