@@ -1010,7 +1010,7 @@ The second arm is a function that takes the type that the node has been assigned
                 ([n nodes])
         (define c (syntax-parse (dict-ref this-prop-info n default-prop-info)
                     [(constraint:expr _) #'constraint]
-                    [else #f]))
+                    [#f #f]))
         (if c (hash-set h n c) h)))
 
     (define constraints-checked
