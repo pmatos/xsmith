@@ -29,6 +29,14 @@
 ;; POSSIBILITY OF SUCH DAMAGE.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#|
+WIP checklist:
+* I need to put anything important from `unify!` and `can-unify?` and put them into their subtype counterparts.  Then I need to make the normal unify version just do two reversed subtype versions.
+* I changed the base-type struct, I need to ripple that change through everywhere that uses it.
+* I changed the type variable struct, anything that matches it needs to change
+* I changed the product type struct, I need to propagate changes
+* I need to review code comments and make sure they still make sense.
+|#
 
 (require racket/contract)
 (provide
@@ -128,6 +136,13 @@ And upper and lower bounds lists (for subtyping).  The bounds lists include any 
 
 When type variables are subtype-unified, the variables are set in each other's upper/lower bound list.  Their type lists are filtered only to types that have a sub/super type in the other list.  This also affects transitive upper/lower bounds.
 If a (transitive) upper bound is ever equal to a (transitive) lower bound, that part of the lattice is unified into one type-variable-innard.
+
+TODO - if an unconstrained type variable is subtype-unified with a type variable constrained to be (or int (-> tv1 tv2)), I know that the formerly unconstrained type variable must be something that is a sub/super type of int or that function, but I can't put something concrete for the int yet...  I can make a list that includes an arrow type and recursively force the subtype relation on it, but I need a placeholder for int.
+     - If the unknown type is in supertype position, I can simply enumerate the supertypes of the given base type (int) and put them all in the list, because base types have a finite list of supertypes that is visible from the base subtype.
+     - I could keep a list of base subtypes, mutating all supertypes every time a new base subtype is created.  This seems... poor, but it would be easy.  If I don't expect many subtypes to be created this is quite tractable.
+     - OR, better, maybe each base type tree has an identity -- a gensym or something that is unique to the top-level supertype of each base type tree.  Then I can put that symbol in the list to say it has to be in that tree, but I don't yet know what aside from the bounds.
+       - This probably doesn't work -- if I have an Int subtree and a Float subtree of Number, I want to be able to say something could be an Int or a Float but not some other Number, and keep track of both of those facts...
+       - Maybe I want a range stand-in, and for each sub/super pair of base types (or #f for when I only have one side of the range) I make a range object.
 |#
 (struct type-variable ([tvi #:mutable])
   #:methods gen:custom-write
@@ -166,11 +181,18 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (set-add! handle-set tv)
   tv)
 
-(struct base-type (name) #:transparent)
+#|
+Base types can be declared as subtypes of other base types.
+Inside a type variable, they are always placed in a base-type-range, which gives a minimum and maximum type.
+The minimum may be #f to mean any subtype of the maximum type.
+|#
+(struct base-type (name supertype) #:transparent)
+(struct base-type-range (sub super) #:transparent)
+(define (base-type->range bt)
+  (base-type-range #f bt))
+
 (struct function-type (arg-type return-type) #:transparent)
 
-;; TODO - I think something like this should exist, but I haven't thought about what to do with it.
-(struct alias-type (name inner-type) #:transparent)
 
 ;; Product types may have #f as the inner list to specify that the length and inner types are yet unconstrained.
 #|
@@ -229,8 +251,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
   ;; TODO - this should be verified to be actually a nominal-record-type
   (nominal-record-definition-type nominal-record-type))
 
-(struct generic-type (name constructor type-arguments) #:transparent)
 
+;; Generic types are given a name which is a symbol.  But it is just for printing.
+;; They are compared with `eq?` on their constructor, which is bound to the name
+;; by `define-generic-type`.
+(struct generic-type (name constructor type-arguments) #:transparent)
 (define-syntax (define-generic-type stx)
   (syntax-parse stx
     [(_ name:id (field:id ...))
@@ -570,9 +595,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 
     ;; nominal record type
-    [(list (nominal-record-type aoeu)
-           (nominal-record-type aoeu))
-     (todo-code)]
+    [(list (nominal-record-type name1 innards1)
+           (nominal-record-type name2 innards2))
+     ;; TODO - nominal record types for the first pass should not be subtypable.  It should be easy to later add a supertype field -- subtyping with nominal records should be easy compared to various other things.
+     (todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")]
     ;; function type
     [(list (function-type arg-l ret-l)
            (function-type arg-r ret-r))
@@ -581,16 +607,29 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; contravariant arguments
      (subtype-unify! arg-r arg-l)]
     ;; generic type
-    ;; TODO - generic types need to store the variance type for each field.
-    [(list (generic-type aoeu)
-           (generic-type aoeu))
-     (todo-code)]
+    [(list (generic-type name1 constructor1 type-arguments1)
+           (generic-type name2 constructor2 type-arguments2))
+     (unless (eq? constructor1 constructor2)
+       (error 'subtype-unify!
+              "TODO - better message -- tried to unify different generic types."))
+     ;; TODO - generic types need to store the variance type for each field.
+     ;;        For a start, let's assume all fields are invariant.
+     (for-each (λ (isub isuper)
+                 (subtype-unify! isub isuper)
+                 (subtype-unify! isuper isub))
+               type-arguments1
+               type-arguments2)]
     ;; base type
-    ;; TODO - base types need to have a field for a super type
-    [(list (base-type aoeu)
-           (base-type aoeu))
-     (todo-code)]
-    ;; TODO - else with better error message?
+    [(list (or (base-type _ _) (base-type-range _ _))
+           (or (base-type _ _) (base-type-range _ _)))
+     (unless (can-unify? sub super)
+       (error 'subtype-unify!
+              "TODO - better error message -- bad unification of base types."))]
+    ;[(list (base-type _ _) _)
+    ; (subtype-unify! (base-type->range sub) super)]
+    ;[(list _ (base-type _ _))
+    ; (subtype-unify! sub (base-type->range super))]
+    [else (TODO-code better error message?)]
 
     )
   )
