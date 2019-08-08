@@ -1014,6 +1014,7 @@ The second arm is a function that takes the type that the node has been assigned
         (if c (hash-set h n c) h)))
 
     (define constraints-checked
+      ;; TODO - I need to put a default implementation that says what node it is, but ties it to `type-info` rather than a private method.
       (for/hash ([n (dict-keys node-type-constraints)])
         (values
          n
