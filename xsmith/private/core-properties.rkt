@@ -214,8 +214,20 @@ hole for the type.
                ;; TODO - get name and type directly for lift nodes
                (define binder-hash
                  (if binder-name-field
-                     (let* ([hole-name (ast-child binder-name-field (current-hole))]
-                            [hole-type (ast-child binder-type-field (current-hole))]
+                     (let* (;; the hole name and type are only there for lifts,
+                            ;; in which case they are a hole of the type that is
+                            ;; lifted and never a supertype.  But generally
+                            ;; a hole may be of a supertype of a definition node,
+                            ;; so we need to check that the name and type fields
+                            ;; are there for the current hole.
+                            [hole-name (and (ast-has-child? binder-name-field
+                                                            (current-hole))
+                                            (ast-child binder-name-field
+                                                       (current-hole)))]
+                            [hole-type (and (ast-has-child? binder-type-field
+                                                            (current-hole))
+                                            (ast-child binder-type-field
+                                                       (current-hole)))]
                             [hole-type (if (and hole-type
                                                 (not
                                                  (and
