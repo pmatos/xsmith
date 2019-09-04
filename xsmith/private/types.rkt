@@ -469,6 +469,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (define options-use (if (null? options-filtered) options options-filtered))
        (when (null? options-use)
          (error 'concretize-type "Received an empty list for options.  Was current-xsmith-type-constructor-thunks parameterized?"))
+       ;; TODO - fresh-type-variable is invalid here as it causes infinite recursion.
+       (when (not (empty? (filter (λ (tv) (and (type-variable? tv)
+                                               (equal? #f (type-variable-innard-type (type-variable-tvi tv)))))
+                                  options-use)))
+         (error 'concretize-type (format "Received a typeless type variable in options.  Don't use (fresh-type-variable) when parameterizing current-xsmith-type-constructor-thunks." options-use)))
        (r (random-ref options-use))]
       [(type-variable (type-variable-innard _ non-list-type)) (r non-list-type)]
       [(base-type _) t]
