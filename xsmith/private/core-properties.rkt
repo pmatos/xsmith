@@ -152,7 +152,7 @@ hole for the type.
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref reference-info-info node #'#f)
-                  [(_ name:id) (syntax->datum #'name)]
+                  [(_ name:id (~optional (~seq #:unifies target))) (syntax->datum #'name)]
                   [else #f]))))
 
     ;; I need to create a lambda (of zero args) that evaluates the given expression (if it exists), then calls a thunk to get the default value for any fields not specified in the list received.
@@ -661,6 +661,15 @@ It just reads the values of several other properties and produces the results fo
 ;; This property should be a list containing:
 ;; the identifier `read` or the identifier `write`,
 ;; the field name that references use (as an identifier)
+(begin-for-syntax
+  (define-syntax-class reference-info-class
+    (pattern ((~and ref-type (~or (~datum write) (~datum read)))
+              field-name:id
+              (~optional (~seq #:unifies (~or target:id #f))))
+             #:with unify-target (or (and (attribute target) #''target)
+                                     #'#t)
+             #:with is-read? (eq? (syntax->datum #'ref-type) 'read))))
+
 (define-property reference-info
   #:reads (grammar)
   #:appends
@@ -677,7 +686,7 @@ It just reads the values of several other properties and produces the results fo
                 (syntax-parse (dict-ref this-prop-info
                                         node
                                         #'#f)
-                  [((~datum read) field-name:id) #''field-name]
+                  [prop:reference-info-class #:when (attribute prop.is-read?) #''prop.field-name]
                   [else #'#f]))))
     (define _xsmith_is-reference-info
       (for/hash ([node nodes])
@@ -685,7 +694,7 @@ It just reads the values of several other properties and produces the results fo
                 (syntax-parse (dict-ref this-prop-info
                                         node
                                         #'#f)
-                  [((~or (~datum write) (~datum read)) field-name:id) #''field-name]
+                  [prop:reference-info-class #''prop.field-name]
                   [else #'#f]))))
     (define _xsmith_is-read-reference-choice?-info
       (for/hash ([node nodes])
@@ -892,6 +901,14 @@ few of these methods.
           (hash-set! ref-choices-filtered-hash self legal+lift)
           legal+lift))))
 
+(define (get-value-from-parent-dict parent-child-dict child default)
+  (dict-ref parent-child-dict
+            child
+            (λ () (dict-ref
+                   parent-child-dict
+                   (att-value '_xsmith_node-field-name-in-parent child)
+                   default))))
+
 (define (_xsmith_type-constraint-from-parent-func node node-type-name)
   (define (parent-node-type)
     (and (ast-has-parent? node)
@@ -901,22 +918,18 @@ few of these methods.
         (att-value '_xsmith_children-type-dict (ast-parent node))
         (hash node (fresh-type-variable))))
   (define my-type-from-parent/func
-    (dict-ref parent-child-type-dict
-              node
-              (λ () (dict-ref
-                     parent-child-type-dict
-                     (att-value '_xsmith_node-field-name-in-parent node)
-                     (λ ()
-                       (error
-                        'type-info
-                        (string-append
-                         "No type info provided by parent for node "
-                         "(of AST type ~a, with parent of AST type ~a, "
-                         "and field name ~a).")
-                        node-type-name
-                        (parent-node-type)
-                        (att-value '_xsmith_node-field-name-in-parent
-                                   node)))))))
+    (get-value-from-parent-dict parent-child-type-dict node
+                                (λ ()
+                                  (error
+                                   'type-info
+                                   (string-append
+                                    "No type info provided by parent for node "
+                                    "(of AST type ~a, with parent of AST type ~a, "
+                                    "and field name ~a).")
+                                   node-type-name
+                                   (parent-node-type)
+                                   (att-value '_xsmith_node-field-name-in-parent
+                                              node)))))
   (define my-type-from-parent (if (procedure? my-type-from-parent/func)
                                   (my-type-from-parent/func node)
                                   my-type-from-parent/func))
@@ -929,7 +942,7 @@ few of these methods.
      (parent-node-type)))
   my-type-from-parent)
 
-(define (xsmith_type-info-func node reference-field definition-type-field)
+(define (xsmith_type-info-func node reference-unify-target reference-field definition-type-field)
   (define my-type-constraint
     (if (att-value 'xsmith_is-hole? node)
         #f
@@ -964,7 +977,12 @@ few of these methods.
             (xd-printf "Type annotated at variable definition: ~a\n"
                        var-type)
             (raise e))])
-        (unify! my-type-from-parent var-type))
+        (match reference-unify-target
+          ;; If the reference-unify-target is not #t or #f, it still needs to be
+          ;; unified. However, unifying here will cause a cycle. Instead, this
+          ;; is handled in the type-info property definition.
+          [#t (unify! my-type-from-parent var-type)]
+          [else (void)]))
       ;; This shouldn't be necessary, but something is going wrong,
       ;; so I'll give a chance to get this error message.
       (with-handlers
@@ -1015,7 +1033,7 @@ The second arm is a function that takes the type that the node has been assigned
   ;xsmith_get-reference! -- like xsmith_reference-options! but it just returns one (pre-called in the case of lifts).
   #:transformer
   (λ (this-prop-info grammar-info reference-info-info binder-info-info)
-    (define nodes (dict-keys grammar-info))
+    (define nodes (cons #f (dict-keys grammar-info)))
     (define default-prop-info #'#f)
     (define node-type-constraints
       (for/fold ([h (hash)])
@@ -1057,14 +1075,15 @@ The second arm is a function that takes the type that the node has been assigned
     (define node-reference-info-cleansed
       (for/list ([n nodes])
         (syntax-parse (dict-ref reference-info-info n #'#f)
-          [#f (list #'#f #'#f)]
-          [((~and r/w-type:id
-                  (~or (~datum read) (~datum write)))
-            field:id)
-           (list #'(quote r/w-type) #'(quote field))])))
+          [#f (list #'#f #'#f #'#t)]
+          [prop:reference-info-class
+           (list #''prop.ref-type #''prop.field-name #'prop.unify-target)])))
     (define node-r/w-type (for/hash ([n nodes]
                                      [i node-reference-info-cleansed])
                             (values n (first i))))
+    (define node-reference-unify-target (for/hash ([n nodes]
+                                                   [i node-reference-info-cleansed])
+                                          (values n (third i))))
     (define node-reference-field (for/hash ([n nodes]
                                             [i node-reference-info-cleansed])
                                    (values n (second i))))
@@ -1081,7 +1100,20 @@ The second arm is a function that takes the type that the node has been assigned
                       (define my-type (att-value 'xsmith_type node))
                       (define my-type->child-type-dict
                         #,(dict-ref node-child-dict-funcs n))
-                      (my-type->child-type-dict node my-type)))))
+                      (define child-types
+                        (my-type->child-type-dict node my-type))
+                      (define reference-unify-target
+                        #,(dict-ref node-reference-unify-target n))
+                      (when (and reference-unify-target (not (eq? #t reference-unify-target)))
+                        (unify!
+                         (get-value-from-parent-dict child-types reference-unify-target
+                                                     (λ () (error 'type-info
+                                                                  "No type given for field ~a"
+                                                                  reference-unify-target)))
+                         (binding-type (att-value '_xsmith_resolve-reference-name
+                                                  node
+                                                  (ast-child #,(dict-ref node-reference-field n) node)))))
+                      child-types))))
     (define _xsmith_type-constraint-from-parent-info
       (for/hash ([n nodes])
         (values n #`(λ (node) (_xsmith_type-constraint-from-parent-func
@@ -1091,6 +1123,7 @@ The second arm is a function that takes the type that the node has been assigned
       (for/hash ([n nodes])
         (values n #`(λ (node)
                       (xsmith_type-info-func node
+                                             #,(dict-ref node-reference-unify-target n)
                                              #,(dict-ref node-reference-field n)
                                              #,(dict-ref binder-type-field n))))))
     (define _xsmith_satisfies-type-constraint?-info
@@ -1265,10 +1298,10 @@ The second arm is a function that takes the type that the node has been assigned
       (for/hash ([n nodes])
         (define-values (read-or-write varname)
           (syntax-parse (dict-ref reference-info n #'#f)
-            [((~datum read) field-name:id)
-             (values #'effect-read-variable #'field-name)]
-            [((~datum write) field-name:id)
-             (values #'effect-write-variable #'field-name)]
+            [prop:reference-info-class #:when (attribute prop.is-read?)
+                                       (values #'effect-read-variable #'prop.field-name)]
+            [prop:reference-info-class #:when (not (attribute prop.is-read?))
+                                       (values #'effect-write-variable #'prop.field-name)]
             [#f (values #f #f)]))
         (values
          n

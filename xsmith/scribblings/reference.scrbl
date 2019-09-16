@@ -820,6 +820,7 @@ This property marks nodes that are reference nodes.  The argument for the proper
 @itemlist[
 @item{The identifier @verb{read} or the identifier @verb{write}, indicating whether the reference reads or writes the variable}
 @item{The name of the field that stores the reference name (as an identifier).}
+@item{An optional keyword field @racket[#:unifies], which accepts the name of a field that the type checker unifies with respect to.  The default value, @racket[#t], unifies the node itself instead of one of its fields.  Use @racket[#f] to disable automated unification for this node.  (If you disable unification, you should implement your own manually!)}
 ]
 
 Example:
@@ -827,7 +828,8 @@ Example:
 (add-prop
  my-spec-component
  reference-info
- [Reference (read name)])
+ [Reference (read name)]
+ [Assignment (write name #:unifies Expression)])
 ]
 }
 
