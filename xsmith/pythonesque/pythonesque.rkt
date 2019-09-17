@@ -120,21 +120,8 @@
 (add-prop
  pythonesque-grammar
  reference-info
- ;; [AssignStmt (write name)]
  [AssignStmt (write name #:unifies Expr)]
  [VarRefExpr (read name)]
- ;; TODO ---
- ;;  By default, reference-info declares that the node stated must have a type
- ;;  which unifies with the type of whatever it references. This does not work
- ;;  in all cases, such as when the language has unit-type assignments.
- ;;
- ;;  This is because unit-type assignments are statements with the unit type,
- ;;  but which reference a node of a potentially distinct type. Instead, we
- ;;  should be able to specify that unification only needs to happen between the
- ;;  referenced node and *either* the current node (this) or a specified child.
- ;;
- ;[AssignStmt (write name #:unifies 'Expr)]
- ;[VarRefExpr (read name #:unifies this)]
  )
 
 ; Fresh generation.
