@@ -51,6 +51,8 @@
  [IfElseStmt IfStmt ([else : Stmt])]
  ; Expressions.
  [Expr Node ()]
+ [FuncAppExpr Expr ([func : VarRefExpr]
+                    [args : Expr *])]
  [BinExpr Expr ([lhs : Expr]
                 [rhs : Expr])]
  [AddExpr BinExpr ()]  ;; TODO - I would like to be able to combine all these.
@@ -176,10 +178,26 @@
   (hash 'then (make-hole 'Block)
         'else (make-hole 'Block))]
  ; Expressions.
+ [FuncAppExpr
+  (hash 'func (make-hole 'VarRefExpr)
+        ;; The empty 'args' list will be rewritten by 'fresh' for VarRefExpr.
+        'args 0)]
  [VarRefExpr
   (hash 'name (λ ()
                 (let* ([choice (send this xsmith_get-reference!)]
                        [parent (parent-node (current-hole))])
+                  (when (and (ast-subtype? parent 'FuncAppExpr)
+                             (eq? (current-hole) (ast-child 'func parent)))
+                    (let ([arg-children (create-ast-list
+                                         (map (λ (x) (make-hole 'Expr))
+                                              (product-type-inner-type-list
+                                               (function-type-arg-type
+                                                (binding-type choice)))))])
+                      (enqueue-inter-choice-transform
+                       (λ ()
+                         (rewrite-subtree
+                          (ast-child 'args parent)
+                          arg-children)))))
                   (binding-name choice))))]
  )
 
@@ -289,6 +307,18 @@
            (λ (n t)
              (hash 'Val t))]]
  ; Expressions.
+ [FuncAppExpr [(fresh-type-variable)
+               (λ (n t)
+                 (define args-type (product-type #f))
+                 (define arg-nodes (ast-children (ast-child 'args n)))
+                 (define func-node (ast-child 'func n))
+                 (define arg-types (map (λ (c) (fresh-type-variable)) arg-nodes))
+                 (when (not (att-value 'xsmith_is-hole? func-node))
+                   (unify! args-type (product-type arg-types)))
+                 (for/fold ([dict (hash 'func (function-type args-type t))])
+                           ([a arg-nodes]
+                            [t arg-types])
+                   (dict-set dict a t)))]]
  [AddExpr [(fresh-type-variable int) (bin-expr-types)]]
  [SubExpr [(fresh-type-variable int) (bin-expr-types)]]
  [MulExpr [(fresh-type-variable int) (bin-expr-types)]]
@@ -399,6 +429,16 @@
                 (text "else:")
                 (tab (att-value 'pretty-print (ast-child 'else n)))))]
  ; Expressions.
+ [FuncAppExpr (λ (n)
+                (h-append
+                 (att-value 'pretty-print (ast-child 'func n))
+                 (text "(")
+                 (h-concat
+                  (add-between
+                   (map (λ (arg) (att-value 'pretty-print arg))
+                        (ast-children (ast-child 'args n)))
+                   (text ", ")))
+                 (text ")")))]
  [AddExpr (λ (n) (bin-expr "+" n))]
  [SubExpr (λ (n) (bin-expr "-" n))]
  [MulExpr (λ (n) (bin-expr "*" n))]
