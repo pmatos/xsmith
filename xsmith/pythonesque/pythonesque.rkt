@@ -152,7 +152,7 @@
                        (eq? (ast-child 'main parent) current-hole))]
            [name (or (dict-ref lift-fields 'name #f)
                      (if main?
-                         "main_inner"
+                         "inner_main"
                          (fresh-var-name "func_")))]
            [type (or (dict-ref lift-fields 'type #f)
                      (if main?
