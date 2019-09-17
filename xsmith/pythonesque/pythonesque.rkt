@@ -212,7 +212,6 @@
              (hash 'decls (λ (c) (fresh-type-variable))
                    'stmts (λ (c) (fresh-type-variable))
                    'vars (λ (c) (fresh-type-variable))))]]
-
  ; Statements.
  [Block [unit
           (λ (n t)
@@ -244,9 +243,10 @@
           (λ (n t) (hash 'test bool
                          'then (fresh-type-variable)))]]  ;; TODO - in cish, this is t, but here that fails. Why?
  [IfElseStmt [(fresh-maybe-return)
-              (λ (n t) (hash 'test bool
-                             'then (fresh-type-variable)      ;; TODO - these should be fixed
-                             'else (fresh-type-variable)))]]  ;; TODO - because they are wrong
+              (let ([rt (fresh-type-variable)])
+                (λ (n t) (hash 'test bool
+                               'then rt       ;; TODO - these should be fixed
+                               'else rt)))]]  ;; TODO - because they are wrong
  ; Declarations.
  [VarDecl [(fresh-type-variable)
            (λ (n t)
@@ -285,7 +285,7 @@
             (v-append
              (v-concat
               (map (λ (c) (att-value 'pretty-print c)) decls))
-             ; if __name__ == '__main__':
+             ;; Implement the program entry-point (like 'main' in C).
              line
              (text "if __name__ == '__main__':")
              (tab
