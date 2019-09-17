@@ -289,16 +289,9 @@
              line
              (text "if __name__ == '__main__':")
              (tab
-              (v-append
-               (v-concat
-                (map (λ (c) (att-value 'pretty-print c))
-                     stmts))
-               (v-concat
-                (map (λ (c) (h-append
-                             (text "print(")
-                             (att-value 'pretty-print c)
-                             (text ")")))
-                     vars))))))]
+              (v-concat
+               (map (λ (c) (att-value 'pretty-print c))
+                    stmts)))))]
  ; Declarations.
  [VarDecl (λ (n)
             (hs-append
