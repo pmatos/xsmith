@@ -33,10 +33,9 @@
                 [main : FuncDecl])]
  ; Declarations.
  [Decl Node (name type)]
- [FuncDecl Decl ([params : Param *]
+ [FuncDecl Decl ([params : ParamDecl *]
                  Block)]
- [Param Node (type
-              [name = (fresh-var-name "arg_")])]
+ [ParamDecl Decl ()]
  [VarDecl Decl (Val)]
  ; Statements.
  [Stmt Node ()]
@@ -121,7 +120,7 @@
  binder-info
  [Decl (name type definition)]
  [FuncDecl (name type definition)]
- [Param (name type definition)]
+ [ParamDecl (name type definition)]
  [VarDecl (name type definition)]
  )
 
@@ -159,10 +158,13 @@
                          (fresh-concrete-function-type)))])
       (hash 'name name
             'type type
-            'params (map (λ (t) (make-fresh-node 'Param (hash 'type t)))
+            'params (map (λ (t) (make-fresh-node 'ParamDecl (hash 'type t)))
                          (product-type-inner-type-list
                           (function-type-arg-type
                            type))))))]
+ [ParamDecl
+  (hash 'name (fresh-var-name "arg_")
+        'type (fresh-type-variable))]
  [VarDecl
   (hash 'name (if (equal? (top-ancestor-node (current-hole))
                           (parent-node (current-hole)))
@@ -234,21 +236,21 @@
                    'main (function-type (product-type '()) int)))]]
  ; Statements.
  [Block [(fresh-type-variable)
-          (λ (n t)
-            (define stmts (ast-children (ast-child 'stmts n)))
-            (define last-stmt (car (reverse stmts)))
-            (define stmt-dict
-              (for/hash ([s stmts])
-                (values s
-                        (if (eq? s last-stmt)
-                            (fresh-type-variable)
-                            (fresh-no-return)))))
-            (for/fold ([dict stmt-dict])
-                      ([d (ast-children (ast-child 'decls n))])
-              (dict-set dict d (fresh-type-variable))))]]
+         (λ (n t)
+           (define stmts (ast-children (ast-child 'stmts n)))
+           (define last-stmt (car (reverse stmts)))
+           (define stmt-dict
+             (for/hash ([s stmts])
+               (values s
+                       (if (eq? s last-stmt)
+                           (fresh-type-variable)
+                           (fresh-no-return)))))
+           (for/fold ([dict stmt-dict])
+                     ([d (ast-children (ast-child 'decls n))])
+             (dict-set dict d (fresh-type-variable))))]]
  [AssignStmt [unit
-              (λ (n t)
-                (hash 'Expr (fresh-type-variable)))]]
+               (λ (n t)
+                 (hash 'Expr (fresh-type-variable)))]]
  [PassStmt [(fresh-type-variable) (no-child-types)]]
  [ReturnStmt [(error 'typing-non-value-return-stmt) (no-child-types)]]
  [ValReturnStmt [(return-type (fresh-type-variable))
@@ -282,7 +284,7 @@
                             [arg-type arg-types])
                    (values arg arg-type))
                  'Block (return-type (function-type-return-type f-type)))))]]
- [Param [(fresh-type-variable) (no-child-types)]]
+ [ParamDecl [(fresh-type-variable) (no-child-types)]]
  [VarDecl [(fresh-type-variable)
            (λ (n t)
              (hash 'Val t))]]
@@ -351,8 +353,8 @@
                  (text ", ")))
                (text "):"))
               (tab (att-value 'pretty-print (ast-child 'Block n)))))]
- [Param (λ (n)
-          (text (ast-child 'name n)))]
+ [ParamDecl (λ (n)
+              (text (ast-child 'name n)))]
  [VarDecl (λ (n)
             (hs-append
              (text (ast-child 'name n))
