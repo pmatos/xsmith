@@ -8,6 +8,7 @@
  pprint
  racket/class
  racket/dict
+ (except-in racket/list empty)
  racket/random
  racket/string
  )
@@ -28,10 +29,14 @@
  ; Special nodes.
  [Node #f ()]
  [Program Node ([decls : VarDecl * = (add1 (random 5))]
-                [stmts : Stmt * = (add1 (random 3))]
-                [vars : VarRefExpr * = 3])]
+                [funcs : FuncDecl * = (random 3)]
+                [main : FuncDecl])]
  ; Declarations.
  [Decl Node (name type)]
+ [FuncDecl Decl ([params : Param *]
+                 Block)]
+ [Param Node (type
+              [name = (fresh-var-name "arg_")])]
  [VarDecl Decl (Val)]
  ; Statements.
  [Stmt Node ()]
@@ -92,7 +97,8 @@
  [Decl (no-increase)]
  [Block (λ (n) (if (member (node-type (parent-node n))
                            '(IfStmt
-                             IfElseStmt))
+                             IfElseStmt
+                             FuncDecl))
                    (att-value 'xsmith_ast-depth (parent-node n))
                    (add1 (att-value 'xsmith_ast-depth (parent-node n)))))]
  [AssignStmt (no-increase)]
@@ -114,6 +120,8 @@
  pythonesque-grammar
  binder-info
  [Decl (name type definition)]
+ [FuncDecl (name type definition)]
+ [Param (name type definition)]
  [VarDecl (name type definition)]
  )
 
@@ -128,11 +136,33 @@
 
 (define (fresh-concrete-var-type)
   (concretize-type (fresh-type-variable)))
+(define (fresh-concrete-function-type)
+  (concretize-type (function-type (product-type #f)
+                                  (fresh-type-variable))))
 
 (add-prop
  pythonesque-grammar
  fresh
  ; Declarations.
+ [FuncDecl
+  (λ (lift-fields)
+    (let* ([parent (parent-node (current-hole))]
+           [main? (and (eq? (node-type parent) 'Program)
+                       (eq? (ast-child 'main parent) current-hole))]
+           [name (or (dict-ref lift-fields 'name #f)
+                     (if main?
+                         "main_inner"
+                         (fresh-var-name "func_")))]
+           [type (or (dict-ref lift-fields 'type #f)
+                     (if main?
+                         (function-type (product-type '()) int)
+                         (fresh-concrete-function-type)))])
+      (hash 'name name
+            'type type
+            'params (map (λ (t) (make-fresh-node 'Param (hash 'type t)))
+                         (product-type-inner-type-list
+                          (function-type-arg-type
+                           type))))))]
  [VarDecl
   (hash 'name (if (equal? (top-ancestor-node (current-hole))
                           (parent-node (current-hole)))
@@ -159,12 +189,15 @@
  [Program (λ (n t) #t)]
  [Block (λ (n t) (and (not (function-type? t))
                       (not (nominal-record-definition-type? t))))]
+ [FuncDecl #f]
  )
 
 (add-prop
  pythonesque-grammar
  lift-type->ast-binder-type
- [#f (λ (t) 'VarDecl)]
+ [#f (λ (t) (cond
+              [(function-type? t) 'FuncDecl]
+              [else 'VarDecl]))]
  )
 
 ; Types.
@@ -197,10 +230,10 @@
  [Program [(fresh-type-variable)
            (λ (n t)
              (hash 'decls (λ (c) (fresh-type-variable))
-                   'stmts (λ (c) (fresh-type-variable))
-                   'vars (λ (c) (fresh-type-variable))))]]
+                   'funcs (λ (c) (function-type (product-type #f) (fresh-type-variable)))
+                   'main (function-type (product-type '()) int)))]]
  ; Statements.
- [Block [unit
+ [Block [(fresh-type-variable)
           (λ (n t)
             (define stmts (ast-children (ast-child 'stmts n)))
             (define last-stmt (car (reverse stmts)))
@@ -235,6 +268,21 @@
                                'then rt       ;; TODO - these should be fixed
                                'else rt)))]]  ;; TODO - because they are wrong
  ; Declarations.
+ [FuncDecl [(function-type (product-type #f) (fresh-type-variable))
+            (λ (n t)
+              (let ([decl-type-ann (ast-child 'type n)]
+                    [f-type (function-type (product-type #f)
+                                           (fresh-type-variable))])
+                (unify! t decl-type-ann)
+                (unify! t f-type)
+                (define arg-types (product-type-inner-type-list
+                                   (function-type-arg-type f-type)))
+                (hash-set
+                 (for/hash ([arg (ast-children (ast-child 'params n))]
+                            [arg-type arg-types])
+                   (values arg arg-type))
+                 'Block (return-type (function-type-return-type f-type)))))]]
+ [Param [(fresh-type-variable) (no-child-types)]]
  [VarDecl [(fresh-type-variable)
            (λ (n t)
              (hash 'Val t))]]
@@ -261,25 +309,50 @@
    (text op)
    (att-value 'pretty-print (ast-child 'rhs pn))))
 
+(define (pretty-print-children cns)
+  (map (λ (cn) (att-value 'pretty-print cn)) cns))
+
 (add-att-rule
  pythonesque-grammar
  pretty-print
  ; Special nodes.
  [Program (λ (n)
             (define decls (ast-children (ast-child 'decls n)))
-            (define stmts (ast-children (ast-child 'stmts n)))
-            (define vars (ast-children (ast-child 'vars n)))
+            (define funcs (ast-children (ast-child 'funcs n)))
+            (define main (ast-child 'main n))
             (v-append
              (v-concat
-              (map (λ (c) (att-value 'pretty-print c)) decls))
+              (append
+               (pretty-print-children decls)
+               (list (text ""))
+               (add-between
+                (pretty-print-children (reverse (cons main funcs)))
+                (text ""))
+               (list (text ""))))
              ;; Implement the program entry-point (like 'main' in C).
-             line
              (text "if __name__ == '__main__':")
              (tab
-              (v-concat
-               (map (λ (c) (att-value 'pretty-print c))
-                    stmts)))))]
+              (v-append
+               (text "result = inner_main()")
+               (text "print(result)")))))]
  ; Declarations.
+ [FuncDecl (λ (n)
+             (define params (ast-children (ast-child 'params n)))
+             (v-append
+              (h-append
+               (text "def ")
+               (text (ast-child 'name n))
+               (text "(")
+               (h-concat
+                (add-between
+                 (map (λ (param)
+                        (att-value 'pretty-print param))
+                      params)
+                 (text ", ")))
+               (text "):"))
+              (tab (att-value 'pretty-print (ast-child 'Block n)))))]
+ [Param (λ (n)
+          (text (ast-child 'name n)))]
  [VarDecl (λ (n)
             (hs-append
              (text (ast-child 'name n))
@@ -288,12 +361,12 @@
  ; Statements.
  [Block (λ (n)
           (h-append
-            (v-concat
-             (append
-              (map (λ (cn) (att-value 'pretty-print cn))
-                   (ast-children (ast-child 'decls n)))
-              (map (λ (cn) (att-value 'pretty-print cn))
-                   (ast-children (ast-child 'stmts n)))))))]
+           (v-concat
+            (append
+             (map (λ (cn) (att-value 'pretty-print cn))
+                  (ast-children (ast-child 'decls n)))
+             (map (λ (cn) (att-value 'pretty-print cn))
+                  (ast-children (ast-child 'stmts n)))))))]
  [AssignStmt (λ (n)
                (hs-append
                 (text (ast-child 'name n))
