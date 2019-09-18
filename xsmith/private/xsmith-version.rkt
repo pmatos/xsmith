@@ -30,7 +30,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(provide xsmith-version-string)
+(provide
+ xsmith-version-string
+ xsmith-version-string/no-name
+ )
 
 (require
  racket/port
@@ -139,6 +142,12 @@
 ;;
 ;; The descriptive version string for Xsmith.
 ;;
+(define xsmith-version-string/no-name
+  (if xsmith-info
+      (format "~a (~a)"
+              (xsmith-info 'version)
+              xsmith-git-commit-string)
+      "unable to determine program version"))
 (define xsmith-version-string
   (if xsmith-info
       (format "~a ~a (~a)"

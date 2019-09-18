@@ -151,6 +151,8 @@
 (module+ main
   (require "../main.rkt")
   (xsmith-command-line cish-generate-and-print
+                       #:fuzzer-name "cish"
+                       #:fuzzer-version xsmith-version-string/no-name
                        #:comment-wrap (λ (lines) (format "/*\n~a\n*/"
                                                          (string-join lines "\n")))
                        #:features cish-features-list

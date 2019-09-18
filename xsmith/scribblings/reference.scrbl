@@ -1203,6 +1203,8 @@ Like @racket[printf], but it prints to a buffer that is output when an exception
 @defproc[(xsmith-command-line
 [generate-and-print-func (-> any/c)]
 [#:comment-wrap comment-wrap (-> (listof string?) string?)]
+[#:fuzzer-name fuzzer-name (or/c #f string?)]
+[#:fuzzer-version fuzzer-version (or/c #f string?)]
 [#:features features (listof (or/c (list/c symbol? boolean?)
                                    (list/c symbol? boolean? string?)))]
 [#:default-max-depth default-max-depth number?])
@@ -1212,7 +1214,7 @@ Based on options supplied, it may print a help message and terminate the program
 
 @racket[generate-and-print-func] must be a function that generates and prints a single program.  It is called within @racket[xsmith-command-line] with the random seed parameterized according to command-line options (and for the web server reset and incremented for each call), and with all xsmith-options parameterized according to the command line.  The @racket[generate-and-print-func] needs to parameterize @racket[current-type-thunks-for-concretization] if your language is to support variable definitions and references.
 
-@racket[comment-wrap] takes a list of strings which contain info about the generated program, such as the command line used to generate it and the random seed number.  It should return a string representing those lines commented out.  Such as the following, assuming the "#" character is the line-comment character in your language:
+@racket[comment-wrap] takes a list of strings which contain info about the generated program, such as the command line used to generate it, the @racket[fuzzer-name], the @racket[fuzzer-version], and the random seed number.  It should return a string representing those lines commented out.  Such as the following, assuming the "#" character is the line-comment character in your language:
 
 @racketblock[
 (λ (lines)
