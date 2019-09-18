@@ -15,6 +15,35 @@
 
 (define-spec-component pythonesque-grammar)
 
+#|
+Broad Future Goals:
+  [x] basic types (int, bool)
+  [x] functions
+    [x] definitions
+    [x] calls
+    [x] as values
+  [x] if/else
+  [ ] arrays
+  [ ] try/except
+  [ ] loops
+    [ ] while
+    [ ] for ... in
+  [ ] classes
+    [ ] definitions
+    [ ] instantiation
+  [ ] runtime type modification
+    [ ] grafting
+    [ ] pruning
+  [ ] union types (e.g., variable could be either string or integer)
+  [ ] "uninitialized" variables (start as None and gain value later)
+  [ ] standard library calls (e.g., itertools, functools, dataclasses, etc.)
+
+Fixes:
+  [ ] functions should always return the same "type" (no None fallthrough)
+    - actually maybe functions should just *always* return something?
+  [ ] so many pass statements omg
+|#
+
 ;;;;
 ;; Grammar specification.
 
