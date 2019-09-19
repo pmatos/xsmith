@@ -36,6 +36,8 @@
   [xsmith-command-line
    (->* ((-> void?))
         (#:comment-wrap (-> (listof string?) string?)
+         #:fuzzer-name (or/c #f string?)
+         #:fuzzer-version (or/c #f string?)
          #:features (listof
                      (or/c (list/c symbol? boolean?)
                            (list/c symbol? boolean? (listof string?))))
@@ -93,6 +95,8 @@
 
 
 (define (xsmith-command-line generate-and-print-func
+                             #:fuzzer-name [fuzzer-name #f]
+                             #:fuzzer-version [fuzzer-version #f]
                              #:comment-wrap [comment-func (λ (lines) "")]
                              #:features [features-list '()]
                              #:default-max-depth [default-max-depth 5])
@@ -154,6 +158,15 @@
                        "bool")])
                   features-list)))))
 
+  (define version-info
+    (format "~a~a, in Racket ~a"
+            (cond [(and fuzzer-name fuzzer-version)
+                   (format "~a ~a, " fuzzer-name fuzzer-version)]
+                  [fuzzer-name (format "~a, " fuzzer-name)]
+                  [else ""])
+            xsmith-version-string
+            (version)))
+
   (parse-command-line
    (short-program+command-name)
    (current-command-line-arguments)
@@ -198,7 +211,7 @@
      (once-each
       [("--version" "-v")
        ,(λ (flag)
-          (displayln xsmith-version-string)
+          (displayln version-info)
           (exit 0))
        ("Show program version information and exit")])
      )
@@ -220,13 +233,15 @@
       (let ([seed (xsmith-option 'random-seed)])
         (random-seed seed)
         (define option-lines
-          (list (format "Generator: ~a in Racket ~a"
-                        xsmith-version-string
-                        (version))
-                (format "Options: ~a" (string-join
-                                       (vector->list
-                                        (xsmith-option 'command-line))))
-                (format "Seed: ~a" seed)))
+          (append
+           (if fuzzer-name
+               (list (format "Fuzzer: ~a" fuzzer-name))
+               (list))
+           (list (format "Version: ~a" version-info)
+                 (format "Options: ~a" (string-join
+                                        (vector->list
+                                         (xsmith-option 'command-line))))
+                 (format "Seed: ~a" seed))))
         (define error? #f)
         (define program
           (with-output-to-string
