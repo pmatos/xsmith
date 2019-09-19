@@ -517,7 +517,50 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; type variable x2
     [(list (type-variable tvi-sub)
            (type-variable tvi-sup))
-     (todo-code)]
+
+     ;; Type variables may have any number of base-type-ranges as possibilities.
+     ;; When subtype-unifying, each base-type-range pair is tried for unification.
+     ;; All successes then replace the old base-type-ranges.
+     ;; (Except the new ranges are tested against each other -- any range that fits entirely within another is eliminated.)
+     (define (base-type-ranges->unified-versions sub super)
+       ;; returns a list of a new sub-range and a new super-range if compatible,
+       ;; otherwise return #f
+       (and (can-subtype-unify? sub super)
+            (let ()
+              ;; lsup bust not be higher than rsup -- IE the upper bound of the supertype is also an upper bound on the subtype.
+              (define new-lsup (base-type-greatest-lower-bound lsup rsup))
+              ;; rsub must not be lower than lsub -- IE the lower bound of the subtype is also a lower bound on the supertype.
+              (define new-rsub (base-type-least-upper-bound lsub rsub))
+              (define new-l (base-type-range lsub new-lsup))
+              (define new-r (base-type-range new-rsub rsub))
+              (list new-l new-r))))
+
+     ;; For reference, type-variable-innard structure:
+     #;([handle-set #:mutable]
+        [type #:mutable]
+        [lower-bounds #:mutable]
+        [upper-bounds #:mutable])
+
+     (define already-done?
+       (or (eq? tvi-sub tvi-sup)
+           ;; TODO - should transitive relationships be squashed like this is assuming, or should I walk over a graph every time?  No matter how I slice it, this is going to require a lot of graph walking every time...
+           (member tvi-sup (type-variable-innard-upper-bounds tvi-sub))))
+     (define squash-case?
+       ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
+       (member tvi-sup (type-variable-innard-lower-bounds tvi-sub)))
+
+     ;; TODO - ripple changes to upper- and lower-bounds of BOTH sub- and super-types.  This means keeping a work list of what pairs have been unified...  In both the squash case and the non-squash case changes must be propagated, though in the squash case there are chances to do more squashing and eliminate redundant variables.
+
+     (cond
+       [already-done? (void)]
+       [squash-case?
+        (todo-code)]
+       [else
+        (todo-code)])
+
+     (todo-code)
+
+     ]
     ;; type variable left
     [(list (type-variable tvi-sub)
            _)
@@ -526,6 +569,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list _
            (type-variable tvi-sup))
      (todo-code)]
+
 
     ;; product type
     [(list (product-type inner1 lowers1 uppers1)
@@ -619,16 +663,15 @@ TODO - when generating a record ref, I'll need to compare something like (record
                  (subtype-unify! isuper isub))
                type-arguments1
                type-arguments2)]
+
     ;; base type
-    [(list (or (base-type _ _) (base-type-range _ _))
-           (or (base-type _ _) (base-type-range _ _)))
-     (unless (can-unify? sub super)
+    ;; Base type ranges should only appear IN a type variable.
+    ;; Base types that aren't ranges are straightforward to handle.
+    [(list (base-type lname lsuper) (base-type rname rsuper))
+     (unless (can-unify-subtype? sub super)
        (error 'subtype-unify!
-              "TODO - better error message -- bad unification of base types."))]
-    ;[(list (base-type _ _) _)
-    ; (subtype-unify! (base-type->range sub) super)]
-    ;[(list _ (base-type _ _))
-    ; (subtype-unify! sub (base-type->range super))]
+              "Base type ~v is not a subtype of base type ~v."))]
+
     [else (TODO-code better error message?)]
 
     )
