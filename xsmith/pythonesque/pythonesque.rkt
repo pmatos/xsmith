@@ -499,4 +499,13 @@ Fixes:
                     (current-output-port)
                     120))))
 
-(xsmith-command-line pythonesque-generate-and-print)
+(xsmith-command-line
+ pythonesque-generate-and-print
+ #:comment-wrap (λ (lines) (format
+                            "~a"
+                            (string-join
+                             (add-between lines
+                                          (list "\n# ")
+                                          #:before-first (list "# ")
+                                          #:after-last (list "\n")
+                                          #:splice? #t)))))
