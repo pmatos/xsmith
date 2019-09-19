@@ -268,6 +268,9 @@ Fixes:
   (fresh-type-variable (return-type (fresh-type-variable))
                        (no-return-type (fresh-type-variable))))
 
+(define (usable-types)
+  (fresh-type-variable int bool))
+
 (define (bin-expr-types)
   (λ (n t) (hash 'lhs t
                  'rhs t)))
@@ -297,7 +300,7 @@ Fixes:
              (dict-set dict d (fresh-type-variable))))]]
  [AssignStmt [unit
                (λ (n t)
-                 (hash 'Expr (fresh-type-variable)))]]
+                 (hash 'Expr (usable-types)))]]
  [PassStmt [(fresh-type-variable) (no-child-types)]]
  [ReturnStmt [(error 'typing-non-value-return-stmt) (no-child-types)]]
  [ValReturnStmt [(return-type (fresh-type-variable))
