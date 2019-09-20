@@ -132,17 +132,13 @@ a "type", which is either:
 • a list - constrained to be one of the types in the list
 A type variable list may not contain type variables and may not contain more than one of each compound type.  Eg. it may contain any number of base types but only one function type or record type.  However, the function or record type contained my be only partially specified (eg. may contain type variables).
 
-And upper and lower bounds lists (for subtyping).  The bounds lists include any number of other type variables and possibly the closest bound for any type in its type list.
+A forward field, which is #f when the type variable innard has not been forwarded to a different one, or points to another type variable.  This is to be more lazy about updating the upper and lower bounds lists.
+
+And upper and lower bounds lists (for subtyping).  The bounds lists include any number of other type variable innards.
 
 When type variables are subtype-unified, the variables are set in each other's upper/lower bound list.  Their type lists are filtered only to types that have a sub/super type in the other list.  This also affects transitive upper/lower bounds.
 If a (transitive) upper bound is ever equal to a (transitive) lower bound, that part of the lattice is unified into one type-variable-innard.
 
-TODO - if an unconstrained type variable is subtype-unified with a type variable constrained to be (or int (-> tv1 tv2)), I know that the formerly unconstrained type variable must be something that is a sub/super type of int or that function, but I can't put something concrete for the int yet...  I can make a list that includes an arrow type and recursively force the subtype relation on it, but I need a placeholder for int.
-     - If the unknown type is in supertype position, I can simply enumerate the supertypes of the given base type (int) and put them all in the list, because base types have a finite list of supertypes that is visible from the base subtype.
-     - I could keep a list of base subtypes, mutating all supertypes every time a new base subtype is created.  This seems... poor, but it would be easy.  If I don't expect many subtypes to be created this is quite tractable.
-     - OR, better, maybe each base type tree has an identity -- a gensym or something that is unique to the top-level supertype of each base type tree.  Then I can put that symbol in the list to say it has to be in that tree, but I don't yet know what aside from the bounds.
-       - This probably doesn't work -- if I have an Int subtree and a Float subtree of Number, I want to be able to say something could be an Int or a Float but not some other Number, and keep track of both of those facts...
-       - Maybe I want a range stand-in, and for each sub/super pair of base types (or #f for when I only have one side of the range) I make a range object.
 |#
 (struct type-variable ([tvi #:mutable])
   #:methods gen:custom-write
@@ -156,6 +152,7 @@ TODO - if an unconstrained type variable is subtype-unified with a type variable
 (struct type-variable-innard
   ([handle-set #:mutable]
    [type #:mutable]
+   [forward #:mutable]
    [lower-bounds #:mutable]
    [upper-bounds #:mutable]))
 
@@ -176,7 +173,7 @@ TODO - if an unconstrained type variable is subtype-unified with a type variable
   ;; TODO - I probably only want to allow one of each kind of generic type
   (define type (if (null? args) #f args))
   (define handle-set (weak-seteq))
-  (define tvi (type-variable-innard handle-set type '() '()))
+  (define tvi (type-variable-innard handle-set type #f '() '()))
   (define tv (type-variable tvi))
   (set-add! handle-set tv)
   tv)
@@ -488,7 +485,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define (base-type-ranges->unified-versions sub super)
   ;; returns a list of a new sub-range and a new super-range if compatible,
   ;; otherwise return #f
-  (and (can-subtype-unify? sub super)
+  (and (base-type-range? sub)
+       (base-type-range? super)
+       (can-subtype-unify? sub super)
        (let ()
          ;; lsup bust not be higher than rsup -- IE the upper bound of the supertype is also an upper bound on the subtype.
          (define new-lsup (base-type-greatest-lower-bound lsup rsup))
@@ -497,6 +496,16 @@ TODO - when generating a record ref, I'll need to compare something like (record
          (define new-l (base-type-range lsub new-lsup))
          (define new-r (base-type-range new-rsub rsub))
          (list new-l new-r))))
+(define (type-lists->unified-base-types sub-list super-list)
+  (define result
+    (filter (λ(x)x)
+            (for*/list ([sub sub-list]
+                        [sup super-list])
+              (base-type-ranges->unified-versions sub sup))))
+  (define new-subs (map first result))
+  (define new-sups (map second result))
+  ;; TODO - filter out any that are sub-ranges within each of these lists
+  (list new-subs new-sups))
 
 
 (define (subtype-unify! sub super)
@@ -533,6 +542,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (type-variable tvi-sub)
            (type-variable tvi-sup))
 
+     ;; TODO - check that one is not recursively contained in the structure of the other.
+
      ;; Type variables may have any number of base-type-ranges as possibilities.
      ;; When subtype-unifying, each base-type-range pair is tried for unification.
      ;; All successes then replace the old base-type-ranges.
@@ -542,23 +553,77 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; For reference, type-variable-innard structure:
      #;([handle-set #:mutable]
         [type #:mutable]
+        [forward #:mutable]
         [lower-bounds #:mutable]
         [upper-bounds #:mutable])
 
+     (define tvi-sub-uppers (type-variable-innard->transitive-upper-bounds tvi-sub))
+     (define tvi-sub-lowers (type-variable-innard->transitive-lower-bounds tvi-sub))
      (define already-done?
        (or (eq? tvi-sub tvi-sup)
-           ;; TODO - should transitive relationships be squashed like this is assuming, or should I walk over a graph every time?  No matter how I slice it, this is going to require a lot of graph walking every time...
-           (member tvi-sup (type-variable-innard-upper-bounds tvi-sub))))
+           (member tvi-sup tvi-sub-uppers)))
      (define squash-case?
        ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
-       (member tvi-sup (type-variable-innard-lower-bounds tvi-sub)))
+       (member tvi-sup tvi-sub-lowers))
 
      ;; TODO - ripple changes to upper- and lower-bounds of BOTH sub- and super-types.  This means keeping a work list of what pairs have been unified...  In both the squash case and the non-squash case changes must be propagated, though in the squash case there are chances to do more squashing and eliminate redundant variables.
 
      (cond
        [already-done? (void)]
        [squash-case?
-        (todo-code)]
+        (define tvi-sup-lowers (type-variable-innard->transitive-lower-bounds tvi-sup))
+        (define intersection
+          (set-union (list tvi-sup tvi-sub)
+                     (set-intersection tvi-sup-lowers tvi-sub-uppers)))
+        (define new-handles (apply set-union
+                                   (map type-variable-innard-handle-set
+                                        intersection)))
+        (define new-type
+          (match (list (type-variable-innard-type tvi-sub)
+                       (type-variable-innard-type tvi-sup))
+            ;; Actually, if one is false in this case they both need to be...
+            [(list #f r) r]
+            [else
+             (define subtypes (flatten (list (type-variable-innard-type tvi-sub))))
+             (define supertypes (flatten (list (type-variable-innard-type tvi-sup))))
+             (match-define (list sub-bases super-bases)
+               (type-lists->unified-base-types subtypes supertypes))
+             ;; TODO - sanity check -- assert that sub-bases and super-bases are the same
+             (define compound-types
+               (filter
+                (λ(x)x)
+                (for*/list ([sub (filter (λ(x) (not (base-type-range? x)))
+                                         subtypes)]
+                            [sup (filter (λ(x) (not (base-type-range? x)))
+                                         supertypes)])
+                  (and (can-subtype-unify? sub sup)
+                       (subtype-unify! sub sup)
+                       sub))))
+             (define all-types (append compound-types sub-bases))
+             (match all-types
+               [(list) (error 'subtype-unify!
+                              "can't unify types ~v and ~v (this one shouldn't happen...)"
+                              sub super)]
+               [(list t) t]
+               [(list ts ...) ts])]))
+
+        (define new-lowers
+          (set-subtract (apply set-union
+                               (map type-variable-innard-lower-bounds
+                                    intersection))
+                        intersection))
+        (define new-uppers
+          (set-subtract (apply set-union
+                               (map type-variable-innard-upper-bounds
+                                    intersection))
+                        intersection))
+        (define new-innard
+          (type-variable-innard new-handles new-type new-lowers new-uppers))
+        (for ([h new-handles])
+          (set-type-variable-innard! h new-innard))
+        (for ([i intersection])
+          (set-type-variable-innard-forward! i new-innard))
+        (todo-code "ripple changes to new uppers and lowers")]
        [else
         (todo-code)])
 
