@@ -649,14 +649,52 @@ TODO - when generating a record ref, I'll need to compare something like (record
               (subtype-unify! (type-variable-innard-type tvi-sub) super)])]
        [non-variable (subtype-unify! non-variable super)])
 
-     ;; Mutation done, ripple changes to upper/lower bounds.
-     ;; TODO - maybe track whether things ACTUALLY changed...
-     (todo-code "ripple change to upper/lower bounds -- I can do it here and take out all the other places I have this note...")]
+     (when (not (equal? t (type-variable-innard-type tvi-sub)))
+       (ripple-subtype-unify-changes '() (list tvi-sub)))]
 
-    ;; type variable right
+    ;; type variable right -- this code is basically the same as the above... maybe it could be unified better...
     [(list _
            (type-variable tvi-sup))
-     (todo-code)]
+
+     (define t (type-variable-innard-type tvi-sup))
+     (match t
+       [(list possibilies ...)
+        (define new-possibilities (filter (λ (p) (can-subtype-unify? sub p))
+                                          possibilities))
+        (set-type-variable-innard-type!
+         tvi-sup
+         (match new-possibilities
+           [(list) (error 'subtype-unify!
+                          "can't unify types: ~v and ~v"
+                          sub super)]
+           [(list (? base-type-range?) ...)
+            (define sub-range (base-type-range sub sub))
+            (define new-ranges
+              (filter-map
+               (λ (super)
+                 (define x (base-type-ranges->unified-versions sub-range super))
+                 (and x (car x)))
+               new-possibilities))
+            (match new-ranges
+              [(list) (error 'subtype-unify!
+                             "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
+                             sub super)]
+              [(list one) one]
+              [else new-ranges])]
+           [(list non-base)
+            (subtype-unify! sub non-base)
+            non-base]))]
+       [#f (match sub
+             [(? base-type?)
+              (set-type-variable-innard-type! tvi-sup (base-type-range super (base-type->superest super)))]
+             [else
+              (set-type-variable-innard-type! tvi-sup
+                                              (type->skeleton-with-vars sub))
+              (subtype-unify! sub (type-variable-innard-type tvi-sup))])]
+       [non-variable (subtype-unify! sub non-variable)])
+
+     (when (not (equal? t (type-variable-innard-type tvi-sup)))
+       (ripple-subtype-unify-changes '() (list tvi-sup)))]
 
 
     ;; product type
@@ -760,10 +798,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (error 'subtype-unify!
               "Base type ~v is not a subtype of base type ~v."))]
 
-    [else (TODO-code better error message?)]
-
-    )
-  )
+    [else (error 'subtype-unify! "can't unify types: ~v and ~v" sub super)]))
 
 (define (ripple-subtype-unify-changes done-pair-list innard-work-list)
   (if (null? innard-work-list)
