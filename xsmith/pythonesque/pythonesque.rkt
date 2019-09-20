@@ -315,10 +315,10 @@ Fixes:
           (λ (n t) (hash 'test bool
                          'then (fresh-type-variable)))]]  ;; TODO - in cish, this is t, but here that fails. Why?
  [IfElseStmt [(fresh-maybe-return)
-              (let ([rt (fresh-type-variable)])
-                (λ (n t) (hash 'test bool
-                               'then rt       ;; TODO - these should be fixed
-                               'else rt)))]]  ;; TODO - because they are wrong
+              (λ (n t)
+                (hash 'test bool
+                      'then t
+                      'else t))]]
  ; Declarations.
  [FuncDecl [(function-type (product-type #f) (fresh-type-variable))
             (λ (n t)
