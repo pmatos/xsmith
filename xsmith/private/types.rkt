@@ -548,14 +548,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; When subtype-unifying, each base-type-range pair is tried for unification.
      ;; All successes then replace the old base-type-ranges.
      ;; (Except the new ranges are tested against each other -- any range that fits entirely within another is eliminated.)
-     
-
-     ;; For reference, type-variable-innard structure:
-     #;([handle-set #:mutable]
-        [type #:mutable]
-        [forward #:mutable]
-        [lower-bounds #:mutable]
-        [upper-bounds #:mutable])
 
      (define tvi-sub-uppers (type-variable-innard->transitive-upper-bounds tvi-sub))
      (define tvi-sub-lowers (type-variable-innard->transitive-lower-bounds tvi-sub))
@@ -565,8 +557,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (define squash-case?
        ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
        (member tvi-sup tvi-sub-lowers))
-
-     ;; TODO - ripple changes to upper- and lower-bounds of BOTH sub- and super-types.  This means keeping a work list of what pairs have been unified...  In both the squash case and the non-squash case changes must be propagated, though in the squash case there are chances to do more squashing and eliminate redundant variables.
 
      (cond
        [already-done? (void)]
@@ -578,34 +568,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
         (define new-handles (apply set-union
                                    (map type-variable-innard-handle-set
                                         intersection)))
+        (match-define (list lower-change upper-change)
+          (subtype-unify!/type-variable-innards tvi-sub tvi-sup))
+
         (define new-type
-          (match (list (type-variable-innard-type tvi-sub)
-                       (type-variable-innard-type tvi-sup))
-            ;; Actually, if one is false in this case they both need to be...
-            [(list #f r) r]
-            [else
-             (define subtypes (flatten (list (type-variable-innard-type tvi-sub))))
-             (define supertypes (flatten (list (type-variable-innard-type tvi-sup))))
-             (match-define (list sub-bases super-bases)
-               (type-lists->unified-base-types subtypes supertypes))
-             ;; TODO - sanity check -- assert that sub-bases and super-bases are the same
-             (define compound-types
-               (filter
-                (λ(x)x)
-                (for*/list ([sub (filter (λ(x) (not (base-type-range? x)))
-                                         subtypes)]
-                            [sup (filter (λ(x) (not (base-type-range? x)))
-                                         supertypes)])
-                  (and (can-subtype-unify? sub sup)
-                       (subtype-unify! sub sup)
-                       sub))))
-             (define all-types (append compound-types sub-bases))
-             (match all-types
-               [(list) (error 'subtype-unify!
-                              "can't unify types ~v and ~v (this one shouldn't happen...)"
-                              sub super)]
-               [(list t) t]
-               [(list ts ...) ts])]))
+          (type-variable-innard-type tvi-sub))
 
         (define new-lowers
           (set-subtract (apply set-union
@@ -623,13 +590,25 @@ TODO - when generating a record ref, I'll need to compare something like (record
           (set-type-variable-innard! h new-innard))
         (for ([i intersection])
           (set-type-variable-innard-forward! i new-innard))
-        (todo-code "ripple changes to new uppers and lowers")]
+        (when (or lower-change upper-change)
+          (ripple-subtype-unify-changes '() (list new-innard)))]
        [else
-        (todo-code)])
+        (set-type-variable-innard-upper-bounds!
+         tvi-sub
+         (cons tvi-sup (type-variable-innard-upper-bounds tvi-sub)))
+        (set-type-variable-innard-lower-bounds!
+         tvi-sup
+         (cons tvi-sub (type-variable-innard-lower-bounds tvi-sup)))
 
-     (todo-code)
-
-     ]
+        (define dones (list (cons tvi-sub tvi-sup)))
+        (match (subtype-unify!/type-variable-innard tvi-sub tvi-sup)
+          [(list #f #f) (void)]
+          [(list #f #t) (ripple-subtype-unify-changes dones
+                                                      (list tvi-sup))]
+          [(list #t #f) (ripple-subtype-unify-changes dones
+                                                      (list tvi-sub))]
+          [(list #t #t) (ripple-subtype-unify-changes dones
+                                                      (list tvi-sub tvi-sup))])])]
     ;; type variable left
     [(list (type-variable tvi-sub)
            _)
@@ -785,6 +764,88 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
     )
   )
+
+(define (ripple-subtype-unify-changes done-pair-list innard-work-list)
+  (if (null? innard-work-list)
+      (void)
+      (let ([innard (innard->forward-resolve (car innard-work-list))]
+            [innard-work-list (cdr innard-work-list)])
+        (define (fold-body dones work lower upper)
+          (cond
+            [(member (cons lower upper) done-pair-list) (values dones work)]
+            [else
+             (match-define (list subchange superchange)
+               (subtype-unify!/type-variable-innards lower upper))
+             (define new-dones1 (if subchange
+                                    (done-pair-list-remove-with dones lower)
+                                    dones))
+             (define new-dones2 (if superchange
+                                    (done-pair-list-remove-with new-dones1 upper)
+                                    dones))
+             (define new-dones3 (cons (cons lower innard) new-dones))
+             (define new-work1 (if subchange
+                                   (set-add lower work)
+                                   work))
+             (define new-work2 (if superchange
+                                   (set-add upper work)
+                                   work))
+             (values new-dones3
+                     new-work2)]))
+        (define-values (dones1 work1)
+          (for/fold ([dones done-pair-list]
+                     [work innard-work-list])
+                    ([lower (type-variable-innard-lower-bounds! innard)])
+            (fold-body nodes work lower innard)))
+        (define-values (dones2 work2)
+          (for/fold ([dones dones1]
+                     [work work1])
+                    ([upper (type-variable-innard-upper-bounds! innard)])
+            (fold-body nodes work innard upper)))
+        (ripple-subtype-unify-changes dones2 work2))))
+
+(define (subtype-unify!/type-variable-innards sub super)
+  #|
+  This is a helper function that takes only type-variable-innards, and only updates their type lists.  IE it does not add them to each others' upper/lower bounds lists.
+  It returns a list of two bools.  The first one is true iff the sub list was modified, the second one is true iff the super list was modified.
+  |#
+  (define new-type
+    (match (list (flatten (list (type-variable-innard-type tvi-sub)))
+                 (flatten (list (type-variable-innard-type tvi-sup))))
+      [(list (list #f) r) (todo-code)]
+      [(list l (list #f)) (todo-code)]
+      [(list subtypes supertypes)
+
+       (match-define (list sub-bases super-bases)
+         (type-lists->unified-base-types subtypes supertypes))
+
+       (define compound-type-pairs
+         (filter
+          (λ(x)x)
+          (for*/list ([sub (filter (λ(x) (not (base-type-range? x)))
+                                   subtypes)]
+                      [sup (filter (λ(x) (not (base-type-range? x)))
+                                   supertypes)])
+            (and (can-subtype-unify? sub sup)
+                 (subtype-unify! sub sup)
+                 (list sub sup)))))
+       (define sub-compounds (map first compound-type-pairs))
+       (define super-compounds (map second compound-type-pairs))
+
+       (define (->use t-list)
+         (match t-list
+           [(list) (error 'subtype-unify!
+                          "can't unify types ~v and ~v (this one shouldn't happen...)"
+                          sub super)]
+           [(list t) t]
+           [(list ts ...) ts]))
+       (define all-sub (->use (append sub-bases sub-compounds)))
+       (define all-super (->use (append super-bases super-compounds)))
+
+       (set-type-variable-innard-type! sub all-sub)
+       (set-type-variable-innard-type! super all-super)
+
+       (list (set-equal? subtypes all-sub)
+             (set-equal? supertypes all-super))])))
 
 (define (can-subtype-unify? sub super)
   (TODO-code)
