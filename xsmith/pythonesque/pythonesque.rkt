@@ -504,6 +504,7 @@ Fixes:
 
 (xsmith-command-line
  pythonesque-generate-and-print
+ #:fuzzer-name "pythonesque"
  #:comment-wrap (λ (lines) (format
                             "~a"
                             (string-join
