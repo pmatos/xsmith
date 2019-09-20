@@ -484,6 +484,21 @@ TODO - when generating a record ref, I'll need to compare something like (record
           (rec r1 r2))]
     [else #f]))
 
+
+(define (base-type-ranges->unified-versions sub super)
+  ;; returns a list of a new sub-range and a new super-range if compatible,
+  ;; otherwise return #f
+  (and (can-subtype-unify? sub super)
+       (let ()
+         ;; lsup bust not be higher than rsup -- IE the upper bound of the supertype is also an upper bound on the subtype.
+         (define new-lsup (base-type-greatest-lower-bound lsup rsup))
+         ;; rsub must not be lower than lsub -- IE the lower bound of the subtype is also a lower bound on the supertype.
+         (define new-rsub (base-type-least-upper-bound lsub rsub))
+         (define new-l (base-type-range lsub new-lsup))
+         (define new-r (base-type-range new-rsub rsub))
+         (list new-l new-r))))
+
+
 (define (subtype-unify! sub super)
   #|
   * Base types should have a subtyping hierarchy.
@@ -522,18 +537,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; When subtype-unifying, each base-type-range pair is tried for unification.
      ;; All successes then replace the old base-type-ranges.
      ;; (Except the new ranges are tested against each other -- any range that fits entirely within another is eliminated.)
-     (define (base-type-ranges->unified-versions sub super)
-       ;; returns a list of a new sub-range and a new super-range if compatible,
-       ;; otherwise return #f
-       (and (can-subtype-unify? sub super)
-            (let ()
-              ;; lsup bust not be higher than rsup -- IE the upper bound of the supertype is also an upper bound on the subtype.
-              (define new-lsup (base-type-greatest-lower-bound lsup rsup))
-              ;; rsub must not be lower than lsub -- IE the lower bound of the subtype is also a lower bound on the supertype.
-              (define new-rsub (base-type-least-upper-bound lsub rsub))
-              (define new-l (base-type-range lsub new-lsup))
-              (define new-r (base-type-range new-rsub rsub))
-              (list new-l new-r))))
+     
 
      ;; For reference, type-variable-innard structure:
      #;([handle-set #:mutable]
