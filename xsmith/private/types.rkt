@@ -564,7 +564,47 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; type variable left
     [(list (type-variable tvi-sub)
            _)
-     (todo-code)]
+     (define t (type-variable-innard-type tvi-sub))
+     (match t
+       [(list possibilies ...)
+        (define new-possibilities (filter (λ (p) (can-subtype-unify? p super))
+                                          possibilities))
+        (set-type-variable-innard-type!
+         tvi-sub
+         (match new-possibilities
+           [(list) (error 'subtype-unify!
+                          "can't unify types: ~v and ~v"
+                          sub super)]
+           [(list (? base-type-range?) ...)
+            (define super-range (base-type-range super super))
+            (define new-ranges
+              (filter-map
+               (λ (sub)
+                 (define x (base-type-ranges->unified-versions sub super-range))
+                 (and x (car x)))
+               new-possibilities))
+            (match new-ranges
+              [(list) (error 'subtype-unify!
+                             "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
+                             sub super)]
+              [(list one) one]
+              [else new-ranges])]
+           [(list non-base)
+            (subtype-unify! non-base super)
+            non-base]))]
+       [#f (match super
+             [(? base-type?)
+              (set-type-variable-innard-type! tvi-sub (base-type-range #f super))]
+             [else
+              (set-type-variable-innard-type! tvi-sub
+                                              (type->skeleton-with-vars super))
+              (subtype-unify! (type-variable-innard-type tvi-sub) super)])]
+       [non-variable (subtype-unify! non-variable super)])
+
+     ;; Mutation done, ripple changes to upper/lower bounds.
+     ;; TODO - maybe track whether things ACTUALLY changed...
+     (todo-code "ripple change to upper/lower bounds -- I can do it here and take out all the other places I have this note...")]
+
     ;; type variable right
     [(list _
            (type-variable tvi-sup))
