@@ -285,7 +285,7 @@ Fixes:
                    'funcs (λ (c) (function-type (product-type #f) (fresh-type-variable)))
                    'main (function-type (product-type '()) int)))]]
  ; Statements.
- [Block [(fresh-type-variable)
+ [Block [(fresh-maybe-return)
          (λ (n t)
            (define stmts (ast-children (ast-child 'stmts n)))
            (define last-stmt (car (reverse stmts)))
@@ -308,7 +308,7 @@ Fixes:
                    (define rt (return-type (fresh-type-variable)))
                    (unify! t rt)
                    (hash 'Expr (return-type-type rt)))]]
- [ExprStmt [unit
+ [ExprStmt [(fresh-no-return)
              (λ (n t)
                (hash 'Expr (fresh-type-variable)))]]
  [IfStmt [(fresh-no-return)
