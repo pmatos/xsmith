@@ -1185,6 +1185,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (begin (subtype-unify! t1 t2)
          (subtype-unify! t2 t1)))
 (define (can-unify? t1 t2)
+  ;; TODO - this is wrong, though I don't think it's the reason I have everything failing right now.  It's wrong because two type variables could each have two possibilities, with one pairing for each subtyping direction, but with incompatible types in each direction.
   (and (can-subtype-unify? t1 t2)
        (can-subtype-unify? t2 t1)))
 
