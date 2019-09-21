@@ -1237,7 +1237,7 @@ The second arm is a function that takes the type that the node has been assigned
     (define (break?!)
       (when (concrete-type? hole-type)
         (break!! #t))
-      (when (at-least-as-concrete hole-type type-constraint)
+      #;(when (at-least-as-concrete hole-type type-constraint)
         #|
         TODO This is currently broken.  I'm sure at-least-as-concrete is broken.
         I need to make at-least-as-concrete more conservative, probably, but also
@@ -1245,8 +1245,7 @@ The second arm is a function that takes the type that the node has been assigned
         are no common cases instead of trying to cram a second version of that into
         `at-least-as-concrete`.
         |#
-        ;;(break!! #t)
-        (void)
+        (break!! #t)
         )
       ;; Even if we're not done yet, when we make progress we should update this list.
       (set! variables (type->type-variable-list hole-type)))
