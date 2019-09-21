@@ -1033,8 +1033,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (set-type-variable-innard-type! sub all-sub)
      (set-type-variable-innard-type! super all-super)
 
-     (list (set-equal? subtypes all-sub)
-           (set-equal? supertypes all-super))]))
+     (list (set=? subtypes all-sub)
+           (set=? supertypes all-super))]))
 
 (define (can-subtype-unify? sub super)
   (match (list sub super)
