@@ -294,8 +294,6 @@ The minimum may be #f to mean any subtype of the maximum type.
                 "incompatible base types: ~v and ~v" a b))]))
 
 (struct base-type-range (sub super) #:transparent)
-(define (base-type->range bt)
-  (base-type-range #f bt))
 
 (struct function-type (arg-type return-type) #:transparent)
 
@@ -611,7 +609,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
             ;; rsub must not be lower than lsub -- IE the lower bound of the subtype is also a lower bound on the supertype.
             (define new-rsub (base-type-least-upper-bound lsub rsub))
             (define new-l (base-type-range lsub new-lsup))
-            (define new-r (base-type-range new-rsub rsub))
+            (define new-r (base-type-range new-rsub rsup))
             (list new-l new-r)))]
     [else #f]))
 (define (type-lists->unified-base-types sub-list super-list)
