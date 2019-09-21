@@ -952,11 +952,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                     dones))
              (define new-dones3 (cons (cons lower innard) new-dones2))
              (define new-work1 (if subchange
-                                   (set-add lower work)
+                                   (set-add work lower)
                                    work))
              (define new-work2 (if superchange
-                                   (set-add upper work)
-                                   work))
+                                   (set-add new-work1 upper)
+                                   new-work1))
              (values new-dones3
                      new-work2)]))
         (define-values (dones1 work1)
