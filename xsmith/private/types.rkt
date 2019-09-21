@@ -686,10 +686,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
             non-base]))]
        [#f (match sub
              [(? base-type?)
-              (set-type-variable-innard-type! tvi-sup (base-type-range super (base-type->superest super)))]
+              (set-type-variable-innard-type!
+               tvi-sup
+               (base-type-range super (base-type->superest super)))]
              [else
-              (set-type-variable-innard-type! tvi-sup
-                                              (type->skeleton-with-vars sub))
+              (set-type-variable-innard-type!
+               tvi-sup
+               (type->skeleton-with-vars sub))
               (subtype-unify! sub (type-variable-innard-type tvi-sup))])]
        [non-variable (subtype-unify! sub non-variable)])
 
@@ -846,8 +849,27 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (define new-type
     (match (list (flatten (list (type-variable-innard-type tvi-sub)))
                  (flatten (list (type-variable-innard-type tvi-sup))))
-      [(list (list #f) r) (todo-code)]
-      [(list l (list #f)) (todo-code)]
+      [(list (list #f) r)
+       (map (λ (t)
+              (match t
+                [(base-type-range low high) (base-type-range #f high)]
+                [else
+                 (define inner-sub (type->skeleton-with-vars t))
+                 (subtype-unify! inner-sub t)
+                 inner-sub]))
+            r)
+       (list #t #f)]
+      [(list l (list #f))
+       (map (λ (t)
+              (match t
+                [(base-type-range low high)
+                 (base-type-range low (base-type->superest high))]
+                [else
+                 (define inner-sup (type->skeleton-with-vars t))
+                 (subtype-unify! t inner-sup)
+                 inner-sup]))
+            l)
+       (list #f #t)]
       [(list subtypes supertypes)
 
        (match-define (list sub-bases super-bases)
