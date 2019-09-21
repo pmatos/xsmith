@@ -217,7 +217,12 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (when (<= 2 (length (filter nominal-record-type? args))) (composite-error))
   ;(when (<= 2 (length (filter record-type? args))) (composite-error))
   ;; TODO - I probably only want to allow one of each kind of generic type
-  (define type (if (null? args) #f args))
+  (define type (if (null? args)
+                   #f
+                   (map (λ (x) (if (base-type? x)
+                                   (base-type-range x x)
+                                   x))
+                        args)))
   (define handle-set (weak-seteq))
   (define tvi (type-variable-innard handle-set type #f '() '()))
   (define tv (type-variable tvi))
@@ -712,7 +717,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
          tvi-sub
          (match new-possibilities
            [(list) (error 'subtype-unify!
-                          "can't unify types: ~v and ~v"
+                          "can't unify these types: ~v and ~v"
                           sub super)]
            [(list (? base-type-range?) ...)
             (define super-range (base-type-range super super))
@@ -756,7 +761,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
          tvi-sup
          (match new-possibilities
            [(list) (error 'subtype-unify!
-                          "can't unify types: ~v and ~v"
+                          "can't unify the following types: ~v and ~v"
                           sub super)]
            [(list (? base-type-range?) ...)
             (define sub-range (base-type-range sub sub))
@@ -836,7 +841,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (define l1 (and inner1 (length inner1)))
      (define l2 (and inner2 (length inner2)))
 
-     (when (and l1 l2 (not equal? l1 l2))
+     (when (and l1 l2 (not (equal? l1 l2)))
        (error 'subtype-unify!
               "Tried to unify two product types with unequal lengths: ~v, ~v"
               sub super))
@@ -850,10 +855,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
          super
          (cons sub (product-type-lower-bounds super)))]
        [(list #f _)
-        (ripple-length! l2 sub)
+        (ripple-length! l2 sub '())
         (inner-unify! sub super)]
        [(list _ #f)
-        (ripple-length! l1 super)
+        (ripple-length! l1 super '())
         (inner-unify! sub super)]
        [else (inner-unify! sub super)])]
 
@@ -911,14 +916,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
                type-arguments2)]
 
     ;; base type
-    ;; Base type ranges should only appear IN a type variable.
-    ;; Base types that aren't ranges are straightforward to handle.
-    [(list (base-type lname lsuper) (base-type rname rsuper))
+    [(list (or (? base-type?) (? base-type-range?))
+           (or (? base-type?) (? base-type-range?)))
      (unless (can-subtype-unify? sub super)
        (error 'subtype-unify!
-              "Base type ~v is not a subtype of base type ~v."))]
-
-    [else (error 'subtype-unify! "can't unify types: ~v and ~v" sub super)]))
+              "Base types: type ~v is not a subtype of type ~v."))]
+    [else (error 'subtype-unify! "case analysis reached end: can't unify types: ~v and ~v" sub super)]))
 
 (define (ripple-subtype-unify-changes done-pair-list innard-work-list)
   (define (done-pair-list-remove-with done-list target)
@@ -1061,10 +1064,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (for/or ([possibility t])
              (match possibility
                [(base-type-range low high)
-                (if low
-                    (member super (base-type->parent-chain low))
-                    (equal? (base-type->superest high)
-                            (base-type->superest super)))]
+                (can-subtype-unify? possibility super)]
                [else #f]))]
           [(? function-type?) (struct-rec function-type?)]
           [(? product-type) (struct-rec product-type?)]
@@ -1093,7 +1093,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (for/or ([possibility t])
              (match possibility
                [(base-type-range low high)
-                (member high (base-type->parent-chain sub))]
+                (can-subtype-unify? sub possibility)]
                [else #f]))]
           [(? function-type?) (struct-rec function-type?)]
           [(? product-type) (struct-rec product-type?)]
@@ -1138,7 +1138,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
         (define inner-vals (dict-values inners2))
         (for/and ([k (dict-keys inners1)])
-          (cond [(not k) (member (dict-ref inners1 k) inner-vals)]
+          (cond [(not k) (not (not (member (dict-ref inners1 k) inner-vals)))]
                 [else (and (dict-has-key? inners2 k)
                            (can-unify? (dict-ref inners1 k) (dict-ref inners2 k)))]))]
        [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
@@ -1161,7 +1161,18 @@ TODO - when generating a record ref, I'll need to compare something like (record
                  (can-subtype-unify? l r))))]
     ;; base-type
     [(list (base-type lname lsuper) (base-type rname rsuper))
-     (member super (base-type->parent-chain sub))]
+     (not (not (member super (base-type->parent-chain sub))))]
+    ;; While base-type-ranges can only be in type variables, it is convenient to recursively use this function to test them
+    [(list (base-type-range l-low l-high) (base-type-range r-low r-high))
+     (if l-low
+         (not (not (member r-high (base-type->parent-chain l-low))))
+         (and (equal? (base-type->superest l-high) (base-type->superest r-high))
+              (or (equal? l-high r-high)
+                  (not (member l-high (base-type->parent-chain r-high))))))]
+    [(list (base-type _ _) (base-type-range _ _))
+     (can-subtype-unify? (base-type-range sub sub) super)]
+    [(list (base-type-range _ _) (base-type _ _))
+     (can-subtype-unify? sub (base-type-range super super))]
     [else #f]))
 
 (define (unify! t1 t2)
