@@ -536,6 +536,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
           (rec r1 r2))]
     [else #f]))
 
+(define (type->skeleton-with-vars t)
+  (todo-code))
 
 (define (base-type-ranges->unified-versions sub super)
   ;; returns a list of a new sub-range and a new super-range if compatible,
@@ -808,6 +810,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; TODO - nominal record types for the first pass should not be subtypable.  It should be easy to later add a supertype field -- subtyping with nominal records should be easy compared to various other things.
      ;;(todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")
      ;; TODO - the below is the implementation of non-subtype `unify!`.  For now, let's assume nominal records don't subtype unify, only normal unify.
+     (define (fail)
+       (error 'subtype-unify!
+              "can't unify types: ~v and ~v"
+              sub super))
+     (define t1 sub)
+     (define t2 super)
 
      (match (list sub super)
        [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
