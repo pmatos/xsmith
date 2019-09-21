@@ -962,8 +962,22 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define (can-subtype-unify? sub super)
   (match (list sub super)
     ;; 2x type-variable
-    [(list (type-variable tvi-sub) (type-variable tvi-sup))
-     (todo-code)]
+    [(list (type-variable tvi-sub)
+           (type-variable tvi-sup))
+     (match (list (flatten (list (type-variable-innard-type tvi-sub)))
+                  (flatten (list (type-variable-innard-type tvi-sup))))
+       [(list (list #f) _) #t]
+       [(list _ (list #f)) #t]
+       [(list subs sups)
+        (for*/or ([sub subs]
+                  [sup sups])
+          (match (list sub sup)
+            [(list (base-type-range #f lsup) (base-type-range _ rsup))
+             (equal? (base-type->superest lsup)
+                     (base-type->superest rsup))]
+            [(list (base-type-range lsub _) (base-type-range _ rsup))
+             (can-subtype-unify? lsub rsup)]
+            [else (can-subtype-unify? sub sup)]))])]
     ;; left type-variable
     [(list (type-variable tvi-sub) _)
      (cond
