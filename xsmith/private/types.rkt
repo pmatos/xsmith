@@ -1034,9 +1034,16 @@ TODO - when generating a record ref, I'll need to compare something like (record
       ;; contravariant arguments
       (can-subtype-unify? arg-r arg-l))]
     ;; product-type
-    [(list (product-type l-inner l-lower l-upper)
-           (product-type r-inner r-lower r-upper))
-     (todo-code)]
+    [(list (product-type inner1 lowers1 uppers1)
+           (product-type inner2 lowers2 uppers2))
+     (cond
+       [(not inner1) #t]
+       [(not inner2) #t]
+       [(not (equal? (length inner1) (length inner2))) #f]
+       [else
+        (for/and ([l inner1]
+                  [r inner2])
+          (can-subtype-unify? l r))])]
     ;; nominal-record-type
     [(list (? nominal-record-type?) (? nominal-record-type?))
      ;; TODO - this is just copied from symmetric can-unify
