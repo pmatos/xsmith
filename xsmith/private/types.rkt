@@ -593,7 +593,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define (type->skeleton-with-vars t)
   (match t
     [(generic-type name constructor inners)
-     (apply constructor (map (λ(x) (fresh-type-variable))))]
+     (apply constructor (map (λ(x) (fresh-type-variable))
+                             inners))]
     [(? product-type?) (mk-product-type #f)]
     [(? nominal-record-type?) (nominal-record-type #f (hash))]
     [(? function-type?) (function-type (fresh-type-variable) (fresh-type-variable))]))
@@ -923,7 +924,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (or (? base-type?) (? base-type-range?)))
      (unless (can-subtype-unify? sub super)
        (error 'subtype-unify!
-              "Base types: type ~v is not a subtype of type ~v."))]
+              "Base types: type ~v is not a subtype of type ~v."
+              sub super))]
     [else (error 'subtype-unify! "case analysis reached end: can't unify types: ~v and ~v" sub super)]))
 
 (define (ripple-subtype-unify-changes done-pair-list innard-work-list)
@@ -1077,7 +1079,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (define inner-matched
              (filter (λ (x) (match x
                               [(generic-type _ iconstructor _)
-                               (eq? constructor iconstructor)]))
+                               (eq? constructor iconstructor)]
+                              [else #f]))
                      t))
            (match inner-matched
              [(list) #f]
@@ -1106,7 +1109,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (define inner-matched
              (filter (λ (x) (match x
                               [(generic-type _ iconstructor _)
-                               (eq? constructor iconstructor)]))
+                               (eq? constructor iconstructor)]
+                              [else #f]))
                      t))
            (match inner-matched
              [(list) #f]
@@ -1332,6 +1336,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(type-variable (type-variable-innard _ it _ _ _))
      (and it (not (list? it)) (concrete? it))]
     [(base-type _ _) #t]
+    [(base-type-range l r) (equal? l r)]
     [(function-type a r)
      (and (concrete? a) (concrete? r))]
     [(nominal-record-type name inners)
