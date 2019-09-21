@@ -784,7 +784,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
              [(? base-type?)
               (set-type-variable-innard-type!
                tvi-sup
-               (base-type-range super (base-type->superest super)))]
+               (base-type-range sub (base-type->superest sub)))]
              [else
               (set-type-variable-innard-type!
                tvi-sup
