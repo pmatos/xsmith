@@ -966,7 +966,36 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (todo-code)]
     ;; left type-variable
     [(list (type-variable tvi-sub) _)
-     (todo-code)]
+     (cond
+       [(not (type-variable-innard-type tvi-sub)) #t]
+       [else
+        (define t (flatten (list (type-variable-innard-type tvi-sub))))
+        (define (struct-rec predicate)
+          (match (filter predicate t)
+            [(list) #f]
+            [(list one) (can-subtype-unify? one super)]))
+        (match super
+          [(base-type name superbase)
+           (for/or ([possibility t])
+             (match possibility
+               [(base-type-range low high)
+                (if low
+                    (member super (base-type->parent-chain low))
+                    (equal? (base-type->superest high)
+                            (base-type->superest super)))]
+               [else #f]))]
+          [(? function-type?) (struct-rec function-type?)]
+          [(? product-type) (struct-rec product-type?)]
+          [(? nominal-type-record?) (struct-rec nominal-type-record?)]
+          [(generic-type name constructor type-arguments)
+           (define inner-matched
+             (filter (λ (x) (match x
+                              [(generic-type _ iconstructor _)
+                               (eq? constructor iconstructor)]))
+                     t))
+           (match inner-matched
+             [(list) #f]
+             [(list one) (can-subtype-unify? one super)])])])]
     ;; right type-variable
     [(list _ (type-variable tvi-sup))
      (todo-code)]
@@ -979,7 +1008,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
       ;; contravariant arguments
       (can-subtype-unify? arg-r arg-l))]
     ;; product-type
-    [(list (? product-type?) (? product-type?))
+    [(list (product-type l-inner l-lower l-upper)
+           (product-type r-inner r-lower r-upper))
      (todo-code)]
     ;; nominal-record-type
     [(list (? nominal-record-type?) (? nominal-record-type?))
