@@ -537,7 +537,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [else #f]))
 
 (define (type->skeleton-with-vars t)
-  (todo-code))
+  (match t
+    [(generic-type name constructor inners)
+     (apply constructor (map (λ(x) (fresh-type-variable))))]
+    [(? product-type?) (mk-product-type #f)]
+    [(? nominal-type-record?) (nominal-type-record #f (hash))]
+    [(? function-type?) (function-type (fresh-type-variable) (fresh-type-variable))]))
 
 (define (base-type-ranges->unified-versions sub super)
   ;; returns a list of a new sub-range and a new super-range if compatible,
