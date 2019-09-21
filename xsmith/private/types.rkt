@@ -156,6 +156,11 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
    [lower-bounds #:mutable]
    [upper-bounds #:mutable]))
 
+(define (type-variable-innard->transitive-upper-bounds tvi)
+  (todo-code))
+(define (type-variable-innard->transitive-lower-bounds tvi)
+  (todo-code))
+
 (define (fresh-type-variable . args)
   (when (memf type-variable? args)
     (error 'fresh-type-variable
@@ -541,7 +546,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(generic-type name constructor inners)
      (apply constructor (map (λ(x) (fresh-type-variable))))]
     [(? product-type?) (mk-product-type #f)]
-    [(? nominal-type-record?) (nominal-type-record #f (hash))]
+    [(? nominal-record-type?) (nominal-record-type #f (hash))]
     [(? function-type?) (function-type (fresh-type-variable) (fresh-type-variable))]))
 
 (define (base-type-ranges->unified-versions sub super)
@@ -656,7 +661,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
            _)
      (define t (type-variable-innard-type tvi-sub))
      (match t
-       [(list possibilies ...)
+       [(list possibilities ...)
         (define new-possibilities (filter (λ (p) (can-subtype-unify? p super))
                                           possibilities))
         (set-type-variable-innard-type!
@@ -700,7 +705,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
      (define t (type-variable-innard-type tvi-sup))
      (match t
-       [(list possibilies ...)
+       [(list possibilities ...)
         (define new-possibilities (filter (λ (p) (can-subtype-unify? sub p))
                                           possibilities))
         (set-type-variable-innard-type!
@@ -1013,7 +1018,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                [else #f]))]
           [(? function-type?) (struct-rec function-type?)]
           [(? product-type) (struct-rec product-type?)]
-          [(? nominal-type-record?) (struct-rec nominal-type-record?)]
+          [(? nominal-record-type?) (struct-rec nominal-record-type?)]
           [(generic-type name constructor type-arguments)
            (define inner-matched
              (filter (λ (x) (match x
