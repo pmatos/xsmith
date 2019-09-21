@@ -1027,11 +1027,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
                         sub super)]
          [(list t) t]
          [(list ts ...) ts]))
-     (define all-sub (->use (append sub-bases sub-compounds)))
-     (define all-super (->use (append super-bases super-compounds)))
+     (define all-sub (append sub-bases sub-compounds))
+     (define all-super (append super-bases super-compounds))
 
-     (set-type-variable-innard-type! sub all-sub)
-     (set-type-variable-innard-type! super all-super)
+     (set-type-variable-innard-type! sub (->use all-sub))
+     (set-type-variable-innard-type! super (->use all-super))
 
      (list (set=? subtypes all-sub)
            (set=? supertypes all-super))]))
