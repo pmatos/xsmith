@@ -998,7 +998,33 @@ TODO - when generating a record ref, I'll need to compare something like (record
              [(list one) (can-subtype-unify? one super)])])])]
     ;; right type-variable
     [(list _ (type-variable tvi-sup))
-     (todo-code)]
+     (cond
+       [(not (type-variable-innard-type tvi-sup)) #t]
+       [else
+        (define t (flatten (list (type-variable-innard-type tvi-sup))))
+        (define (struct-rec predicate)
+          (match (filter predicate t)
+            [(list) #f]
+            [(list one) (can-subtype-unify? sub one)]))
+        (match sub
+          [(base-type name superbase)
+           (for/or ([possibility t])
+             (match possibility
+               [(base-type-range low high)
+                (member high (base-type->parent-chain sub))]
+               [else #f]))]
+          [(? function-type?) (struct-rec function-type?)]
+          [(? product-type) (struct-rec product-type?)]
+          [(? nominal-type-record?) (struct-rec nominal-type-record?)]
+          [(generic-type name constructor type-arguments)
+           (define inner-matched
+             (filter (λ (x) (match x
+                              [(generic-type _ iconstructor _)
+                               (eq? constructor iconstructor)]))
+                     t))
+           (match inner-matched
+             [(list) #f]
+             [(list one) (can-subtype-unify? sub one)])])])]
     ;; function-type
     [(list (function-type arg-l ret-l)
            (function-type arg-r ret-r))
