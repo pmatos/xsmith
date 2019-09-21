@@ -41,7 +41,15 @@ WIP checklist:
 (require racket/contract)
 (provide
  type-variable?
- (struct-out base-type)
+
+ ;(struct-out base-type)
+ (contract-out
+  [rename mk-base-type base-type (->* (any/c) (base-type?)
+                                      base-type?)])
+ base-type-name
+ base-type-supertype
+ base-type?
+
  ;(struct-out alias-type)
  ;; TODO - tuple types -- what should the API be?
  ;(rename-out [mk-record-type record-type])
@@ -227,6 +235,9 @@ The minimum may be #f to mean any subtype of the maximum type.
   (if (not (base-type-supertype bt))
       (list bt)
       (cons bt (base-type->parent-chain (base-type-supertype bt)))))
+
+(define (mk-base-type name [parent #f])
+  (base-type name parent))
 
 (define (base-type->superest bt)
   (if (not (base-type-supertype bt))
@@ -1192,12 +1203,15 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [(type-variable (type-variable-innard _ non-list-type _ _ _))
        (r non-list-type)]
       [(base-type _ _) t]
+      [(base-type-range low high)
+       ;; TODO - this should be a random choice.  But I also need to deal with the #f low case and enumerate all possibilities.  For now I just want to get the code working again.
+       high]
       [(product-type inner lb ub)
        (define inner-types (unbox* inner))
        (if inner-types
-           (product-type (map r inner-types))
-           (product-type (map (λ (x) (r (fresh-type-variable)))
-                              (make-list (random 6) #f))))]
+           (mk-product-type (map r inner-types))
+           (mk-product-type (map (λ (x) (r (fresh-type-variable)))
+                                 (make-list (random 6) #f))))]
       [(nominal-record-type #f inner-needed)
        (define needed (dict-ref inner-needed #f (λ () (fresh-type-variable))))
        (define n-random-fields (random record-type-max-fields))
@@ -1219,16 +1233,17 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (recur t 0))
 
 (module+ test
-  (define integer (base-type 'integer))
-  (define float (base-type 'float))
-  (define string (base-type 'string))
+  (define integer (mk-base-type 'integer))
+  (define float (mk-base-type 'float))
+  (define string (mk-base-type 'string))
 
   (check-true (can-unify? integer integer))
   (check-false (can-unify? integer float))
 
-  (define int-int->int (function-type (product-type (list integer integer)) integer))
-  (define int->int (function-type (product-type (list integer)) integer))
-  (define str->int (function-type (product-type (list string)) integer))
+  (define int-int->int (function-type (mk-product-type (list integer integer))
+                                      integer))
+  (define int->int (function-type (mk-product-type (list integer)) integer))
+  (define str->int (function-type (mk-product-type (list string)) integer))
 
   (check-true (can-unify? int->int int->int))
   (check-false (can-unify? int->int int-int->int))
@@ -1244,11 +1259,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (check-exn exn? (λ () (fresh-type-variable (fresh-type-variable integer))))
   ;; Though it can include composite types that include variables.
   (check-not-exn (λ () (fresh-type-variable
-                        (function-type (product-type (list (or-int-str)))
+                        (function-type (mk-product-type (list (or-int-str)))
                                        (or-int-str)))))
   ;; But not more than one of a given composite.
   (check-exn exn? (λ () (fresh-type-variable
-                         (function-type (product-type (list (or-int-str)))
+                         (function-type (mk-product-type (list (or-int-str)))
                                         (or-int-str))
                          int->int)))
 
@@ -1259,8 +1274,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (check-false (can-unify? string t1))
   (check-exn exn? (λ () (unify! string t1)))
 
-  (define (or1->int) (function-type (product-type (list (or-int-str))) integer))
-  (define (or2->int) (function-type (product-type #f) integer))
+  (define (or1->int) (function-type (mk-product-type (list (or-int-str))) integer))
+  (define (or2->int) (function-type (mk-product-type #f) integer))
   (define an-or1->int (or1->int))
   (define an-or2->int (or2->int))
   (define an-or3->int (fresh-type-variable))
@@ -1315,6 +1330,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (andmap concrete? inners)]))
 
 (define (at-least-as-concrete v constraint-type)
+  ;; TODO - this function was broken even before adding subtyping.  Now it is probably more so.  I need to re-examine how it is used to fix it.  But it is there just as an optimization that maybe isn't entirely necessary, so I'm just not going to worry about it for now.
   #|
   Returns #t when:
   • they are different types
@@ -1342,7 +1358,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                    ;; The original code checked names, this was silly
                                    ;(equal? name (base-type-name c))
                                    ;; I've now added a subtype-unify check... but is it the right direction?
-                                   (TODO-code -- check that this subtype check is correct)
+                                   ;(TODO-code -- check that this subtype check is correct)
                                    (can-subtype-unify? t c)
                                    )]
                 [(? function-type?)
@@ -1361,7 +1377,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (for/and ([c cs])
               (match c
                 [(base-type cn _) (for/and ([t (filter base-type? ts)])
-                                    (TODO-code -- this probably needs to be a subtype check, but it is probably bi-directional...)
+                                    ;(TODO-code -- this probably needs to be a subtype check, but it is probably bi-directional...)
                                     (not (equal? cn (base-type-name t))))]
                 [(? function-type?)
                  (null? (filter function-type? ts))]
@@ -1409,27 +1425,27 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 (module+ test
   (check-true (at-least-as-concrete (fresh-type-variable) (fresh-type-variable)))
-  (check-true (at-least-as-concrete (base-type 'foo) (fresh-type-variable)))
-  (check-true (at-least-as-concrete (base-type 'foo)
-                                    (fresh-type-variable (base-type 'foo)
-                                                         (base-type 'bar))))
-  (check-true (at-least-as-concrete (base-type 'foo)
-                                    (fresh-type-variable (base-type 'foo)
-                                                         (base-type 'bar))))
+  (check-true (at-least-as-concrete (mk-base-type 'foo) (fresh-type-variable)))
+  (check-true (at-least-as-concrete (mk-base-type 'foo)
+                                    (fresh-type-variable (mk-base-type 'foo)
+                                                         (mk-base-type 'bar))))
+  (check-true (at-least-as-concrete (mk-base-type 'foo)
+                                    (fresh-type-variable (mk-base-type 'foo)
+                                                         (mk-base-type 'bar))))
   (check-false (at-least-as-concrete (fresh-type-variable)
-                                     (fresh-type-variable (base-type 'foo)
-                                                          (base-type 'bar))))
+                                     (fresh-type-variable (mk-base-type 'foo)
+                                                          (mk-base-type 'bar))))
   (check-false (at-least-as-concrete (function-type (fresh-type-variable)
-                                                    (base-type 'foo))
-                                     (function-type (base-type 'bar)
-                                                    (base-type 'foo))))
+                                                    (mk-base-type 'foo))
+                                     (function-type (mk-base-type 'bar)
+                                                    (mk-base-type 'foo))))
   (check-true (at-least-as-concrete (fresh-type-variable (mk-product-type #f))
-                                    (fresh-type-variable (base-type 'foo)
-                                                         (base-type 'bar))))
+                                    (fresh-type-variable (mk-base-type 'foo)
+                                                         (mk-base-type 'bar))))
   (check-false (at-least-as-concrete (fresh-type-variable (mk-product-type #f))
                                      (fresh-type-variable
                                       (mk-product-type (list (fresh-type-variable)))
-                                      (base-type 'bar))))
+                                      (mk-base-type 'bar))))
   )
 
 
@@ -1495,12 +1511,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (module+ test
   (define v1 (fresh-type-variable))
   (define v2 (fresh-type-variable))
-  (define v3 (fresh-type-variable (base-type 'foo)
+  (define v3 (fresh-type-variable (mk-base-type 'foo)
                                   (function-type v1 v2)))
   (define p1 (mk-product-type #f))
   (define p2 (mk-product-type #f))
   (define p3 (mk-product-type #f))
-  (define v4 (fresh-type-variable (base-type 'bar)
+  (define v4 (fresh-type-variable (mk-base-type 'bar)
                                   (function-type p1 v3)))
 
   (check-not-false (contains-type-variables? v1 (type->type-variable-list v4)))
@@ -1530,7 +1546,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (check-not-false (contains-type-variables? v4 (type->type-variable-list p1)))
   (check-not-false (contains-type-variables? v4 (type->type-variable-list p2)))
   (check-false (contains-type-variables? v4 (type->type-variable-list p3)))
-  (unify! p2 (product-type (list v1 v2 v3)))
+  (unify! p2 (mk-product-type (list v1 v2 v3)))
   (check-true
    (s= (type->type-variable-list p1)
        (map type-variable->canonical-type-variable (list v1 v3))))
