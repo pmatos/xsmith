@@ -145,7 +145,7 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   [(define (write-proc v output-port output-mode)
      (define innard (type-variable-tvi v))
      (match v
-       [(type-variable (type-variable-innard _ t))
+       [(type-variable (type-variable-innard _ t _ _ _))
         (fprintf output-port
                  "#<type-variable ~a>"
                  t)]))])
@@ -167,7 +167,7 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
            args))
   (when (<= 2 (length (filter function-type? args))) (composite-error))
   (when (<= 2 (length (filter product-type? args))) (composite-error))
-  (when (<= 2 (length (filter sum-type? args))) (composite-error))
+  ;(when (<= 2 (length (filter sum-type? args))) (composite-error))
   (when (<= 2 (length (filter nominal-record-type? args))) (composite-error))
   ;(when (<= 2 (length (filter record-type? args))) (composite-error))
   ;; TODO - I probably only want to allow one of each kind of generic type
@@ -184,6 +184,61 @@ Inside a type variable, they are always placed in a base-type-range, which gives
 The minimum may be #f to mean any subtype of the maximum type.
 |#
 (struct base-type (name supertype) #:transparent)
+
+(define (base-type->parent-chain bt)
+  (if (not (base-type-supertype bt))
+      (list bt)
+      (cons bt (base-type->parent-chain (base-type-supertype bt)))))
+
+(define (base-type->superest bt)
+  (if (not (base-type-supertype bt))
+      bt
+      (base-type->superest (base-type-supertype bt))))
+
+(define (base-type-least-upper-bound a b)
+  (match (list a b)
+    [(list #f _) b]
+    [(list _ #f) a]
+    [else
+     (define chain-a (base-type->parent-chain a))
+     (define chain-b (base-type->parent-chain b))
+     (define len-a (length chain-a))
+     (define len-b (length chain-b))
+     (define chain-a* (if (< len-a len-b)
+                          chain-a
+                          (drop chain-a (- len-a len-b))))
+     (define chain-b* (if (< len-b len-a)
+                          chain-b
+                          (drop chain-b (- len-b len-a))))
+     (let loop ([as chain-a*]
+                [bs chain-b*])
+       (cond [(null? as) (error 'base-type-least-upper-bound
+                                "incompatible base types: ~v and ~v" a b)]
+             [(equal? as bs) (car as)]
+             [else (loop (cdr as) (cdr bs))]))]))
+
+(define (base-type-greatest-lower-bound a b)
+  (match (list a b)
+    [(list #f _) a]
+    [(list _ #f) b]
+    [else
+     (define chain-a (base-type->parent-chain a))
+     (define chain-b (base-type->parent-chain b))
+     (define len-a (length chain-a))
+     (define len-b (length chain-b))
+     (define chain-a* (if (< len-a len-b)
+                          chain-a
+                          (drop chain-a (- len-a len-b))))
+     (define chain-b* (if (< len-b len-a)
+                          chain-b
+                          (drop chain-b (- len-b len-a))))
+     (if (equal? chain-a* chain-b*)
+         (if (< len-a len-b)
+             b
+             a)
+         (error 'base-type-greatest-lower-bound
+                "incompatible base types: ~v and ~v" a b))]))
+
 (struct base-type-range (sub super) #:transparent)
 (define (base-type->range bt)
   (base-type-range #f bt))
@@ -290,7 +345,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
    (base-type? x)
    (function-type? x)
    (product-type? x)
-   (sum-type? x)
+   ;(sum-type? x)
    (nominal-record-type? x)
    (nominal-record-definition-type? x)
    ;(record-type? x)
@@ -334,7 +389,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   )
 
 
-(define (can-unify? t1 t2)
+#;(define (can-unify? t1 t2)
   (match (list t1 t2)
     [(list (type-variable (type-variable-innard _ #f)) _) #t]
     [(list (type-variable (type-variable-innard _ (list inner ...))) _)
@@ -371,7 +426,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (can-unify? inner1 inner2)]
     [else (can-or-do-unify-shared-code can-unify? t1 t2)]))
 
-(define (unify! t1 t2)
+#;(define (unify! t1 t2)
   (define (fail) (error 'unify! "Can't unify types: ~a ~a" t1 t2))
   (define (unify-innard-with-single-type! innard t)
     (match innard
@@ -465,7 +520,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (unless rec-result (fail)))]))
 
 
-(define (can-or-do-unify-shared-code rec t1 t2)
+#;(define (can-or-do-unify-shared-code rec t1 t2)
   ;; rec is either can-unify? or unify!, but to handle both this returns #t/#f
   ;; in cases where no recursion is necessary.
   (match (list t1 t2)
@@ -510,32 +565,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 (define (subtype-unify! sub super)
   #|
-  * Base types should have a subtyping hierarchy.
-  * `subtype-unify!` with base subtype and variable supertype should constrain the supertype to be one of the types in the chain up.
-  * `subtype-unify!` with variable subtype and base supertype should constrain the subtype to be... maybe just the supertype?  Or maybe I need a new kind of type variable that says “subtype of”...  The main question here is whether I allow things to say they must be invariant.  That seems important.
-  ** Ultimately `unify!` should be the same as two `subtype-unify!` calls, and `can-unify?` should be the same as two `can-subtype-unify?` calls (with arguments reversed).
-  * Maybe type variables need to have an `exactly` field that says it is invariant on a field?
-  * st-unify with two variables should be...
-
-  * ---------------------------------
-
-  * a type variable will have:
-  ** a list of its own possibilities
-  ** a list of aliases (Or rather, the innard will have a list of its handles)
-  ** a list of upper bounds
-  ** a list of lower bounds
-
-  * when a type variable is subtype unified, it will filter its list of possibilities based on things that can subtype unify with all of its *transitive* upper and lower bounds.  Each possibility in its list must be subtypable with each possibility in transitive bounds.
-  ** also this filters all of the transitive bounds, so all of them get filtered
-
+  * This sets variables to be in each others' upper- and lower-bounds.
+  * As variables are unified, possibilities that don't fit with variables they are unified with (or concrete types they are unified with) are filtered out.
+  * Unification transitively affects all upper and lower bounds of a variable.
+  * Subtype-unified type variables form a lattice, and any time a lower bound becomes an upper bound (or vice-versa), the lattice between those two nodes is squashed to a single node.
   * recursion into inner type structures (function, generic, etc) will operate on type-specific meanings of subtyping -- generics will have a way of specifying per field whether the field is invariant (the default), covariant, or contravariant
-
-  * When a (transitive) upper bound is equal to a (transitive) lower bound, the tower is squashed -- the type variables are mutated to share an innard and be aliases.
-
-  * diamond situations
-  ** type variables will form a set of lattices.  Whenever type variables are unified, it joins their lattices and the possibility filtering can transitively affect every variable in the lattice.
-  ** When type variables above and below ond the lattice become equal, that part of the lattice is compressed into a single node.
-
   |#
   (match (list sub super)
     ;; type variable x2
