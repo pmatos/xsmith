@@ -540,17 +540,18 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define (base-type-ranges->unified-versions sub super)
   ;; returns a list of a new sub-range and a new super-range if compatible,
   ;; otherwise return #f
-  (and (base-type-range? sub)
-       (base-type-range? super)
-       (can-subtype-unify? sub super)
-       (let ()
-         ;; lsup bust not be higher than rsup -- IE the upper bound of the supertype is also an upper bound on the subtype.
-         (define new-lsup (base-type-greatest-lower-bound lsup rsup))
-         ;; rsub must not be lower than lsub -- IE the lower bound of the subtype is also a lower bound on the supertype.
-         (define new-rsub (base-type-least-upper-bound lsub rsub))
-         (define new-l (base-type-range lsub new-lsup))
-         (define new-r (base-type-range new-rsub rsub))
-         (list new-l new-r))))
+  (match (list sub super)
+    [(list (base-type-range lsub lsup) (base-type-range rsub rsup))
+     (and (can-subtype-unify? sub super)
+          (let ()
+            ;; lsup must not be higher than rsup -- IE the upper bound of the supertype is also an upper bound on the subtype.
+            (define new-lsup (base-type-greatest-lower-bound lsup rsup))
+            ;; rsub must not be lower than lsub -- IE the lower bound of the subtype is also a lower bound on the supertype.
+            (define new-rsub (base-type-least-upper-bound lsub rsub))
+            (define new-l (base-type-range lsub new-lsup))
+            (define new-r (base-type-range new-rsub rsub))
+            (list new-l new-r)))]
+    [else #f]))
 (define (type-lists->unified-base-types sub-list super-list)
   (define result
     (filter (λ(x)x)
@@ -805,7 +806,27 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (nominal-record-type name1 innards1)
            (nominal-record-type name2 innards2))
      ;; TODO - nominal record types for the first pass should not be subtypable.  It should be easy to later add a supertype field -- subtyping with nominal records should be easy compared to various other things.
-     (todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")]
+     ;;(todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")
+     ;; TODO - the below is the implementation of non-subtype `unify!`.  For now, let's assume nominal records don't subtype unify, only normal unify.
+
+     (match (list sub super)
+       [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
+        ;; TODO - do a sanity check that the inners match up and error if they don't.
+        (set-nominal-record-type-name! t1 name2)
+        (set-nominal-record-type-inners! t1 inners2)]
+       [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
+        ;; TODO - do a sanity check that the inners match up and error if they don't.
+        (set-nominal-record-type-name! t2 name1)
+        (set-nominal-record-type-inners! t2 inners1)]
+       [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
+        (when (not (equal? name1 name2))
+          (fail))]
+       [(list (nominal-record-definition-type inner1)
+              (nominal-record-definition-type inner2))
+        (unify! inner1 inner2)])
+     ]
+
+
     ;; function type
     [(list (function-type arg-l ret-l)
            (function-type arg-r ret-r))
@@ -831,7 +852,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; Base type ranges should only appear IN a type variable.
     ;; Base types that aren't ranges are straightforward to handle.
     [(list (base-type lname lsuper) (base-type rname rsuper))
-     (unless (can-unify-subtype? sub super)
+     (unless (can-subtype-unify? sub super)
        (error 'subtype-unify!
               "Base type ~v is not a subtype of base type ~v."))]
 
@@ -939,8 +960,69 @@ TODO - when generating a record ref, I'll need to compare something like (record
              (set-equal? supertypes all-super))])))
 
 (define (can-subtype-unify? sub super)
-  (TODO-code)
-  )
+  (match (list sub super)
+    ;; 2x type-variable
+    [(list (type-variable tvi-sub) (type-variable tvi-sup))
+     (todo-code)]
+    ;; left type-variable
+    [(list (type-variable tvi-sub) _)
+     (todo-code)]
+    ;; right type-variable
+    [(list _ (type-variable tvi-sup))
+     (todo-code)]
+    ;; function-type
+    [(list (function-type arg-l ret-l)
+           (function-type arg-r ret-r))
+     (and
+      ;; covariant return
+      (can-subtype-unify? ret-l ret-r)
+      ;; contravariant arguments
+      (can-subtype-unify? arg-r arg-l))]
+    ;; product-type
+    [(list (? product-type?) (? product-type?))
+     (todo-code)]
+    ;; nominal-record-type
+    [(list (? nominal-record-type?) (? nominal-record-type?))
+     ;; TODO - this is just copied from symmetric can-unify
+     (match (list sub super)
+       [(list (nominal-record-type #f inners1) (nominal-record-type #f inners2))
+        ;; For now, just be conservative to not need to change variable representation...
+        #f]
+       [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
+        (define inner-vals (dict-values inners2))
+        (for/and ([k (dict-keys inners1)])
+          (cond [(not k) (member (dict-ref inners1 k) inner-vals)]
+                [else (and (dict-has-key? inners2 k)
+                           (can-unify? (dict-ref inners1 k) (dict-ref inners2 k)))]))]
+       [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
+        (can-unify? t2 t1)]
+       [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
+        ;; TODO - verify that names are unique?
+        (equal? name1 name2)]
+       [(list (nominal-record-definition-type inner1)
+              (nominal-record-definition-type inner2))
+        (can-unify? inner1 inner2)])]
+    ;; generic-type
+    [(list (generic-type name1 constructor1 type-arguments1)
+           (generic-type name2 constructor2 type-arguments2))
+     ;; TODO - generic types need to store the variance type for each field.
+     ;;        For a start, let's assume all fields are invariant.
+     (and (eq? constructor1 constructor2)
+          (for/and ([l type-arguments1]
+                    [r type-arguments2])
+            (and (can-subtype-unify? l r)
+                 (can-subtype-unify? l r))))]
+    ;; base-type
+    [(list (base-type lname lsuper) (base-type rname rsuper))
+     (member super (base-type->parent-chain sub))]
+    [else #f]))
+
+(define (unify! t1 t2)
+  (begin (subtype-unify! t1 t2)
+         (subtype-unify! t2 t1)))
+(define (can-unify? t1 t2)
+  (and (can-subtype-unify? t1 t2)
+       (can-subtype-unify? t2 t1)))
 
 ;; A parameter to hold the list of constructors for base or composite types (with minimally constrained type variables inside).
 (define current-xsmith-type-constructor-thunks (make-parameter '()))
