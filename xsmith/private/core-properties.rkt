@@ -1235,6 +1235,7 @@ The second arm is a function that takes the type that the node has been assigned
     (define binding-nodes-finished '())
 
     (define (break?!)
+      ;; TODO - right now removing breaks fixes issues.  Probably I need to re-think the conditions under which I can terminate early with subtype unification rather than symmetric unification.
       (when (concrete-type? hole-type)
         (break!! #t))
       #;(when (at-least-as-concrete hole-type type-constraint)
@@ -1249,7 +1250,7 @@ The second arm is a function that takes the type that the node has been assigned
         )
       ;; Even if we're not done yet, when we make progress we should update this list.
       (set! variables (type->type-variable-list hole-type)))
-    (break?!)
+    ;(break?!)
     (let parent-loop ([p (ast-parent hole)]
                       [child hole])
       (define (sibling-loop nodes)
@@ -1275,7 +1276,7 @@ The second arm is a function that takes the type that the node has been assigned
                      (define n-type (att-value 'xsmith_type n))
                      ;; When we check the type of a new thing it may unify variables,
                      ;; so we've maybe made progress.
-                     (break?!)
+                     ;(break?!)
 
                      ;; If the node is a binder, mark it so we don't look at it
                      ;; repeatedly when we hit references to it.

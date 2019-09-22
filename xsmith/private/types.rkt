@@ -595,6 +595,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
                              inners))]
     [(? product-type?) (mk-product-type #f)]
     [(? nominal-record-type?) (nominal-record-type #f (hash))]
+    [(? nominal-record-definition-type?) (nominal-record-definition-type
+                                          (nominal-record-type #f (hash)))]
     [(? function-type?) (function-type (fresh-type-variable) (fresh-type-variable))]))
 
 (define (base-type-ranges->unified-versions sub super)
@@ -894,7 +896,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
               (nominal-record-definition-type inner2))
         (unify! inner1 inner2)])
      ]
-
+    ;; nominal record definition type
+    [(list (nominal-record-definition-type inner1)
+           (nominal-record-definition-type inner2))
+     ;; TODO -for now this is symmetric, but later should be subtypable.
+     (unify! inner1 inner2)]
 
     ;; function type
     [(list (function-type arg-l ret-l)
@@ -1073,6 +1079,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
           [(? function-type?) (struct-rec function-type?)]
           [(? product-type?) (struct-rec product-type?)]
           [(? nominal-record-type?) (struct-rec nominal-record-type?)]
+          [(? nominal-record-definition-type?)
+           (struct-rec nominal-record-definition-type?)]
           [(generic-type name constructor type-arguments)
            (define inner-matched
              (filter (λ (x) (match x
@@ -1103,6 +1111,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
           [(? function-type?) (struct-rec function-type?)]
           [(? product-type?) (struct-rec product-type?)]
           [(? nominal-record-type?) (struct-rec nominal-record-type?)]
+          [(? nominal-record-definition-type?)
+           (struct-rec nominal-record-definition-type?)]
           [(generic-type name constructor type-arguments)
            (define inner-matched
              (filter (λ (x) (match x
@@ -1155,6 +1165,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(list (nominal-record-definition-type inner1)
               (nominal-record-definition-type inner2))
         (can-unify? inner1 inner2)])]
+    ;; nominal-record-definition-type
+    [(list (nominal-record-definition-type inner1)
+           (nominal-record-definition-type inner2))
+     ;; TODO -for now this is symmetric, but later should be subtypable.
+     (can-unify? inner1 inner2)]
     ;; generic-type
     [(list (generic-type name1 constructor1 type-arguments1)
            (generic-type name2 constructor2 type-arguments2))
