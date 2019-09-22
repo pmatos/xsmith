@@ -891,11 +891,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
         (set-nominal-record-type-inners! t2 inners1)]
        [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
         (when (not (equal? name1 name2))
-          (fail))]
-       [(list (nominal-record-definition-type inner1)
-              (nominal-record-definition-type inner2))
-        (unify! inner1 inner2)])
-     ]
+          (fail))])]
     ;; nominal record definition type
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
@@ -1158,13 +1154,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 [else (and (dict-has-key? inners2 k)
                            (can-unify? (dict-ref inners1 k) (dict-ref inners2 k)))]))]
        [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
-        (can-unify? t2 t1)]
+        (can-subtype-unify? t2 t1)]
        [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
         ;; TODO - verify that names are unique?
-        (equal? name1 name2)]
-       [(list (nominal-record-definition-type inner1)
-              (nominal-record-definition-type inner2))
-        (can-unify? inner1 inner2)])]
+        (equal? name1 name2)])]
     ;; nominal-record-definition-type
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
