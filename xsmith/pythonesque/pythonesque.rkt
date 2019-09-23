@@ -281,6 +281,29 @@ Fixes:
               [else 'VarDecl]))]
  )
 
+; Choice weights.
+
+;; TODO - factor out parent node type-checking
+;; TODO - add function to get default (#f) weight
+;; TODO - allow a separate default weight specification that #f relies on by default
+;; TODO - investigate other properties that are intended for #f-only implementations and rewrite specification
+(add-prop
+ pythonesque-grammar
+ choice-weight
+ [#f 100]
+ [PassStmt 1]
+ [ExprStmt (λ () (if (>= (att-value 'xsmith_ast-depth (current-hole))
+                         (- (xsmith-max-depth) 1))
+                     0
+                     100))]
+ [VarRefExpr (λ () (if (eq? 'ExprStmt (ast-node-type (parent-node (current-hole))))
+                       0
+                       100))]
+ [Val (λ () (if (eq? 'ExprStmt (ast-node-type (parent-node (current-hole))))
+                0
+                100))]
+ )
+
 ; Types.
 
 (define unit (base-type 'unit))
