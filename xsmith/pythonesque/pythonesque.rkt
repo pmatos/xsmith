@@ -1,5 +1,6 @@
 #!/usr/bin/env racket
 #lang racket/base
+
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah
@@ -70,7 +71,7 @@ Broad Future Goals:
 
 Fixes:
   [ ] functions should always return the same "type" (no None fallthrough)
-    - actually maybe functions should just *always* return something?
+       - actually maybe functions should just *always* return something?
   [ ] so many pass statements omg
 |#
 
