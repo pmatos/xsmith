@@ -325,7 +325,7 @@ Fixes:
              (for/hash ([s stmts])
                (values s
                        (if (eq? s last-stmt)
-                           (fresh-type-variable)
+                           t
                            (fresh-no-return)))))
            (for/fold ([dict stmt-dict])
                      ([d (ast-children (ast-child 'decls n))])
@@ -333,7 +333,7 @@ Fixes:
  [AssignStmt [unit
                (λ (n t)
                  (hash 'Expr (usable-types)))]]
- [PassStmt [(fresh-type-variable) (no-child-types)]]
+ [PassStmt [(fresh-no-return) (no-child-types)]]
  [ReturnStmt [(error 'typing-non-value-return-stmt) (no-child-types)]]
  [ValReturnStmt [(return-type (fresh-type-variable))
                  (λ (n t)
@@ -345,7 +345,7 @@ Fixes:
                (hash 'Expr (fresh-type-variable)))]]
  [IfStmt [(fresh-no-return)
           (λ (n t) (hash 'test bool
-                         'then (fresh-type-variable)))]]  ;; TODO - in cish, this is t, but here that fails. Why?
+                         'then t))]]
  [IfElseStmt [(fresh-maybe-return)
               (λ (n t)
                 (hash 'test bool
