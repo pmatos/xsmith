@@ -536,6 +536,7 @@ Fixes:
 (xsmith-command-line
  pythonesque-generate-and-print
  #:fuzzer-name "pythonesque"
+ #:default-max-depth 8
  #:comment-wrap (λ (lines) (format
                             "~a"
                             (string-join
