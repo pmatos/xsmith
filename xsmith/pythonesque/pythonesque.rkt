@@ -94,21 +94,24 @@ Fixes:
  ; Declarations.
  [Decl Node (name type)]
  [FuncDecl Decl ([params : ParamDecl *]
-                 Block)]
+                 BlockOrStmt)]
  [ParamDecl Decl ()]
  [VarDecl Decl (Val)]
+ ; BlockOrStmt super-node.
+ [BlockOrStmt Node ()]
+ ; Blocks.
+ [Block BlockOrStmt ([decls : VarDecl * = (random 2)]
+                     [stmts : Stmt * = (add1 (random 4))])]
  ; Statements.
- [Stmt Node ()]
- [Block Stmt ([decls : VarDecl * = (random 2)]
-              [stmts : Stmt * = (add1 (random 4))])]
+ [Stmt BlockOrStmt ()]
  [AssignStmt Stmt (name Expr)]
  [PassStmt Stmt ()]
  [ReturnStmt Stmt ()]
  [ValReturnStmt ReturnStmt (Expr)]
  [ExprStmt Stmt (Expr)]
  [IfStmt Stmt ([test : Expr]
-               [then : Stmt])]
- [IfElseStmt IfStmt ([else : Stmt])]
+               [then : BlockOrStmt])]
+ [IfElseStmt IfStmt ([else : BlockOrStmt])]
  ; Expressions.
  [Expr Node ()]
  [FuncAppExpr Expr ([func : VarRefExpr]
@@ -134,6 +137,7 @@ Fixes:
  may-be-generated
  [Node #f]
  [Decl #f]
+ [BlockOrStmt #f]
  [Stmt #f]
  [ReturnStmt #f]
  [Expr #f]
@@ -233,10 +237,6 @@ Fixes:
                   (fresh-var-name "GLOBAL_")
                   (fresh-var-name "local_"))
         'type (fresh-concrete-var-type))]
- ; Statements.
- [IfElseStmt
-  (hash 'then (make-hole 'Block)
-        'else (make-hole 'Block))]
  ; Expressions.
  [FuncAppExpr
   (hash 'func (make-hole 'VarRefExpr)
@@ -364,7 +364,7 @@ Fixes:
                  (for/hash ([arg (ast-children (ast-child 'params n))]
                             [arg-type arg-types])
                    (values arg arg-type))
-                 'Block (return-type (function-type-return-type f-type)))))]]
+                 'BlockOrStmt (return-type (function-type-return-type f-type)))))]]
  [ParamDecl [(fresh-type-variable) (no-child-types)]]
  [VarDecl [(fresh-type-variable)
            (λ (n t)
@@ -445,7 +445,7 @@ Fixes:
                       params)
                  (text ", ")))
                (text "):"))
-              (tab (att-value 'pretty-print (ast-child 'Block n)))))]
+              (tab (att-value 'pretty-print (ast-child 'BlockOrStmt n)))))]
  [ParamDecl (λ (n)
               (text (ast-child 'name n)))]
  [VarDecl (λ (n)
