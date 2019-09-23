@@ -159,6 +159,7 @@ Fixes:
 (add-prop
  pythonesque-grammar
  depth-increase
+ [Program (no-increase)]
  [Decl (no-increase)]
  [Block (λ (n) (if (member (node-type (parent-node n))
                            '(IfStmt
