@@ -101,7 +101,9 @@
                        (+ increment parent-depth))]))
 
 (define-property choice-weight
-  #:appends (choice-rule _xsmith_choice-weight)
+  #:appends
+  (choice-rule _xsmith_choice-weight)
+  (choice-rule _xsmith_nonzero-weight?)
   #:transformer
   (λ (this-prop-info)
     (define this-prop/defaulted
@@ -111,8 +113,12 @@
     (list
      (for/hash ([node-name (dict-keys this-prop/defaulted)])
        (values node-name
-               #`(λ () #,(dict-ref this-prop/defaulted node-name)))))))
-
+               #`(λ () (let ([node-val #,(dict-ref this-prop/defaulted node-name)])
+                         (cond
+                           [(procedure? node-val) (node-val)]
+                           [(number? node-val) node-val]
+                           [else (error 'choice-weight "Invalid weight given: ~a. Expected number or procedure." node-val)])))))
+     (hash #f #'(λ () (not (zero? (send this _xsmith_choice-weight))))))))
 #|
 The fresh property will take an expression (to be the body of a method
 -- so `this` can be used to access the current choice method) that
@@ -780,6 +786,7 @@ It just reads the values of several other properties and produces the results fo
            _xsmith_wont-over-deepen
            _xsmith_satisfies-type-constraint?
            _xsmith_no-io-conflict?
+           _xsmith_nonzero-weight?
            #,@user-filters)))
     (define (helper filter-method-stx filter-failure-set!-id)
       (syntax-parse filter-method-stx
