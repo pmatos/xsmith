@@ -125,6 +125,7 @@ Fixes:
  [VarRefExpr Expr (name)]
  ; Values.
  [Val Node ()]
+ [NoneVal Val ()]
  [IntVal Val ([val = (pick-int)])]
  [BoolVal Val ([val = (pick-bool)])]
  )
@@ -283,10 +284,10 @@ Fixes:
 
 ; Choice weights.
 
-;; TODO - factor out parent node type-checking
 ;; TODO - add function to get default (#f) weight
 ;; TODO - allow a separate default weight specification that #f relies on by default
 ;; TODO - investigate other properties that are intended for #f-only implementations and rewrite specification
+
 (add-prop
  pythonesque-grammar
  choice-weight
@@ -307,6 +308,7 @@ Fixes:
 ; Types.
 
 (define unit (base-type 'unit))
+(define stmt (base-type 'stmt))
 (define int (base-type 'int))
 (define bool (base-type 'bool))
 
@@ -353,7 +355,7 @@ Fixes:
            (for/fold ([dict stmt-dict])
                      ([d (ast-children (ast-child 'decls n))])
              (dict-set dict d (fresh-type-variable))))]]
- [AssignStmt [unit
+ [AssignStmt [stmt
                (λ (n t)
                  (hash 'Expr (usable-types)))]]
  [PassStmt [(fresh-no-return) (no-child-types)]]
@@ -412,6 +414,7 @@ Fixes:
  [DivExpr [(fresh-type-variable int) (bin-expr-types)]]
  [VarRefExpr [(fresh-type-variable) (no-child-types)]]
  ; Values.
+ [NoneVal [unit (no-child-types)]]
  [IntVal [int (no-child-types)]]
  [BoolVal [bool (no-child-types)]]
  )
@@ -533,6 +536,7 @@ Fixes:
  [VarRefExpr (λ (n)
                (text (ast-child 'name n)))]
  ; Values.
+ [NoneVal (λ (n) (text "None"))]
  [IntVal (λ (n)
            (text (number->string (ast-child 'val n))))]
  [BoolVal (λ (n)
