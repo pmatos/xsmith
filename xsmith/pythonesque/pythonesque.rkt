@@ -296,10 +296,10 @@ Fixes:
                          (- (xsmith-max-depth) 1))
                      0
                      100))]
- [VarRefExpr (λ () (if (eq? 'ExprStmt (ast-node-type (parent-node (current-hole))))
+ [VarRefExpr (λ () (if (parent-node-has-type? 'ExprStmt (current-hole))
                        0
                        100))]
- [Val (λ () (if (eq? 'ExprStmt (ast-node-type (parent-node (current-hole))))
+ [Val (λ () (if (parent-node-has-type? 'ExprStmt (current-hole))
                 0
                 100))]
  )
