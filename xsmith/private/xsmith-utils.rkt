@@ -47,7 +47,10 @@
    expr->ast-list
    expr->ast-list
    node-type
+   node-has-type?
    parent-node
+   parent-node-type
+   parent-node-has-type?
    ast-ancestors
    ancestor-nodes
    top-ancestor-node
@@ -58,7 +61,10 @@
    expr->ast-list
    expr->ast-list
    node-type
+   node-has-type?
    parent-node
+   parent-node-type
+   parent-node-has-type?
    ast-ancestors
    ancestor-nodes
    top-ancestor-node
@@ -123,6 +129,9 @@
        (not (ast-bud-node? n))
        (ast-node-type n)))
 
+(define (node-has-type? n t)
+  (eq? (node-type n) t))
+
 (define (parent-node n)
   ;; I've had several bugs where I used a parent node that was a list-node
   ;; thinking it was the grandparent node.  The list nodes are generally
@@ -133,6 +142,12 @@
     (cond [(not p) #f]
           [(ast-list-node? p) (ast-parent p)]
           [else p])))
+
+(define (parent-node-type n)
+  (node-type (parent-node n)))
+
+(define (parent-node-has-type? n t)
+  (node-has-type? (parent-node n) t))
 
 (define (ast-ancestors n)
   (if (ast-has-parent? n)
