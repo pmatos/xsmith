@@ -122,6 +122,7 @@
   (define (set-feature! k v)
     (set! features (dict-set features k v)))
   (define server-port 8080)
+  (define server-path "/")
   (define listen-ip "127.0.0.1")
   (define given-seed #f)
   (define server? #f)
@@ -196,6 +197,13 @@
          "Use `false` to listen on all IP addresses."
          "Defaults to 127.0.0.1"]
         "ip")]
+      [("--server-path")
+       ,(λ (flag path) (set! server-path (if (not (string-prefix? path "/"))
+                                             (string-append "/" path)
+                                             path)))
+       (["Run the fuzzer with the given path."
+         "Defaults to /"]
+        "path")]
       )
      (help-labels "")
      (help-labels "[[LANGUAGE-GENERATION OPTIONS]]")
@@ -296,12 +304,12 @@
                          (string->bytes/utf-8 (get-output-string out))
                          op)))))
         (eprintf "Starting server...\n")
-        (eprintf "Visit: http://localhost:~a/\n" server-port)
+        (eprintf "Visit: http://localhost:~a~a\n" server-port server-path)
         (serve/servlet servlet-start
                        #:port server-port
                        #:command-line? #t
                        #:listen-ip listen-ip
-                       #:servlet-path "/"))
+                       #:servlet-path server-path))
       (if (dict-ref options 'output-filename #f)
           (call-with-output-file (dict-ref options 'output-filename)
             #:exists 'replace
