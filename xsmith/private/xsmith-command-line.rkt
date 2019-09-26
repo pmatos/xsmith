@@ -296,11 +296,12 @@
                          (string->bytes/utf-8 (get-output-string out))
                          op)))))
         (eprintf "Starting server...\n")
-        (eprintf "Visit: http://localhost:~a/servlets/standalone.rkt\n" server-port)
+        (eprintf "Visit: http://localhost:~a/\n" server-port)
         (serve/servlet servlet-start
                        #:port server-port
                        #:command-line? #t
-                       #:listen-ip listen-ip))
+                       #:listen-ip listen-ip
+                       #:servlet-path "/"))
       (if (dict-ref options 'output-filename #f)
           (call-with-output-file (dict-ref options 'output-filename)
             #:exists 'replace
