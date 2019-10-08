@@ -1,4 +1,3 @@
-#!/usr/bin/env racket
 #lang racket/base
 ;; -*- mode: Racket -*-
 ;;
@@ -34,12 +33,11 @@
 (provide cish-features-list)
 
 (require
- "../main.rkt"
  "cish-grammar.rkt"
  "cish-rules.rkt"
-
  "cish-utils.rkt"
 
+ xsmith
  racr
  (except-in pprint
             semi rparen rbrace lparen lbrace comma

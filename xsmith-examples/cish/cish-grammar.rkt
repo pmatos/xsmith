@@ -33,8 +33,8 @@
 (provide cish-grammar)
 
 (require
- "../main.rkt"
  "cish-utils.rkt"
+ xsmith
  (only-in pprint [empty empty-doc])
  racr
  racket/random

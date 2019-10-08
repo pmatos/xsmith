@@ -32,12 +32,12 @@
 
 (provide
  (all-defined-out)
- (all-from-out "../racr-convenience.rkt")
+ (all-from-out xsmith/racr-convenience)
  )
 
 (require
- "../main.rkt"
- "../racr-convenience.rkt"
+ xsmith
+ xsmith/racr-convenience
  racr
  pprint
  racket/random

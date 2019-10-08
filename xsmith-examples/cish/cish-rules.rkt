@@ -33,9 +33,9 @@
 (provide cish-rules)
 
 (require
- "../main.rkt"
  "cish-utils.rkt"
 
+ xsmith
  racr
  (except-in pprint
             semi rparen rbrace lparen lbrace comma
