@@ -31,7 +31,7 @@
 
 raco-pkg-install:
 	$(MAKE) -C xsmith
-  $(MAKE) -C xsmith-examples
+	$(MAKE) -C xsmith-examples
 
 ###############################################################################
 
