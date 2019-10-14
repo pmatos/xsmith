@@ -1518,7 +1518,7 @@
 (define-syntax (hinted-choice-weight stx)
   (syntax-parse stx
     [(_ base-weight hint-name)
-     #'(begin
+     #'(let ()
          (define bw base-weight)
          ;(define w (or bw (super choice-weight)))
          ;; TODO - use super choice-weight, not 5.  This is a temporary fix to move debugging along.

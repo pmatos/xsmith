@@ -147,7 +147,7 @@
     ))
 
 (module+ main
-  (require "../main.rkt")
+  (require xsmith)
   (xsmith-command-line cish-generate-and-print
                        #:fuzzer-name "cish"
                        #:fuzzer-version xsmith-version-string/no-name
