@@ -30,21 +30,20 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define name "xsmith")
+(define name "xsmith-examples")
 (define version "1.1.0")
 (define git-commit "$Format:%h$")
 
-(define scribblings '(("scribblings/xsmith.scrbl" () (library))))
+(define racket-launcher-names '("xsmith-cish" "xsmith-schemely"))
+(define racket-launcher-libraries '("cish.rkt" "schemely.rkt"))
 (define deps '("base"
                "rackunit-lib"
                "at-exp-lib"
                "pprint"
                "racr"
+               "xsmith"
                "rosette"
                ))
-(define build-deps '("scribble-lib"
-                     "racket-doc"
-                     ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
