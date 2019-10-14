@@ -134,4 +134,4 @@
 
 (xsmith-command-line
  pycalc-generate-and-render
- #:fuzzer-name "pycalc-pretty-printing"))
+ #:fuzzer-name "pycalc-pretty-printing")
