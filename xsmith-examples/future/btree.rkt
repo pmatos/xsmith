@@ -27,12 +27,12 @@
  type-info
  [Branch [int
           (λ (n t)
-            (hash 'l int
-                  'r int
+            (hash 'l t
+                  'r t
                   'Val int))]]
  [Leaf [int
         (λ (n t)
-          (hash 'Val int))]]
+          (hash 'Val t))]]
  [Val [int (λ (n t) (hash))]]
  )
 
@@ -40,19 +40,15 @@
  btree-grammar
  pretty-print
  [Branch (λ (n i)
-           (let* ([leader "(branch"]
-                  [len-leader (string-length leader)]
-                  [i (+ len-leader 1)])
-             (v-append
-              (hs-append
-               (text leader)
-               (att-value 'pretty-print (ast-child 'Val n) i))
-              (indent i
-                      (v-append
-                       (att-value 'pretty-print (ast-child 'l n) i)
-                       (h-append
-                        (att-value 'pretty-print (ast-child 'r n) i)
-                        (text ")")))))))]
+           (v-append
+            (text "(branch")
+            (indent 2
+                    (v-append
+                     (att-value 'pretty-print (ast-child 'Val n) i)
+                     (att-value 'pretty-print (ast-child 'l n) i)
+                     (h-append
+                      (att-value 'pretty-print (ast-child 'r n) i)
+                      (text ")"))))))]
  [Leaf (λ (n i)
          (h-append
           (text "(leaf ")
