@@ -235,11 +235,17 @@
                              (nominal-record-definition-type-type
                               (binding-type choice))))
                           (define parent-type (att-value 'xsmith_type parent))
-                          (define fieldname-choice
-                            (random-ref
-                             (filter (λ (k) (can-unify? parent-type
-                                                        (dict-ref inner-names k)))
-                                     (dict-keys inner-names))))
+                          (define choices
+                            (filter (λ (k) (can-unify? parent-type
+                                                       (dict-ref inner-names k)))
+                                    (dict-keys inner-names)))
+                          (when (null? choices)
+                            (error
+                             'cish-struct-ref
+                             "No fields in struct with appropriate type.  This should not have happened. Type needed: ~v, types available: ~v"
+                             parent-type
+                             (dict-values inner-names)))
+                          (define fieldname-choice (random-ref choices))
                           (rewrite-terminal 'fieldname parent fieldname-choice))))
                      (when (and (struct-def-ref? (current-hole))
                                 (ast-subtype? parent 'LiteralStruct))
