@@ -1034,7 +1034,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (match t-list
          [(list) (error 'subtype-unify!
                         "can't unify types ~v and ~v (this one shouldn't happen...)"
-                        sub super)]
+                        (set-first (type-variable-innard-handle-set sub))
+                        (set-first (type-variable-innard-handle-set super)))]
          [(list t) t]
          [(list ts ...) ts]))
      (define all-sub (append sub-bases sub-compounds))
@@ -1489,22 +1490,16 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 ;;; True if any of the variables is anywhere in the type.
 (define (contains-type-variables? t vs)
-  ;; TODO - subtyping -- does the meaning of this need to change in any way to account for variables that are not in a type variable directly but are in an upper/lower bound of the variable?
   ;; Here "type variables" can be type variables or product-type-inners boxes
-  (define innards
-    (flatten (map (λ (x) (cond [(type-variable? x) (type-variable-tvi x)]
-                               [else x]))
-                  vs)))
-  (contains-type-variable-innards? t innards))
-(define (contains-type-variable-innards? t innards)
-  (define (rec t) (contains-type-variable-innards? t innards))
+  ;; The variables must be in canonical form.
+  (define (rec t) (contains-type-variables? t vs))
   (match t
     [(base-type _ _) #f]
     [(base-type-range _ _) #f]
     [(function-type arg ret) (or (rec arg) (rec ret))]
     [(product-type inners lb ub)
      (match (unbox* inners)
-       [#f (memq t innards)]
+       [#f (memq t vs)]
        [(list ts ...) (ormap rec ts)])]
     ;[(sum-type)]
     ;[(record-type)]
@@ -1514,7 +1509,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(generic-type name constructor inners)
      (ormap rec inners)]
     [(type-variable t-innard)
-     (or (memq t-innard innards)
+     (or (memq (type-variable->canonical-type-variable t) vs)
          (match t-innard
            [(type-variable-innard _ #f _ _ _) #f]
            [(type-variable-innard _ (list ts ...) _ _ _) (ormap rec ts)]
