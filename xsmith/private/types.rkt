@@ -314,12 +314,13 @@ upper-bounds and lower-bounds are lists of other product types that a given one 
   (if (not inners)
       (product-type #f '() '())
       (product-type inners '() '())))
+;; TODO - product types no longer have boxes since the switch to subtyping.  I should clean up all leftover stuff that expects boxes.
 (define (product-type-inner-type-list/resolve pt)
   (unbox* (product-type-inner-type-list pt)))
 (define (product-type->all-transitive-bounds pt)
   (define (work dones todos)
     (cond [(null? todos) dones]
-          [(member (car todos) dones) (work dones (cdr todos))]
+          [(memq (car todos) dones) (work dones (cdr todos))]
           [else
            (match (car todos)
              [(product-type _ lbs ubs)
@@ -862,12 +863,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
      (match (list inner1 inner2)
        [(list #f #f)
-        (set-product-type-upper-bounds!
-         sub
-         (cons super (product-type-upper-bounds sub)))
-        (set-product-type-lower-bounds!
-         super
-         (cons sub (product-type-lower-bounds super)))]
+        (when (not (member super (product-type-upper-bounds sub)))
+          (set-product-type-upper-bounds!
+           sub
+           (cons super (product-type-upper-bounds sub))))
+        (when (not (member sub (product-type-lower-bounds super)))
+          (set-product-type-lower-bounds!
+           super
+           (cons sub (product-type-lower-bounds super))))]
        [(list #f _)
         (ripple-length! l2 sub '())
         (inner-unify! sub super)]
@@ -1499,7 +1502,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(function-type arg ret) (or (rec arg) (rec ret))]
     [(product-type inners lb ub)
      (match (unbox* inners)
-       [#f (memq t vs)]
+       [#f (not (not (memq t vs)))]
        [(list ts ...) (ormap rec ts)])]
     ;[(sum-type)]
     ;[(record-type)]
@@ -1509,11 +1512,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(generic-type name constructor inners)
      (ormap rec inners)]
     [(type-variable t-innard)
-     (or (memq (type-variable->canonical-type-variable t) vs)
-         (match t-innard
-           [(type-variable-innard _ #f _ _ _) #f]
-           [(type-variable-innard _ (list ts ...) _ _ _) (ormap rec ts)]
-           [(type-variable-innard _ inner-t _ _ _) (rec inner-t)]))]))
+     (not (set-empty?
+           (set-intersect (type->type-variable-list t)
+                          vs)))]))
 
 ;;; Returns a list of every type variable contained in a type or related as an upper/lower bound.
 (define (type->type-variable-list orig-type)
@@ -1527,7 +1528,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [(member (car init-todos) init-dones)
        (work vars (cdr init-todos) init-dones)]
       [else
-       (let ([t (car init-todos)]
+       (let ([t (type-variable->canonical-type-variable
+                 (car init-todos))]
              [todos (cdr init-todos)]
              [dones (cons (car init-todos) init-dones)])
          (match t
@@ -1557,6 +1559,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
                            (type-variable-innard-lower-bounds innard))))
             (define not-done-vars (set-subtract bounds dones))
             (match innard
+              [(type-variable-innard _ _ (and forwarded (? (λ(x)x))) _ _)
+               (work vars (cons forwarded todos) dones)]
               [(type-variable-innard _ (list its ...) _ _ _)
                (define not-done-inners (set-subtract its dones))
                (work (cons t vars)
@@ -1567,9 +1571,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
                      (append not-done-vars todos)
                      dones)]
               [(type-variable-innard _ it _ _ _)
-               (define not-done-inners (if (member it dones)
-                                           (list it)
-                                           (list)))
+               (define not-done-inners (if (memq it dones)
+                                           (list)
+                                           (list it)))
                (work (cons t vars)
                      (append not-done-inners not-done-vars todos)
                      dones)])]))]))
@@ -1578,6 +1582,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define (type-variable->canonical-type-variable tv)
   (match tv
     [(type-variable (type-variable-innard handles _ _ _ _)) (set-first handles)]
+    [(type-variable-innard handles _ _ _ _) (set-first handles)]
     [else tv]))
 
 (module+ test
@@ -1605,6 +1610,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
    (s= (type->type-variable-list v4)
        (flatten (list v1 v2 v3 v4 (type->type-variable-list p1)))))
   (unify! v1 v2)
+  (check-eq? (type-variable->canonical-type-variable v1)
+             (type-variable->canonical-type-variable v2))
   (check-true
    (s= (type->type-variable-list v1)
        (type->type-variable-list v2)))
@@ -1613,21 +1620,47 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (map type-variable->canonical-type-variable (list v1 v3))))
   (check-not-false (contains-type-variables? v1 (type->type-variable-list v2)))
 
+  (check-false (s= (product-type->all-transitive-bounds p1)
+                   (product-type->all-transitive-bounds p2)))
   (unify! p1 p2)
-  (check-not-false (contains-type-variables? v4 (list v1)))
+  (check-true (s= (product-type->all-transitive-bounds p1)
+                  (product-type->all-transitive-bounds p2)))
+  (check-not-false (contains-type-variables?
+                    v4 (list (type-variable->canonical-type-variable v1))))
   (check-not-false (contains-type-variables? v4 (type->type-variable-list p1)))
   (check-not-false (contains-type-variables? v4 (type->type-variable-list p2)))
   (check-false (contains-type-variables? v4 (type->type-variable-list p3)))
   (unify! p2 (mk-product-type (list v1 v2 v3)))
-  (check-true
-   (s= (type->type-variable-list p1)
-       (map type-variable->canonical-type-variable (list v1 v3))))
+  (check-true (contains-type-variables? v1 (type->type-variable-list p1)))
+  (check-true (contains-type-variables? p1 (type->type-variable-list v1)))
+  (check-true (contains-type-variables? v3 (type->type-variable-list p1)))
+  (check-true (contains-type-variables? p1 (type->type-variable-list v3)))
 
   (unify! p3 p1)
   (check-true (s= (type->type-variable-list p1)
                   (type->type-variable-list p2)))
   (check-true (s= (type->type-variable-list p1)
                   (type->type-variable-list p3)))
+
+  ;; check with subtype-unification
+  (define sv1 (fresh-type-variable))
+  (define sv2 (fresh-type-variable))
+  (define sv3 (fresh-type-variable (mk-base-type 'foo)
+                                   (function-type sv1 sv2)))
+  (define sv4 (fresh-type-variable))
+  (define sv5 (fresh-type-variable))
+  (define sp1 (mk-product-type #f))
+  (define sp2 (mk-product-type #f))
+  (subtype-unify! sv1 sp1)
+  (subtype-unify! sv4 sv3)
+  (subtype-unify! sv3 sv5)
+
+  (check-true (s= (type->type-variable-list sv4)
+                  (type->type-variable-list sv3)))
+  (check-true (contains-type-variables? sv1 (type->type-variable-list sp1)))
+  (check-true (contains-type-variables? sp1 (type->type-variable-list sv1)))
+  (check-true (subset? (type->type-variable-list sv1)
+                       (type->type-variable-list sv5)))
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
