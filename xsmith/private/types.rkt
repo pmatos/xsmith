@@ -316,6 +316,16 @@ upper-bounds and lower-bounds are lists of other product types that a given one 
       (product-type inners '() '())))
 (define (product-type-inner-type-list/resolve pt)
   (unbox* (product-type-inner-type-list pt)))
+(define (product-type->all-transitive-bounds pt)
+  (define (work dones todos)
+    (cond [(null? todos) dones]
+          [(member (car todos) dones) (work dones (cdr todos))]
+          [else
+           (match (car todos)
+             [(product-type _ lbs ubs)
+              (work (cons (car todos) dones)
+                    (append lbs ubs (cdr todos)))])]))
+  (work '() (list pt)))
 ;(struct sum-type (inner-type-list) #:transparent)
 
 
@@ -1510,32 +1520,65 @@ TODO - when generating a record ref, I'll need to compare something like (record
            [(type-variable-innard _ (list ts ...) _ _ _) (ormap rec ts)]
            [(type-variable-innard _ inner-t _ _ _) (rec inner-t)]))]))
 
-;;; Returns a list of every type variable contained in a type.
-;; TODO - subtyping -- do I need to worry about upper/lower bounds containing a type?
-(define (type->type-variable-list t)
-  (define (rec t)
-    (match t
-      [(base-type _ _) '()]
-      [(base-type-range _ _) '()]
-      [(function-type arg ret) (append (rec arg) (rec ret))]
-      [(product-type inners lb ub)
-       (if inners
-           (flatten (map rec inners))
-           (cons t (append (product-type-upper-bounds t)
-                           (product-type-lower-bounds t))))]
-      ;[(sum-type)]
-      ;[(record-type)]
-      [(nominal-record-type name inners) (flatten (map rec (dict-values inners)))]
-      [(nominal-record-definition-type inner) (rec inner)]
-      [(generic-type name constructor inners) (flatten (map rec inners))]
-      [(type-variable innard)
-       (match innard
-         [(type-variable-innard _ (list its ...) _ _ _)
-          (cons t (flatten (map rec its)))]
-         [(type-variable-innard _ #f _ _ _) (list t)]
-         [(type-variable-innard _ it _ _ _) (cons t (rec it))])]))
-  (remove-duplicates (map type-variable->canonical-type-variable (rec t))
-                     eq?))
+;;; Returns a list of every type variable contained in a type or related as an upper/lower bound.
+(define (type->type-variable-list orig-type)
+  (define orig-type-normalized
+    (if (type-variable? orig-type)
+        (type-variable->canonical-type-variable orig-type)
+        orig-type))
+  (define (work vars init-todos init-dones)
+    (cond
+      [(null? init-todos) vars]
+      [(member (car init-todos) init-dones)
+       (work vars (cdr init-todos) init-dones)]
+      [else
+       (let ([t (car init-todos)]
+             [todos (cdr init-todos)]
+             [dones (cons (car init-todos) init-dones)])
+         (match t
+           [(base-type _ _) (work vars todos dones)]
+           [(base-type-range _ _) (work vars todos dones)]
+           [(function-type arg ret)
+            (work vars (set-union todos (list arg ret)) dones)]
+           [(product-type inners lb ub)
+            (if inners
+                (work vars (append inners todos) dones)
+                (let ([all-bounds (product-type->all-transitive-bounds t)])
+                  (work (set-union vars all-bounds)
+                        todos
+                        (append all-bounds init-dones))))]
+           ;[(sum-type)]
+           ;[(record-type)]
+           [(nominal-record-type name inners)
+            (work vars (append (dict-values inners) todos) dones)]
+           [(nominal-record-definition-type inner)
+            (work vars (cons inner todos) dones)]
+           [(generic-type name constructor inners)
+            (work vars (append inners todos) dones)]
+           [(type-variable innard)
+            (define bounds
+              (map type-variable->canonical-type-variable
+                   (append (type-variable-innard-upper-bounds innard)
+                           (type-variable-innard-lower-bounds innard))))
+            (define not-done-vars (set-subtract bounds dones))
+            (match innard
+              [(type-variable-innard _ (list its ...) _ _ _)
+               (define not-done-inners (set-subtract its dones))
+               (work (cons t vars)
+                     (append not-done-inners not-done-vars todos)
+                     dones)]
+              [(type-variable-innard _ #f _ _ _)
+               (work (cons t vars)
+                     (append not-done-vars todos)
+                     dones)]
+              [(type-variable-innard _ it _ _ _)
+               (define not-done-inners (if (member it dones)
+                                           (list it)
+                                           (list)))
+               (work (cons t vars)
+                     (append not-done-inners not-done-vars todos)
+                     dones)])]))]))
+  (work '() (list orig-type-normalized) '()))
 
 (define (type-variable->canonical-type-variable tv)
   (match tv
