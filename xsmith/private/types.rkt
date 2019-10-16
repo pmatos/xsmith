@@ -54,7 +54,7 @@ WIP checklist:
  ;; TODO - tuple types -- what should the API be?
  ;(rename-out [mk-record-type record-type])
  product-type?
- [rename-out [product-type-inner-type-list/resolve product-type-inner-type-list]]
+ product-type-inner-type-list
  ;product-type-inner-type-list
  ;record-type?
  ;record-type-name
@@ -314,9 +314,6 @@ upper-bounds and lower-bounds are lists of other product types that a given one 
   (if (not inners)
       (product-type #f '() '())
       (product-type inners '() '())))
-;; TODO - product types no longer have boxes since the switch to subtyping.  I should clean up all leftover stuff that expects boxes.
-(define (product-type-inner-type-list/resolve pt)
-  (unbox* (product-type-inner-type-list pt)))
 (define (product-type->all-transitive-bounds pt)
   (define (work dones todos)
     (cond [(null? todos) dones]
@@ -415,41 +412,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
    (generic-type? x)
    ))
 
-(define (unbox* b)
-  (if (box? b)
-      (unbox* (unbox b))
-      b))
-(define (unbox*- b)
-  ;; unbox all but the LAST box
-  (when (not (box? b))
-    (error 'unbox*- "received not a box: ~a" b))
-  (let ([ub (unbox b)])
-    (if (box? ub)
-        (unbox*- ub)
-        b)))
-(define (set-all-boxes! b target)
-  ;; Set all nested boxes to the given target.
-  (when (box? b)
-    (let ([inner (unbox b)])
-      (set-box! b target)
-      (set-all-boxes! inner target))))
-
-(module+ test
-  (define b1 (box #f))
-  (define-values (b1-chain b1-chain-list)
-    (for/fold ([chain b1]
-               [chain-list '()])
-              ([i (in-range 5)])
-      (define newbox (box chain))
-      (values newbox (cons newbox chain-list))))
-  (check-eq? (unbox*- b1-chain) b1)
-  (define b2 (box 'foo))
-  (set-all-boxes! b1-chain b2)
-  (check-eq? (unbox b1) b2)
-  (for ([b b1-chain-list])
-    (check-eq? (unbox*- b) b2))
-  (check-eq? (unbox* b1-chain) 'foo)
-  )
 
 
 #;(define (can-unify? t1 t2)
@@ -1247,7 +1209,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        ;; TODO - this should be a random choice.  But I also need to deal with the #f low case and enumerate all possibilities.  For now I just want to get the code working again.
        high]
       [(product-type inner lb ub)
-       (define inner-types (unbox* inner))
+       (define inner-types inner)
        (if inner-types
            (mk-product-type (map r inner-types))
            (mk-product-type (map (λ (x) (r (fresh-type-variable)))
@@ -1365,8 +1327,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (not (not name))]
     [(nominal-record-definition-type inner) (concrete? inner)]
     [(product-type itl lb ub)
-     (define itl* (unbox* itl))
-     (and (list? itl*) (andmap concrete? itl*))]
+     (and (list? itl) (andmap concrete? itl))]
     [(generic-type _ _ inners)
      (andmap concrete? inners)]))
 
@@ -1441,8 +1402,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (and (at-least-as-concrete v-arg c-arg)
           (at-least-as-concrete v-ret c-ret))]
     [(list (product-type v-inner-list _ _) (product-type c-inner-list _ _))
-     (let ([ts (unbox* v-inner-list)]
-           [cs (unbox* c-inner-list)])
+     (let ([ts v-inner-list]
+           [cs c-inner-list])
        (match (list ts cs)
          [(list _ #f) #t]
          [(list #f _) #f]
@@ -1501,7 +1462,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(base-type-range _ _) #f]
     [(function-type arg ret) (or (rec arg) (rec ret))]
     [(product-type inners lb ub)
-     (match (unbox* inners)
+     (match inners
        [#f (not (not (memq t vs)))]
        [(list ts ...) (ormap rec ts)])]
     ;[(sum-type)]
