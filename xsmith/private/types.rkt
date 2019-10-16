@@ -1536,7 +1536,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
            [(base-type _ _) (work vars todos dones)]
            [(base-type-range _ _) (work vars todos dones)]
            [(function-type arg ret)
-            (work vars (set-union todos (list arg ret)) dones)]
+            (work vars (list* arg ret todos) dones)]
            [(product-type inners lb ub)
             (if inners
                 (work vars (append inners todos) dones)

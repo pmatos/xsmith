@@ -443,7 +443,7 @@ New types
      #'(define (printer-name t)
          (cond [(int-type? t) (text int-name)]
                [(float-type? t) (text float-name)]
-               [else (error 'printer-name "bad type")]))]))
+               [else (error 'printer-name "bad type: ~v" t)]))]))
 
 (def-type->print type->print-add "safe_add_func_int32_t_s_s" "safe_add_func_float_f_f")
 (def-type->print type->print-sub "safe_sub_func_int32_t_s_s" "safe_sub_func_float_f_f")
