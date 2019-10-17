@@ -160,6 +160,7 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
 (struct type-variable-innard
   ([handle-set #:mutable]
    [type #:mutable]
+   ;; TODO - maybe get rid of forward field, it is probably complication without benefit
    [forward #:mutable]
    [lower-bounds #:mutable]
    [upper-bounds #:mutable]))
@@ -927,7 +928,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
              (define new-dones2 (if superchange
                                     (done-pair-list-remove-with new-dones1 upper)
                                     dones))
-             (define new-dones3 (cons (cons lower innard) new-dones2))
+             (define new-dones3 (cons (cons lower upper) new-dones2))
              (define new-work1 (if subchange
                                    (set-add work lower)
                                    work))
@@ -953,6 +954,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   This is a helper function that takes only type-variable-innards, and only updates their type lists.  IE it does not add them to each others' upper/lower bounds lists.
   It returns a list of two bools.  The first one is true iff the sub list was modified, the second one is true iff the super list was modified.
   |#
+  ;; TODO - get rid of the list-or-single-type representation of type variable innards
   (match (list (flatten (list (type-variable-innard-type sub)))
                (flatten (list (type-variable-innard-type super))))
     [(list (list #f) (list #f)) (list #f #f)]
@@ -985,6 +987,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (define compound-type-pairs
        (filter
         (λ(x)x)
+        ;; type variables can only ever have one of each compound type, so the inner loop can only ever have one match.
         (for*/list ([sub (filter (λ(x) (not (base-type-range? x)))
                                  subtypes)]
                     [sup (filter (λ(x) (not (base-type-range? x)))
