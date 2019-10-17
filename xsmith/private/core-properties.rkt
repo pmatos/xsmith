@@ -57,9 +57,9 @@
 
 (require
  "grammar-macros.rkt"
+ "xsmith-parameters.rkt"
  "xsmith-utils.rkt"
  (submod "xsmith-utils.rkt" for-private)
- "xsmith-command-line.rkt"
  "scope-graph.rkt"
  "types.rkt"
  "effects.rkt"
