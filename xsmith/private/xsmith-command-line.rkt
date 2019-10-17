@@ -251,37 +251,32 @@
                                          (xsmith-option 'command-line))))
                  (format "Seed: ~a" seed))))
         (define error? #f)
-        (define program
+        (define program-output
           (with-output-to-string
             (λ ()
-              (with-handlers ([(λ(e)#t)
+              (with-handlers ([(λ (e) #t)
                                (λ (e) (set! error? e))])
                 (generate-and-print-func)))))
-        (define error-program
-          (and error?
-               (with-output-to-string
-                 (λ ()
-                   (printf "!!! Xsmith Error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
-                   (printf "Error generating program!\n\n")
-                   (printf "Options:\n")
-                   (for ([line option-lines])
-                     (printf "~a\n" line))
-                   (printf "\nDebug Log:\n~a\n\n"
-                           (get-xsmith-debug-log!))
-                   (printf "Exception:\n~a\n" (exn->string error?))
-                   (printf "\n")
-                   (when (not (equal? "" program))
-                     (printf "Program output captured:\n~a\n\n" program))
-                   ))))
         (if error?
             ;; TODO - I think there should be some signal here that there is an
             ;;   error that a driver script can check for...
-            (printf "~a\n" error-program)
+            (begin
+              (printf "!!! Xsmith Error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
+              (printf "Error generating program!\n\n")
+              (printf "Options:\n")
+              (for ([line option-lines])
+                (printf "~a\n" line))
+              (printf "\nDebug Log:\n~a\n\n"
+                      (get-xsmith-debug-log!))
+              (printf "Exception:\n~a\n" (exn->string error?))
+              (printf "\n")
+              (when (not (equal? "" program-output))
+                (printf "Program output captured:\n~a\n\n" program-output)))
             (begin
               (printf "~a\n" (comment-func
                               (cons "This is a RANDOMLY GENERATED PROGRAM."
                                     option-lines)))
-              (printf "~a\n" program)))
+              (printf "~a\n" program-output)))
         (dict-set! (xsmith-options)
                    'random-seed
                    (modulo (add1 seed)
