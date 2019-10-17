@@ -46,6 +46,8 @@
  lift-type->ast-binder-type
  binding-structure
  choice-filters-to-apply
+ print-node
+ print-node-info
 
  make-lift-reference-choice-proc
  )
@@ -1391,6 +1393,36 @@ The second arm is a function that takes the type that the node has been assigned
           _xsmith_effects-info
           _xsmith_effect-constraints-for-child-info
           _xsmith_no-io-conflict?-info)))
+
+#|
+There are two properties involved in pretty-printing:
+ - print-node
+ - print-hole
+
+The `print-node` property allows users to specify functions for printing each type
+of node. They may also give a default print function via #f.
+
+Functions specified this way will be wrapped with a test to determine whether
+the supplied argument is actually a hole. If it is, then `print-hole` will be
+called instead.
+
+These properties will be combined into a user-accessible function which can also
+be used inside these function definitions, allowing the user to easily print
+over recursively-specified data.
+|#
+(define-syntax-rule (print-node args ...)
+  (att-value '_xsmith_print-node args ...))
+
+(define-property print-node-info
+  #:appends
+  (att-rule _xsmith_print-node)
+  #:transformer
+  (λ (this-prop-info)
+    (define _xsmith-print-node-info
+      (for/hash ([(n v) (in-dict this-prop-info)])
+        (values n
+                v)))
+    (list _xsmith-print-node-info)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
