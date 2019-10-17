@@ -30,18 +30,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require racket/contract)
+(require
+ racket/contract
+ racket/contract/base
+ (only-in racr ast-node?))
 (provide
  (contract-out
   [xsmith-command-line
-   (->* ((-> void?))
+   (->* ((-> ast-node?))
         (#:comment-wrap (-> (listof string?) string?)
          #:fuzzer-name (or/c #f string?)
          #:fuzzer-version (or/c #f string?)
          #:features (listof
                      (or/c (list/c symbol? boolean?)
                            (list/c symbol? boolean? (listof string?))))
-         #:default-max-depth number?)
+         #:default-max-depth number?
+         #:format-print (-> any/c string?))
         void?)]
   )
  xsmith-feature-enabled?
@@ -55,24 +59,27 @@
  racket/string
  racket/exn
  racket/port
+ racket/pretty
  racket/list
  raco/command-name
  "xsmith-parameters.rkt"
  "xsmith-utils.rkt"
  (submod "xsmith-utils.rkt" for-private)
  "xsmith-version.rkt"
+ "core-properties.rkt"
  )
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(define (xsmith-command-line generate-and-print-func
+(define (xsmith-command-line generate-func
                              #:fuzzer-name [fuzzer-name #f]
                              #:fuzzer-version [fuzzer-version #f]
                              #:comment-wrap [comment-func (λ (lines) "")]
                              #:features [features-list '()]
-                             #:default-max-depth [default-max-depth 5])
+                             #:default-max-depth [default-max-depth 5]
+                             #:format-print [format-print-func #f])
 
   (define true-strings  '("true"  "t" "#t" "yes" "y"))
   (define false-strings '("false" "f" "#f" "no"  "n"))
@@ -229,7 +236,14 @@
             (λ ()
               (with-handlers ([(λ (e) #t)
                                (λ (e) (set! error? e))])
-                (generate-and-print-func)))))
+                (let* ([ast (generate-func)]
+                       [out (print-node ast)])
+                  (if format-print-func
+                      (printf "~a" (format-print-func out))
+                      (parameterize ([pretty-print-columns 120])
+                        (pretty-print
+                         out
+                         (current-output-port)))))))))
         (if error?
             ;; TODO - I think there should be some signal here that there is an
             ;;   error that a driver script can check for...
