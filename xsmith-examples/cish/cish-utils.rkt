@@ -122,9 +122,9 @@
 
 (define (nest-if-not-block n)
   (if (equal? (node-type n) 'Block)
-      (att-value 'pretty-print n)
+      (print-node n)
       (nest nest-step (h-append nest-step-string
-                                (att-value 'pretty-print n)))))
+                                (print-node n)))))
 
 
 (define ident (λ(x)x))
@@ -423,18 +423,18 @@ New types
   (h-comment
    n
    (h-append lparen
-             (hs-append (att-value 'pretty-print (ast-child 'l n))
+             (hs-append (print-node (ast-child 'l n))
                         op-sym
-                        (att-value 'pretty-print (ast-child 'r n)))
+                        (print-node (ast-child 'r n)))
              rparen)))
 (define ({binary-expression-print/function type->f-name} n)
   (h-comment
    n
    (h-append (type->f-name (att-value 'xsmith_type n))
              lparen
-             (hs-append (att-value 'pretty-print (ast-child 'l n))
+             (hs-append (print-node (ast-child 'l n))
                         comma
-                        (att-value 'pretty-print (ast-child 'r n)))
+                        (print-node (ast-child 'r n)))
              rparen)))
 
 (define-syntax (def-type->print stx)

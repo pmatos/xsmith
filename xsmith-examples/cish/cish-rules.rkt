@@ -72,325 +72,6 @@
     [Program (λ (n) (fresh-int!))]
     [Node (λ (n) (att-value 'ast-serial-number (parent-node n)))])
 
-(define (base-type->string t)
-  (if (bool-type? t)
-      "int"
-      (symbol->string
-       (base-type-name t))))
-
-(define (type->string t)
-  (cond [(base-type? t) (base-type->string t)]
-        [(nominal-record-type? t) (format "struct ~a" (nominal-record-type-name t))]
-        [(volatile-type? t) (format "volatile ~a"
-                                    (type->string (volatile-type-type t)))]
-        [else (error 'type->string "not yet implemented for type ~a" t)]))
-
-(ag
- pretty-print
- [Program (λ (n)
-            (define structs (ast-children (ast-child 'structdefinitions n)))
-            (define global-vars (ast-children (ast-child 'globalvariables n)))
-            (define functions (ast-children (ast-child 'functions n)))
-            (v-append
-             (v-comment
-              n
-              (vb-concat
-               (list*
-                (text "#include \"xsmith_safe_math.h\"\n")
-                (text "#include <stdio.h>\n")
-                (map (λ (cn) (att-value 'pretty-print cn))
-                     (append (reverse structs)
-                             global-vars
-                             functions
-                             (list (ast-child 'main n)))))))
-             (text "")
-             (text "int main(){")
-             (text "  int main_ret = 0;")
-             (text "  main_ret = main_inner();")
-             (apply v-append
-                    (map (λ (v) (text (format "  printf(\"~a\\n\", ~a);\n"
-                                              (match (type-qualifier-unwrap
-                                                      (ast-child 'type v))
-                                                [(? int-type?) "%d"]
-                                                [(? bool-type?) "%d"]
-                                                [(? float-type?) "%f"])
-                                              (ast-child 'name v))))
-                         (filter (λ (x) (base-type? (type-qualifier-unwrap
-                                                     (ast-child 'type x))))
-                                 global-vars)))
-             (text "  printf(\"%d\\n\", main_ret);")
-             (text "  return 0;")
-             (text "}")
-             ;; Hack to get a newline...
-             (text "")))]
- [FunctionDefinition
-  (λ (n)
-    (v-comment
-     n
-     (h-append
-      (text (type->string (function-type-return-type (ast-child 'type n))))
-      space
-      (text (ast-child 'name n))
-      lparen
-      (h-concat
-       (add-between
-        (map (λ (fp)
-               (h-append (text (type->string (ast-child 'type fp)))
-                         space
-                         (text (ast-child 'name fp))))
-             (ast-children (ast-child 'params n)))
-        (h-append comma space)))
-      rparen
-      line
-      (att-value 'pretty-print (ast-child 'Block n)))))]
- [StructDefinition
-  (λ (n)
-    (v-append
-     (h-append (text "struct") space (text (ast-child 'name n)))
-     (nest nest-step
-           (apply v-append
-                  lbrace
-                  (for/list ([(field-name field-type)
-                              (in-dict
-                               (let ([t (nominal-record-definition-type
-                                         (any-nominal-record-type))])
-                                 (unify! t (ast-child 'type n))
-                                 (nominal-record-type-inners
-                                  (nominal-record-definition-type-type
-                                   t))))])
-                    (h-append (text (type->string field-type))
-                              space
-                              (text field-name)
-                              semi))))
-     (h-append rbrace semi)))]
- [LiteralStruct
-  (λ (n)
-    (define constant? (member 'constant (att-value 'misc-constraints n)))
-    (define braces-part
-      (h-append
-       lbrace
-       (h-concat
-        (add-between (map (λ (c) (att-value 'pretty-print c))
-                          (ast-children (ast-child 'vals n)))
-                     (h-append comma space)))
-       rbrace))
-    ;; When constants are needed, cast operations are not only not needed but
-    ;; can cause compilation failure.  But elsewhere a cast operator can be needed
-    ;; for the compiler to tell what kind of struct you are constructing.
-    (if constant?
-        braces-part
-        (h-append
-         lparen
-         (text "struct ")
-         (text (ast-child 'name (ast-child 'structdefref n)))
-         rparen
-         braces-part)))]
- [IfStatement
-  (λ (n)
-    (v-comment
-     n
-     (h-append
-      (h-append if: space lparen
-                (att-value 'pretty-print (ast-child 'test n))
-                rparen)
-      (nest nest-step
-            (h-append line
-                      (att-value 'pretty-print (ast-child 'then n)))))))]
- [IfElseStatement
-  (λ (n)
-    (v-comment
-     n
-     (h-append
-      (h-append if: space lparen
-                (att-value 'pretty-print (ast-child 'test n))
-                rparen)
-      (nest nest-step
-            (h-append line
-                      (att-value 'pretty-print (ast-child 'then n))))
-      line
-      else:
-      (nest nest-step
-            (h-append line
-                      (att-value 'pretty-print (ast-child 'else n)))))))]
- [WhileStatement
-  (λ (n)
-    (v-comment
-     n
-     (h-append
-      (h-append while: space lparen
-                (att-value 'pretty-print (ast-child 'test n))
-                rparen)
-      (nest nest-step
-            (h-append line
-                      (att-value 'pretty-print (ast-child 'body n)))))))]
- [DoWhileStatement
-  (λ (n)
-    (v-comment
-     n
-     (h-append
-      do:
-      (nest nest-step
-            (h-append line
-                      (att-value 'pretty-print (ast-child 'body n))))
-      line
-      (h-append while: space lparen
-                (att-value 'pretty-print (ast-child 'test n))
-                rparen semi))))]
- [ForStatement
-  (λ (n)
-    (v-comment
-     n
-     (h-append
-      for: space lparen
-      (att-value 'pretty-print (ast-child 'init n))
-      ;; since init is a declaration it already prints a semicolon
-      space
-      (att-value 'pretty-print (ast-child 'test n))
-      semi space
-      (att-value 'pretty-print (ast-child 'update n))
-      rparen
-      (nest nest-step
-            (h-append line
-                      (att-value 'pretty-print (ast-child 'body n)))))))]
- [Block
-  (λ (n)
-    (v-comment
-     n
-     (h-append
-      lbrace
-      (nest nest-step
-            (h-append
-             line
-             (v-concat
-              (append
-               (map (λ (cn) (att-value 'pretty-print cn))
-                    (ast-children (ast-child 'declarations n)))
-               (map (λ (cn) (att-value 'pretty-print cn))
-                    (ast-children (ast-child 'statements n)))))))
-      line
-      rbrace)))]
- [ExpressionStatement
-  (λ (n)
-    (v-comment
-     n
-     (h-append (att-value 'pretty-print (ast-child 'Expression n))
-               semi)))]
- [ValueReturnStatement
-  (λ (n)
-    (v-comment
-     n
-     (h-append return: space
-               (att-value 'pretty-print (ast-child 'Expression n))
-               semi)))]
- [NullStatement
-  (λ (n)
-    (v-comment
-     n
-     (h-append semi)))]
- [VariableDeclaration
-  (λ (n)
-    (v-comment
-     n
-     (h-append (hs-append
-                (text (type->string (ast-child 'type n)))
-                (text (ast-child 'name n))
-                eqsign
-                (att-value 'pretty-print (ast-child 'Expression n)))
-               semi)))]
- [AssignmentExpression
-  (λ (n)
-    (v-comment
-     n
-     (hs-append (text (ast-child 'name n))
-                eqsign
-                (att-value 'pretty-print (ast-child 'Expression n)))))]
- [LiteralInt
-  (λ (n)
-    (h-comment
-     n
-     (text (number->string (ast-child 'val n)))))]
- [LiteralFloat
-  (λ (n)
-    (h-comment
-     n
-     (text (number->string (ast-child 'val n)))))]
- [VariableReference
-  (λ (n)
-    (h-comment
-     n
-     (text (ast-child 'name n))))]
- [VolatileVariableReference
-  (λ (n) (att-value 'pretty-print (ast-child 'VariableReference n)))]
- [VolatileInitializer
-  (λ (n) (att-value 'pretty-print (ast-child 'Expression n)))]
- [FunctionApplicationExpression
-  (λ (n)
-    (h-comment
-     n
-     (h-append
-      (att-value 'pretty-print (ast-child 'function n))
-      lparen
-      (h-concat
-       (add-between (map (λ (a) (att-value 'pretty-print a))
-                         (ast-children (ast-child 'args n)))
-                    (h-append comma space)))
-      rparen)))]
- [IfExpression
-  (λ (n)
-    (h-comment
-     n
-     (h-append lparen
-               (hs-append (att-value 'pretty-print (ast-child 'test n))
-                          qmark
-                          (att-value 'pretty-print (ast-child 'then n))
-                          colon
-                          (att-value 'pretty-print (ast-child 'else n)))
-               rparen)))]
-
- [StructReference
-  (λ (n)
-    (h-append lparen
-              (att-value 'pretty-print (ast-child 'structval n))
-              rparen
-              period
-              (text (ast-child 'fieldname n))))]
- [StructSetField
-  (λ (n)
-    (h-append lparen
-              lparen
-              (att-value 'pretty-print (ast-child 'structval n))
-              rparen
-              period
-              (text (ast-child 'fieldname n))
-              space
-              eqsign
-              space
-              (att-value 'pretty-print (ast-child 'updateval n))
-              rparen))]
-
- ;; TODO -- gen the name of the safe op function from the type of the operator
- [AdditionExpression {binary-expression-print/function type->print-add}]
- [SubtractionExpression {binary-expression-print/function type->print-sub}]
- [MultiplicationExpression {binary-expression-print/function type->print-mul}]
- [DivisionExpression {binary-expression-print/function type->print-div}]
- [ModulusExpression {binary-expression-print/function type->print-mod}]
-
- [UnsafeAdditionExpression {binary-expression-print/infix plus}]
- [UnsafeSubtractionExpression {binary-expression-print/infix minus}]
- [UnsafeMultiplicationExpression {binary-expression-print/infix star}]
- [UnsafeDivisionExpression {binary-expression-print/infix slash}]
- [UnsafeModulusExpression {binary-expression-print/infix percent}]
-
- [EqualityExpression {binary-expression-print/infix (h-append eqsign eqsign)}]
- [GreaterThanExpression {binary-expression-print/infix greater}]
- [LessThanExpression {binary-expression-print/infix less}]
- [GreaterOrEqualExpression {binary-expression-print/infix (h-append greater eqsign)}]
- [LessOrEqualExpression {binary-expression-print/infix (h-append less eqsign)}]
- )
-
-
-
-
 (ag
  children-hint-dict
  ;; dictionary will contain a list of hints (or nothing) for each child
@@ -1588,7 +1269,6 @@
                         15)]
  )
 
-
 (add-prop
  cish-rules
  wont-over-deepen
@@ -1596,6 +1276,323 @@
  [ValueReturnStatement #t]
  [AssignmentExpression #t]
  [VariableDeclaration #t]
+ )
+
+(define (base-type->string t)
+  (if (bool-type? t)
+      "int"
+      (symbol->string
+       (base-type-name t))))
+
+(define (type->string t)
+  (cond [(base-type? t) (base-type->string t)]
+        [(nominal-record-type? t) (format "struct ~a" (nominal-record-type-name t))]
+        [(volatile-type? t) (format "volatile ~a"
+                                    (type->string (volatile-type-type t)))]
+        [else (error 'type->string "not yet implemented for type ~a" t)]))
+
+(add-prop
+ cish-rules
+ print-node-info
+ [Program (λ (n)
+            (define structs (ast-children (ast-child 'structdefinitions n)))
+            (define global-vars (ast-children (ast-child 'globalvariables n)))
+            (define functions (ast-children (ast-child 'functions n)))
+            (v-append
+             (v-comment
+              n
+              (vb-concat
+               (list*
+                (text "#include \"xsmith_safe_math.h\"\n")
+                (text "#include <stdio.h>\n")
+                (map (λ (cn) (print-node cn))
+                     (append (reverse structs)
+                             global-vars
+                             functions
+                             (list (ast-child 'main n)))))))
+             (text "")
+             (text "int main(){")
+             (text "  int main_ret = 0;")
+             (text "  main_ret = main_inner();")
+             (apply v-append
+                    (map (λ (v) (text (format "  printf(\"~a\\n\", ~a);\n"
+                                              (match (type-qualifier-unwrap
+                                                      (ast-child 'type v))
+                                                [(? int-type?) "%d"]
+                                                [(? bool-type?) "%d"]
+                                                [(? float-type?) "%f"])
+                                              (ast-child 'name v))))
+                         (filter (λ (x) (base-type? (type-qualifier-unwrap
+                                                     (ast-child 'type x))))
+                                 global-vars)))
+             (text "  printf(\"%d\\n\", main_ret);")
+             (text "  return 0;")
+             (text "}")
+             ;; Hack to get a newline...
+             (text "")))]
+ [FunctionDefinition
+  (λ (n)
+    (v-comment
+     n
+     (h-append
+      (text (type->string (function-type-return-type (ast-child 'type n))))
+      space
+      (text (ast-child 'name n))
+      lparen
+      (h-concat
+       (add-between
+        (map (λ (fp)
+               (h-append (text (type->string (ast-child 'type fp)))
+                         space
+                         (text (ast-child 'name fp))))
+             (ast-children (ast-child 'params n)))
+        (h-append comma space)))
+      rparen
+      line
+      (print-node (ast-child 'Block n)))))]
+ [StructDefinition
+  (λ (n)
+    (v-append
+     (h-append (text "struct") space (text (ast-child 'name n)))
+     (nest nest-step
+           (apply v-append
+                  lbrace
+                  (for/list ([(field-name field-type)
+                              (in-dict
+                               (let ([t (nominal-record-definition-type
+                                         (any-nominal-record-type))])
+                                 (unify! t (ast-child 'type n))
+                                 (nominal-record-type-inners
+                                  (nominal-record-definition-type-type
+                                   t))))])
+                    (h-append (text (type->string field-type))
+                              space
+                              (text field-name)
+                              semi))))
+     (h-append rbrace semi)))]
+ [LiteralStruct
+  (λ (n)
+    (define constant? (member 'constant (att-value 'misc-constraints n)))
+    (define braces-part
+      (h-append
+       lbrace
+       (h-concat
+        (add-between (map (λ (c) (print-node c))
+                          (ast-children (ast-child 'vals n)))
+                     (h-append comma space)))
+       rbrace))
+    ;; When constants are needed, cast operations are not only not needed but
+    ;; can cause compilation failure.  But elsewhere a cast operator can be needed
+    ;; for the compiler to tell what kind of struct you are constructing.
+    (if constant?
+        braces-part
+        (h-append
+         lparen
+         (text "struct ")
+         (text (ast-child 'name (ast-child 'structdefref n)))
+         rparen
+         braces-part)))]
+ [IfStatement
+  (λ (n)
+    (v-comment
+     n
+     (h-append
+      (h-append if: space lparen
+                (print-node (ast-child 'test n))
+                rparen)
+      (nest nest-step
+            (h-append line
+                      (print-node (ast-child 'then n)))))))]
+ [IfElseStatement
+  (λ (n)
+    (v-comment
+     n
+     (h-append
+      (h-append if: space lparen
+                (print-node (ast-child 'test n))
+                rparen)
+      (nest nest-step
+            (h-append line
+                      (print-node (ast-child 'then n))))
+      line
+      else:
+      (nest nest-step
+            (h-append line
+                      (print-node (ast-child 'else n)))))))]
+ [WhileStatement
+  (λ (n)
+    (v-comment
+     n
+     (h-append
+      (h-append while: space lparen
+                (print-node (ast-child 'test n))
+                rparen)
+      (nest nest-step
+            (h-append line
+                      (print-node (ast-child 'body n)))))))]
+ [DoWhileStatement
+  (λ (n)
+    (v-comment
+     n
+     (h-append
+      do:
+      (nest nest-step
+            (h-append line
+                      (print-node (ast-child 'body n))))
+      line
+      (h-append while: space lparen
+                (print-node (ast-child 'test n))
+                rparen semi))))]
+ [ForStatement
+  (λ (n)
+    (v-comment
+     n
+     (h-append
+      for: space lparen
+      (print-node (ast-child 'init n))
+      ;; since init is a declaration it already prints a semicolon
+      space
+      (print-node (ast-child 'test n))
+      semi space
+      (print-node (ast-child 'update n))
+      rparen
+      (nest nest-step
+            (h-append line
+                      (print-node (ast-child 'body n)))))))]
+ [Block
+  (λ (n)
+    (v-comment
+     n
+     (h-append
+      lbrace
+      (nest nest-step
+            (h-append
+             line
+             (v-concat
+              (append
+               (map (λ (cn) (print-node cn))
+                    (ast-children (ast-child 'declarations n)))
+               (map (λ (cn) (print-node cn))
+                    (ast-children (ast-child 'statements n)))))))
+      line
+      rbrace)))]
+ [ExpressionStatement
+  (λ (n)
+    (v-comment
+     n
+     (h-append (print-node (ast-child 'Expression n))
+               semi)))]
+ [ValueReturnStatement
+  (λ (n)
+    (v-comment
+     n
+     (h-append return: space
+               (print-node (ast-child 'Expression n))
+               semi)))]
+ [NullStatement
+  (λ (n)
+    (v-comment
+     n
+     (h-append semi)))]
+ [VariableDeclaration
+  (λ (n)
+    (v-comment
+     n
+     (h-append (hs-append
+                (text (type->string (ast-child 'type n)))
+                (text (ast-child 'name n))
+                eqsign
+                (print-node (ast-child 'Expression n)))
+               semi)))]
+ [AssignmentExpression
+  (λ (n)
+    (v-comment
+     n
+     (hs-append (text (ast-child 'name n))
+                eqsign
+                (print-node (ast-child 'Expression n)))))]
+ [LiteralInt
+  (λ (n)
+    (h-comment
+     n
+     (text (number->string (ast-child 'val n)))))]
+ [LiteralFloat
+  (λ (n)
+    (h-comment
+     n
+     (text (number->string (ast-child 'val n)))))]
+ [VariableReference
+  (λ (n)
+    (h-comment
+     n
+     (text (ast-child 'name n))))]
+ [VolatileVariableReference
+  (λ (n) (print-node (ast-child 'VariableReference n)))]
+ [VolatileInitializer
+  (λ (n) (print-node (ast-child 'Expression n)))]
+ [FunctionApplicationExpression
+  (λ (n)
+    (h-comment
+     n
+     (h-append
+      (print-node (ast-child 'function n))
+      lparen
+      (h-concat
+       (add-between (map (λ (a) (print-node a))
+                         (ast-children (ast-child 'args n)))
+                    (h-append comma space)))
+      rparen)))]
+ [IfExpression
+  (λ (n)
+    (h-comment
+     n
+     (h-append lparen
+               (hs-append (print-node (ast-child 'test n))
+                          qmark
+                          (print-node (ast-child 'then n))
+                          colon
+                          (print-node (ast-child 'else n)))
+               rparen)))]
+
+ [StructReference
+  (λ (n)
+    (h-append lparen
+              (print-node (ast-child 'structval n))
+              rparen
+              period
+              (text (ast-child 'fieldname n))))]
+ [StructSetField
+  (λ (n)
+    (h-append lparen
+              lparen
+              (print-node (ast-child 'structval n))
+              rparen
+              period
+              (text (ast-child 'fieldname n))
+              space
+              eqsign
+              space
+              (print-node (ast-child 'updateval n))
+              rparen))]
+
+ ;; TODO -- gen the name of the safe op function from the type of the operator
+ [AdditionExpression {binary-expression-print/function type->print-add}]
+ [SubtractionExpression {binary-expression-print/function type->print-sub}]
+ [MultiplicationExpression {binary-expression-print/function type->print-mul}]
+ [DivisionExpression {binary-expression-print/function type->print-div}]
+ [ModulusExpression {binary-expression-print/function type->print-mod}]
+
+ [UnsafeAdditionExpression {binary-expression-print/infix plus}]
+ [UnsafeSubtractionExpression {binary-expression-print/infix minus}]
+ [UnsafeMultiplicationExpression {binary-expression-print/infix star}]
+ [UnsafeDivisionExpression {binary-expression-print/infix slash}]
+ [UnsafeModulusExpression {binary-expression-print/infix percent}]
+
+ [EqualityExpression {binary-expression-print/infix (h-append eqsign eqsign)}]
+ [GreaterThanExpression {binary-expression-print/infix greater}]
+ [LessThanExpression {binary-expression-print/infix less}]
+ [GreaterOrEqualExpression {binary-expression-print/infix (h-append greater eqsign)}]
+ [LessOrEqualExpression {binary-expression-print/infix (h-append less eqsign)}]
  )
 
 (cm features-enabled

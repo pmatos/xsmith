@@ -90,8 +90,7 @@
 (define ast-add-unsafe-math/symbolic
   {ast-add-unsafe-math (λ (n) (att-value 'unsafe-op-if-possible/symbolic n))})
 
-
-(define (cish-generate-and-print)
+(define (cish-generate)
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
     (let* ([ast (cish-generate-ast 'Program)]
@@ -108,15 +107,7 @@
                     ast)]
            [post-analysis-print (printf "*/\n")]
            )
-      (begin
-        (pretty-print (att-value 'pretty-print ast)
-                      (current-output-port)
-                      page-width)
-        #;(printf "\n\n/*\nabstract return: ~a\n*/\n"
-                  (car
-                   (abstract-interp-wrap/range ast range-store-top
-                                               empty-abstract-flow-control-return))))
-      )))
+      ast)))
 
 (define cish-features-list
   '([int #t]
@@ -148,13 +139,15 @@
 
 (module+ main
   (require xsmith)
-  (xsmith-command-line cish-generate-and-print
-                       #:fuzzer-name "cish"
-                       #:fuzzer-version xsmith-version-string/no-name
-                       #:comment-wrap (λ (lines) (format "/*\n~a\n*/"
-                                                         (string-join lines "\n")))
-                       #:features cish-features-list
-                       #:default-max-depth 10))
+  (xsmith-command-line
+   cish-generate
+   #:fuzzer-name "cish"
+   #:fuzzer-version xsmith-version-string/no-name
+   #:comment-wrap (λ (lines) (format "/*\n~a\n*/"
+                                     (string-join lines "\n")))
+   #:features cish-features-list
+   #:default-max-depth 10
+   #:format-print (λ (d) (pretty-print d (current-output-port) 120))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
