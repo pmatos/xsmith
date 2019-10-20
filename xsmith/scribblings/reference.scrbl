@@ -1179,14 +1179,14 @@ Returns a fully concrete (no type variables) type that @racket[can-unify?] with 
 
 This function can be useful if you want to generate a random type.  But beware!  You should probably NOT generate random types unless you also store them in the grammar node that represents that type.  The type-checking code defined in the @racket[type-info] property can be run many times for each node, so a node that randomly chooses its type will not be stable.  Because the type algorithm imperatively unifies types, this causes mayhem.  Don't do it.
 
-Note that to use this function you must parameterize @racket[current-xsmith-type-constructor-thunks].  Probably in the @verb{generate-and-print} function passed to @racket[xsmith-command-line].
+Note that to use this function you must parameterize @racket[current-xsmith-type-constructor-thunks].  Probably in the @verb{generate} function passed to @racket[xsmith-command-line].
 }
 
 @defparam[current-xsmith-type-constructor-thunks thunk-list (listof (-> type?))]{
 This needs to be parameterized for @racket[concretize-type], which is needed in code dealing with variable definition and reference.
 It should consist of a list of thunks that each produce a fully concrete type when called.
 
-The @verb{generate-and-print} function passed to @racket[xsmith-command-line] needs to parameterize this.
+The @verb{generate} function passed to @racket[xsmith-command-line] needs to parameterize this.
 }
 
 
@@ -1201,18 +1201,19 @@ Like @racket[printf], but it prints to a buffer that is output when an exception
 @section{Turning Your Grammar Specification Into a Program}
 
 @defproc[(xsmith-command-line
-[generate-and-print-func (-> any/c)]
+[generate-func (-> ast-node?)]
 [#:comment-wrap comment-wrap (-> (listof string?) string?)]
 [#:fuzzer-name fuzzer-name (or/c #f string?)]
 [#:fuzzer-version fuzzer-version (or/c #f string?)]
 [#:features features (listof (or/c (list/c symbol? boolean?)
                                    (list/c symbol? boolean? string?)))]
-[#:default-max-depth default-max-depth number?])
+[#:default-max-depth default-max-depth number?]
+[#:format-print (-> any/c void?])
 any/c]{
 This function parses the current command-line arguments for xsmith fuzzers.  It is basically to be used in the main function of a fuzzer.
 Based on options supplied, it may print a help message and terminate the program, generate a single program, or start a web server to generate many programs.
 
-@racket[generate-and-print-func] must be a function that generates and prints a single program.  It is called within @racket[xsmith-command-line] with the random seed parameterized according to command-line options (and for the web server reset and incremented for each call), and with all xsmith-options parameterized according to the command line.  The @racket[generate-and-print-func] needs to parameterize @racket[current-type-thunks-for-concretization] if your language is to support variable definitions and references.
+@racket[generate-func] must be a function that generates a single AST.  It is called with @racket[xsmith-command-line] with the random seed parameterized according to command-line options (and for the web server reset and incremented for each call), and with all xsmith-options parameterized according to the command line.  The @racket[generate-func] needs to parameterize @racket[current-type-thunks-for-concretization] if your language is to support variable definitions and references.
 
 @racket[comment-wrap] takes a list of strings which contain info about the generated program, such as the command line used to generate it, the @racket[fuzzer-name], the @racket[fuzzer-version], and the random seed number.  It should return a string representing those lines commented out.  Such as the following, assuming the "#" character is the line-comment character in your language:
 
@@ -1222,11 +1223,18 @@ Based on options supplied, it may print a help message and terminate the program
    (map (λ (x) (format "# ~a" x)) lines)
    "\n"))]
 
+@racket[fuzzer-name] takes a string giving the name of the current fuzzer, used in automatically-generated output.
+
+@racket[fuzzer-version] takes a string describing the version of the current fuzzer, used in automatically-generated output.
 
 @racket[features] takes a list of lists containing a feature name (as a symbol) and a default value (as a boolean), and optionally a list of documentation strings.
 Each feature will be included in the command-line options as @verb{--with-<feature-name>}.
 Documentation strings will be displayed in the @verb{--help} text, one per line.
 The values of these features is available via @racket[xsmith-feature-enabled?].
+
+@racket[default-max-depth] is a positive (non-zero) number that limits the maximum depth of your language's generated AST.  The larger this number, the more complex the programs generated can be.
+
+@racket[format-print] is a function which takes the output of your @racket[print-node] property as input and should print the result to standard output (perhaps by use of a pretty-printing function).  If your @racket[print-node] property produces a string already, you will not need to specify the @racket[format-print] parameter.
 
 
 The command-line options given by @racket[xsmith-command-line] are:
