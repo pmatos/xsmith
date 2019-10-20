@@ -45,7 +45,7 @@
                      (or/c (list/c symbol? boolean?)
                            (list/c symbol? boolean? (listof string?))))
          #:default-max-depth number?
-         #:format-print (-> any/c string?))
+         #:format-print (-> any/c void?))
         void?)]
   )
  xsmith-feature-enabled?
@@ -239,11 +239,8 @@
                 (let* ([ast (generate-func)]
                        [out (print-node ast)])
                   (if format-print-func
-                      (printf "~a" (format-print-func out))
-                      (parameterize ([pretty-print-columns 120])
-                        (pretty-print
-                         out
-                         (current-output-port)))))))))
+                      (format-print-func out)
+                      (display (format "~a\n" out))))))))
         (if error?
             ;; TODO - I think there should be some signal here that there is an
             ;;   error that a driver script can check for...
