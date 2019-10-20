@@ -34,38 +34,37 @@
           [SetBangRet [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [Addition [int (λ (n t) (hash 'es t))]])
 
-(add-att-rule
- arith to-s-exp
- [LetStar
-  (λ (n)
-    `(let* (,@(map (λ (d)
-                     `[,(string->symbol (ast-child 'name d))
-                       ,(att-value 'to-s-exp
-                                   (ast-child 'Expression d))])
-                   (ast-children (ast-child 'definitions n))))
-       ,@(map (λ (c) (att-value 'to-s-exp c))
-              (ast-children (ast-child 'sideEs n)))
-       ,(att-value 'to-s-exp (ast-child 'Expression n))))]
- [LiteralInt (λ (n) (ast-child 'v n))]
- [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
- [SetBangRet (λ (n) `(begin (set! ,(string->symbol (ast-child 'name n))
-                                  ,(att-value 'to-s-exp
-                                              (ast-child 'Expression n)))
-                            ,(string->symbol (ast-child 'name n))))]
- [Addition (λ (n) `(+ ,@(map (λ (c) (att-value 'to-s-exp c))
-                             (ast-children (ast-child 'es n)))))])
+(add-prop arith print-node-info
+          [LetStar
+           (λ (n)
+             `(let* (,@(map (λ (d)
+                              `[,(string->symbol (ast-child 'name d))
+                                ,(print-node
+                                            (ast-child 'Expression d))])
+                            (ast-children (ast-child 'definitions n))))
+                ,@(map (λ (c) (print-node c))
+                       (ast-children (ast-child 'sideEs n)))
+                ,(print-node (ast-child 'Expression n))))]
+          [LiteralInt (λ (n) (ast-child 'v n))]
+          [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
+          [SetBangRet (λ (n) `(begin (set! ,(string->symbol (ast-child 'name n))
+                                           ,(print-node
+                                                       (ast-child 'Expression n)))
+                                     ,(string->symbol (ast-child 'name n))))]
+          [Addition (λ (n) `(+ ,@(map (λ (c) (print-node c))
+                                      (ast-children (ast-child 'es n)))))])
 
 
 (assemble-spec-components arithmetic arith)
 
-(define (arithmetic-generate-and-print)
+(define (arithmetic-generate)
   (parameterize ([current-xsmith-type-constructor-thunks (list (λ () int))])
-    (pretty-print (att-value 'to-s-exp (arithmetic-generate-ast 'LetStar))
-                  (current-output-port)
-                  1)))
+    (arithmetic-generate-ast 'LetStar)))
 
-(xsmith-command-line arithmetic-generate-and-print
-                     #:comment-wrap (λ (lines)
-                                      (string-join
-                                       (map (λ (x) (format ";; ~a" x)) lines)
-                                       "\n")))
+(xsmith-command-line
+ arithmetic-generate
+ #:comment-wrap (λ (lines)
+                  (string-join
+                   (map (λ (x) (format ";; ~a" x)) lines)
+                   "\n"))
+ #:format-print (λ (ast) (pretty-print ast (current-output-port) 1)))
