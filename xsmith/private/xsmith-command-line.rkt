@@ -45,7 +45,7 @@
                      (or/c (list/c symbol? boolean?)
                            (list/c symbol? boolean? (listof string?))))
          #:default-max-depth number?
-         #:format-print (-> any/c void?))
+         #:format-print (-> any/c string?))
         void?)]
   )
  xsmith-feature-enabled?
@@ -106,6 +106,7 @@
   (define listen-ip "127.0.0.1")
   (define given-seed #f)
   (define server? #f)
+  (define tree-on-error? #f)
   (define max-depth default-max-depth)
   (define options (xsmith-options-defaults))
 
@@ -184,6 +185,13 @@
        (["Run the fuzzer with the given path."
          "Defaults to /"]
         "path")]
+      [("--tree-on-error")
+       ,(λ (flag show-tree-on-error?)
+          (set! tree-on-error? (string->bool show-tree-on-error? 'show-tree-on-error?)))
+       (["Print the partial tree (using the print-node-info property) if an"
+         "error is encountered."
+         "Defaults to false."]
+        "show-tree-on-error?")]
       )
      (help-labels "")
      (help-labels "[[LANGUAGE-GENERATION OPTIONS]]")
@@ -219,48 +227,137 @@
                    [xsmith-options options]
                    [xsmith-state (make-generator-state)])
       (let ([seed (xsmith-option 'random-seed)])
-        (random-seed seed)
-        (define option-lines
-          (append
-           (if fuzzer-name
-               (list (format "Fuzzer: ~a" fuzzer-name))
-               (list))
-           (list (format "Version: ~a" version-info)
-                 (format "Options: ~a" (string-join
-                                        (vector->list
-                                         (xsmith-option 'command-line))))
-                 (format "Seed: ~a" seed))))
-        (define error? #f)
-        (define program-output
-          (with-output-to-string
-            (λ ()
-              (with-handlers ([(λ (e) #t)
-                               (λ (e) (set! error? e))])
-                (let* ([ast (generate-func)]
-                       [out (print-node ast)])
-                  (if format-print-func
-                      (format-print-func out)
-                      (display (format "~a\n" out))))))))
-        (if error?
-            ;; TODO - I think there should be some signal here that there is an
-            ;;   error that a driver script can check for...
-            (begin
-              (printf "!!! Xsmith Error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
-              (printf "Error generating program!\n\n")
-              (printf "Options:\n")
-              (for ([line option-lines])
-                (printf "~a\n" line))
-              (printf "\nDebug Log:\n~a\n\n"
-                      (get-xsmith-debug-log!))
-              (printf "Exception:\n~a\n" (exn->string error?))
-              (printf "\n")
-              (when (not (equal? "" program-output))
-                (printf "Program output captured:\n~a\n\n" program-output)))
-            (begin
-              (printf "~a\n" (comment-func
-                              (cons "This is a RANDOMLY GENERATED PROGRAM."
-                                    option-lines)))
-              (printf "~a\n" program-output)))
+        (let/ec abort
+          (random-seed seed)
+          (define option-lines
+            (append
+             (if fuzzer-name
+                 (list (format "Fuzzer: ~a" fuzzer-name))
+                 (list))
+             (list (format "Version: ~a" version-info)
+                   (format "Options: ~a" (string-join
+                                          (vector->list
+                                           (xsmith-option 'command-line))))
+                   (format "Seed: ~a" seed))))
+          (define captured-output "")
+          (define (output-error err msg [partial-prog #f])
+            (let* ([output
+                    (format
+                     (string-join
+                      '("!!! Xsmith Error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                        "~a"  ;; Error message.
+                        ""
+                        "Options:"
+                        "~a"  ;; Option lines.
+                        "Debug Log:"
+                        "~a"  ;; Debug log.
+                        ""
+                        "Exception:"
+                        "~a"  ;; Exception.
+                        )
+                      "\n")
+                     msg
+                     (string-join
+                      option-lines
+                      "\n")
+                     (get-xsmith-debug-log!)
+                     (exn->string err))]
+                   [output (if (not (eq? captured-output ""))
+                               (string-append
+                                output
+                                (format "\nProgram output captured:\n~a\n"
+                                        captured-output))
+                               output)]
+                   [output (if partial-prog
+                               (string-append
+                                output
+                                (format "\nPartially generated program:\n~a\n"
+                                        partial-prog))
+                               output)])
+              (display output)))
+          ;; Compute the result of a procedure, capturing all output to
+          ;; `captured-output` and returning the procedure's result.
+          (define (capture-output! proc)
+            (let* ([result #f]
+                   [out (with-output-to-string
+                          (λ () (set! result (proc))))])
+              (set! captured-output out)
+              result))
+          ;;;;;;;;;;;;;;;;
+          ;; Actual generation and printing starts here.
+          ;;;;
+          ;; Convert an AST to a string.
+          (define (ast->string root)
+            (let ([ppr (print-node root)])
+              (if format-print-func
+                  (format-print-func ppr)
+                  (format "~a\n" ppr))))
+          ;; Attempt to generate the AST.
+          (define error? #f)
+          (define error-root #f)
+          (define ast
+            (capture-output!
+             (λ () (with-handlers
+                     ([(match-lambda [(list 'ast-gen-error e root) #t]
+                                     [_ #f])
+                       (λ (l)
+                         (set! error? (second l))
+                         (set! error-root (third l)))]
+                      [(λ (e) #t)
+                       (λ (e) (set! error? e))])
+                     (generate-func)))))
+          (when error?
+            ;; If the user asked for it (and if any AST was salvaged from the
+            ;; generation stage), attempt to convert the partially completed AST
+            ;; to pre-print representation (PPR).
+            (if (and tree-on-error?
+                     error-root)
+                (let* ([ppr-error? #f]
+                       [original-captured-output captured-output]
+                       [partial-prog (capture-output!
+                                      (λ () (with-handlers ([(λ (e) #t)
+                                                             (λ (e) (set! ppr-error? e))])
+                                              (ast->string error-root))))])
+                  (if ppr-error?
+                      (begin
+                        ;; Something went wrong during printing.
+                        (output-error
+                         ppr-error?
+                         "Error 001: Error encountered in printing while intercepting another error in AST generation.")
+                        (display "Original error reproduced below:\n\n")
+                        (set! captured-output original-captured-output)
+                        (output-error
+                         error?
+                         "Error 002: Error generating program!"))
+                      (begin
+                        ;; Printing was successful, so we can show the partial program.
+                        (set! captured-output original-captured-output)
+                        (output-error
+                         error?
+                         "Error 003: Error encountered while generating program!"
+                         partial-prog))))
+                (begin
+                  ;; Just print the base error message and quit.
+                  (output-error
+                   error?
+                   "Error 004: Error encountered while generating program!")))
+            ;; Quit further execution.
+            (abort))
+          ;; Convert the AST to PPR.
+          (define program
+            (capture-output!
+             (λ () (with-handlers ([(λ (e) #t)
+                                    (λ (e) (set! error? e))])
+                     (ast->string ast)))))
+          (when error?
+            ;; Something went wrong during printing.
+            (output-error
+             error?
+             "Error 005: Error encountered while printing program.")
+            (abort))
+          ;; Everything was successful!
+          (display (format "~a\n" program)))
+        ;; Update the seed. (This is used in server mode.)
         (dict-set! (xsmith-options)
                    'random-seed
                    (modulo (add1 seed)
