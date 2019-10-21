@@ -70,6 +70,8 @@
          binding-structure
          io
          strict-child-order?
+         print-node-info
+         print-hole-info
          ;; user-added props
          prop-name ...
          )
