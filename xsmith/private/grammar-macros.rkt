@@ -437,19 +437,21 @@
 
 ;; Implements the <spec-name>-generate-ast function.
 (define ((ast-generator-generator fresh-node-func) node-name)
-  (define n (fresh-node-func node-name))
-  (let ([fill-in
-         (λ (n)
-           (cond
-             [(ast-list-node? n) #f]
-             [(att-value 'xsmith_is-hole? n)
-              (begin
-                (rewrite-subtree n (att-value '_xsmith_hole->replacement n))
-                (execute-inter-choice-transform-queue)
-                #t)]
-             [else #f]))])
-    (perform-rewrites n 'top-down fill-in))
-  n)
+  (define root (fresh-node-func node-name))
+  (with-handlers ([(λ (e) #t)
+                   (λ (e) (raise (list 'ast-gen-error e root) #t))])
+    (let ([fill-in
+           (λ (n)
+             (cond
+               [(ast-list-node? n) #f]
+               [(att-value 'xsmith_is-hole? n)
+                (begin
+                  (rewrite-subtree n (att-value '_xsmith_hole->replacement n))
+                  (execute-inter-choice-transform-queue)
+                  #t)]
+               [else #f]))])
+      (perform-rewrites root 'top-down fill-in))
+    root))
 
 (define xsmith_find-a-descendant-function
   ;;; Find the first node that satisfies the predicate (the given node included)
