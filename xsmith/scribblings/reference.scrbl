@@ -1208,7 +1208,7 @@ Like @racket[printf], but it prints to a buffer that is output when an exception
 [#:features features (listof (or/c (list/c symbol? boolean?)
                                    (list/c symbol? boolean? string?)))]
 [#:default-max-depth default-max-depth number?]
-[#:format-print (-> any/c void?])
+[#:format-print (-> any/c string?])
 any/c]{
 This function parses the current command-line arguments for xsmith fuzzers.  It is basically to be used in the main function of a fuzzer.
 Based on options supplied, it may print a help message and terminate the program, generate a single program, or start a web server to generate many programs.
@@ -1234,7 +1234,7 @@ The values of these features is available via @racket[xsmith-feature-enabled?].
 
 @racket[default-max-depth] is a positive (non-zero) number that limits the maximum depth of your language's generated AST.  The larger this number, the more complex the programs generated can be.
 
-@racket[format-print] is a function which takes the output of your @racket[print-node] property as input and should print the result to standard output (perhaps by use of a pretty-printing function).  If your @racket[print-node] property produces a string already, you will not need to specify the @racket[format-print] parameter.
+@racket[format-print] is a function which takes the output of your @racket[print-node] property as input and should return a string representing the program (perhaps by use of a pretty-printing function).  If your @racket[print-node] property produces a string already, you will not need to specify the @racket[format-print] parameter.
 
 
 The command-line options given by @racket[xsmith-command-line] are:
