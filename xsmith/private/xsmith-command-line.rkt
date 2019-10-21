@@ -356,7 +356,9 @@
              "Error 005: Error encountered while printing program.")
             (abort))
           ;; Everything was successful!
-          (display (format "~a\n" program)))
+          (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
+                                       option-lines)))
+          (display (format "\n~a\n" program)))
         ;; Update the seed. (This is used in server mode.)
         (dict-set! (xsmith-options)
                    'random-seed
