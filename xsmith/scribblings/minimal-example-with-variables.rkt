@@ -1,5 +1,5 @@
 #lang racket/base
-(require xsmith racr racket/pretty racket/string)
+(require xsmith racr racket/pretty racket/string racket/port)
 
 (define-spec-component arith)
 
@@ -67,4 +67,7 @@
                   (string-join
                    (map (λ (x) (format ";; ~a" x)) lines)
                    "\n"))
- #:format-print (λ (ast) (pretty-print ast (current-output-port) 1)))
+ #:format-print (λ (ast)
+                  (with-output-to-string
+                    (λ ()
+                      (pretty-print ast (current-output-port) 1)))))
