@@ -48,6 +48,8 @@
  choice-filters-to-apply
  print-node
  print-node-info
+ print-hole
+ print-hole-info
 
  make-lift-reference-choice-proc
  )
@@ -1410,19 +1412,40 @@ These properties will be combined into a user-accessible function which can also
 be used inside these function definitions, allowing the user to easily print
 over recursively-specified data.
 |#
-(define-syntax-rule (print-node args ...)
-  (att-value '_xsmith_print-node args ...))
+(define-syntax-rule (print-node node)
+  (if (att-value 'xsmith_is-hole? node)
+      (print-hole node)
+      (att-value '_xsmith_print-node node)))
 
 (define-property print-node-info
   #:appends
   (att-rule _xsmith_print-node)
   #:transformer
   (λ (this-prop-info)
-    (define _xsmith-print-node-info
-      (for/hash ([(n v) (in-dict this-prop-info)])
-        (values n
-                v)))
-    (list _xsmith-print-node-info)))
+    (define _xsmith_print-node-info
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ (n) (symbol->string (ast-node-type n))))
+          (for/hash ([(n v) (in-dict this-prop-info)])
+            (values n
+                    v))))
+    (list _xsmith_print-node-info)))
+
+(define-syntax-rule (print-hole hole)
+  (att-value '_xsmith_print-hole hole))
+
+(define-property print-hole-info
+  #:appends
+  (att-rule _xsmith_print-hole)
+  #:transformer
+  (λ (this-prop-info)
+    (define _xsmith_print-hole-info
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ (h) (symbol->string (ast-node-type h))))
+          (for/hash ([(n v) (in-dict this-prop-info)])
+            (values n
+                    v))))
+    (list _xsmith_print-hole-info)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
