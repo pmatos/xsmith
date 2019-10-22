@@ -964,6 +964,36 @@ If you don't make custom filtering rules you don't need to specify this property
 
 }
 
+
+@defform[#:kind "spec-property" #:id render-node-info render-node-info]{
+
+Xsmith provides built-in pretty printer functionality used for final program output and debugging support.  This is given as a function which takes in one argument (a node) and renders that node in whatever format you like.  Common formats include plain strings, PPrint documents, or s-expressions.  If your @racket[render-node-info] functions don't return strings, then you must implement the @racket[#:format-render] argument of the @racket[xsmith-command-line] function to convert the final rendered AST to a string for pretty-printing as output.
+During debugging, this property may be called on a hole instead of a filled-in node.  If this happens, Xsmith will delegate to the @racket[render-hole-info] property, detailed below.
+You may call the rendering function with the @racket[render-node] shorthand function.
+
+Example:
+@racketblock[
+(add-prop
+ my-spec-component
+ render-node-info
+ [#f (λ (node) (symbol->string (ast-node-type node)))])
+]
+}
+
+
+@defform[#:kind "spec-property" #:id render-hole-info render-hole-info]{
+
+For help with debugging, this property allows you to render holes.
+By default, this function simply returns a string containing the type of the hole wrapped in angle brackets.  If you have specified a custom @racket[render-node-info] property and that property returns some type other than a string, it is likely you will want to configure this property to return the same type.
+
+Example:
+@racketblock[
+(add-prop
+ render-hole-info
+ [#f (λ (hole) (format "<~a>" (symbol->string (ast-node-type hole))))])
+]
+}
+
 @section{Types}
 
 These type constructors and other functions are largely useful for specifying the @racket[type-info] property.
