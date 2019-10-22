@@ -40,6 +40,7 @@
  racket/list
  racket/class
  racket/string
+ racket/port
  )
 
 (define-spec-component schemely-core)
@@ -119,40 +120,42 @@
  )
 
 
-;; helper for to-s-exp
+;; helper for render-node-info
 (define (->se sym . children-refs)
-  (λ (n) `(,sym ,@(map (λ (x) (att-value 'to-s-exp (ast-child x n)))
+  (λ (n) `(,sym ,@(map (λ (x) (render-node (ast-child x n)))
                        children-refs))))
 (define (->se* sym children-ref)
-  (λ (n) `(,sym ,@(map (λ (x) (att-value 'to-s-exp x))
+  (λ (n) `(,sym ,@(map (λ (x) (render-node x))
                        (ast-children (ast-child children-ref n))))))
 
-(add-att-rule
+(add-prop
  schemely-core
- to-s-exp
- [DefinitionContext (λ (n) `(,@(map (λ (x) (att-value 'to-s-exp x))
+ render-node-info
+ [Program (λ (n) `(,@(map (λ (x) (render-node x))
+                          (ast-children (ast-child 'definitions n)))))]
+ [DefinitionContext (λ (n) `(,@(map (λ (x) (render-node x))
                                     (ast-children (ast-child 'definitions n)))
-                             ,@(map (λ (x) (att-value 'to-s-exp x))
+                             ,@(map (λ (x) (render-node x))
                                     (ast-children (ast-child 'expressions n)))))]
  [Definition (λ (n) `(define ,(string->symbol (ast-child 'name n))
-                       ,(att-value 'to-s-exp (ast-child 'Expression n))))]
+                       ,(render-node (ast-child 'Expression n))))]
  [Lambda (λ (n) `(lambda (,@(map (λ (x) (string->symbol (ast-child 'name x)))
                                  (ast-children (ast-child 'params n))))
-                   ,(att-value 'to-s-exp (ast-child 'body n))))]
- [Application (λ (n) `(,(att-value 'to-s-exp (ast-child 'procedure n))
-                       ,@(map (λ (x) (att-value 'to-s-exp x))
+                   ,(render-node (ast-child 'body n))))]
+ [Application (λ (n) `(,(render-node (ast-child 'procedure n))
+                       ,@(map (λ (x) (render-node x))
                               (ast-children (ast-child 'arguments n)))))]
 
  [LetStar (λ (n) `(let* (,@(map (λ (d) `(,(string->symbol (ast-child 'name d))
-                                         ,(att-value 'to-s-exp
+                                         ,(render-node
                                                      (ast-child 'Expression d))))
                                 (ast-children (ast-child 'definitions n))))
-                    ,@(att-value 'to-s-exp (ast-child 'body n))))]
+                    ,@(render-node (ast-child 'body n))))]
 
  [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
  [SetBangRet (λ (n) `(begin
                        (set! ,(string->symbol (ast-child 'name n))
-                             ,(att-value 'to-s-exp (ast-child 'Expression n)))
+                             ,(render-node (ast-child 'Expression n)))
                        ,(string->symbol (ast-child 'name n))))]
 
  [LiteralBool (λ (n) (ast-child 'v n))]
@@ -331,39 +334,36 @@
  schemely
  schemely-core)
 
-(define (generate-and-print)
-  (define (pp x)
-    (pretty-print x (current-output-port) 1))
+(define (schemely-generate)
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
-    (define program (schemely-generate-ast 'Program))
-    (define forms (att-value 'to-s-exp program))
-    ;; TODO - just assume racket for now, but later any scheme...
-    (printf "#lang racket/base\n")
-    (pp '(define (safe-car safe l)
-           (if (null? l)
-               safe
-               (car l))))
-    (pp '(define (safe-cdr l)
-           (if (null? l)
-               '()
-               (cdr l))))
-    (pp '(define (safe-/ l r)
-           (if (equal? r 0)
-               0
-               (/ l r))))
-    (printf ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
-    (for ([form forms])
-      (pp form))
-    (for ([def (ast-children (ast-child 'definitions program))])
-      (pp `(write ,(string->symbol (ast-child 'name def))))
-      (pp '(newline)))))
+    (schemely-generate-ast 'Program)))
+
+(define (schemely-format-render forms)
+  (with-output-to-string
+    (λ ()
+      (define (pp x)
+        (pretty-print x (current-output-port) 1))
+      ;; TODO - just assume racket for now, but later any scheme...
+      (printf "#lang racket/base\n")
+      (pp '(define (safe-car safe l)
+             (if (null? l)
+                 safe
+                 (car l))))
+      (pp '(define (safe-cdr l)
+             (if (null? l)
+                 '()
+                 (cdr l))))
+      (pp '(define (safe-/ l r)
+             (if (equal? r 0)
+                 0
+                 (/ l r))))
+      (printf ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n")
+      (for ([form forms])
+        (pp form)))))
 
 (module+ main
-  (xsmith-command-line generate-and-print
-                       #:comment-wrap (λ (lines)
-                                        (string-join
-                                         (map (λ (x) (format ";; ~a" x)) lines)
-                                         "\n")))
-  )
-
+  (xsmith-command-line
+   schemely-generate
+   #:format-render schemely-format-render
+   ))
