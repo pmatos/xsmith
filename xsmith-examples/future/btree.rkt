@@ -16,8 +16,7 @@
                Val)]
  [Leaf Node (Val)
        #:prop wont-over-deepen #t]
- [Val #f ([v = (random 100)])
-      #:prop wont-over-deepen #t]
+ [Val #f ([v = (random 100)])]
  )
 
 (define int (base-type 'int))
@@ -36,37 +35,43 @@
  [Val [int (λ (n t) (hash))]]
  )
 
-(add-att-rule
+(add-prop
  btree-grammar
- pretty-print
- [Branch (λ (n i)
+ render-node-info
+ [Branch (λ (n)
            (v-append
             (text "(branch")
             (indent 2
                     (v-append
-                     (att-value 'pretty-print (ast-child 'Val n) i)
-                     (att-value 'pretty-print (ast-child 'l n) i)
+                     (render-node (ast-child 'Val n))
+                     (render-node (ast-child 'l n))
                      (h-append
-                      (att-value 'pretty-print (ast-child 'r n) i)
+                      (render-node (ast-child 'r n))
                       (text ")"))))))]
- [Leaf (λ (n i)
+ [Leaf (λ (n)
          (h-append
           (text "(leaf ")
-          (att-value 'pretty-print (ast-child 'Val n) i)
+          (render-node (ast-child 'Val n))
           (text ")")))]
- [Val (λ (n i)
+ [Val (λ (n)
         (text (number->string (ast-child 'v n))))]
  )
 
+(add-prop
+ btree-grammar
+ render-hole-info
+ [#f (λ (h) (h-append
+             (text "<")
+             (text (symbol->string (ast-node-type h)))
+             (text ">")))])
+
 (assemble-spec-components btree btree-grammar)
 
-(define (btree-generate-and-print)
-  (let ([ast (btree-generate-ast 'Branch)])
-    (pretty-print (att-value 'pretty-print ast 0)
-                  (current-output-port)
-                  120)))
+(define (btree-generate)
+  (btree-generate-ast 'Branch))
 
 (xsmith-command-line
- btree-generate-and-print
+ btree-generate
  #:fuzzer-name "btree"
- #:default-max-depth 20)
+ #:default-max-depth 20
+ #:format-render (λ (d) (pretty-format d 120)))
