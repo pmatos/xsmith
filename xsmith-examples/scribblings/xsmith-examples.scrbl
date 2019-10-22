@@ -39,7 +39,13 @@ racket/list
 
 @title[#:tag "running-fuzzers"]{Xsmith's Bundled Generators (And How to Run Them)}
 
-When xsmith is installed as a Racket package, executables for the bundled generators are placed in your Racket package @verb{bin} directory.
+@author[(@author+email "William Hatch" "william@hatch.uno")
+        (@author+email "Pierce Darragh" "pierce.darragh@gmail.com")
+        (@author+email "Eric Eide" "eeide@cs.utah.edu")]
+
+@; XXX Version @xsmith-version-string
+
+When Xsmith is installed as a Racket package, executables for the bundled generators are placed in your Racket package @verb{bin} directory.
 Usually this directory is @verb{$HOME/.racket/racket-<version>/bin} on Linux, maybe @verb{$HOME/Library/Racket/<version>/bin} on normal MacOS installs, and maybe @verb{/usr/local/bin} for MacOS Homebrew installs.
 
 These fuzzers can be run on the command line to generate a single program or as an http server that generates one program per request.
