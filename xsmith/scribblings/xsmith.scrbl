@@ -39,6 +39,7 @@
 @defmodule[xsmith]
 
 @author[(@author+email "William Hatch" "william@hatch.uno")
+        (@author+email "Pierce Darragh" "pierce.darragh@gmail.com")
         (@author+email "Eric Eide" "eeide@cs.utah.edu")]
 
 Version @xsmith-version-string
