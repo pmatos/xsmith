@@ -80,8 +80,7 @@
                                                             (string-join
                                                              (map (λ (l) (format ";; ~a" l))
                                                                   lines)
-                                                             "\n"
-                                                             #:after-last "\n"))]
+                                                             "\n"))]
                              #:features [features-list '()]
                              #:default-max-depth [default-max-depth 5]
                              #:format-render [format-render-func #f])
@@ -363,7 +362,7 @@
           ;; Everything was successful!
           (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
                                        option-lines)))
-          (display (format "\n~a\n" program)))
+          (display (format "\n\n~a\n" program)))
         ;; Update the seed. (This is used in server mode.)
         (dict-set! (xsmith-options)
                    'random-seed
