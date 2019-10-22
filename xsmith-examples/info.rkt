@@ -35,7 +35,7 @@
 (define git-commit "$Format:%h$")
 
 (define racket-launcher-names '("xsmith-cish" "xsmith-schemely"))
-(define racket-launcher-libraries '("cish.rkt" "schemely.rkt"))
+(define racket-launcher-libraries '("cish/cish.rkt" "schemely/schemely.rkt"))
 (define deps '("base"
                "rackunit-lib"
                "at-exp-lib"
