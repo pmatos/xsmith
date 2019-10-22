@@ -76,7 +76,12 @@
 (define (xsmith-command-line generate-func
                              #:fuzzer-name [fuzzer-name #f]
                              #:fuzzer-version [fuzzer-version #f]
-                             #:comment-wrap [comment-func (λ (lines) "")]
+                             #:comment-wrap [comment-func (λ (lines)
+                                                            (string-join
+                                                             (map (λ (l) (format ";; ~a" l))
+                                                                  lines)
+                                                             "\n"
+                                                             #:after-last "\n"))]
                              #:features [features-list '()]
                              #:default-max-depth [default-max-depth 5]
                              #:format-render [format-render-func #f])
