@@ -427,16 +427,16 @@ Fixes:
 
 (define (bin-expr op pn)
   (hs-append
-   (att-value 'pretty-print (ast-child 'lhs pn))
+   (render-node (ast-child 'lhs pn))
    (text op)
-   (att-value 'pretty-print (ast-child 'rhs pn))))
+   (render-node (ast-child 'rhs pn))))
 
 (define (pretty-print-children cns)
-  (map (λ (cn) (att-value 'pretty-print cn)) cns))
+  (map (λ (cn) (render-node cn)) cns))
 
-(add-att-rule
+(add-prop
  pythonesque-grammar
- pretty-print
+ render-node-info
  ; Special nodes.
  [Program (λ (n)
             (define decls (ast-children (ast-child 'decls n)))
@@ -468,64 +468,64 @@ Fixes:
                (h-concat
                 (add-between
                  (map (λ (param)
-                        (att-value 'pretty-print param))
+                        (render-node param))
                       params)
                  (text ", ")))
                (text "):"))
-              (tab (att-value 'pretty-print (ast-child 'BlockOrStmt n)))))]
+              (tab (render-node (ast-child 'BlockOrStmt n)))))]
  [ParamDecl (λ (n)
               (text (ast-child 'name n)))]
  [VarDecl (λ (n)
             (hs-append
              (text (ast-child 'name n))
              (text "=")
-             (att-value 'pretty-print (ast-child 'Val n))))]
+             (render-node (ast-child 'Val n))))]
  ; Statements.
  [Block (λ (n)
           (h-append
            (v-concat
             (append
-             (map (λ (cn) (att-value 'pretty-print cn))
+             (map (λ (cn) (render-node cn))
                   (ast-children (ast-child 'decls n)))
-             (map (λ (cn) (att-value 'pretty-print cn))
+             (map (λ (cn) (render-node cn))
                   (ast-children (ast-child 'stmts n)))))))]
  [AssignStmt (λ (n)
                (hs-append
                 (text (ast-child 'name n))
                 (text "=")
-                (att-value 'pretty-print (ast-child 'Expr n))))]
+                (render-node (ast-child 'Expr n))))]
  [PassStmt (λ (n)
              (text "pass"))]
  [ValReturnStmt (λ (n)
                   (hs-append
                    (text "return")
-                   (att-value 'pretty-print (ast-child 'Expr n))))]
+                   (render-node (ast-child 'Expr n))))]
  [ExprStmt (λ (n)
-             (att-value 'pretty-print (ast-child 'Expr n)))]
+             (render-node (ast-child 'Expr n)))]
  [IfStmt (λ (n)
            (v-append
             (h-append
              (text "if ")
-             (att-value 'pretty-print (ast-child 'test n))
+             (render-node (ast-child 'test n))
              (text ":"))
-            (tab (att-value 'pretty-print (ast-child 'then n)))))]
+            (tab (render-node (ast-child 'then n)))))]
  [IfElseStmt (λ (n)
                (v-append
                 (h-append
                  (text "if ")
-                 (att-value 'pretty-print (ast-child 'test n))
+                 (render-node (ast-child 'test n))
                  (text ":"))
-                (tab (att-value 'pretty-print (ast-child 'then n)))
+                (tab (render-node (ast-child 'then n)))
                 (text "else:")
-                (tab (att-value 'pretty-print (ast-child 'else n)))))]
+                (tab (render-node (ast-child 'else n)))))]
  ; Expressions.
  [FuncAppExpr (λ (n)
                 (h-append
-                 (att-value 'pretty-print (ast-child 'func n))
+                 (render-node (ast-child 'func n))
                  (text "(")
                  (h-concat
                   (add-between
-                   (map (λ (arg) (att-value 'pretty-print arg))
+                   (map (λ (arg) (render-node arg))
                         (ast-children (ast-child 'args n)))
                    (text ", ")))
                  (text ")")))]
@@ -554,25 +554,19 @@ Fixes:
   (map (λ (t) (λ () t))
        (list int bool)))
 
-(define (pythonesque-generate-and-print)
+(define (pythonesque-generate)
   (parameterize ([current-xsmith-type-constructor-thunks concretized-types])
-    (let ([ast (pythonesque-generate-ast 'Program)])
-      (pretty-print (att-value 'pretty-print ast)
-                    (current-output-port)
-                    120))))
+    (pythonesque-generate-ast 'Program)))
 
 (xsmith-command-line
- pythonesque-generate-and-print
+ pythonesque-generate
  #:fuzzer-name "pythonesque"
  #:default-max-depth 8
- #:comment-wrap (λ (lines) (format
-                            "~a"
-                            (string-join
-                             (add-between lines
-                                          (list "\n# ")
-                                          #:before-first (list "# ")
-                                          #:after-last (list "\n")
-                                          #:splice? #t)))))
+ #:comment-wrap (λ (lines) (string-join
+                            (map (λ (l) (format "# ~a" l)) lines)
+                            "\n"))
+ #:format-render (λ (d) (pretty-format d 120))
+ )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
