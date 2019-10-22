@@ -45,7 +45,7 @@
                      (or/c (list/c symbol? boolean?)
                            (list/c symbol? boolean? (listof string?))))
          #:default-max-depth number?
-         #:format-print (-> any/c string?))
+         #:format-render (-> any/c string?))
         void?)]
   )
  xsmith-feature-enabled?
@@ -79,7 +79,7 @@
                              #:comment-wrap [comment-func (λ (lines) "")]
                              #:features [features-list '()]
                              #:default-max-depth [default-max-depth 5]
-                             #:format-print [format-print-func #f])
+                             #:format-render [format-render-func #f])
 
   (define true-strings  '("true"  "t" "#t" "yes" "y"))
   (define false-strings '("false" "f" "#f" "no"  "n"))
@@ -289,8 +289,8 @@
           ;; Convert an AST to a string.
           (define (ast->string root)
             (let ([ppr (render-node root)])
-              (if format-print-func
-                  (format-print-func ppr)
+              (if format-render-func
+                  (format-render-func ppr)
                   (format "~a\n" ppr))))
           ;; Attempt to generate the AST.
           (define error? #f)

@@ -67,7 +67,7 @@
                   (string-join
                    (map (λ (x) (format ";; ~a" x)) lines)
                    "\n"))
- #:format-print (λ (ast)
+ #:format-render (λ (ast)
                   (with-output-to-string
                     (λ ()
                       (pretty-print ast (current-output-port) 1)))))
