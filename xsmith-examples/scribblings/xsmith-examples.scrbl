@@ -31,10 +31,9 @@
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 @(require
-"util.rkt"
+xsmith/scribblings/util
 ;; for cish features list
-;; TODO - use an absolute import, maybe with xsmith-examples/cish or something
-"../../xsmith-examples/cish/cish-main.rkt"
+"../cish/cish-main.rkt"
 racket/list
 )
 

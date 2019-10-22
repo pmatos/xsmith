@@ -46,9 +46,8 @@ typing rules, and other information that guides generation choices.  Xsmith
 also includes utilities for creating a command-line interface for generating a
 single program or starting a web server that generates one program per request.
 
-Xsmith is bundled with some example random program generators that were created
-using the library.  If you just want to run them, you can jump ahead to
-@secref["running-fuzzers"].
+There are example random program generators built with Xsmith.  They are in the xsmith-examples package.
+@; TODO - give a URL to the examples documentations on the web, since they are no longer in the same package.
 
 @bold{Reporting bugs.}
 @;

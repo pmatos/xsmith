@@ -36,6 +36,7 @@
 
 (define racket-launcher-names '("xsmith-cish" "xsmith-schemely"))
 (define racket-launcher-libraries '("cish/cish.rkt" "schemely/schemely.rkt"))
+(define scribblings '(("scribblings/xsmith-examples.scrbl")))
 (define deps '("base"
                "rackunit-lib"
                "at-exp-lib"

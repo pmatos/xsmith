@@ -48,7 +48,6 @@ Version @xsmith-version-string
 @include-section["install.scrbl"]
 @include-section["guide.scrbl"]
 @include-section["reference.scrbl"]
-@include-section["generators.scrbl"]
 @include-section["acknowledgments.scrbl"]
 
 @include-section["code-and-license.scrbl"]
