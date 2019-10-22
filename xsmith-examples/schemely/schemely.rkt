@@ -187,6 +187,11 @@
  [If (->se 'if 'test 'then 'else)]
  )
 
+(add-prop
+ schemely-core
+ render-hole-info
+ [#f (λ (h) (->se 'HOLE (ast-node-type h)))])
+
 
 
 

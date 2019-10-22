@@ -545,6 +545,14 @@ Fixes:
                 (text "False")))]
  )
 
+(add-prop
+ pythonesque-grammar
+ render-hole-info
+ [#f (λ (h) (h-append
+             (text "<")
+             (text (symbol->string (ast-node-type h)))
+             (text ">")))])
+
 ;;;;
 ;; Assemble.
 

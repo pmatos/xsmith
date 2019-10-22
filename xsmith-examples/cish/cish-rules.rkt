@@ -1595,6 +1595,14 @@
  [LessOrEqualExpression {binary-expression-print/infix (h-append less eqsign)}]
  )
 
+(add-prop
+ cish-rules
+ render-hole-info
+ [#f (λ (h) (h-append
+             (text "<")
+             (text (symbol->string (ast-node-type h)))
+             (text ">")))])
+
 (cm features-enabled
     [Node (andmap xsmith-feature-enabled?
                   (send this features))])
