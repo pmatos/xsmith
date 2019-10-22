@@ -33,7 +33,8 @@
 @(require
 "util.rkt"
 ;; for cish features list
-"../cish/cish.rkt"
+;; TODO - use an absolute import, maybe with xsmith-examples/cish or something
+"../../xsmith-examples/cish/cish-main.rkt"
 racket/list
 )
 
