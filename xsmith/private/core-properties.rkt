@@ -46,10 +46,10 @@
  lift-type->ast-binder-type
  binding-structure
  choice-filters-to-apply
- print-node
- print-node-info
- print-hole
- print-hole-info
+ render-node
+ render-node-info
+ render-hole
+ render-hole-info
 
  make-lift-reference-choice-proc
  )
@@ -1398,54 +1398,54 @@ The second arm is a function that takes the type that the node has been assigned
 
 #|
 There are two properties involved in pretty-printing:
- - print-node
- - print-hole
+ - render-node
+ - render-hole
 
-The `print-node` property allows users to specify functions for printing each type
+The `render-node` property allows users to specify functions for printing each type
 of node. They may also give a default print function via #f.
 
 Functions specified this way will be wrapped with a test to determine whether
-the supplied argument is actually a hole. If it is, then `print-hole` will be
+the supplied argument is actually a hole. If it is, then `render-hole` will be
 called instead.
 
 These properties will be combined into a user-accessible function which can also
 be used inside these function definitions, allowing the user to easily print
 over recursively-specified data.
 |#
-(define-syntax-rule (print-node node)
+(define-syntax-rule (render-node node)
   (if (att-value 'xsmith_is-hole? node)
-      (print-hole node)
-      (att-value '_xsmith_print-node node)))
+      (render-hole node)
+      (att-value '_xsmith_render-node node)))
 
-(define-property print-node-info
+(define-property render-node-info
   #:appends
-  (att-rule _xsmith_print-node)
+  (att-rule _xsmith_render-node)
   #:transformer
   (λ (this-prop-info)
-    (define _xsmith_print-node-info
+    (define _xsmith_render-node-info
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ (n) (symbol->string (ast-node-type n))))
           (for/hash ([(n v) (in-dict this-prop-info)])
             (values n
                     v))))
-    (list _xsmith_print-node-info)))
+    (list _xsmith_render-node-info)))
 
-(define-syntax-rule (print-hole hole)
-  (att-value '_xsmith_print-hole hole))
+(define-syntax-rule (render-hole hole)
+  (att-value '_xsmith_render-hole hole))
 
-(define-property print-hole-info
+(define-property render-hole-info
   #:appends
-  (att-rule _xsmith_print-hole)
+  (att-rule _xsmith_render-hole)
   #:transformer
   (λ (this-prop-info)
-    (define _xsmith_print-hole-info
+    (define _xsmith_render-hole-info
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ (h) (format "<~a>"
                                     (symbol->string (ast-node-type h)))))
           (for/hash ([(n v) (in-dict this-prop-info)])
             (values n
                     v))))
-    (list _xsmith_print-hole-info)))
+    (list _xsmith_render-hole-info)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

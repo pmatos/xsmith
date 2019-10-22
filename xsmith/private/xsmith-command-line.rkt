@@ -188,7 +188,7 @@
       [("--tree-on-error")
        ,(λ (flag show-tree-on-error?)
           (set! tree-on-error? (string->bool show-tree-on-error? 'show-tree-on-error?)))
-       (["Print the partial tree (using the print-node-info property) if an"
+       (["Print the partial tree (using the render-node-info property) if an"
          "error is encountered."
          "Defaults to false."]
         "show-tree-on-error?")]
@@ -288,7 +288,7 @@
           ;;;;
           ;; Convert an AST to a string.
           (define (ast->string root)
-            (let ([ppr (print-node root)])
+            (let ([ppr (render-node root)])
               (if format-print-func
                   (format-print-func ppr)
                   (format "~a\n" ppr))))

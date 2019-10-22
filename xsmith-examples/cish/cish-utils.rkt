@@ -122,9 +122,9 @@
 
 (define (nest-if-not-block n)
   (if (equal? (node-type n) 'Block)
-      (print-node n)
+      (render-node n)
       (nest nest-step (h-append nest-step-string
-                                (print-node n)))))
+                                (render-node n)))))
 
 
 (define ident (λ(x)x))
@@ -244,10 +244,10 @@ New types
 ;(define nonzero-int-type (constrain-type int-type 'nonzero))
 ;(define nonzero-float-type (constrain-type float-type 'nonzero))
 
-(define (print-debug-highlight pretty-print-node)
+(define (print-debug-highlight pretty-render-node)
   ;; add terminal codes to print in magenta, then switch to default
   (h-append (text "\033[35m")
-            pretty-print-node
+            pretty-render-node
             (text "\033[0m")))
 
 ;; TODO - I need one of these for each int type, when there are multiple
@@ -423,18 +423,18 @@ New types
   (h-comment
    n
    (h-append lparen
-             (hs-append (print-node (ast-child 'l n))
+             (hs-append (render-node (ast-child 'l n))
                         op-sym
-                        (print-node (ast-child 'r n)))
+                        (render-node (ast-child 'r n)))
              rparen)))
 (define ({binary-expression-print/function type->f-name} n)
   (h-comment
    n
    (h-append (type->f-name (att-value 'xsmith_type n))
              lparen
-             (hs-append (print-node (ast-child 'l n))
+             (hs-append (render-node (ast-child 'l n))
                         comma
-                        (print-node (ast-child 'r n)))
+                        (render-node (ast-child 'r n)))
              rparen)))
 
 (define-syntax (def-type->print stx)

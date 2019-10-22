@@ -34,24 +34,24 @@
           [SetBangRet [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [Addition [int (λ (n t) (hash 'es t))]])
 
-(add-prop arith print-node-info
+(add-prop arith render-node-info
           [LetStar
            (λ (n)
              `(let* (,@(map (λ (d)
                               `[,(string->symbol (ast-child 'name d))
-                                ,(print-node
+                                ,(render-node
                                             (ast-child 'Expression d))])
                             (ast-children (ast-child 'definitions n))))
-                ,@(map (λ (c) (print-node c))
+                ,@(map (λ (c) (render-node c))
                        (ast-children (ast-child 'sideEs n)))
-                ,(print-node (ast-child 'Expression n))))]
+                ,(render-node (ast-child 'Expression n))))]
           [LiteralInt (λ (n) (ast-child 'v n))]
           [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
           [SetBangRet (λ (n) `(begin (set! ,(string->symbol (ast-child 'name n))
-                                           ,(print-node
+                                           ,(render-node
                                                        (ast-child 'Expression n)))
                                      ,(string->symbol (ast-child 'name n))))]
-          [Addition (λ (n) `(+ ,@(map (λ (c) (print-node c))
+          [Addition (λ (n) `(+ ,@(map (λ (c) (render-node c))
                                       (ast-children (ast-child 'es n)))))])
 
 

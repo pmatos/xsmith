@@ -1293,7 +1293,7 @@
 
 (add-prop
  cish-rules
- print-node-info
+ render-node-info
  [Program (λ (n)
             (define structs (ast-children (ast-child 'structdefinitions n)))
             (define global-vars (ast-children (ast-child 'globalvariables n)))
@@ -1305,7 +1305,7 @@
                (list*
                 (text "#include \"xsmith_safe_math.h\"\n")
                 (text "#include <stdio.h>\n")
-                (map (λ (cn) (print-node cn))
+                (map (λ (cn) (render-node cn))
                      (append (reverse structs)
                              global-vars
                              functions
@@ -1349,7 +1349,7 @@
         (h-append comma space)))
       rparen
       line
-      (print-node (ast-child 'Block n)))))]
+      (render-node (ast-child 'Block n)))))]
  [StructDefinition
   (λ (n)
     (v-append
@@ -1377,7 +1377,7 @@
       (h-append
        lbrace
        (h-concat
-        (add-between (map (λ (c) (print-node c))
+        (add-between (map (λ (c) (render-node c))
                           (ast-children (ast-child 'vals n)))
                      (h-append comma space)))
        rbrace))
@@ -1398,38 +1398,38 @@
      n
      (h-append
       (h-append if: space lparen
-                (print-node (ast-child 'test n))
+                (render-node (ast-child 'test n))
                 rparen)
       (nest nest-step
             (h-append line
-                      (print-node (ast-child 'then n)))))))]
+                      (render-node (ast-child 'then n)))))))]
  [IfElseStatement
   (λ (n)
     (v-comment
      n
      (h-append
       (h-append if: space lparen
-                (print-node (ast-child 'test n))
+                (render-node (ast-child 'test n))
                 rparen)
       (nest nest-step
             (h-append line
-                      (print-node (ast-child 'then n))))
+                      (render-node (ast-child 'then n))))
       line
       else:
       (nest nest-step
             (h-append line
-                      (print-node (ast-child 'else n)))))))]
+                      (render-node (ast-child 'else n)))))))]
  [WhileStatement
   (λ (n)
     (v-comment
      n
      (h-append
       (h-append while: space lparen
-                (print-node (ast-child 'test n))
+                (render-node (ast-child 'test n))
                 rparen)
       (nest nest-step
             (h-append line
-                      (print-node (ast-child 'body n)))))))]
+                      (render-node (ast-child 'body n)))))))]
  [DoWhileStatement
   (λ (n)
     (v-comment
@@ -1438,10 +1438,10 @@
       do:
       (nest nest-step
             (h-append line
-                      (print-node (ast-child 'body n))))
+                      (render-node (ast-child 'body n))))
       line
       (h-append while: space lparen
-                (print-node (ast-child 'test n))
+                (render-node (ast-child 'test n))
                 rparen semi))))]
  [ForStatement
   (λ (n)
@@ -1449,16 +1449,16 @@
      n
      (h-append
       for: space lparen
-      (print-node (ast-child 'init n))
+      (render-node (ast-child 'init n))
       ;; since init is a declaration it already prints a semicolon
       space
-      (print-node (ast-child 'test n))
+      (render-node (ast-child 'test n))
       semi space
-      (print-node (ast-child 'update n))
+      (render-node (ast-child 'update n))
       rparen
       (nest nest-step
             (h-append line
-                      (print-node (ast-child 'body n)))))))]
+                      (render-node (ast-child 'body n)))))))]
  [Block
   (λ (n)
     (v-comment
@@ -1470,9 +1470,9 @@
              line
              (v-concat
               (append
-               (map (λ (cn) (print-node cn))
+               (map (λ (cn) (render-node cn))
                     (ast-children (ast-child 'declarations n)))
-               (map (λ (cn) (print-node cn))
+               (map (λ (cn) (render-node cn))
                     (ast-children (ast-child 'statements n)))))))
       line
       rbrace)))]
@@ -1480,14 +1480,14 @@
   (λ (n)
     (v-comment
      n
-     (h-append (print-node (ast-child 'Expression n))
+     (h-append (render-node (ast-child 'Expression n))
                semi)))]
  [ValueReturnStatement
   (λ (n)
     (v-comment
      n
      (h-append return: space
-               (print-node (ast-child 'Expression n))
+               (render-node (ast-child 'Expression n))
                semi)))]
  [NullStatement
   (λ (n)
@@ -1502,7 +1502,7 @@
                 (text (type->string (ast-child 'type n)))
                 (text (ast-child 'name n))
                 eqsign
-                (print-node (ast-child 'Expression n)))
+                (render-node (ast-child 'Expression n)))
                semi)))]
  [AssignmentExpression
   (λ (n)
@@ -1510,7 +1510,7 @@
      n
      (hs-append (text (ast-child 'name n))
                 eqsign
-                (print-node (ast-child 'Expression n)))))]
+                (render-node (ast-child 'Expression n)))))]
  [LiteralInt
   (λ (n)
     (h-comment
@@ -1527,18 +1527,18 @@
      n
      (text (ast-child 'name n))))]
  [VolatileVariableReference
-  (λ (n) (print-node (ast-child 'VariableReference n)))]
+  (λ (n) (render-node (ast-child 'VariableReference n)))]
  [VolatileInitializer
-  (λ (n) (print-node (ast-child 'Expression n)))]
+  (λ (n) (render-node (ast-child 'Expression n)))]
  [FunctionApplicationExpression
   (λ (n)
     (h-comment
      n
      (h-append
-      (print-node (ast-child 'function n))
+      (render-node (ast-child 'function n))
       lparen
       (h-concat
-       (add-between (map (λ (a) (print-node a))
+       (add-between (map (λ (a) (render-node a))
                          (ast-children (ast-child 'args n)))
                     (h-append comma space)))
       rparen)))]
@@ -1547,17 +1547,17 @@
     (h-comment
      n
      (h-append lparen
-               (hs-append (print-node (ast-child 'test n))
+               (hs-append (render-node (ast-child 'test n))
                           qmark
-                          (print-node (ast-child 'then n))
+                          (render-node (ast-child 'then n))
                           colon
-                          (print-node (ast-child 'else n)))
+                          (render-node (ast-child 'else n)))
                rparen)))]
 
  [StructReference
   (λ (n)
     (h-append lparen
-              (print-node (ast-child 'structval n))
+              (render-node (ast-child 'structval n))
               rparen
               period
               (text (ast-child 'fieldname n))))]
@@ -1565,14 +1565,14 @@
   (λ (n)
     (h-append lparen
               lparen
-              (print-node (ast-child 'structval n))
+              (render-node (ast-child 'structval n))
               rparen
               period
               (text (ast-child 'fieldname n))
               space
               eqsign
               space
-              (print-node (ast-child 'updateval n))
+              (render-node (ast-child 'updateval n))
               rparen))]
 
  ;; TODO -- gen the name of the safe op function from the type of the operator
