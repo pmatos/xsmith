@@ -1,6 +1,9 @@
 ## -*- mode: Text -*-
 
-To install, first install Racket, then `cd` into the `xsmith` directory, then
-run `raco pkg install`.
+To install, first install Racket.
+
+`cd` into the `xsmith` directory and then run `raco pkg install`.
+
+`cd` into the `xsmith-examples` directory and then run `raco pkg install`.
 
 ## End of file.
