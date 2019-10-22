@@ -1440,7 +1440,8 @@ over recursively-specified data.
   (λ (this-prop-info)
     (define _xsmith_print-hole-info
       (if (dict-empty? this-prop-info)
-          (hash #f #'(λ (h) (symbol->string (ast-node-type h))))
+          (hash #f #'(λ (h) (format "<~a>"
+                                    (symbol->string (ast-node-type h)))))
           (for/hash ([(n v) (in-dict this-prop-info)])
             (values n
                     v))))
