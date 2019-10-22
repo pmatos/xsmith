@@ -147,7 +147,7 @@
                                      (string-join lines "\n")))
    #:features cish-features-list
    #:default-max-depth 10
-   #:format-print (λ (d) (pretty-print d (current-output-port) 120))))
+   #:format-render (λ (d) (pretty-format d 120))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
