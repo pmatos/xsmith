@@ -31,7 +31,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define name "xsmith-examples")
-(define version "1.1.0")
+(define version "1.2.0")
 (define git-commit "$Format:%h$")
 
 (define racket-launcher-names '("xsmith-cish" "xsmith-schemely"))
