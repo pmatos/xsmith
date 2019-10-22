@@ -1397,20 +1397,22 @@ The second arm is a function that takes the type that the node has been assigned
           _xsmith_no-io-conflict?-info)))
 
 #|
-There are two properties involved in pretty-printing:
+There are two properties involved in rendering ASTs for pretty-printing:
  - render-node
  - render-hole
 
-The `render-node` property allows users to specify functions for printing each type
-of node. They may also give a default print function via #f.
+The `render-node` property allows users to specify functions for rendering each
+type of node. They may also give a default render function via #f. These can
+return any type, but if the type is not a string then the user should specify
+the `#:format-render` argument in the `xsmith-command-line` function to handle
+converting the rendered output to a string for printing.
 
 Functions specified this way will be wrapped with a test to determine whether
 the supplied argument is actually a hole. If it is, then `render-hole` will be
 called instead.
 
-These properties will be combined into a user-accessible function which can also
-be used inside these function definitions, allowing the user to easily print
-over recursively-specified data.
+Users can call `(render-node <node>)` and `(render-hole <hole>)` instead of the
+longer-winded `(att-value 'render-node-info <node>)`-style calls.
 |#
 (define-syntax-rule (render-node node)
   (if (att-value 'xsmith_is-hole? node)
