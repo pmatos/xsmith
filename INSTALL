@@ -2,8 +2,16 @@
 
 To install, first install Racket.
 
-`cd` into the `xsmith` directory and then run `raco pkg install`.
+Then, run `make` from this current directory (where the `xsmith` and
+`xsmith-examples` directories live). This will cause the execution of the
+`raco pkg install --auto` command in each directory, resulting in the
+installation of the `xsmith` and `xsmith-examples` packages in Racket.
 
-`cd` into the `xsmith-examples` directory and then run `raco pkg install`.
+After this, you should be able to do `(require xsmith)` in your Racket programs,
+and you should also find some provided generators available from the command
+line (such as `xsmith-cish` and `xsmith-schemely`).
+
+If you would rather install the packages manually, you can simply `cd` into each
+directory and run `raco pkg install --auto` from there.
 
 ## End of file.
