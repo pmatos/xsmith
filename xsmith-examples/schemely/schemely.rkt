@@ -190,7 +190,7 @@
 (add-prop
  schemely-core
  render-hole-info
- [#f (λ (h) (->se 'HOLE (ast-node-type h)))])
+ [#f (λ (h) (list 'HOLE (ast-node-type h)))])
 
 
 
