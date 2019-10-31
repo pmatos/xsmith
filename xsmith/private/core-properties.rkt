@@ -436,6 +436,9 @@ Helper function for _xsmith_scope-graph-child-scope-dict.
              (ast-node-type lift-origin-hole) type depth))
 
     (define lift-name ((random-ref destinations)))
+    (xd-printf "lifting binding: ~v with type: ~v\n"
+               lift-name
+               type)
     ;; TODO - the binding struct is incomplete because
     ;; there is no node yet...
     (binding lift-name #f type 'definition)))
