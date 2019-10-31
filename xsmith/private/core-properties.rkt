@@ -972,7 +972,7 @@ few of these methods.
     (with-handlers
       ([(λ(x)#t)
         (λ (e)
-          (debug-print-1i my-type-from-parent my-type-constraint)
+          (debug-print-1 my-type-from-parent my-type-constraint)
           (raise e))])
       (unify! my-type-from-parent my-type-constraint)))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
