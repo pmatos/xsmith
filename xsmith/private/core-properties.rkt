@@ -960,15 +960,16 @@ few of these methods.
         (att-value '_xsmith_my-type-constraint node)))
   (define my-type-from-parent
     (att-value '_xsmith_type-constraint-from-parent node))
+  (define (debug-print-1 t1 t2)
+    (xd-printf "error while unifying types: ~a and ~a\n" t1 t2)
+    (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
+    (xd-printf "with parent of AST type: ~a\n" (ast-node-type
+                                                (parent-node node))))
   (when my-type-constraint
     (with-handlers
       ([(λ(x)#t)
         (λ (e)
-          (xd-printf "error while unifying types: ~a and ~a\n"
-                     my-type-from-parent my-type-constraint)
-          (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
-          (xd-printf "with parent of AST type: ~a\n" (ast-node-type
-                                                      (parent-node node)))
+          (debug-print-1)
           (raise e))])
       (unify! my-type-from-parent my-type-constraint)))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
@@ -981,6 +982,7 @@ few of these methods.
       (with-handlers
         ([(λ(x)#t)
           (λ (e)
+            (debug-print-1 my-type-from-parent var-type)
             (xd-printf "Error unifying types for reference of AST type: ~a\n"
                        (ast-node-type node))
             (xd-printf "Type received from parent AST node: ~a\n"
@@ -999,6 +1001,7 @@ few of these methods.
       (with-handlers
         ([(λ(x)#t)
           (λ (e)
+            (debug-print-1 binding-node-type var-type)
             (xd-printf "Error unifying types for reference of AST type: ~a\n"
                        (ast-node-type node))
             (xd-printf "Type annotated at variable definition: ~a\n"
@@ -1009,9 +1012,20 @@ few of these methods.
         (unify! binding-node-type var-type))))
   (when (and definition-type-field (not (att-value 'xsmith_is-hole? node)))
     (let ([def-type (ast-child definition-type-field node)])
+      (when (not (type? def-type))
+        (xd-printf "WARNING: definition node type field has non-type value: ~v\n"
+                   def-type))
       (when (type? def-type)
         ;; TODO - in my existing fuzzers this is sometimes not set for parameters, but it should be... I'm just not sure about the timing of setting it all up right now...
-        (unify! my-type-from-parent def-type))))
+        (with-handlers
+          ([(λ(x)#t)
+            (λ (e)
+              (debug-print-1 my-type-from-parent def-type)
+              (xd-printf "Error unifying definition type recorded in definition field.\n")
+              (xd-printf "Type from parent: ~v\n" my-type-from-parent)
+              (xd-printf "Recorded definition type ~v\n" def-type)
+              (raise e))])
+          (unify! my-type-from-parent def-type)))))
   ;; Now unified, return the one from the parent since it likely has
   ;; the most direct info.
   my-type-from-parent)
