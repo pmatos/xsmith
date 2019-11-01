@@ -64,10 +64,89 @@
                       (text ">")))])
 
 ;; Post-generation transformations.
-;; TODO
+(add-transformer
+ stree-grammar
+ straighten
+ #:transformer
+ (λ (n)
+   (case n
+     [Branch (let ([lt (straighten (ast-child 'l n))]
+                   [rt (straighten (ast-child 'r n))])
+               (case lt
+                 [Empty (set! lt rt)]
+                 [else (...)]))]
+     [Leaf (Leaf (ast-child 'v n))]
+     [Empty Empty])))
+
+(add-transformer
+  stree-grammar
+  sort
+  #:follows straighten  ; this provides sequencing (can also be a list)
+  #:transformer
+  (λ (n)
+    ...))
+
+(define (height n)
+  (match (ast-node-type n)
+    [Empty 0]
+    [Leaf 1]
+    [Branch (+ 1 (max (height (ast-child 'l n)) (height (ast-child 'r n))))]))
+
+(define (unbalanced? n)
+  (and (eq? (ast-node-type n) Branch)
+       (or (> (height (ast-child 'l n)) (+ 1 (height (ast-child 'r n))))
+           (> (height (ast-child 'r n)) (+ 1 (height (ast-child 'l n)))))))
+
+#|
+- no separate predicate
+- internal match
+- explicit recursion
+
+- mutation/production unspecified
+|#
+(add-transformer
+ stree-grammar
+ balance
+ (λ (n) (match (ast-node-type n)
+          [Empty ()]
+          [Leaf ()]
+          [Branch (begin
+                    ((get-transformer balance) (ast-child 'l n))
+                    ((get-transformer balance) (ast-child 'r n))
+                    (when (unbalanced? n)
+                      ...))])))
+
+#|
+- no separate predicate
+- top-level match
+- explicit recursion
+
+- mutation/production unspecified
+|#
+(add-transformer
+ stree-grammar
+ balance
+ [Empty ()]
+ [Leaf ()]
+ [Branch (begin
+           ((get-transformer balance) (ast-child 'l n))
+           ((get-transformer balance) (ast-child 'r n))
+           (when (unbalanced? n)
+             ...))])
+
+#|
+- uses predicate
+- internal match
+|#
+(add-transformer
+ stree-grammar
+ balance
+ #:predicate unbalanced?
+ #:transformer (λ (n) ...))  ;; immediately perform the modifications
 
 ;; Assemble!
 (assemble-spec-components stree stree-grammar)
+  ; transformers are automatically applied
 
 (define (stree-generate)
   (stree-generate-ast 'Branch))
