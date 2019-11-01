@@ -270,13 +270,21 @@ hole for the type.
                                              f-name
                                              (dict-ref thunk-hash f-name))))))])
                       (if (procedure? v) (v) v)))))
+               (define all-values-hash/binder-sanitized
+                 (if binder-type-field
+                     (hash-set all-values-hash
+                               binder-type-field
+                               (concretize-type
+                                (hash-ref all-values-hash
+                                          binder-type-field)))
+                     all-values-hash))
                (define all-values-hash/seq-transformed
                  (for/hash ([f-name (list field-name ...)]
                             [f-type (list field-type ...)]
                             [f-seq? (list field-seq? ...)])
                    (values
                     f-name
-                    (let ([v (dict-ref all-values-hash f-name)])
+                    (let ([v (dict-ref all-values-hash/binder-sanitized f-name)])
                       (cond [(and f-seq? (list? v) (create-ast-list v))]
                             [(and f-seq? (number? v))
                              ;; If the init value is a number and a list
@@ -645,18 +653,33 @@ It just reads the values of several other properties and produces the results fo
 
 (define-property binder-info
   #:reads (grammar)
-  #:appends (att-rule xsmith_definition-binding)
+  #:appends
+  (att-rule _xsmith_binder-type-field)
+  (att-rule xsmith_definition-binding)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
+    (define name+type+d/p-hash
+      (for/hash ([node (cons #f nodes)])
+        (values node
+                (syntax-parse (dict-ref this-prop-info node #f)
+                  [#f #f]
+                  [(name-field-name:id
+                    type-field-name:id
+                    (~and def-or-param (~or (~datum definition) (~datum parameter))))
+                   (list #'name-field-name #'type-field-name #'def-or-param)]))))
+    (define _xsmith_binder-type-field
+      (for/hash ([node (cons #f nodes)])
+        (cond [(dict-ref name+type+d/p-hash node #f)
+               =>
+               (λ (l) (values node #`(λ (n) '#,(second l))))]
+              [else (values node #'(λ (n) #f))])))
     (define xsmith_definition-binding-info
       (for/fold ([rule-info (hash #f #'(λ (n) #f))])
                 ([node nodes])
-        (syntax-parse (dict-ref this-prop-info node #'#f)
+        (syntax-parse (dict-ref name+type+d/p-hash node #f)
           [#f rule-info]
-          [(name-field-name:id
-            type-field-name:id
-            (~and def-or-param (~or (~datum definition) (~datum parameter))))
+          [(name-field-name type-field-name def-or-param)
            (dict-set rule-info node
                      #'(λ (n)
                          (let ([name (ast-child 'name-field-name n)]
@@ -669,7 +692,7 @@ It just reads the values of several other properties and produces the results fo
                                 n
                                 (ast-child 'type-field-name n)
                                 'def-or-param)))))])))
-    (list xsmith_definition-binding-info)))
+    (list _xsmith_binder-type-field xsmith_definition-binding-info)))
 
 ;; This property should be a list containing:
 ;; the identifier `read` or the identifier `write`,
@@ -957,9 +980,13 @@ few of these methods.
   my-type-from-parent)
 
 (define (xsmith_type-info-func node reference-unify-target reference-field definition-type-field)
+  (define binder-type-field (att-value '_xsmith_binder-type-field node))
   (define my-type-constraint
     (if (att-value 'xsmith_is-hole? node)
-        #f
+        (and binder-type-field
+             (not (ast-bud-node? (ast-child binder-type-field node)))
+             (eprintf "using lifted hole type to unify!\n")
+             (ast-child binder-type-field node))
         (att-value '_xsmith_my-type-constraint node)))
   (define my-type-from-parent
     (att-value '_xsmith_type-constraint-from-parent node))
