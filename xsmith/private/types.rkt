@@ -821,7 +821,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
      (when (and l1 l2 (not (equal? l1 l2)))
        (error 'subtype-unify!
-              "Tried to unify two product types with unequal lengths: ~v, ~v"
+              "Tried to unify two product types with unequal lengths (~v and ~v): ~v, ~v"
+              l1 l2
               sub super))
 
      (match (list inner1 inner2)
