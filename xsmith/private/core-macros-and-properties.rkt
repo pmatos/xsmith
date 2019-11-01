@@ -65,6 +65,8 @@
          wont-over-deepen
          introduces-scope
          binder-info
+         reference-info
+         binder-info
          lift-predicate
          lift-type->ast-binder-type
          binding-structure

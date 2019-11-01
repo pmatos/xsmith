@@ -26,8 +26,8 @@
 (add-prop arith type-info
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [LetStar [(fresh-type-variable)
-                    (λ (n t) (hash 'definitions (fresh-type-variable)
-                                   'sideEs (fresh-type-variable)
+                    (λ (n t) (hash 'definitions (λ (cn) (fresh-type-variable))
+                                   'sideEs (λ (cn) (fresh-type-variable))
                                    'Expression t))]]
           [LiteralInt [int (λ (n t) (hash))]]
           [VariableReference [(fresh-type-variable) (λ (n t) (hash))]]
