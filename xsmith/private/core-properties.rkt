@@ -1458,7 +1458,12 @@ called instead.
 Users can call `(render-node <node>)` and `(render-hole <hole>)` instead of the
 longer-winded `(att-value 'render-node-info <node>)`-style calls.
 |#
-(define-syntax-rule (render-node node)
+(define (render-node node)
+  (if (att-value 'xsmith_is-hole? node)
+      (render-hole node)
+      (att-value '_xsmith_render-node node)))
+
+#;(define-syntax-rule (render-node node)
   (if (att-value 'xsmith_is-hole? node)
       (render-hole node)
       (att-value '_xsmith_render-node node)))
@@ -1476,7 +1481,10 @@ longer-winded `(att-value 'render-node-info <node>)`-style calls.
                     v))))
     (list _xsmith_render-node-info)))
 
-(define-syntax-rule (render-hole hole)
+(define (render-hole hole)
+  (att-value '_xsmith_render-hole hole))
+
+#;(define-syntax-rule (render-hole hole)
   (att-value '_xsmith_render-hole hole))
 
 (define-property render-hole-info
