@@ -40,6 +40,7 @@
 
 (reprovide
  "private/core-macros-and-properties.rkt"
+ "private/transformers.rkt"
  "private/scope-graph.rkt"
  "private/xsmith-command-line.rkt"
  "private/xsmith-parameters.rkt"
