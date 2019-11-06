@@ -132,7 +132,8 @@
  schemely-core
  render-node-info
  [Program (λ (n) `(,@(map (λ (x) (render-node x))
-                          (ast-children (ast-child 'definitions n)))))]
+                          (append (ast-children (ast-child 'definitions n))
+                                  (ast-children (ast-child 'expressions n))))))]
  [DefinitionContext (λ (n) `(,@(map (λ (x) (render-node x))
                                     (ast-children (ast-child 'definitions n)))
                              ,@(map (λ (x) (render-node x))
