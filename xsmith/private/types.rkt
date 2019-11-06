@@ -1073,10 +1073,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (generic-type name1 constructor1 type-arguments1)
            (generic-type name2 constructor2 type-arguments2))
      (and (eq? constructor1 constructor2)
-          (for/and ([l type-arguments1]
-                    [r type-arguments2])
-            (and (can-unify? l r)
-                 (can-unify? l r))))]
+          (for/and ([inner-l type-arguments1]
+                    [inner-r type-arguments2])
+            (can-unify? inner-l inner-r)))]
     ;; base-type
     ;; While base-type-ranges can only be in type variables, it is convenient to recursively use this function to test them
     [(list (or (base-type _ _) (base-type-range _ _))
