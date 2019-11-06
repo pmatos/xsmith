@@ -112,6 +112,10 @@ WIP checklist:
   ))
 (module+ test (require rackunit))
 
+(define (->bool v)
+  ;; I keep using this idiom, but ->bool is clearer.
+  (not (not v)))
+
 
 #|
 TODO - record types that use scope graphs
@@ -942,11 +946,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
                  (can-subtype-unify? l r))))]
     ;; base-type
     [(list (base-type lname lsuper) (base-type rname rsuper))
-     (not (not (member super (base-type->parent-chain sub))))]
+     (->bool (member super (base-type->parent-chain sub)))]
     ;; While base-type-ranges can only be in type variables, it is convenient to recursively use this function to test them
     [(list (base-type-range l-low l-high) (base-type-range r-low r-high))
      (if l-low
-         (not (not (member r-high (base-type->parent-chain l-low))))
+         (->bool (member r-high (base-type->parent-chain l-low)))
          (and (equal? (base-type->superest l-high) (base-type->superest r-high))
               (or (equal? l-high r-high)
                   (not (member l-high (base-type->parent-chain r-high))))))]
@@ -1053,7 +1057,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
         (define inner-vals (dict-values inners2))
         (for/and ([k (dict-keys inners1)])
-          (cond [(not k) (not (not (member (dict-ref inners1 k) inner-vals)))]
+          (cond [(not k) (->bool (member (dict-ref inners1 k) inner-vals))]
                 [else (and (dict-has-key? inners2 k)
                            (can-unify? (dict-ref inners1 k) (dict-ref inners2 k)))]))]
        [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
@@ -1233,7 +1237,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (and (concrete? a) (concrete? r))]
     [(nominal-record-type name inners)
      ;; If a name is set then it's concrete.
-     (not (not name))]
+     (->bool name)]
     [(nominal-record-definition-type inner) (concrete? inner)]
     [(product-type itl lb ub)
      (and (list? itl) (andmap concrete? itl))]
@@ -1324,7 +1328,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (nominal-record-type v-name v-inners)
            (nominal-record-type c-name c-inners))
      ;; For now be conservative.
-     (not (not v-name))]
+     (->bool v-name)]
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
      (at-least-as-concrete inner1 inner2)]
@@ -1372,7 +1376,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(function-type arg ret) (or (rec arg) (rec ret))]
     [(product-type inners lb ub)
      (match inners
-       [#f (not (not (memq t vs)))]
+       [#f (->bool (memq t vs))]
        [(list ts ...) (ormap rec ts)])]
     ;[(sum-type)]
     ;[(record-type)]
