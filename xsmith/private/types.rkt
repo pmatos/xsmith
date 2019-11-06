@@ -171,6 +171,15 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
     [(type-variable-innard _ _ forwarded _ _)
      (innard->forward-resolve forwarded)]))
 
+(define (type-variable-normalize! tv)
+  (match tv
+    [(type-variable tvi)
+     (match tvi
+       [(type-variable-innard _ _ #f _ _) (void)]
+       [(type-variable-innard _ _ forward _ _)
+        (set-type-variable-tvi! tv (innard->forward-resolve tvi))])]
+    [else (void)]))
+
 (define ((type-variable-innard-DIR-bounds! dir set-dir!) innard)
   ;; This version updates forwarded bounds.
   (define ret1 (dir innard))
@@ -188,15 +197,15 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
 
 (define ((type-variable-innard->transitive-DIR-bounds dir) tvi)
   (define immediates (dir tvi))
-  (let loop ([uppers immediates]
+  (let loop ([transitive-members immediates]
              [work-list immediates])
-    (cond [(null? work-list) uppers]
+    (cond [(null? work-list) transitive-members]
           [else
            (define maybe-new-ones (dir (car work-list)))
-           (define new-ones (set-subtract maybe-new-ones uppers))
-           (define new-uppers (set-union uppers new-ones))
+           (define new-ones (set-subtract maybe-new-ones transitive-members))
+           (define new-transitive-members (set-union transitive-members new-ones))
            (define new-work-list (append new-ones (cdr work-list)))
-           (loop new-uppers
+           (loop new-transitive-members
                  new-work-list)])))
 (define type-variable-innard->transitive-lower-bounds
   (type-variable-innard->transitive-DIR-bounds type-variable-innard-lower-bounds))
@@ -960,25 +969,29 @@ TODO - when generating a record ref, I'll need to compare something like (record
                (flatten (list (type-variable-innard-type super))))
     [(list (list #f) (list #f)) (list #f #f)]
     [(list (list #f) r)
-     (map (λ (t)
-            (match t
-              [(base-type-range low high) (base-type-range #f high)]
-              [else
-               (define inner-sub (type->skeleton-with-vars t))
-               (subtype-unify! inner-sub t)
-               inner-sub]))
-          r)
+     (set-type-variable-innard-type!
+      sub
+      (map (λ (t)
+             (match t
+               [(base-type-range low high) (base-type-range #f high)]
+               [else
+                (define inner-sub (type->skeleton-with-vars t))
+                (subtype-unify! inner-sub t)
+                inner-sub]))
+           r))
      (list #t #f)]
     [(list l (list #f))
-     (map (λ (t)
-            (match t
-              [(base-type-range low high)
-               (base-type-range low (base-type->superest high))]
-              [else
-               (define inner-sup (type->skeleton-with-vars t))
-               (subtype-unify! t inner-sup)
-               inner-sup]))
-          l)
+     (set-type-variable-innard-type!
+      super
+      (map (λ (t)
+             (match t
+               [(base-type-range low high)
+                (base-type-range low (base-type->superest high))]
+               [else
+                (define inner-sup (type->skeleton-with-vars t))
+                (subtype-unify! t inner-sup)
+                inner-sup]))
+           l))
      (list #f #t)]
     [(list subtypes supertypes)
 
