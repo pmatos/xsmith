@@ -784,7 +784,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
             [innard-work-list (cdr innard-work-list)])
         (define (fold-body dones work lower upper)
           (cond
-            [(member (cons lower upper) done-pair-list) (values dones work)]
+            [(member (cons lower upper) dones) (values dones work)]
             [else
              (match-define (list subchange superchange)
                (subtype-unify!/type-variable-innards lower upper))
@@ -793,7 +793,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                     dones))
              (define new-dones2 (if superchange
                                     (done-pair-list-remove-with new-dones1 upper)
-                                    dones))
+                                    new-dones1))
              (define new-dones3 (cons (cons lower upper) new-dones2))
              (define new-work1 (if subchange
                                    (set-add work lower)
@@ -882,8 +882,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (set-type-variable-innard-type! sub (->use all-sub))
      (set-type-variable-innard-type! super (->use all-super))
 
-     (list (set=? subtypes all-sub)
-           (set=? supertypes all-super))]))
+     (list (not (set=? subtypes all-sub))
+           (not (set=? supertypes all-super)))]))
 
 (define (can-subtype-unify? sub super)
   (match (list sub super)
@@ -1002,9 +1002,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(not inner2) #t]
        [(not (equal? (length inner1) (length inner2))) #f]
        [else
-        (for/and ([l inner1]
-                  [r inner2])
-          (inner-can-unify? l r))])]))
+        (for/and ([li inner1]
+                  [ri inner2])
+          (inner-can-unify? li ri))])]))
 
 
 (define (unify! t1 t2)
