@@ -1269,13 +1269,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (for/and ([t ts])
               (match t
                 [(base-type _ _) (for/or ([c (filter base-type? cs)])
-                                   ;; TODO - this may have been broken by switching to subtypes...  I'm not sure which direction needs to be the subtype, and it may change...
-                                   ;; The original code checked names, this was silly
-                                   ;(equal? name (base-type-name c))
-                                   ;; I've now added a subtype-unify check... but is it the right direction?
-                                   ;(TODO-code -- check that this subtype check is correct)
-                                   (can-subtype-unify? t c)
-                                   )]
+                                   (or (can-subtype-unify? t c)
+                                       (can-subtype-unify? c t)))]
                 [(? function-type?)
                  (ormap (λ (c) (at-least-as-concrete t c))
                         (filter function-type? cs))]
@@ -1287,19 +1282,23 @@ TODO - when generating a record ref, I'll need to compare something like (record
                         (filter (λ (c) (and (generic-type? c)
                                             (eq? (generic-type-constructor c)
                                                  (generic-type-constructor t))))
-                                cs))]))
+                                cs))]
+                ;; TODO - more cases, and make `else` an error.
+                [else #f]))
             ;; check if they have nothing in common
             (for/and ([c cs])
               (match c
                 [(base-type cn _) (for/and ([t (filter base-type? ts)])
-                                    ;(TODO-code -- this probably needs to be a subtype check, but it is probably bi-directional...)
-                                    (not (equal? cn (base-type-name t))))]
+                                    (not (or (can-subtype-unify? c t)
+                                             (can-subtype-unify? t c))))]
                 [(? function-type?)
                  (null? (filter function-type? ts))]
                 [(? product-type?)
                  (null? (filter product-type? ts))]
                 [(? generic-type?)
-                 (null? (filter generic-type? ts))])))]
+                 (null? (filter generic-type? ts))]
+                ;; TODO - more cases, and make `else` an error.
+                [else #f])))]
           [(type-variable (type-variable-innard _ t _ _ _))
            (for/and ([c cs]) (at-least-as-concrete t c))]
           [else (for/and ([c cs]) (at-least-as-concrete v c))])]
@@ -1336,7 +1335,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (if (eq? v-ctor c-ctor)
          (andmap at-least-as-concrete v-inners c-inners)
          #t)]
-    [else #t]))
+    ;; TODO - this function always needs to have all types represented here to be accurate.
+    [else #f #;#t]))
 
 (module+ test
   (check-true (at-least-as-concrete (fresh-type-variable) (fresh-type-variable)))
