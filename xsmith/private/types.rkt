@@ -80,8 +80,12 @@ WIP checklist:
 
  (contract-out
   [fresh-type-variable (->* () () #:rest (listof type?) type?)]
+  [fresh-subtype-of (-> type? type?)]
+  [fresh-supertype-of (-> type? type?)]
   [unify! (-> type? type? any/c)]
+  [subtype-unify! (-> type? type? any/c)]
   [can-unify? (-> type? type? any/c)]
+  [can-subtype-unify? (-> type? type? any/c)]
   [concretize-type (-> type? type?)]
   [rename concrete? concrete-type? (-> type? any/c)]
   [rename mk-product-type product-type (-> (or/c #f (listof type?)) type?)]
@@ -243,6 +247,15 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (define tv (type-variable tvi))
   (set-add! handle-set tv)
   tv)
+
+(define (fresh-subtype-of v)
+  (define fv (fresh-type-variable))
+  (subtype-unify! fv v)
+  fv)
+(define (fresh-supertype-of v)
+  (define fv (fresh-type-variable))
+  (subtype-unify! v fv)
+  fv)
 
 #|
 Base types can be declared as subtypes of other base types.
