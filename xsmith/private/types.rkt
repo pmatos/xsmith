@@ -49,6 +49,7 @@ WIP checklist:
  base-type-name
  base-type-supertype
  base-type?
+ default-base-type
 
  ;(struct-out alias-type)
  ;; TODO - tuple types -- what should the API be?
@@ -249,6 +250,9 @@ Inside a type variable, they are always placed in a base-type-range, which gives
 The minimum may be #f to mean any subtype of the maximum type.
 |#
 (struct base-type (name supertype) #:transparent)
+
+;; a default base type, for when users don't specify any type rules.
+(define default-base-type (base-type 'xsmith_default-base-type #f))
 
 (define (base-type->parent-chain bt)
   (if (not (base-type-supertype bt))
@@ -1086,7 +1090,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 
 ;; A parameter to hold the list of constructors for base or composite types (with minimally constrained type variables inside).
-(define current-xsmith-type-constructor-thunks (make-parameter '()))
+(define current-xsmith-type-constructor-thunks
+  (make-parameter (list default-base-type)))
 ;; TODO - this should be configurable.
 (define type-max-depth 5)
 (define record-type-max-fields 5)

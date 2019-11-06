@@ -1111,11 +1111,15 @@ The second arm is a function that takes the type that the node has been assigned
                         (quote #,n)
                         t))))))
     (define _xsmith_my-type-constraint-info/att-rule
-      (for/hash ([n (dict-keys constraints-checked)])
-        (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n)))))
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ () default-base-type))
+          (for/hash ([n (dict-keys constraints-checked)])
+            (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n))))))
     (define _xsmith_my-type-constraint-info/choice-rule
-      (for/hash ([n (dict-keys constraints-checked)])
-        (values n #`(λ () #,(dict-ref constraints-checked n)))))
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ () default-base-type))
+          (for/hash ([n (dict-keys constraints-checked)])
+            (values n #`(λ () #,(dict-ref constraints-checked n))))))
 
     (define node-child-dict-funcs
       (hash-set
@@ -1170,17 +1174,22 @@ The second arm is a function that takes the type that the node has been assigned
                                                   (ast-child #,(dict-ref node-reference-field n) node)))))
                       child-types))))
     (define _xsmith_type-constraint-from-parent-info
-      (for/hash ([n nodes])
-        (values n #`(λ (node) (_xsmith_type-constraint-from-parent-func
-                               node
-                               (quote #,n))))))
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ (node) default-base-type))
+          (for/hash ([n nodes])
+            (values n #`(λ (node) (_xsmith_type-constraint-from-parent-func
+                                   node
+                                   (quote #,n)))))))
     (define xsmith_type-info
-      (for/hash ([n nodes])
-        (values n #`(λ (node)
-                      (xsmith_type-info-func node
-                                             #,(dict-ref node-reference-unify-target n)
-                                             #,(dict-ref node-reference-field n)
-                                             #,(dict-ref binder-type-field n))))))
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ (node) default-base-type))
+          (for/hash ([n nodes])
+            (values n #`(λ (node)
+                          (xsmith_type-info-func
+                           node
+                           #,(dict-ref node-reference-unify-target n)
+                           #,(dict-ref node-reference-field n)
+                           #,(dict-ref binder-type-field n)))))))
     (define _xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
                    (satisfies-type-constraint?
