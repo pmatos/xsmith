@@ -34,6 +34,7 @@
 xsmith/scribblings/util
 ;; for cish features list
 "../cish/cish-main.rkt"
+xsmith/private/xsmith-version
 racket/list
 )
 
@@ -43,7 +44,7 @@ racket/list
         (@author+email "Pierce Darragh" "pierce.darragh@gmail.com")
         (@author+email "Eric Eide" "eeide@cs.utah.edu")]
 
-@; XXX Version @xsmith-version-string
+Version @xsmith-version-string
 
 When Xsmith is installed as a Racket package, executables for the bundled generators are placed in your Racket package @verb{bin} directory.
 Usually this directory is @verb{$HOME/.racket/racket-<version>/bin} on Linux, maybe @verb{$HOME/Library/Racket/<version>/bin} on normal MacOS installs, and maybe @verb{/usr/local/bin} for MacOS Homebrew installs.
