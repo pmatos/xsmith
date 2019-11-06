@@ -1050,68 +1050,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
             [else (can-subtype-unify? sub sup)]))])]
     ;; left type-variable
     [(list (type-variable tvi-sub) _)
-     (cond
-       [(not (type-variable-innard-type tvi-sub)) #t]
-       [else
-        (define t (flatten (list (type-variable-innard-type tvi-sub))))
-        (define (struct-rec predicate)
-          (match (filter predicate t)
-            [(list) #f]
-            [(list one) (can-subtype-unify? one super)]))
-        (match super
-          [(base-type name superbase)
-           (for/or ([possibility t])
-             (match possibility
-               [(base-type-range low high)
-                (can-subtype-unify? possibility super)]
-               [else #f]))]
-          [(? function-type?) (struct-rec function-type?)]
-          [(? product-type?) (struct-rec product-type?)]
-          [(? nominal-record-type?) (struct-rec nominal-record-type?)]
-          [(? nominal-record-definition-type?)
-           (struct-rec nominal-record-definition-type?)]
-          [(generic-type name constructor type-arguments)
-           (define inner-matched
-             (filter (λ (x) (match x
-                              [(generic-type _ iconstructor _)
-                               (eq? constructor iconstructor)]
-                              [else #f]))
-                     t))
-           (match inner-matched
-             [(list) #f]
-             [(list one) (can-subtype-unify? one super)])])])]
+     (can-X-unify?/one-type-variable-innard
+      tvi-sub super can-subtype-unify?)]
     ;; right type-variable
     [(list _ (type-variable tvi-sup))
-     (cond
-       [(not (type-variable-innard-type tvi-sup)) #t]
-       [else
-        (define t (flatten (list (type-variable-innard-type tvi-sup))))
-        (define (struct-rec predicate)
-          (match (filter predicate t)
-            [(list) #f]
-            [(list one) (can-subtype-unify? sub one)]))
-        (match sub
-          [(base-type name superbase)
-           (for/or ([possibility t])
-             (match possibility
-               [(base-type-range low high)
-                (can-subtype-unify? sub possibility)]
-               [else #f]))]
-          [(? function-type?) (struct-rec function-type?)]
-          [(? product-type?) (struct-rec product-type?)]
-          [(? nominal-record-type?) (struct-rec nominal-record-type?)]
-          [(? nominal-record-definition-type?)
-           (struct-rec nominal-record-definition-type?)]
-          [(generic-type name constructor type-arguments)
-           (define inner-matched
-             (filter (λ (x) (match x
-                              [(generic-type _ iconstructor _)
-                               (eq? constructor iconstructor)]
-                              [else #f]))
-                     t))
-           (match inner-matched
-             [(list) #f]
-             [(list one) (can-subtype-unify? sub one)])])])]
+     (can-X-unify?/one-type-variable-innard
+      tvi-sup sub (λ (super sub)
+                    (can-subtype-unify? sub super)))]
     ;; function-type
     [(list (function-type arg-l ret-l)
            (function-type arg-r ret-r))
@@ -1123,34 +1068,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; product-type
     [(list (product-type inner1 lowers1 uppers1)
            (product-type inner2 lowers2 uppers2))
-     (cond
-       [(not inner1) #t]
-       [(not inner2) #t]
-       [(not (equal? (length inner1) (length inner2))) #f]
-       [else
-        (for/and ([l inner1]
-                  [r inner2])
-          (can-subtype-unify? l r))])]
+     (can-X-unify?/product-type sub super can-subtype-unify?)]
     ;; nominal-record-type
     [(list (? nominal-record-type?) (? nominal-record-type?))
-     ;; TODO - this is just copied from symmetric can-unify
-     (define t1 sub)
-     (define t2 super)
-     (match (list sub super)
-       [(list (nominal-record-type #f inners1) (nominal-record-type #f inners2))
-        ;; For now, just be conservative to not need to change variable representation...
-        #f]
-       [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
-        (define inner-vals (dict-values inners2))
-        (for/and ([k (dict-keys inners1)])
-          (cond [(not k) (not (not (member (dict-ref inners1 k) inner-vals)))]
-                [else (and (dict-has-key? inners2 k)
-                           (can-unify? (dict-ref inners1 k) (dict-ref inners2 k)))]))]
-       [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
-        (can-subtype-unify? t2 t1)]
-       [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
-        ;; TODO - verify that names are unique?
-        (equal? name1 name2)])]
+     ;; TODO - make this actually subtypable
+     (can-unify? sub super)]
     ;; nominal-record-definition-type
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
@@ -1182,13 +1104,131 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (can-subtype-unify? sub (base-type-range super super))]
     [else #f]))
 
+(define (can-X-unify?/one-type-variable-innard tvi rtype inner-can-unify?)
+  (cond
+    [(not (type-variable-innard-type tvi)) #t]
+    [else
+     (define t (flatten (list (type-variable-innard-type tvi))))
+     (define (struct-rec predicate)
+       (match (filter predicate t)
+         [(list) #f]
+         [(list one) (inner-can-unify? one rtype)]))
+     (match rtype
+       [(base-type name superbase)
+        (for/or ([possibility t])
+          (match possibility
+            [(base-type-range low high)
+             ;; for left
+             (inner-can-unify? possibility rtype)]
+            [else #f]))]
+       [(? function-type?) (struct-rec function-type?)]
+       [(? product-type?) (struct-rec product-type?)]
+       [(? nominal-record-type?) (struct-rec nominal-record-type?)]
+       [(? nominal-record-definition-type?)
+        (struct-rec nominal-record-definition-type?)]
+       [(generic-type name constructor type-arguments)
+        (define inner-matched
+          (filter (λ (x) (match x
+                           [(generic-type _ iconstructor _)
+                            (eq? constructor iconstructor)]
+                           [else #f]))
+                  t))
+        (match inner-matched
+          [(list) #f]
+          [(list one) (inner-can-unify? one rtype)])])]))
+
+(define (can-X-unify?/product-type l r inner-can-unify?)
+  (match (list l r)
+    [(list (product-type inner1 lowers1 uppers1)
+           (product-type inner2 lowers2 uppers2))
+     (cond
+       [(not inner1) #t]
+       [(not inner2) #t]
+       [(not (equal? (length inner1) (length inner2))) #f]
+       [else
+        (for/and ([l inner1]
+                  [r inner2])
+          (inner-can-unify? l r))])]))
+
+
 (define (unify! t1 t2)
   (begin (subtype-unify! t1 t2)
          (subtype-unify! t2 t1)))
-(define (can-unify? t1 t2)
-  ;; TODO - this is wrong, though I don't think it's the reason I have everything failing right now.  It's wrong because two type variables could each have two possibilities, with one pairing for each subtyping direction, but with incompatible types in each direction.
-  (and (can-subtype-unify? t1 t2)
-       (can-subtype-unify? t2 t1)))
+
+
+;; symmetric can-unify? can't just check if each can subtype-unify the other,
+;; because there could be cases like:
+;; (type-variable dog penguin) (type-variable labradoodle bird)
+;; where each side can subtype-unify with the other, but they can't be subtype
+;; unified in BOTH directions.
+(define (can-unify? l r)
+  (match (list l r)
+    ;; 2x type-variable
+    [(list (type-variable tvi-l)
+           (type-variable tvi-r))
+     (match (list (flatten (list (type-variable-innard-type tvi-l)))
+                  (flatten (list (type-variable-innard-type tvi-r))))
+       [(list (list #f) _) #t]
+       [(list _ (list #f)) #t]
+       [(list ls rs)
+        (for*/or ([ll ls]
+                  [rr rs])
+          (can-unify? ll rr))])]
+    ;; left type-variable
+    [(list (type-variable tvi-l) _)
+     (can-X-unify?/one-type-variable-innard tvi-l r can-unify?)]
+    ;; right type-variable
+    [(list _ (type-variable tvi-r))
+     (can-X-unify?/one-type-variable-innard tvi-r l can-unify?)]
+    ;; function-type
+    [(list (function-type arg-l ret-l)
+           (function-type arg-r ret-r))
+     (and
+      (can-unify? ret-l ret-r)
+      (can-unify? arg-r arg-l))]
+    ;; product-type
+    [(list (product-type inner1 lowers1 uppers1)
+           (product-type inner2 lowers2 uppers2))
+     (can-X-unify?/product-type l r can-unify?)]
+    ;; nominal-record-type
+    [(list (? nominal-record-type?) (? nominal-record-type?))
+     (define t1 l)
+     (define t2 r)
+     (match (list l r)
+       [(list (nominal-record-type #f inners1) (nominal-record-type #f inners2))
+        ;; For now, just be conservative to not need to change variable representation...
+        #f]
+       [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
+        (define inner-vals (dict-values inners2))
+        (for/and ([k (dict-keys inners1)])
+          (cond [(not k) (not (not (member (dict-ref inners1 k) inner-vals)))]
+                [else (and (dict-has-key? inners2 k)
+                           (can-unify? (dict-ref inners1 k) (dict-ref inners2 k)))]))]
+       [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
+        (can-unify? t2 t1)]
+       [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
+        ;; TODO - verify that names are unique?
+        (equal? name1 name2)])]
+    ;; nominal-record-definition-type
+    [(list (nominal-record-definition-type inner1)
+           (nominal-record-definition-type inner2))
+     (can-unify? inner1 inner2)]
+    ;; generic-type
+    [(list (generic-type name1 constructor1 type-arguments1)
+           (generic-type name2 constructor2 type-arguments2))
+     (and (eq? constructor1 constructor2)
+          (for/and ([l type-arguments1]
+                    [r type-arguments2])
+            (and (can-unify? l r)
+                 (can-unify? l r))))]
+    ;; base-type
+    ;; While base-type-ranges can only be in type variables, it is convenient to recursively use this function to test them
+    [(list (or (base-type _ _) (base-type-range _ _))
+           (or (base-type _ _) (base-type-range _ _)))
+     (and (can-subtype-unify? l r)
+          (can-subtype-unify? r l))]
+    [else #f]))
+
 
 ;; A parameter to hold the list of constructors for base or composite types (with minimally constrained type variables inside).
 (define current-xsmith-type-constructor-thunks (make-parameter '()))
