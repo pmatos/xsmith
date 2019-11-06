@@ -1296,13 +1296,12 @@ The second arm is a function that takes the type that the node has been assigned
                            (sibling-loop (list binding-node)))))
 
                      ;; Check children nodes if they are relevant
-                     (when #t #;(contains-type-variables? n-type variables)
+                     (when (contains-type-variables? n-type variables)
                        (sibling-loop (ast-children n)))
                      (rec ns)]))))
       (sibling-loop (ast-children p))
       (when (and (ast-has-parent? p)
-                 #t
-                 #;(or
+                 (or
                   ;; If the current node (child) includes relevant variables,
                   ;; its siblings may too even if the parent doesn't.
                   (contains-type-variables? (att-value 'xsmith_type child)
