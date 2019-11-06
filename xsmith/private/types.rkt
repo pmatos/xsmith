@@ -1531,6 +1531,19 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (check-true (contains-type-variables? sp1 (type->type-variable-list sv1)))
   (check-true (subset? (type->type-variable-list sv1)
                        (type->type-variable-list sv5)))
+
+
+  (define bird (mk-base-type 'bird))
+  (define penguin (mk-base-type 'penguin bird))
+  (define dog (mk-base-type 'dog))
+  (define labradoodle (mk-base-type 'labradoodle dog))
+
+  (define birddog1 (fresh-type-variable bird labradoodle))
+  (define birddog2 (fresh-type-variable dog penguin))
+  (check-true (can-subtype-unify? birddog1 birddog2))
+  (check-true (can-subtype-unify? birddog2 birddog1))
+  (check-false (can-unify? birddog1 birddog2))
+  (check-false (can-unify? birddog2 birddog1))
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
