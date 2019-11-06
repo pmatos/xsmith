@@ -72,11 +72,11 @@ Cish supports the following features for the @verb{--with-<feature>} flags:
 (map first cish-features-list)
 (map second cish-features-list)))
 
-To compile cish output, you need to include Csmith's runtime directory in your header path to get safe_math.h.
+To compile cish output, you need to include cish's directory and Csmith's runtime directory in your header path to get safe_math.h.
 
 eg.
 
-@verb{xsmith-cish > cish-output.c && gcc -I $CSMITH_DIR/runtime -o cish-output cish-output.c}
+@verb{xsmith-cish > cish-output.c && gcc -I $XSMITH_EXAMPLES_DIR/cish -I $CSMITH_DIR/runtime -o cish-output cish-output.c}
 
 
 @section[#:tag "schemely"]{Schemely}

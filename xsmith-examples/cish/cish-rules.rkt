@@ -1303,7 +1303,7 @@
               n
               (vb-concat
                (list*
-                (text "#include \"xsmith_safe_math.h\"\n")
+                (text "#include \"cish_safe_math.h\"\n")
                 (text "#include <stdio.h>\n")
                 (map (λ (cn) (render-node cn))
                      (append (reverse structs)
