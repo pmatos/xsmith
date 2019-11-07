@@ -701,15 +701,23 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
             (define ag-parts (parts->stx 'ag-info))
             (define cm-parts (parts->stx 'cm-info))
             (define props-parts (parts->stx 'props-info))
+            (define refiners-parts (parts->stx 'refiners-info))
             #`(assemble_stage3
                spec-name
                extra-props-name
                #,g-parts
                #,ag-parts
                #,cm-parts
-               #,props-parts)])
+               #,props-parts
+               #,refiners-parts)])
          (assemble_stage2 spec extra-props)))])
 
+#|
+Stage 3
+
+Perform error checking:
+ - check for duplicates in grammar clauses, att-rules, and choice rules
+|#
 (define-syntax-parser assemble_stage3
   ;; These first patterns are error checking patterns that match when there
   ;; are duplicate definitions in the grammar or rules.
@@ -718,7 +726,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
       (pre ... (g-part1:grammar-clause g-part2:grammar-clause c ...) post ...)
       ag-clauses
       cm-clauses
-      prop-clauses)
+      prop-clauses
+      refiners-clauses)
    (raise-syntax-error #f "duplicate definitions for grammar clause"
                        #'g-part1 #f #'g-part2)]
   [(_ spec
@@ -726,7 +735,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
       grammar-clauses
       (pre ... (ag1:prop-clause ag2:prop-clause c ...) post ...)
       cm-clauses
-      prop-clauses)
+      prop-clauses
+      refiners-clauses)
    (raise-syntax-error #f "duplicate definitions for att-rule"
                        #'ag1 #f #'ag2)]
   [(_ spec
@@ -734,7 +744,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
       grammar-clauses
       ag-clauses
       (pre ... (cm1:prop-clause cm2:prop-clause c ...) post ...)
-      prop-clauses)
+      prop-clauses
+      refiners-clauses)
    (raise-syntax-error #f "duplicate definitions for choice rule"
                        #'ag1 #f #'ag2)]
   ;; If the syntax has not been parsed by one of the above, it is duplicate-free.
@@ -744,7 +755,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
       ((g-part:grammar-clause) ...)
       ((ag-clause:prop-clause) ...)
       ((cm-clause:prop-clause) ...)
-      ((p-clause+:prop-clause ...) ...))
+      ((p-clause+:prop-clause ...) ...)
+      r-clauses)
    (define p-clauses (flatten (map syntax->list
                                    (syntax->list #'((p-clause+ ...) ...)))))
    (define (clause->list p-c-stx)
@@ -850,11 +862,27 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                                      (dict-ref infos-hash 'ag-info))]
                  [(n-cm-clause ...) (rule-hash->clause-list
                                      (dict-ref infos-hash 'cm-info))])
-     #'(assemble_stage4
+     #'(assemble_stage3.5
         spec
         (n-g-part ...)
         (n-ag-clause ...)
-        (n-cm-clause ...)))])
+        (n-cm-clause ...)
+        r-clauses))])
+
+(define-syntax-parser assemble_stage3.5
+  [(_ spec
+      g-clauses
+      ag-clauses
+      cm-clauses
+      ((r-clause+:prop-clause ...) ...))
+   (define r-clauses (flatten (map syntax->list
+                                   (syntax->list #'((r-clause+ ...) ...)))))
+   (display (format "~a\n" r-clauses))
+   #'(assemble_stage4
+      spec
+      g-clauses
+      ag-clauses
+      cm-clauses)])
 
 (define-syntax-parser assemble_stage4
   ;; Sort the grammar clauses.
