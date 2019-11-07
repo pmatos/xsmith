@@ -30,15 +30,14 @@
  [Val (λ (n) (number->string (ast-child 'v n)))]
  )
 
-(define-transformer
- tg
- evens-only
- #:predicate
- (λ (n) (when (eq? (ast-node-type n) Val)
-          (let ([v (ast-child 'v n)])
-            (odd? v))))
- #:transformer
- (λ (n) (display "odd value encountered")))
+(define-refiner
+  tg
+  evens-only
+  [Val [(λ (n) (odd? (ast-child 'v n)))
+        (λ (n) (begin
+                 ;; Print a message and return the node unchanged (for now).
+                 (display "odd value encountered")
+                 n))]])
 
 (assemble-spec-components t tg)
 
