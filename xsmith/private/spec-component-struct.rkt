@@ -46,7 +46,7 @@
 (require syntax/parse)
 
 (struct spec-component-struct
-  (grammar-info att-rule-info choice-rule-info property-info)
+  (grammar-info att-rule-info choice-rule-info property-info transformer-info)
   #:transparent
   )
 (define (set-spec-component-struct-grammar-info s v)
@@ -61,6 +61,9 @@
 (define (set-spec-component-struct-property-info s v)
   (struct-copy spec-component-struct s
                [property-info v]))
+(define (set-spec-component-struct-transformer-info s v)
+  (struct-copy spec-component-struct s
+               [transformer-info v]))
 
 (struct spec-component-struct-ref (ref))
 
