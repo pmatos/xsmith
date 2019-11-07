@@ -1,11 +1,11 @@
 #lang racket/base
 
 (provide
- (struct-out grammar-transformer))
+ (struct-out grammar-refiner))
 
-(struct grammar-transformer
-  (name predicate transformer)
+(struct grammar-refiner
+  (name precedes follows)
   #:property prop:procedure (λ (stx) (raise-syntax-error
-                                      'grammar-transformer
+                                      'grammar-refiner
                                       "Can't be used directly as a macro."
                                       stx)))
