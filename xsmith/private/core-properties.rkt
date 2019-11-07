@@ -886,8 +886,8 @@ few of these methods.
           (define visibles-with-type
             (filter (λ (b) (and b
                                 (concrete-type? (binding-type b))
-                                (can-unify? type-needed
-                                            (binding-type b))))
+                                (can-subtype-unify? (binding-type b)
+                                                    type-needed)))
                     visibles))
           (define visibles/no-func-for-write
             (if (not write?)
@@ -981,6 +981,7 @@ few of these methods.
 
 (define (xsmith_type-info-func node reference-unify-target reference-field definition-type-field)
   (define binder-type-field (att-value '_xsmith_binder-type-field node))
+  (define my-type (fresh-type-variable))
   (define my-type-constraint
     (if (att-value 'xsmith_is-hole? node)
         (or (and binder-type-field
@@ -1001,7 +1002,8 @@ few of these methods.
       (λ (e)
         (debug-print-1 my-type-constraint my-type-from-parent)
         (raise e))])
-    (subtype-unify! my-type-constraint my-type-from-parent))
+    (subtype-unify! my-type my-type-constraint)
+    (subtype-unify! my-type my-type-from-parent))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
     (let* ([binding (att-value '_xsmith_resolve-reference-name
                                node
@@ -1012,7 +1014,7 @@ few of these methods.
       (with-handlers
         ([(λ(x)#t)
           (λ (e)
-            (debug-print-1 var-type my-type-from-parent)
+            (debug-print-1 var-type my-type)
             (xd-printf "Error unifying types for reference of AST type: ~a\n"
                        (ast-node-type node))
             (xd-printf "Type constraint for this node: ~a\n"
@@ -1026,14 +1028,14 @@ few of these methods.
           ;; If the reference-unify-target is not #t or #f, it still needs to be
           ;; unified. However, unifying here will cause a cycle. Instead, this
           ;; is handled in the type-info property definition.
-          [#t (subtype-unify! var-type my-type-constraint)]
+          [#t (unify! var-type my-type)]
           [else (void)]))
       ;; This shouldn't be necessary, but something is going wrong,
       ;; so I'll give a chance to get this error message.
       (with-handlers
         ([(λ(x)#t)
           (λ (e)
-            (debug-print-1 binding-node-type var-type)
+            (debug-print-1 binding-node-type my-type)
             (xd-printf "Error unifying types for reference of AST type: ~a\n"
                        (ast-node-type node))
             (xd-printf "Type annotated at variable definition: ~a\n"
@@ -1041,7 +1043,7 @@ few of these methods.
             (xd-printf "Type that was recorded in scope graph: ~a\n"
                        var-type)
             (raise e))])
-        (unify! binding-node-type var-type))))
+        (subtype-unify! binding-node-type my-type))))
   (when (and definition-type-field (not (att-value 'xsmith_is-hole? node)))
     (let ([def-type (ast-child definition-type-field node)])
       (when (not (type? def-type))
@@ -1052,16 +1054,14 @@ few of these methods.
         (with-handlers
           ([(λ(x)#t)
             (λ (e)
-              (debug-print-1 def-type my-type-constraint)
+              (debug-print-1 def-type my-type)
               (xd-printf "Error unifying definition type recorded in definition field.\n")
               (xd-printf "Type constraint on this node: ~v\n" my-type-constraint)
               (xd-printf "Type from parent: ~v\n" my-type-from-parent)
               (xd-printf "Recorded definition type ~v\n" def-type)
               (raise e))])
-          (subtype-unify! def-type my-type-constraint)))))
-  ;; Now unified, return the one from the parent since it likely has
-  ;; the most direct info.
-  my-type-from-parent)
+          (unify! def-type my-type)))))
+  my-type)
 
 #|
 The type-info property is two-armed.
@@ -1196,6 +1196,7 @@ The second arm is a function that takes the type that the node has been assigned
                            #,(dict-ref binder-type-field n)))))))
     (define _xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
+                   #;(eprintf "testing type for ~a\n" this)
                    (satisfies-type-constraint?
                     (current-hole)
                     (send this _xsmith_my-type-constraint)))))
@@ -1328,8 +1329,10 @@ The second arm is a function that takes the type that the node has been assigned
 
   ;; The hole type is now either maximally unified or sufficiently concrete
   ;; that no more unification can change the result of this predicate.
-  (can-unify? hole-type
-              type-constraint))
+  #;(eprintf "hole-type: ~v, constraint: ~v, can unify? ~v\n"
+           hole-type type-constraint
+           (can-subtype-unify? hole-type type-constraint))
+  (can-subtype-unify? hole-type type-constraint))
 
 
 (define-property strict-child-order?

@@ -209,11 +209,8 @@
 (define number (base-type 'number))
 (define int (base-type 'int number))
 (define float (base-type 'float number))
-(define (number-type? x) (can-unify? x number))
 (define bool (base-type 'bool))
-(define (bool-type? x) (can-unify? x bool))
 (define string (base-type 'string))
-(define (string-type? x) (can-unify? x string))
 
 (define (type-thunks-for-concretization)
   (list (λ()float) (λ()int) (λ()bool) (λ()string)))
@@ -292,10 +289,10 @@
 
  [LiteralInt [int (no-child-types)]]
  [LiteralFloat [float (no-child-types)]]
- [Plus [number numeric-bin-op-subtype]]
- [Minus [number numeric-bin-op-subtype]]
- [Times [number numeric-bin-op-subtype]]
- [SafeDivide [number numeric-bin-op-subtype]]
+ [Plus [(fresh-subtype-of number) numeric-bin-op-subtype]]
+ [Minus [(fresh-subtype-of number) numeric-bin-op-subtype]]
+ [Times [(fresh-subtype-of number) numeric-bin-op-subtype]]
+ [SafeDivide [(fresh-subtype-of number) numeric-bin-op-subtype]]
  [LessThan [bool numeric-bin-op/no-relation-to-return]]
  [GreaterThan [bool numeric-bin-op/no-relation-to-return]]
 
