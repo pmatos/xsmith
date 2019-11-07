@@ -36,6 +36,8 @@
  add-att-rule
  add-choice-rule
  add-prop
+ define-refiner
+ add-refiner
  assemble-spec-components/core
  current-racr-spec
  (all-from-out "define-grammar-property.rkt")
@@ -94,6 +96,7 @@
   racket/dict
   racket/match
   "grammar-properties.rkt"
+  "grammar-refiner.rkt"
   "spec-component-struct.rkt"
   ))
 
@@ -408,13 +411,13 @@
 (define-for-syntax (add-prop-generic component-getter component-setter arg-stx)
   (syntax-parse arg-stx
     [(component:spec-component
-      prop/ag/cm-name:id
+      prop/refiner/ag/cm-name:id
       [(~and node-name (~or node-name-id:id #f)) prop:expr] ...+)
      (stuff-spec-component #'component
                            component-getter
                            component-setter
-                           #'((prop/ag/cm-name node-name) ...)
-                           #'([prop/ag/cm-name node-name prop] ...))]))
+                           #'((prop/refiner/ag/cm-name node-name) ...)
+                           #'([prop/refiner/ag/cm-name node-name prop] ...))]))
 (define-syntax-parser add-att-rule
   [(_ arg ...) (add-prop-generic
                 #'spec-component-struct-att-rule-info
@@ -430,6 +433,30 @@
                 #'spec-component-struct-property-info
                 #'set-spec-component-struct-property-info
                 #'(arg ...))])
+(define-syntax-parser add-refiner
+  [(_ arg ...) (add-prop-generic
+                #'spec-component-struct-refiner-info
+                #'set-spec-component-struct-refiner-info
+                #'(arg ...))])
+
+;; Refiners used for iterative refinement of ASTs.
+(define-syntax-parser define-refiner
+  [(_ component:spec-component
+      refiner-name:id
+      (~or
+       (~optional (~seq #:precedes precedes:expr))
+       (~optional (~seq #:follows follows:expr)))
+      ...
+      clause ...)
+   #'(begin
+       (define-syntax refiner-name
+         (grammar-refiner 'refiner-name
+                          (~? 'precedes '())
+                          (~? 'follows '())))
+       (add-refiner
+        component
+        refiner-name
+        clause ...))])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
