@@ -374,7 +374,7 @@
    ;; on a define-for-syntax variable it is visible every time.
    #`(begin
        (define-for-syntax #,spec-inner-id
-         (spec-component-struct (hash) (hash) (hash) (hash)))
+         (spec-component-struct (hash) (hash) (hash) (hash) (hash)))
        (define-syntax component-name
          (spec-component-struct-ref (quote-syntax #,spec-inner-id))))])
 
