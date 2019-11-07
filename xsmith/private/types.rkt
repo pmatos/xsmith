@@ -1640,6 +1640,43 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (check-true (can-subtype-unify? bird1 penguin1))
 
   (check-false (can-subtype-unify? bird penguin1))
+
+
+  ;; testing contains-type-variables over a graph
+  (define v-a (fresh-type-variable))
+  (define v-a+b (fresh-type-variable))
+  (define v-a+a (fresh-type-variable))
+  (define v-aa (fresh-type-variable))
+  (define v-ab (fresh-type-variable))
+  (define v-aaa (fresh-type-variable))
+  (define v-aab (fresh-type-variable))
+  (define v-aab+a (fresh-type-variable))
+  (define v-aab+b (fresh-type-variable))
+
+  (subtype-unify! v-aa v-a)
+  (subtype-unify! v-ab v-a)
+  (subtype-unify! v-aaa v-aa)
+  (subtype-unify! v-a v-a+a)
+  (subtype-unify! v-a v-a+b)
+  (subtype-unify! v-aab v-aab+a)
+  (subtype-unify! v-aab v-aab+b)
+
+  ;; do some tests before connecting everything
+  (define (ccv #:t [t #t] l r)
+    (define c (if t check-true check-false))
+    (c (contains-type-variables? l (type->type-variable-list r)))
+    (c (contains-type-variables? r (type->type-variable-list l))))
+  (ccv v-aa v-a+a)
+  (ccv v-aaa v-a+b)
+  (ccv #:t #f v-aab v-a+b)
+  (ccv v-aab+a v-aab)
+
+  ;; connect the rest of the graph.  Now they should all be connected.
+  (subtype-unify! v-aab v-aa)
+  (define graph-nodes (list v-a v-a+b v-a+a v-aa v-ab v-aaa v-aab v-aab+a v-aab+b))
+  (for* ([n1 graph-nodes]
+         [n2 graph-nodes])
+    (ccv n1 n2))
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
