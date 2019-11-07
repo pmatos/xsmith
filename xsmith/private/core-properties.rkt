@@ -886,8 +886,8 @@ few of these methods.
           (define visibles-with-type
             (filter (λ (b) (and b
                                 (concrete-type? (binding-type b))
-                                (can-subtype-unify? (binding-type b)
-                                                    type-needed)))
+                                (can-unify? (binding-type b)
+                                            type-needed)))
                     visibles))
           (define visibles/no-func-for-write
             (if (not write?)
@@ -984,16 +984,15 @@ few of these methods.
   (define my-type (fresh-type-variable))
   (define my-type-constraint
     (if (att-value 'xsmith_is-hole? node)
-        (or (and binder-type-field
-                 (not (ast-bud-node? (ast-child binder-type-field node)))
-                 (eprintf "using lifted hole type to unify!\n")
-                 (ast-child binder-type-field node))
-            (fresh-type-variable))
+        (and binder-type-field
+             (not (ast-bud-node? (ast-child binder-type-field node)))
+             (eprintf "using lifted hole type to unify!\n")
+             (ast-child binder-type-field node))
         (att-value '_xsmith_my-type-constraint node)))
   (define my-type-from-parent
     (att-value '_xsmith_type-constraint-from-parent node))
   (define (debug-print-1 t1 t2)
-    (xd-printf "error while subtype-unifying types: ~a and ~a\n" t1 t2)
+    (xd-printf "error while unifying types: ~a and ~a\n" t1 t2)
     (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
     (xd-printf "with parent of AST type: ~a\n" (ast-node-type
                                                 (parent-node node))))
@@ -1002,8 +1001,9 @@ few of these methods.
       (λ (e)
         (debug-print-1 my-type-constraint my-type-from-parent)
         (raise e))])
-    (subtype-unify! my-type my-type-constraint)
-    (subtype-unify! my-type my-type-from-parent))
+    (when my-type-constraint
+      (unify! my-type my-type-constraint))
+    (unify! my-type my-type-from-parent))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
     (let* ([binding (att-value '_xsmith_resolve-reference-name
                                node
@@ -1043,7 +1043,7 @@ few of these methods.
             (xd-printf "Type that was recorded in scope graph: ~a\n"
                        var-type)
             (raise e))])
-        (subtype-unify! binding-node-type my-type))))
+        (unify! binding-node-type my-type))))
   (when (and definition-type-field (not (att-value 'xsmith_is-hole? node)))
     (let ([def-type (ast-child definition-type-field node)])
       (when (not (type? def-type))
@@ -1167,7 +1167,7 @@ The second arm is a function that takes the type that the node has been assigned
                       (define reference-unify-target
                         #,(dict-ref node-reference-unify-target n))
                       (when (and reference-unify-target (not (eq? #t reference-unify-target)))
-                        (subtype-unify!
+                        (unify!
                          (binding-type (att-value '_xsmith_resolve-reference-name
                                                   node
                                                   (ast-child #,(dict-ref node-reference-field n) node)))
@@ -1329,10 +1329,7 @@ The second arm is a function that takes the type that the node has been assigned
 
   ;; The hole type is now either maximally unified or sufficiently concrete
   ;; that no more unification can change the result of this predicate.
-  #;(eprintf "hole-type: ~v, constraint: ~v, can unify? ~v\n"
-           hole-type type-constraint
-           (can-subtype-unify? hole-type type-constraint))
-  (can-subtype-unify? hole-type type-constraint))
+  (can-unify? hole-type type-constraint))
 
 
 (define-property strict-child-order?
