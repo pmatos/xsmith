@@ -34,6 +34,7 @@
 xsmith/scribblings/util
 ;; for cish features list
 "../cish/cish-main.rkt"
+xsmith/private/xsmith-version
 racket/list
 )
 
@@ -43,7 +44,7 @@ racket/list
         (@author+email "Pierce Darragh" "pierce.darragh@gmail.com")
         (@author+email "Eric Eide" "eeide@cs.utah.edu")]
 
-@; XXX Version @xsmith-version-string
+Version @xsmith-version-string
 
 When Xsmith is installed as a Racket package, executables for the bundled generators are placed in your Racket package @verb{bin} directory.
 Usually this directory is @verb{$HOME/.racket/racket-<version>/bin} on Linux, maybe @verb{$HOME/Library/Racket/<version>/bin} on normal MacOS installs, and maybe @verb{/usr/local/bin} for MacOS Homebrew installs.
@@ -72,11 +73,11 @@ Cish supports the following features for the @verb{--with-<feature>} flags:
 (map first cish-features-list)
 (map second cish-features-list)))
 
-To compile cish output, you need to include Csmith's runtime directory in your header path to get safe_math.h.
+To compile cish output, you need to include cish's directory and Csmith's runtime directory in your header path to get safe_math.h.
 
 eg.
 
-@verb{xsmith-cish > cish-output.c && gcc -I $CSMITH_DIR/runtime -o cish-output cish-output.c}
+@verb{xsmith-cish > cish-output.c && gcc -I $XSMITH_EXAMPLES_DIR/cish -I $CSMITH_DIR/runtime -o cish-output cish-output.c}
 
 
 @section[#:tag "schemely"]{Schemely}

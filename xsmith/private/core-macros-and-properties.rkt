@@ -74,6 +74,7 @@
          strict-child-order?
          render-node-info
          render-hole-info
+         type-info
          ;; user-added props
          prop-name ...
          )

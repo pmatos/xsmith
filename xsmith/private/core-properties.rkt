@@ -1111,11 +1111,15 @@ The second arm is a function that takes the type that the node has been assigned
                         (quote #,n)
                         t))))))
     (define _xsmith_my-type-constraint-info/att-rule
-      (for/hash ([n (dict-keys constraints-checked)])
-        (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n)))))
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ () default-base-type))
+          (for/hash ([n (dict-keys constraints-checked)])
+            (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n))))))
     (define _xsmith_my-type-constraint-info/choice-rule
-      (for/hash ([n (dict-keys constraints-checked)])
-        (values n #`(λ () #,(dict-ref constraints-checked n)))))
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ () default-base-type))
+          (for/hash ([n (dict-keys constraints-checked)])
+            (values n #`(λ () #,(dict-ref constraints-checked n))))))
 
     (define node-child-dict-funcs
       (hash-set
@@ -1170,17 +1174,22 @@ The second arm is a function that takes the type that the node has been assigned
                                                   (ast-child #,(dict-ref node-reference-field n) node)))))
                       child-types))))
     (define _xsmith_type-constraint-from-parent-info
-      (for/hash ([n nodes])
-        (values n #`(λ (node) (_xsmith_type-constraint-from-parent-func
-                               node
-                               (quote #,n))))))
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ (node) default-base-type))
+          (for/hash ([n nodes])
+            (values n #`(λ (node) (_xsmith_type-constraint-from-parent-func
+                                   node
+                                   (quote #,n)))))))
     (define xsmith_type-info
-      (for/hash ([n nodes])
-        (values n #`(λ (node)
-                      (xsmith_type-info-func node
-                                             #,(dict-ref node-reference-unify-target n)
-                                             #,(dict-ref node-reference-field n)
-                                             #,(dict-ref binder-type-field n))))))
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ (node) default-base-type))
+          (for/hash ([n nodes])
+            (values n #`(λ (node)
+                          (xsmith_type-info-func
+                           node
+                           #,(dict-ref node-reference-unify-target n)
+                           #,(dict-ref node-reference-field n)
+                           #,(dict-ref binder-type-field n)))))))
     (define _xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
                    (satisfies-type-constraint?
@@ -1235,9 +1244,10 @@ The second arm is a function that takes the type that the node has been assigned
     (define binding-nodes-finished '())
 
     (define (break?!)
+      ;; TODO - right now removing breaks fixes issues.  Probably I need to re-think the conditions under which I can terminate early with subtype unification rather than symmetric unification.
       (when (concrete-type? hole-type)
         (break!! #t))
-      (when (at-least-as-concrete hole-type type-constraint)
+      #;(when (at-least-as-concrete hole-type type-constraint)
         #|
         TODO This is currently broken.  I'm sure at-least-as-concrete is broken.
         I need to make at-least-as-concrete more conservative, probably, but also
@@ -1245,8 +1255,7 @@ The second arm is a function that takes the type that the node has been assigned
         are no common cases instead of trying to cram a second version of that into
         `at-least-as-concrete`.
         |#
-        ;;(break!! #t)
-        (void)
+        (break!! #t)
         )
       ;; Even if we're not done yet, when we make progress we should update this list.
       (set! variables (type->type-variable-list hole-type)))
