@@ -625,7 +625,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
                           "can't unify these types: ~v and ~v"
                           sub super)]
            [(list (? base-type-range?) ...)
-            (define super-range (base-type-range super super))
+            (define super-range (match super
+                                  [(base-type-range _ _) super]
+                                  [(base-type _ _) (base-type-range #f super)]))
             (define new-ranges
               (filter-map
                (λ (sub)
@@ -642,6 +644,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (subtype-unify! non-base super)
             non-base]))]
        [#f (match super
+             [(base-type-range super-low super-high)
+              (set-type-variable-innard-type! tvi-sub
+                                              (base-type-range #f super-high))]
              [(? base-type?)
               (set-type-variable-innard-type! tvi-sub (base-type-range #f super))]
              [else
@@ -669,7 +674,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
                           "can't unify the following types: ~v and ~v"
                           sub super)]
            [(list (? base-type-range?) ...)
-            (define sub-range (base-type-range sub sub))
+            (define sub-range
+              (match sub
+                [(base-type-range _ _) sub]
+                [(base-type _ _) (base-type-range sub sub)]))
             (define new-ranges
               (filter-map
                (λ (super)
@@ -686,6 +694,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (subtype-unify! sub non-base)
             non-base]))]
        [#f (match sub
+             [(base-type-range sub-low sub-high)
+              (set-type-variable-innard-type!
+               tvi-sup
+               (base-type-range sub-high (base-type->superest sub-high)))]
              [(? base-type?)
               (set-type-variable-innard-type!
                tvi-sup
@@ -1362,6 +1374,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 [(base-type _ _) (for/or ([c (filter base-type? cs)])
                                    (or (can-subtype-unify? t c)
                                        (can-subtype-unify? c t)))]
+                [(base-type-range _ _) (for/or ([c (filter base-type-range? cs)])
+                                         (or (can-subtype-unify? t c)
+                                             (can-subtype-unify? c t)))]
                 [(? function-type?)
                  (ormap (λ (c) (at-least-as-concrete t c))
                         (filter function-type? cs))]
@@ -1382,6 +1397,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 [(base-type cn _) (for/and ([t (filter base-type? ts)])
                                     (not (or (can-subtype-unify? c t)
                                              (can-subtype-unify? t c))))]
+                [(base-type-range _ _) (for/and ([t (filter base-type-range? ts)])
+                                         (not (or (can-subtype-unify? c t)
+                                                  (can-subtype-unify? t c))))]
                 [(? function-type?)
                  (null? (filter function-type? ts))]
                 [(? product-type?)
@@ -1401,6 +1419,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(type-variable-innard _ t _ _ _) (at-least-as-concrete t constraint-type)])]
     ;; No more variables
     [(list (base-type _ _) _) #t]
+    [(list (base-type-range _ _) _) #t]
     [(list (function-type v-arg v-ret) (function-type c-arg c-ret))
      (and (at-least-as-concrete v-arg c-arg)
           (at-least-as-concrete v-ret c-ret))]
@@ -1426,8 +1445,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (if (eq? v-ctor c-ctor)
          (andmap at-least-as-concrete v-inners c-inners)
          #t)]
-    ;; TODO - this function always needs to have all types represented here to be accurate.
-    [else #f #;#t]))
+    [else #t]))
 
 (module+ test
   (check-true (at-least-as-concrete (fresh-type-variable) (fresh-type-variable)))

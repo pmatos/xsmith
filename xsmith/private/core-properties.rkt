@@ -1000,9 +1000,16 @@ few of these methods.
     ([(λ(x)#t)
       (λ (e)
         (debug-print-1 my-type-constraint my-type-from-parent)
+        (xd-printf "error unifying my-type with my-type-constraint\n")
         (raise e))])
     (when my-type-constraint
-      (unify! my-type my-type-constraint))
+      (unify! my-type my-type-constraint)))
+  (with-handlers
+    ([(λ(x)#t)
+      (λ (e)
+        (debug-print-1 my-type-constraint my-type-from-parent)
+        (xd-printf "error unifying my-type with my-parent-type\n")
+        (raise e))])
     (unify! my-type my-type-from-parent))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
     (let* ([binding (att-value '_xsmith_resolve-reference-name
@@ -1252,14 +1259,7 @@ The second arm is a function that takes the type that the node has been assigned
       ;; TODO - right now removing breaks fixes issues.  Probably I need to re-think the conditions under which I can terminate early with subtype unification rather than symmetric unification.
       (when (concrete-type? hole-type)
         (break!! #t))
-      #;(when (at-least-as-concrete hole-type type-constraint)
-        #|
-        TODO This is currently broken.  I'm sure at-least-as-concrete is broken.
-        I need to make at-least-as-concrete more conservative, probably, but also
-        I can pair it here with `can-unify?` to break off in the case that there
-        are no common cases instead of trying to cram a second version of that into
-        `at-least-as-concrete`.
-        |#
+      (when (at-least-as-concrete hole-type type-constraint)
         (break!! #t)
         )
       ;; Even if we're not done yet, when we make progress we should update this list.
