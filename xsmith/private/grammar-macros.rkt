@@ -349,8 +349,9 @@
               ([component-project (list spec-component-struct-grammar-info
                                         spec-component-struct-att-rule-info
                                         spec-component-struct-choice-rule-info
-                                        spec-component-struct-property-info)]
-               [subhash-key '(grammar-info ag-info cm-info props-info)])
+                                        spec-component-struct-property-info
+                                        spec-component-struct-refiner-info)]
+               [subhash-key '(grammar-info ag-info cm-info props-info refiners-info)])
       (define subhash
         (for/fold ([h (hash)])
                   ([p (map (λ (x) (component-project x))
