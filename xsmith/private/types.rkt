@@ -279,6 +279,16 @@ The minimum may be #f to mean any subtype of the maximum type.
 ;; a default base type, for when users don't specify any type rules.
 (define default-base-type (base-type 'xsmith_default-base-type #f))
 
+(module+ test
+  ;; Define some base types for testing
+  (define animal (mk-base-type 'animal))
+  (define bird (mk-base-type 'bird animal))
+  (define penguin (mk-base-type 'penguin bird))
+  (define canine (mk-base-type 'canine animal))
+  (define dog (mk-base-type 'dog canine))
+  (define labradoodle (mk-base-type 'labradoodle dog))
+  )
+
 (define (base-type->parent-chain bt)
   (if (not (base-type-supertype bt))
       (list bt)
@@ -488,6 +498,23 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (define new-r (base-type-range new-rsub rsup))
             (list new-l new-r)))]
     [else #f]))
+(module+ test
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range #f dog)
+                 (base-type-range labradoodle canine))
+                (list (base-type-range #f dog)
+                      (base-type-range labradoodle canine)))
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range labradoodle canine)
+                 (base-type-range #f dog))
+                (list (base-type-range labradoodle dog)
+                      (base-type-range labradoodle dog)))
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range dog canine)
+                 (base-type-range #f dog))
+                (list (base-type-range dog dog)
+                      (base-type-range dog dog)))
+  )
 (define (type-lists->unified-base-types sub-list super-list)
   (define result
     (filter (λ(x)x)
@@ -1611,11 +1638,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                        (type->type-variable-list sv5)))
 
 
-  (define bird (mk-base-type 'bird))
-  (define penguin (mk-base-type 'penguin bird))
-  (define dog (mk-base-type 'dog))
-  (define labradoodle (mk-base-type 'labradoodle dog))
-
+  ;; Check differences between symmetric and subtype can-unify?
   (define birddog1 (fresh-type-variable (base-type-range bird bird)
                                         (base-type-range labradoodle labradoodle)))
   (define birddog2 (fresh-type-variable (base-type-range dog dog)
@@ -1624,15 +1647,24 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (check-true (can-subtype-unify? birddog2 birddog1))
   (check-false (can-unify? birddog1 birddog2))
   (check-false (can-unify? birddog2 birddog1))
+  (subtype-unify! birddog1 birddog2)
+  (check-true (can-subtype-unify? birddog1 canine))
+  (check-false (can-subtype-unify? birddog1 bird))
+  (check-true (can-subtype-unify? labradoodle birddog2))
+  (check-false (can-subtype-unify? birddog2 labradoodle))
 
   (check-equal? (base-type->parent-chain penguin)
-                (list penguin bird))
+                (list penguin bird animal))
 
+  (define animal1 (fresh-subtype-of animal))
   (define bird1 (fresh-type-variable))
+  (subtype-unify! bird1 animal)
+  (subtype-unify! bird1 animal1)
   (subtype-unify! bird1 bird)
   (check-true (can-subtype-unify? bird1 penguin))
   (check-true (can-subtype-unify? penguin bird1))
   (define penguin1 (fresh-type-variable))
+  (subtype-unify! penguin1 animal1)
   (subtype-unify! penguin1 penguin)
   (check-true (can-subtype-unify? penguin1 bird))
   (check-true (can-subtype-unify? penguin penguin1))
@@ -1640,6 +1672,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (check-true (can-subtype-unify? bird1 penguin1))
 
   (check-false (can-subtype-unify? bird penguin1))
+
 
 
   ;; testing contains-type-variables over a graph
