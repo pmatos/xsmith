@@ -271,7 +271,10 @@ Base types can be declared as subtypes of other base types.
 Inside a type variable, they are always placed in a base-type-range, which gives a minimum and maximum type.
 The minimum may be #f to mean any subtype of the maximum type.
 |#
-(struct base-type (name supertype) #:transparent)
+(struct base-type (name supertype) #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc self port mode)
+     (fprintf port "#<~a>" (base-type-name self)))])
 
 ;; a default base type, for when users don't specify any type rules.
 (define default-base-type (base-type 'xsmith_default-base-type #f))
@@ -333,7 +336,13 @@ The minimum may be #f to mean any subtype of the maximum type.
          (error 'base-type-greatest-lower-bound
                 "incompatible base types: ~v and ~v" a b))]))
 
-(struct base-type-range (sub super) #:transparent)
+(struct base-type-range (sub super)
+  #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc self port mode)
+     (fprintf port "#<range:~a-~a>"
+              (base-type-range-sub self)
+              (base-type-range-super self)))])
 
 (struct function-type (arg-type return-type) #:transparent)
 
