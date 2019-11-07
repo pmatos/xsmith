@@ -862,14 +862,14 @@ Perform error checking:
                                      (dict-ref infos-hash 'ag-info))]
                  [(n-cm-clause ...) (rule-hash->clause-list
                                      (dict-ref infos-hash 'cm-info))])
-     #'(assemble_stage3.5
+     #'(assemble_stage4
         spec
         (n-g-part ...)
         (n-ag-clause ...)
         (n-cm-clause ...)
         r-clauses))])
 
-(define-syntax-parser assemble_stage3.5
+(define-syntax-parser assemble_stage4
   [(_ spec
       g-clauses
       ag-clauses
@@ -877,14 +877,14 @@ Perform error checking:
       ((r-clause+:prop-clause ...) ...))
    (define r-clauses (flatten (map syntax->list
                                    (syntax->list #'((r-clause+ ...) ...)))))
-   (display (format "~a\n" r-clauses))
-   #'(assemble_stage4
+   ;; Do stuff to the r-clauses here.
+   #'(assemble_stage5
       spec
       g-clauses
       ag-clauses
       cm-clauses)])
 
-(define-syntax-parser assemble_stage4
+(define-syntax-parser assemble_stage5
   ;; Sort the grammar clauses.
   ;; We sort them based on inheritance, so grammar node types that inherit from
   ;; other grammar nodes are output *after* the nodes they inherit from.
@@ -901,13 +901,13 @@ Perform error checking:
                         <
                         #:key grammar-part-n-parents
                         #:cache-keys? #t)])
-     #'(assemble_stage5
+     #'(assemble_stage6
         spec
         (g-part-sorted ...)
         (ag-clause ...)
         (cm-clause ...)))])
 
-(define-syntax-parser assemble_stage5
+(define-syntax-parser assemble_stage6
   ;; Assemble everything!
   ;; First we use with-syntax and syntax-parse to bind a bunch of names
   ;; that are needed in the template.  Then there is a giant template.
