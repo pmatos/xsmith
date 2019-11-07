@@ -875,9 +875,19 @@ Perform error checking:
       ag-clauses
       cm-clauses
       ((r-clause+:prop-clause ...) ...))
+   ;; Flatten the nested clauses into a list of syntax objects.
    (define r-clauses (flatten (map syntax->list
                                    (syntax->list #'((r-clause+ ...) ...)))))
-   ;; Do stuff to the r-clauses here.
+   (define (clause->list stx)
+     (syntax-parse stx
+       [r:prop-clause (list #'r.prop-name
+                            #'r.node-name
+                            #'r.prop-val)]))
+   ;; Extract fields from the syntax objects, making a list of list of syntax
+   ;; objects.
+   (define r-lists (map clause->list r-clauses))
+   ;; TODO - Do stuff to the r-lists here.
+   (display (format "~a\n" r-lists))
    #'(assemble_stage5
       spec
       g-clauses
