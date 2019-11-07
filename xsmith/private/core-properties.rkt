@@ -983,25 +983,25 @@ few of these methods.
   (define binder-type-field (att-value '_xsmith_binder-type-field node))
   (define my-type-constraint
     (if (att-value 'xsmith_is-hole? node)
-        (and binder-type-field
-             (not (ast-bud-node? (ast-child binder-type-field node)))
-             (eprintf "using lifted hole type to unify!\n")
-             (ast-child binder-type-field node))
+        (or (and binder-type-field
+                 (not (ast-bud-node? (ast-child binder-type-field node)))
+                 (eprintf "using lifted hole type to unify!\n")
+                 (ast-child binder-type-field node))
+            (fresh-type-variable))
         (att-value '_xsmith_my-type-constraint node)))
   (define my-type-from-parent
     (att-value '_xsmith_type-constraint-from-parent node))
   (define (debug-print-1 t1 t2)
-    (xd-printf "error while unifying types: ~a and ~a\n" t1 t2)
+    (xd-printf "error while subtype-unifying types: ~a and ~a\n" t1 t2)
     (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
     (xd-printf "with parent of AST type: ~a\n" (ast-node-type
                                                 (parent-node node))))
-  (when my-type-constraint
-    (with-handlers
-      ([(λ(x)#t)
-        (λ (e)
-          (debug-print-1 my-type-from-parent my-type-constraint)
-          (raise e))])
-      (unify! my-type-from-parent my-type-constraint)))
+  (with-handlers
+    ([(λ(x)#t)
+      (λ (e)
+        (debug-print-1 my-type-constraint my-type-from-parent)
+        (raise e))])
+    (subtype-unify! my-type-constraint my-type-from-parent))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
     (let* ([binding (att-value '_xsmith_resolve-reference-name
                                node
@@ -1012,9 +1012,11 @@ few of these methods.
       (with-handlers
         ([(λ(x)#t)
           (λ (e)
-            (debug-print-1 my-type-from-parent var-type)
+            (debug-print-1 var-type my-type-from-parent)
             (xd-printf "Error unifying types for reference of AST type: ~a\n"
                        (ast-node-type node))
+            (xd-printf "Type constraint for this node: ~a\n"
+                       my-type-constraint)
             (xd-printf "Type received from parent AST node: ~a\n"
                        my-type-from-parent)
             (xd-printf "Type annotated at variable definition: ~a\n"
@@ -1024,7 +1026,7 @@ few of these methods.
           ;; If the reference-unify-target is not #t or #f, it still needs to be
           ;; unified. However, unifying here will cause a cycle. Instead, this
           ;; is handled in the type-info property definition.
-          [#t (unify! my-type-from-parent var-type)]
+          [#t (subtype-unify! var-type my-type-constraint)]
           [else (void)]))
       ;; This shouldn't be necessary, but something is going wrong,
       ;; so I'll give a chance to get this error message.
@@ -1050,12 +1052,13 @@ few of these methods.
         (with-handlers
           ([(λ(x)#t)
             (λ (e)
-              (debug-print-1 my-type-from-parent def-type)
+              (debug-print-1 def-type my-type-constraint)
               (xd-printf "Error unifying definition type recorded in definition field.\n")
+              (xd-printf "Type constraint on this node: ~v\n" my-type-constraint)
               (xd-printf "Type from parent: ~v\n" my-type-from-parent)
               (xd-printf "Recorded definition type ~v\n" def-type)
               (raise e))])
-          (unify! my-type-from-parent def-type)))))
+          (subtype-unify! def-type my-type-constraint)))))
   ;; Now unified, return the one from the parent since it likely has
   ;; the most direct info.
   my-type-from-parent)
@@ -1164,14 +1167,15 @@ The second arm is a function that takes the type that the node has been assigned
                       (define reference-unify-target
                         #,(dict-ref node-reference-unify-target n))
                       (when (and reference-unify-target (not (eq? #t reference-unify-target)))
-                        (unify!
+                        (subtype-unify!
+                         (binding-type (att-value '_xsmith_resolve-reference-name
+                                                  node
+                                                  (ast-child #,(dict-ref node-reference-field n) node)))
                          (get-value-from-parent-dict child-types reference-unify-target
                                                      (λ () (error 'type-info
                                                                   "No type given for field ~a"
                                                                   reference-unify-target)))
-                         (binding-type (att-value '_xsmith_resolve-reference-name
-                                                  node
-                                                  (ast-child #,(dict-ref node-reference-field n) node)))))
+                         ))
                       child-types))))
     (define _xsmith_type-constraint-from-parent-info
       (if (dict-empty? this-prop-info)

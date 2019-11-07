@@ -178,7 +178,8 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (match innard
     [(type-variable-innard _ _ #f _ _) innard]
     [(type-variable-innard _ _ forwarded _ _)
-     (innard->forward-resolve forwarded)]))
+     (innard->forward-resolve forwarded)]
+    [else innard]))
 
 (define (type-variable-normalize! tv)
   (match tv
@@ -887,10 +888,20 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
      (define (->use t-list)
        (match t-list
-         [(list) (error 'subtype-unify!
-                        "can't unify types ~v and ~v (this one shouldn't happen...)"
-                        (set-first (type-variable-innard-handle-set sub))
-                        (set-first (type-variable-innard-handle-set super)))]
+         [(list)
+          (let ([err-values
+                 (with-handlers ([(λ(e)#t) (λ(e) (error 'xsmith
+                                                        "Internal error while raising subtyping error."))])
+                   (list (set-first
+                          (type-variable-innard-handle-set
+                           (innard->forward-resolve sub)))
+                         (set-first
+                          (type-variable-innard-handle-set
+                           (innard->forward-resolve super)))))])
+            (error 'subtype-unify!
+                   "can't unify types ~v and ~v (this one shouldn't happen...)"
+                   (car err-values)
+                   (cadr err-values)))]
          [(list t) t]
          [(list ts ...) ts]))
      (define all-sub (append sub-bases sub-compounds))
@@ -1471,10 +1482,20 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (work '() (list orig-type-normalized) '()))
 
 (define (type-variable->canonical-type-variable tv)
-  (match tv
-    [(type-variable (type-variable-innard handles _ _ _ _)) (set-first handles)]
-    [(type-variable-innard handles _ _ _ _) (set-first handles)]
-    [else tv]))
+  (if (not (or (type-variable? tv)
+               (type-variable-innard? tv)))
+      tv
+      (let* ([tvi (if (type-variable? tv)
+                      (begin (type-variable-normalize! tv)
+                             (type-variable-tvi tv))
+                      (innard->forward-resolve tv))]
+             [handles (type-variable-innard-handle-set tvi)])
+        (cond [(and (set-empty? handles) (type-variable? tv)) tv]
+              [(set-empty? handles)
+               (define new-var (type-variable tvi))
+               (set-add! handles new-var)
+               new-var]
+              [else (set-first handles)]))))
 
 (module+ test
   (define v1 (fresh-type-variable))
