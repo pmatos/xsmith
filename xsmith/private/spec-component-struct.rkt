@@ -36,6 +36,7 @@
  set-spec-component-struct-att-rule-info
  set-spec-component-struct-choice-rule-info
  set-spec-component-struct-property-info
+ set-spec-component-struct-refiner-info
 
  spec-component
 
