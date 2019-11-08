@@ -33,6 +33,10 @@
 (define-refiner
   tg
   evens-only
+  [Prog [(λ (n) #t)
+         (λ (n) (begin
+                  (display "top-level program node")
+                  n))]]
   [Val [(λ (n) (odd? (ast-child 'v n)))
         (λ (n) (begin
                  ;; Print a message and return the node unchanged (for now).
