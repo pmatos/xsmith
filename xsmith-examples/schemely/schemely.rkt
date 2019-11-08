@@ -206,6 +206,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Types
 
+(type-variable-subtype-default #t)
 (define number (base-type 'number))
 (define int (base-type 'int number))
 (define float (base-type 'float number))
@@ -225,7 +226,7 @@
 
 
 (define numeric-bin-op/no-relation-to-return
-  (λ (n t) (hash 'l number 'r number)))
+  (λ (n t) (hash 'l (fresh-subtype-of number) 'r (fresh-subtype-of number))))
 (define numeric-bin-op-subtype
   (λ (n t)
     (hash 'l (fresh-subtype-of t) 'r (fresh-subtype-of t))))
@@ -238,18 +239,18 @@
                        (define last-expression
                          (car (reverse (ast-children
                                         (ast-child 'expressions n)))))
-                       (hash last-expression t
+                       (hash last-expression (fresh-subtype-of t)
                              'definitions (λ (c) (fresh-type-variable))
                              'expressions (λ (c) (fresh-type-variable))))]]
- [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
+ [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression (fresh-subtype-of t)))]]
  [VariableReference [(fresh-type-variable) (no-child-types)]]
  ;; TODO - the type of a variable write must not be function, which is checked dynamically.  But it would be better if this were accomplished in some way that just let me write an unconstrained type variable here and filter out the possibility of set! on a function rather than having a runtime error.  Even this verbose type doesn't capture all the non-function types I can have, since there are a ton of possible list types (including nested lists).
  [SetBangRet [(fresh-type-variable number bool string
                                    (list-type (fresh-type-variable
                                                number bool string)))
-              (λ (n t) (hash 'Expression t))]]
+              (λ (n t) (hash 'Expression (fresh-subtype-of t)))]]
  [LetStar [(fresh-type-variable) (λ (n t)
-                                   (hash 'body t
+                                   (hash 'body (fresh-subtype-of t)
                                          'definitions (λ (c) (fresh-type-variable))))]]
  [Lambda [(function-type (product-type #f) (fresh-type-variable))
           (λ (n t)
@@ -277,9 +278,9 @@
                  (hash-set
                   (for/hash ([arg args]
                              [arg-type args-type-list])
-                    (values arg arg-type))
+                    (values arg (fresh-subtype-of arg-type)))
                   'procedure
-                  (function-type args-type t)))]]
+                  (fresh-subtype-of (function-type args-type t))))]]
  [FormalParam [(fresh-type-variable) (no-child-types)]]
 
  [LiteralBool [bool (no-child-types)]]
