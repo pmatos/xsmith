@@ -981,7 +981,6 @@ few of these methods.
 
 (define (xsmith_type-info-func node reference-unify-target reference-field definition-type-field)
   (define binder-type-field (att-value '_xsmith_binder-type-field node))
-  (define my-type (fresh-type-variable))
   (define my-type-constraint
     (if (att-value 'xsmith_is-hole? node)
         (and binder-type-field
@@ -991,8 +990,10 @@ few of these methods.
         (att-value '_xsmith_my-type-constraint node)))
   (define my-type-from-parent
     (att-value '_xsmith_type-constraint-from-parent node))
+  ;(define my-type (fresh-type-variable))
+  (define my-type my-type-from-parent)
   (define (debug-print-1 t1 t2)
-    (xd-printf "error while unifying types: ~a and ~a\n" t1 t2)
+    (xd-printf "error while unifying types:\n~a\nand\n~a\n" t1 t2)
     (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
     (xd-printf "with parent of AST type: ~a\n" (ast-node-type
                                                 (parent-node node))))
@@ -1000,11 +1001,12 @@ few of these methods.
     ([(λ(x)#t)
       (λ (e)
         (debug-print-1 my-type-constraint my-type-from-parent)
-        (xd-printf "error unifying my-type with my-type-constraint\n")
+        ;(xd-printf "error unifying my-type with my-type-constraint\n")
+        (xd-printf "error unifying my-type (from parent) with my-type-constraint\n")
         (raise e))])
     (when my-type-constraint
       (unify! my-type my-type-constraint)))
-  (with-handlers
+  #;(with-handlers
     ([(λ(x)#t)
       (λ (e)
         (debug-print-1 my-type-constraint my-type-from-parent)
@@ -1247,89 +1249,99 @@ The second arm is a function that takes the type that the node has been assigned
   the hole type, we recur down its subtree as far as variables are shared.
   After each sibling we go up the parent chain and repeat.
   |#
+  (when (not (type? type-constraint))
+    (error 'satisfies-type-constraint? "given non-type value: ~v" type-constraint))
   (define hole-type (att-value 'xsmith_type hole))
 
   ;;; Begin traversal
-  (let/cc break!!
-    (define variables '())
-    (define binding-nodes-started '())
-    (define binding-nodes-finished '())
+  (define maybe-can-unify?
+    (let/cc break!!
+      (define binding-nodes-started '())
+      (define binding-nodes-finished '())
+      (define (relevant? other-type)
+        (contains-type-variables? other-type
+                                  (type->type-variable-list hole-type)))
 
-    (define (break?!)
-      ;; TODO - right now removing breaks fixes issues.  Probably I need to re-think the conditions under which I can terminate early with subtype unification rather than symmetric unification.
-      (when (concrete-type? hole-type)
-        (break!! #t))
-      (when (at-least-as-concrete hole-type type-constraint)
-        (break!! #t)
-        )
-      ;; Even if we're not done yet, when we make progress we should update this list.
-      (set! variables (type->type-variable-list hole-type)))
-    (break?!)
-    (let parent-loop ([p (ast-parent hole)]
-                      [child hole])
-      (define (sibling-loop nodes)
-        (define rec sibling-loop)
-        (if (null? nodes)
-            (void)
-            (let ([n (car nodes)]
-                  [ns (cdr nodes)])
-              (cond [(not (ast-node? n))
-                     (rec ns)]
-                    [(eq? n child)
-                     (rec ns)]
-                    [(ast-list-node? n)
-                     (rec (append (ast-children n)
-                                  ns))]
-                    [(ast-bud-node? n)
-                     (rec ns)]
-                    [(att-value 'xsmith_is-hole? n)
-                     (rec ns)]
-                    [(memq n binding-nodes-finished)
-                     (rec ns)]
-                    [else
-                     (define n-type (att-value 'xsmith_type n))
-                     ;; When we check the type of a new thing it may unify variables,
-                     ;; so we've maybe made progress.
-                     (break?!)
+      (define (break?!)
+        ;; TODO - right now removing breaks fixes issues.  Probably I need to re-think the conditions under which I can terminate early with subtype unification rather than symmetric unification.
+        (when (concrete-type? hole-type)
+          (break!! #t))
+        (when (not (can-unify? hole-type type-constraint))
+          (break!! #f))
+        (when (at-least-as-concrete hole-type type-constraint)
+            (break!! #t)))
+      (break?!)
+      (let parent-loop ([p (ast-parent hole)]
+                        [child hole])
+        (define (resolve-types node)
+          (match node
+            [(? (λ (n) (not (ast-node? n)))) (void)]
+            [(? ast-list-node?) (for-each resolve-types (ast-children node))]
+            [(? ast-bud-node?) (void)]
+            [else (att-value 'xsmith_type node)]))
+        (define (sibling-loop nodes)
+          (for ([n nodes]) (resolve-types n))
+          ;; When we check the type of a new thing it may unify variables,
+          ;; so we've maybe made progress.
+          (break?!)
+          (define (rec nodes)
+            (if (null? nodes)
+                (void)
+                (let ([n (car nodes)]
+                      [ns (cdr nodes)])
+                  (cond [(not (ast-node? n))
+                         (rec ns)]
+                        [(eq? n child)
+                         (rec ns)]
+                        [(ast-list-node? n)
+                         (rec (append (ast-children n)
+                                      ns))]
+                        [(ast-bud-node? n)
+                         (rec ns)]
+                        [(att-value 'xsmith_is-hole? n)
+                         (rec ns)]
+                        [(memq n binding-nodes-finished)
+                         (rec ns)]
+                        [else
+                         (define n-type (att-value 'xsmith_type n))
+                         ;; If the node is a binder, mark it so we don't look at it
+                         ;; repeatedly when we hit references to it.
+                         (when (att-value 'xsmith_definition-binding n)
+                           (set! binding-nodes-finished
+                                 (cons n binding-nodes-finished)))
 
-                     ;; If the node is a binder, mark it so we don't look at it
-                     ;; repeatedly when we hit references to it.
-                     (when (att-value 'xsmith_definition-binding n)
-                       (set! binding-nodes-finished
-                             (cons n binding-nodes-finished)))
+                         ;; If the node is a reference, the definition site
+                         ;; may have nodes that will affect the type.
+                         (when (att-value '_xsmith_is-read-reference-node? n)
+                           (let ([binding-node (binding-ast-node
+                                                (att-value
+                                                 '_xsmith_resolve-reference n))])
+                             (when (not (memq binding-node binding-nodes-started))
+                               (set! binding-nodes-started
+                                     (cons binding-node binding-nodes-started))
+                               (sibling-loop (list binding-node)))))
 
-                     ;; If the node is a reference, the definition site
-                     ;; may have nodes that will affect the type.
-                     (when (att-value '_xsmith_is-read-reference-node? n)
-                       (let ([binding-node (binding-ast-node
-                                            (att-value
-                                             '_xsmith_resolve-reference n))])
-                         (when (not (memq binding-node binding-nodes-started))
-                           (set! binding-nodes-started
-                                 (cons binding-node binding-nodes-started))
-                           (sibling-loop (list binding-node)))))
-
-                     ;; Check children nodes if they are relevant
-                     (when (contains-type-variables? n-type variables)
-                       (sibling-loop (ast-children n)))
-                     (rec ns)]))))
-      (sibling-loop (ast-children p))
-      (when (and (ast-has-parent? p)
-                 (or
-                  ;; If the current node (child) includes relevant variables,
-                  ;; its siblings may too even if the parent doesn't.
-                  (contains-type-variables? (att-value 'xsmith_type child)
-                                            variables)
-                  ;; If the parent includes relevant variables its siblings
-                  ;; or ancestors might as well.
-                  (contains-type-variables? (att-value 'xsmith_type p)
-                                            variables)))
-        (parent-loop (parent-node p) p))))
+                         ;; Check children nodes if they are relevant
+                         (when (relevant? n-type)
+                           (sibling-loop (ast-children n)))
+                         (rec ns)]))))
+          (rec nodes))
+        (sibling-loop (ast-children p))
+        (when (and (ast-has-parent? p)
+                   (or
+                    ;; If the current node (child) includes relevant variables,
+                    ;; its siblings may too even if the parent doesn't.
+                    (relevant? (att-value 'xsmith_type child))
+                    ;; If the parent includes relevant variables its siblings
+                    ;; or ancestors might as well.
+                    (relevant? (att-value 'xsmith_type p))))
+          (parent-loop (parent-node p) p)))))
   ;;; End traversal
 
   ;; The hole type is now either maximally unified or sufficiently concrete
   ;; that no more unification can change the result of this predicate.
-  (can-unify? hole-type type-constraint))
+  (and maybe-can-unify?
+       (can-unify? hole-type type-constraint)))
 
 
 (define-property strict-child-order?

@@ -462,6 +462,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (or
    (type-variable? x)
    (base-type? x)
+   (base-type-range? x)
    (function-type? x)
    (product-type? x)
    ;(sum-type? x)
@@ -1347,6 +1348,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(generic-type _ _ inners)
      (andmap concrete? inners)]))
 
+(define (highlight arg)
+  (format "\033[31m~a\033[0m\n" arg))
 (define (at-least-as-concrete v constraint-type)
   ;; TODO - this function was broken even before adding subtyping.  Now it is probably more so.  I need to re-examine how it is used to fix it.  But it is there just as an optimization that maybe isn't entirely necessary, so I'm just not going to worry about it for now.
   #|
@@ -1360,69 +1363,80 @@ TODO - when generating a record ref, I'll need to compare something like (record
   of the tree than we need to.
   |#
   (match (list v constraint-type)
-    [(list _ (type-variable c-innard))
-     (match c-innard
-       [(type-variable-innard _ #f _ _ _) #t]
-       [(type-variable-innard _ (list cs ...) _ _ _)
-        (match v
-          [(type-variable (type-variable-innard _ #f _ _ _)) #f]
-          [(type-variable (type-variable-innard _ (list ts ...) _ _ _))
-           (or
-            ;; check if every case in ts is covered in cs
-            (for/and ([t ts])
-              (match t
-                [(base-type _ _) (for/or ([c (filter base-type? cs)])
-                                   (or (can-subtype-unify? t c)
-                                       (can-subtype-unify? c t)))]
-                [(base-type-range _ _) (for/or ([c (filter base-type-range? cs)])
-                                         (or (can-subtype-unify? t c)
-                                             (can-subtype-unify? c t)))]
-                [(? function-type?)
-                 (ormap (λ (c) (at-least-as-concrete t c))
-                        (filter function-type? cs))]
-                [(? product-type?)
-                 (ormap (λ (c) (at-least-as-concrete t c))
-                        (filter product-type? cs))]
-                [(? generic-type?)
-                 (ormap (λ (c) (at-least-as-concrete t c))
-                        (filter (λ (c) (and (generic-type? c)
-                                            (eq? (generic-type-constructor c)
-                                                 (generic-type-constructor t))))
-                                cs))]
-                ;; TODO - more cases, and make `else` an error.
-                [else #f]))
-            ;; check if they have nothing in common
-            (for/and ([c cs])
-              (match c
-                [(base-type cn _) (for/and ([t (filter base-type? ts)])
-                                    (not (or (can-subtype-unify? c t)
-                                             (can-subtype-unify? t c))))]
-                [(base-type-range _ _) (for/and ([t (filter base-type-range? ts)])
-                                         (not (or (can-subtype-unify? c t)
-                                                  (can-subtype-unify? t c))))]
-                [(? function-type?)
-                 (null? (filter function-type? ts))]
-                [(? product-type?)
-                 (null? (filter product-type? ts))]
-                [(? generic-type?)
-                 (null? (filter generic-type? ts))]
-                ;; TODO - more cases, and make `else` an error.
-                [else #f])))]
-          [(type-variable (type-variable-innard _ t _ _ _))
-           (for/and ([c cs]) (at-least-as-concrete t c))]
-          [else (for/and ([c cs]) (at-least-as-concrete v c))])]
-       [(type-variable-innard _ c _ _ _) (at-least-as-concrete v c)])]
-    [(list (type-variable innard) _)
-     (match innard
-       [(type-variable-innard _ #f _ _ _) #f]
-       [(type-variable-innard _ (list t ...) _ _ _) #f]
-       [(type-variable-innard _ t _ _ _) (at-least-as-concrete t constraint-type)])]
+    [(list (type-variable (type-variable-innard _ #f _ _ _)) _) #f]
+    ;; TODO - I thought this one should be #t, but it seems to be wrong.  Why?
+    [(list _ (type-variable (type-variable-innard _ #f _ _ _))) #f]
+    [(list (type-variable (type-variable-innard _ (and (? type?) inner-type) _ _ _))
+           _)
+     (at-least-as-concrete inner-type constraint-type)]
+    [(list _
+           (type-variable (type-variable-innard _ (and (? type?) inner-type) _ _ _)))
+     (at-least-as-concrete v inner-type)]
+    ;; two type variables with multiple options
+    [(list (type-variable (type-variable-innard _ (list ts ...) _ _ _))
+           (type-variable (type-variable-innard _ (list cs ...) _ _ _)))
+     (or
+      ;; check if every case in ts is covered in cs
+      (for/and ([t ts])
+          (match t
+            [(base-type _ _) (for/or ([c (filter base-type? cs)])
+                               (or (can-subtype-unify? t c)
+                                   (can-subtype-unify? c t)))]
+            [(base-type-range _ _) (for/or ([c (filter base-type-range? cs)])
+                                     (or (can-subtype-unify? t c)
+                                         (can-subtype-unify? c t)))]
+            [(? function-type?)
+             (ormap (λ (c) (at-least-as-concrete t c))
+                    (filter function-type? cs))]
+            [(? product-type?)
+             (ormap (λ (c) (at-least-as-concrete t c))
+                    (filter product-type? cs))]
+            [(? generic-type?)
+             (ormap (λ (c) (at-least-as-concrete t c))
+                    (filter (λ (c) (and (generic-type? c)
+                                        (eq? (generic-type-constructor c)
+                                             (generic-type-constructor t))))
+                            cs))]
+            ;; TODO - more cases, and make `else` an error.
+            [else #f]))
+      ;; check if they have nothing in common
+      (for/and ([c cs])
+        (match c
+          [(? (λ (x) (or (base-type? x)
+                         (base-type-range? x))))
+           (for/and ([t (filter (λ (x) (or (base-type? x)
+                                           (base-type-range? x)))
+                                ts)])
+             (and (not (can-subtype-unify? c t))
+                  (not (can-subtype-unify? t c))))]
+          [(? function-type?)
+           (null? (filter function-type? ts))]
+          [(? product-type?)
+           (null? (filter product-type? ts))]
+          [(? generic-type?)
+           (null? (filter generic-type? ts))]
+          [(? nominal-record-type?)
+           (null? (filter nominal-record-type? ts))]
+          [(? nominal-record-definition-type?)
+           (null? (filter nominal-record-definition-type? ts))])))]
+    ;; left type variable with multiple options
+    [(list (type-variable (type-variable-innard _ (list ts ...) _ _ _))
+           _)
+     (for/and ([t ts]) (at-least-as-concrete t constraint-type))]
+    ;; right type variable with multiple options
+    [(list _
+           (type-variable (type-variable-innard _ (list cs ...) _ _ _)))
+     (for/and ([c cs]) (at-least-as-concrete v c))]
     ;; No more variables
+    [(list (type-variable _) _) (error 'at-least-as-concrete "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
+    [(list _ (type-variable _)) (error 'at-least-as-concrete "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
     [(list (base-type _ _) _) #t]
     [(list (base-type-range _ _) _) #t]
     [(list (function-type v-arg v-ret) (function-type c-arg c-ret))
      (and (at-least-as-concrete v-arg c-arg)
           (at-least-as-concrete v-ret c-ret))]
+    [(list (function-type _ _) rtype) (eprintf (highlight "rhs when function: ~v\n") rtype)#f]
+    [(list (function-type _ _) _) #t]
     [(list (product-type v-inner-list _ _) (product-type c-inner-list _ _))
      (let ([ts v-inner-list]
            [cs c-inner-list])
@@ -1432,20 +1446,23 @@ TODO - when generating a record ref, I'll need to compare something like (record
          [else (if (equal? (length ts) (length cs))
                    (andmap at-least-as-concrete ts cs)
                    #t)]))]
-    ;[(list (sum-type aoeu) (sum-type aoeu))]
-    ;[(list (record-type aoeu) (record-type aoeu))]
+    [(list (product-type _ _ _) _) #t]
     [(list (nominal-record-type v-name v-inners)
            (nominal-record-type c-name c-inners))
      ;; For now be conservative.
      (->bool v-name)]
+    [(list (nominal-record-type _ _) _) #t]
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
      (at-least-as-concrete inner1 inner2)]
+    [(list (nominal-record-definition-type _) _) #t]
     [(list (generic-type v-n v-ctor v-inners) (generic-type c-n c-ctor c-inners))
      (if (eq? v-ctor c-ctor)
          (andmap at-least-as-concrete v-inners c-inners)
          #t)]
-    [else #t]))
+    [(list (generic-type _ _ _) _) #t]
+    ;; No else, so we get an error if there are new types that we don't extend this with.
+    ))
 
 (module+ test
   (check-true (at-least-as-concrete (fresh-type-variable) (fresh-type-variable)))
