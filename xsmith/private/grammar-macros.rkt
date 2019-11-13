@@ -444,15 +444,11 @@
 (define-syntax-parser define-refiner
   [(_ component:spec-component
       refiner-name:id
-      (~or
-       (~optional (~seq #:precedes precedes:expr))
-       (~optional (~seq #:follows follows:expr)))
-      ...
+      (~optional (~seq #:follows follows:expr))
       clause ...)
    #'(begin
        (define-syntax refiner-name
          (grammar-refiner 'refiner-name
-                          (~? 'precedes '())
                           (~? 'follows '())))
        (add-refiner
         component

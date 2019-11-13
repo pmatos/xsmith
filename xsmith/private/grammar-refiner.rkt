@@ -4,7 +4,7 @@
  (struct-out grammar-refiner))
 
 (struct grammar-refiner
-  (name precedes follows)
+  (name follows)
   #:property prop:procedure (λ (stx) (raise-syntax-error
                                       'grammar-refiner
                                       "Can't be used directly as a macro."
