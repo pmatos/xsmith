@@ -43,6 +43,13 @@
                  (display "odd value encountered")
                  n))]])
 
+(define-refiner
+  tg
+  times-two
+  [Val [(λ (n) (begin
+                 (display "will multiply by two")
+                 n))]])
+
 (assemble-spec-components t tg)
 
 (xsmith-command-line
