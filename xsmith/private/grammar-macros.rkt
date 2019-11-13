@@ -834,112 +834,42 @@ Perform error checking:
      (values
       x-stx
       x-hash))
-   ;;;;;;;;
-   ;; Process properties and refiners.
+   ;;;;;;;
+   ;; Implementation.
    ;;;;
+   ;; Process all the various kinds of grammar properties. Shorthand is:
+   ;;  - g = grammar clause
+   ;;  - ag = ag-rule things
+   ;;  - cm = cm-rule things
+   ;;  - p = property
+   ;;  - r = refiner
+   (define g-parts (syntax->list #'(g-part ...)))
+   (define g-hash
+     (for/hash ([g g-parts])
+       (syntax-parse g
+         [gc:grammar-clause (values (syntax->datum #'gc.node-name) g)])))
+   (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clause ...))))
+   (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
    (define-values
      (p-stx p-hash)
      (mk-stx-and-hash #'((p-clause+ ...) ...) grammar-property-name "property" #:extras #'extra-props))
    (define-values
      (r-stx r-hash)
      (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
-
-
-   #|
-   (define p-clauses (flatten (map syntax->list
-                                   (syntax->list #'((p-clause+ ...) ...)))))
-   (define (clause->list p-c-stx)
-     (syntax-parse p-c-stx
-       [p:prop-clause (list #'p.prop-name
-                            #'p.node-name
-                            #'p.prop-val)]))
-   (define p-lists (map clause->list p-clauses))
-   ;; I want one syntax object to point to for each property object.
-   (define prop->prop-stx  TODO
-     (for/fold ([h (for/fold ([h (hash)])
-                             ([pl p-lists])
-                     (dict-set h
-                               (syntax-local-value
-                                (car pl)
-                                (λ ()
-                                  (raise-syntax-error
-                                   #f
-                                   "Identifier not defined as a property."
-                                   (car pl))))
-                               (car pl)))])
-               ([prop (syntax->list #'extra-props)])
-       (dict-set h (syntax-local-value prop) prop)))
-   (define starter-prop-hash (for/hash ([k (dict-keys prop->prop-stx)])
-                               (values k (hash))))
-   (define prop-hash-with-lists
-     ;; a tiered hash from prop-struct->node-name->val-stx-list
-     (for/fold ([h starter-prop-hash])
-               ([pl p-lists])
-       (match pl
-         [(list prop-stx node-name-stx val-stx)
-          (let* ([prop (syntax-local-value prop-stx)]
-                 [node-hash (dict-ref h prop (hash))]
-                 [node-name (syntax->datum node-name-stx)]
-                 [current-node-name-list (dict-ref node-hash node-name '())])
-            (dict-set h
-                      prop
-                      (dict-set node-hash
-                                node-name
-                                (cons val-stx current-node-name-list))))])))
-   ;; Switch from a list of syntax objects to a single syntax object for
-   ;; properties that do not `allow-duplicates?`, and a syntax-object list
-   ;; for those that do.
-   ;; For easier parsing on the receiving side.
-   (define prop-hash
-     (for/hash ([pk (dict-keys prop-hash-with-lists)])
-       (define subhash (dict-ref prop-hash-with-lists pk))
-       (values
-        pk
-        (for/hash ([nk (dict-keys subhash)])
-          (values
-           nk
-           (if (grammar-property-allow-duplicates? pk)
-               (datum->syntax #f (dict-ref subhash nk))
-               (syntax-parse (dict-ref subhash nk)
-                 [(a) #'a]
-                 [(a b ...)
-                  (raise-syntax-error
-                   #f
-                   (format
-                    "duplicate definition of ~a property for node ~a."
-                    (grammar-property-name pk)
-                    nk)
-                   #'a)])))))))
-
-   |#
-
-   (define prop-hash p-hash)
-   (define prop->prop-stx p-stx)
-
-   (define g-parts (syntax->list #'(g-part ...)))
-   ;; g-hash is a single-level hash node-name->node-spec-stx
-   (define g-hash (for/hash ([g g-parts])
-                    (syntax-parse g
-                      [gc:grammar-clause (values (syntax->datum #'gc.node-name) g)])))
-
-   (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clause ...))))
-   (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
-
-   (define prop-structs (sort (dict-keys prop-hash) grammar-property-less-than))
+   ;; TODO fix implementation for refiner-things;
+   (define p-structs (sort (dict-keys p-hash) grammar-property-less-than))
    (define pre-transform-infos-hash
      (hash 'ag-info ag-hash
            'cm-info cm-hash
            'grammar-info g-hash
-           'props-info prop-hash))
-
-   ;; Run the transformers!
+           'props-info p-hash))
    (define infos-hash
      (for/fold ([ih pre-transform-infos-hash])
-               ([prop-struct prop-structs])
-       (grammar-property-transform (hash-ref prop->prop-stx prop-struct prop-struct)
+               ([p-struct p-structs])
+       (grammar-property-transform (hash-ref p-stx p-struct p-struct)
                                    ih)))
-
-   ;; TODO - check duplicates again?  Other checks?
+   ;; TODO - Check duplicates again? Perform other checks?
+   ;; ...
    (define (rule-hash->clause-list rules-hash)
      (for/fold ([clauses '()])
                ([rule-name (dict-keys rules-hash)])
@@ -949,112 +879,20 @@ Perform error checking:
                     #,(datum->syntax #'here node-name)
                     #,(dict-ref nodes-hash node-name)))
                clauses)))
-   (define ag-prop-clauses
-     (rule-hash->clause-list (dict-ref infos-hash 'ag-info)))
-   (with-syntax ([(n-g-part ...) (dict-values (dict-ref infos-hash 'grammar-info))]
-                 [(n-ag-clause ...) (rule-hash->clause-list
-                                     (dict-ref infos-hash 'ag-info))]
-                 [(n-cm-clause ...) (rule-hash->clause-list
-                                     (dict-ref infos-hash 'cm-info))])
-     #'(assemble_stage5
+   (with-syntax
+     ([(n-g-part ...) (dict-values
+                       (dict-ref infos-hash 'grammar-info))]
+      [(n-ag-clause ...) (rule-hash->clause-list
+                          (dict-ref infos-hash 'ag-info))]
+      [(n-cm-clause ...) (rule-hash->clause-list
+                          (dict-ref infos-hash 'cm-info))])
+     #'(assemble_stage4
         spec
         (n-g-part ...)
         (n-ag-clause ...)
         (n-cm-clause ...)))])
 
-#|
-Stage 4
-
-Handles conversion of refiners.
-
-TODO - Much of this code is almost directly copy/pasted from Stage 3. Consider
-consolidation to improve code reuse.
-|#
-#;(define-syntax-parser assemble_stage4
-  [(_ spec
-      g-clauses
-      ag-clauses
-      cm-clauses
-      ((r-clause+:prop-clause ...) ...))
-   ;; Flatten the nested clauses into a list of syntax objects.
-   (define (flatten-clauses clauses)
-     (flatten (map syntax->list
-                   (syntax->list clauses))))
-   (define r-clauses (flatten-clauses #'((r-clause+ ...) ...)))
-   (define (extract-fields clauses)
-     (define (clause->list stx)
-       (syntax-parse stx
-         [c:prop-clause (list #'c.prop-name
-                              #'c.node-name
-                              #'c.prop-val)]))
-     (map clause->list clauses))
-   ;; Extract fields from the syntax objects, making a list of lists of syntax
-   ;; objects.
-   (define r-lists (extract-fields r-clauses))
-   ;; Ensure all refiners point to exactly one syntax object.
-   (define (simplify-stx lists type)
-     (for/fold ([h (hash)])
-               ([l lists])
-       (dict-set h
-                 (syntax-local-value
-                  (car l)
-                  (λ ()
-                    (raise-syntax-error
-                     #f
-                     (format "Identifier not defined as a ~a." type)
-                     (car l))))
-                 (car l))))
-   (define refiner-stx (simplify-stx r-lists "refiner"))
-   (define (mk-starter-hash simplified-stx)
-     (for/hash ([k (dict-keys simplified-stx)])
-       (values k (hash))))
-   (define starter-refiner-hash (mk-starter-hash refiner-stx))
-   (define (mk-hash-with-lists starter-hash c-lists)
-     (for/fold ([h starter-hash])
-               ([cl c-lists])
-       (match cl
-         [(list clause-stx node-name-stx val-stx)
-          (let* ([clause (syntax-local-value clause-stx)]
-                 [node-hash (dict-ref h clause (hash))]
-                 [node-name (syntax->datum node-name-stx)]
-                 [current-node-name-list (dict-ref node-hash node-name '())])
-            (dict-set h
-                      clause
-                      (dict-set node-hash
-                                node-name
-                                (cons val-stx current-node-name-list))))])))
-   (define refiner-hash-with-lists (mk-hash-with-lists starter-refiner-hash r-lists))
-   ;; TODO - simplify this
-   (define (mk-hash clause-hash-with-lists get-name type)
-     (for/hash ([ck (dict-keys clause-hash-with-lists)])
-       (define subhash (dict-ref clause-hash-with-lists ck))
-       (values
-        ck
-        (for/hash ([nk (dict-keys subhash)])
-          (values
-           nk
-           (syntax-parse (dict-ref subhash nk)
-             [(a) #'a]
-             [(a b ...)
-              (raise-syntax-error
-               #f
-               (format "duplicate definitions of ~a ~a for node ~a."
-                       (get-name ck)
-                       type
-                       nk)
-               #'a)]))))))
-   (define refiner-hash (mk-hash refiner-hash-with-lists grammar-refiner-name "refiner"))
-   ;; TODO - might consider separating assembly into its own file
-   ;; - then it'll be easier to factor out common functions for easier use
-   ;; - also rename `prop-clause` to maybe `clause` or something more generic
-   (display (format "refiner-hash\n~a\n\n" refiner-hash))
-   #'(assemble_stage5
-      spec
-      g-clauses
-      ag-clauses
-      cm-clauses)])
-
-(define-syntax-parser assemble_stage5
+(define-syntax-parser assemble_stage4
   ;; Sort the grammar clauses.
   ;; We sort them based on inheritance, so grammar node types that inherit from
   ;; other grammar nodes are output *after* the nodes they inherit from.
