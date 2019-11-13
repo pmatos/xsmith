@@ -756,7 +756,98 @@ Perform error checking:
       ((ag-clause:prop-clause) ...)
       ((cm-clause:prop-clause) ...)
       ((p-clause+:prop-clause ...) ...)
-      r-clauses)
+      ((r-clause+:prop-clause ...) ...))
+   ;;;;;;;
+   ;; Utility functions.
+   ;;;;
+   (define (flatten-clauses clauses)
+     (flatten (map syntax->list
+                   (syntax->list clauses))))
+   (define (extract-fields clauses)
+     (define (clause->list stx)
+       (syntax-parse stx
+         [c:prop-clause (list #'c.prop-name
+                              #'c.node-name
+                              #'c.prop-val)]))
+     (map clause->list clauses))
+   (define (simplify-stx lists type)
+     (for/fold ([h (hash)])
+               ([l lists])
+       (dict-set h
+                 (syntax-local-value
+                  (car l)
+                  (λ ()
+                    (raise-syntax-error
+                     #f
+                     (format "Identifier not defined as a ~a." type)
+                     (car l))))
+                 (car l))))
+   ;; TODO handle #'extra-props
+   (define (mk-starter-hash simplified-stx)
+     (for/hash ([k (dict-keys simplified-stx)])
+       (values k (hash))))
+   (define (mk-hash-with-lists starter-hash c-lists)
+     (for/fold ([h starter-hash])
+               ([cl c-lists])
+       (match cl
+         [(list clause-stx node-name-stx val-stx)
+          (let* ([clause (syntax-local-value clause-stx)]
+                 [node-hash (dict-ref h clause (hash))]
+                 [node-name (syntax->datum node-name-stx)]
+                 [current-node-name-list (dict-ref node-hash node-name '())])
+            (dict-set h
+                      clause
+                      (dict-set node-hash
+                                node-name
+                                (cons val-stx current-node-name-list))))])))
+   (define (mk-clause-hash-from-lists-hash clause-hash-with-lists get-name type)
+     (for/hash ([ck (dict-keys clause-hash-with-lists)])
+       (define subhash (dict-ref clause-hash-with-lists ck))
+       (values
+        ck
+        (for/hash ([nk (dict-keys subhash)])
+          (values
+           nk
+           (syntax-parse (dict-ref subhash nk)
+             [(a) #'a]
+             [(a b ...)
+              (raise-syntax-error
+               #f
+               (format "duplicate definitions of ~a ~a for node ~a."
+                       (get-name ck)
+                       type
+                       nk)
+               #'a)]))))))
+   (define (mk-hash clauses get-clause-name clause-type)
+     (define x-clauses (flatten-clauses clauses))
+     (define x-lists (extract-fields x-clauses))
+     (define x-stx (simplify-stx x-lists clause-type))
+     (define starter-x-hash (mk-starter-hash x-stx))
+     (define x-hash-with-lists (mk-hash-with-lists starter-x-hash x-lists))
+     (define x-hash (mk-hash x-hash-with-lists get-clause-name clause-type)))
+   ;;;;;;;;
+   ;; Process properties and refiners.
+   ;;;;
+   ;; Flatten clauses.
+   (define p-clauses (flatten-clauses #'((p-clause+ ...) ...)))
+   (define r-clauses (flatten-clauses #'((r-clause+ ...) ...)))
+   ;; Extract fields from the syntax objects, making lists of lists of syntax
+   ;; objects.
+   (define p-lists (extract-fields p-clauses))
+   (define r-lists (extract-fields r-clauses))
+   ;; Ensure all clauses point to exactly one syntax object.
+   (define p-stx (simplify-stx p-lists "property"))
+   (define r-stx (simplify-stx r-lists "refiner"))
+   ;; Build the hashes for the clauses.
+   (define starter-p-hash (mk-starter-hash p-stx))
+   (define starter-r-hash (mk-starter-hash r-stx))
+   (define p-hash-with-lists (mk-hash-with-lists starter-p-hash p-lists))
+   (define r-hash-with-lists (mk-hash-with-lists starter-r-hash r-lists))
+   (define p-hash (mk-hash p-hash-with-lists grammar-property-name "property"))
+   (define r-hash (mk-hash r-hash-with-lists grammar-refiner-name "refiner"))
+
+
+   #|
    (define p-clauses (flatten (map syntax->list
                                    (syntax->list #'((p-clause+ ...) ...)))))
    (define (clause->list p-c-stx)
@@ -766,7 +857,7 @@ Perform error checking:
                             #'p.prop-val)]))
    (define p-lists (map clause->list p-clauses))
    ;; I want one syntax object to point to for each property object.
-   (define prop->prop-stx
+   (define prop->prop-stx  TODO
      (for/fold ([h (for/fold ([h (hash)])
                              ([pl p-lists])
                      (dict-set h
@@ -822,6 +913,10 @@ Perform error checking:
                     nk)
                    #'a)])))))))
 
+   |#
+
+   (define prop-hash p-hash)
+
    (define g-parts (syntax->list #'(g-part ...)))
    ;; g-hash is a single-level hash node-name->node-spec-stx
    (define g-hash (for/hash ([g g-parts])
@@ -862,32 +957,98 @@ Perform error checking:
                                      (dict-ref infos-hash 'ag-info))]
                  [(n-cm-clause ...) (rule-hash->clause-list
                                      (dict-ref infos-hash 'cm-info))])
-     #'(assemble_stage4
+     #'(assemble_stage5
         spec
         (n-g-part ...)
         (n-ag-clause ...)
-        (n-cm-clause ...)
-        r-clauses))])
+        (n-cm-clause ...)))])
 
-(define-syntax-parser assemble_stage4
+#|
+Stage 4
+
+Handles conversion of refiners.
+
+TODO - Much of this code is almost directly copy/pasted from Stage 3. Consider
+consolidation to improve code reuse.
+|#
+#;(define-syntax-parser assemble_stage4
   [(_ spec
       g-clauses
       ag-clauses
       cm-clauses
       ((r-clause+:prop-clause ...) ...))
    ;; Flatten the nested clauses into a list of syntax objects.
-   (define r-clauses (flatten (map syntax->list
-                                   (syntax->list #'((r-clause+ ...) ...)))))
-   (define (clause->list stx)
-     (syntax-parse stx
-       [r:prop-clause (list #'r.prop-name
-                            #'r.node-name
-                            #'r.prop-val)]))
-   ;; Extract fields from the syntax objects, making a list of list of syntax
+   (define (flatten-clauses clauses)
+     (flatten (map syntax->list
+                   (syntax->list clauses))))
+   (define r-clauses (flatten-clauses #'((r-clause+ ...) ...)))
+   (define (extract-fields clauses)
+     (define (clause->list stx)
+       (syntax-parse stx
+         [c:prop-clause (list #'c.prop-name
+                              #'c.node-name
+                              #'c.prop-val)]))
+     (map clause->list clauses))
+   ;; Extract fields from the syntax objects, making a list of lists of syntax
    ;; objects.
-   (define r-lists (map clause->list r-clauses))
-   ;; TODO - Do stuff to the r-lists here.
-   (display (format "~a\n" r-lists))
+   (define r-lists (extract-fields r-clauses))
+   ;; Ensure all refiners point to exactly one syntax object.
+   (define (simplify-stx lists type)
+     (for/fold ([h (hash)])
+               ([l lists])
+       (dict-set h
+                 (syntax-local-value
+                  (car l)
+                  (λ ()
+                    (raise-syntax-error
+                     #f
+                     (format "Identifier not defined as a ~a." type)
+                     (car l))))
+                 (car l))))
+   (define refiner-stx (simplify-stx r-lists "refiner"))
+   (define (mk-starter-hash simplified-stx)
+     (for/hash ([k (dict-keys simplified-stx)])
+       (values k (hash))))
+   (define starter-refiner-hash (mk-starter-hash refiner-stx))
+   (define (mk-hash-with-lists starter-hash c-lists)
+     (for/fold ([h starter-hash])
+               ([cl c-lists])
+       (match cl
+         [(list clause-stx node-name-stx val-stx)
+          (let* ([clause (syntax-local-value clause-stx)]
+                 [node-hash (dict-ref h clause (hash))]
+                 [node-name (syntax->datum node-name-stx)]
+                 [current-node-name-list (dict-ref node-hash node-name '())])
+            (dict-set h
+                      clause
+                      (dict-set node-hash
+                                node-name
+                                (cons val-stx current-node-name-list))))])))
+   (define refiner-hash-with-lists (mk-hash-with-lists starter-refiner-hash r-lists))
+   ;; TODO - simplify this
+   (define (mk-hash clause-hash-with-lists get-name type)
+     (for/hash ([ck (dict-keys clause-hash-with-lists)])
+       (define subhash (dict-ref clause-hash-with-lists ck))
+       (values
+        ck
+        (for/hash ([nk (dict-keys subhash)])
+          (values
+           nk
+           (syntax-parse (dict-ref subhash nk)
+             [(a) #'a]
+             [(a b ...)
+              (raise-syntax-error
+               #f
+               (format "duplicate definitions of ~a ~a for node ~a."
+                       (get-name ck)
+                       type
+                       nk)
+               #'a)]))))))
+   (define refiner-hash (mk-hash refiner-hash-with-lists grammar-refiner-name "refiner"))
+   ;; TODO - might consider separating assembly into its own file
+   ;; - then it'll be easier to factor out common functions for easier use
+   ;; - also rename `prop-clause` to maybe `clause` or something more generic
+   (display (format "refiner-hash\n~a\n\n" refiner-hash))
    #'(assemble_stage5
       spec
       g-clauses
