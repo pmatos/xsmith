@@ -782,14 +782,13 @@ Perform error checking:
                      (format "Identifier not defined as a ~a." type)
                      (car l))))
                  (car l))))
-   (define (simplify-extra-stx lists type extras)
-     (for/fold ([h (simplify-user-stx lists type)])
-               ([c (syntax->list extras)])
-       (dict-set h (syntax-local-value c) c)))
    (define (simplify-stx lists type #:extras [extras #f])
+     (define user-stx (simplify-user-stx lists type))
      (if extras
-         (simplify-extra-stx lists type extras)
-         (simplify-user-stx lists type)))
+         (for/fold ([h user-stx])
+                   ([c (syntax->list extras)])
+           (dict-set h (syntax-local-value c) c))
+         user-stx))
    (define (mk-starter-hash simplified-stx)
      (for/hash ([k (dict-keys simplified-stx)])
        (values k (hash))))
@@ -807,7 +806,7 @@ Perform error checking:
                       (dict-set node-hash
                                 node-name
                                 (cons val-stx current-node-name-list))))])))
-   (define (mk-hash clause-hash-with-lists get-name type)
+   (define (mk-clause-hash-from-lists-hash clause-hash-with-lists get-name type)
      (for/hash ([ck (dict-keys clause-hash-with-lists)])
        (define subhash (dict-ref clause-hash-with-lists ck))
        (values
@@ -825,35 +824,25 @@ Perform error checking:
                        type
                        nk)
                #'a)]))))))
-   #;(define (mk-hash clauses get-clause-name clause-type)
+   (define (mk-stx-and-hash clauses get-clause-name clause-type #:extras [extras #f])
      (define x-clauses (flatten-clauses clauses))
      (define x-lists (extract-fields x-clauses))
-     (define x-stx (simplify-stx x-lists clause-type))
+     (define x-stx (simplify-stx x-lists clause-type #:extras extras))
      (define starter-x-hash (mk-starter-hash x-stx))
      (define x-hash-with-lists (mk-hash-with-lists starter-x-hash x-lists))
-     (define x-hash (mk-hash x-hash-with-lists get-clause-name clause-type))
+     (define x-hash (mk-clause-hash-from-lists-hash x-hash-with-lists get-clause-name clause-type))
      (values
-      ....))
+      x-stx
+      x-hash))
    ;;;;;;;;
    ;; Process properties and refiners.
    ;;;;
-   ;; Flatten clauses.
-   (define p-clauses (flatten-clauses #'((p-clause+ ...) ...)))
-   (define r-clauses (flatten-clauses #'((r-clause+ ...) ...)))
-   ;; Extract fields from the syntax objects, making lists of lists of syntax
-   ;; objects.
-   (define p-lists (extract-fields p-clauses))
-   (define r-lists (extract-fields r-clauses))
-   ;; Ensure all clauses point to exactly one syntax object.
-   (define p-stx (simplify-stx p-lists "property" #:extras #'extra-props))
-   (define r-stx (simplify-stx r-lists "refiner"))
-   ;; Build the hashes for the clauses.
-   (define starter-p-hash (mk-starter-hash p-stx))
-   (define starter-r-hash (mk-starter-hash r-stx))
-   (define p-hash-with-lists (mk-hash-with-lists starter-p-hash p-lists))
-   (define r-hash-with-lists (mk-hash-with-lists starter-r-hash r-lists))
-   (define p-hash (mk-hash p-hash-with-lists grammar-property-name "property"))
-   (define r-hash (mk-hash r-hash-with-lists grammar-refiner-name "refiner"))
+   (define-values
+     (p-stx p-hash)
+     (mk-stx-and-hash #'((p-clause+ ...) ...) grammar-property-name "property" #:extras #'extra-props))
+   (define-values
+     (r-stx r-hash)
+     (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
 
 
    #|
