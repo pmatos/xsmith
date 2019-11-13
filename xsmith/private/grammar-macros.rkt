@@ -838,11 +838,11 @@ Perform error checking:
    ;; Implementation.
    ;;;;
    ;; Process all the various kinds of grammar properties. Shorthand is:
-   ;;  - g = grammar clause
-   ;;  - ag = ag-rule things
-   ;;  - cm = cm-rule things
-   ;;  - p = property
-   ;;  - r = refiner
+   ;;  - g  = grammar clause
+   ;;  - ag = attribute rule
+   ;;  - cm = choice rule
+   ;;  - p  = property
+   ;;  - r  = refiner
    (define g-parts (syntax->list #'(g-part ...)))
    (define g-hash
      (for/hash ([g g-parts])
@@ -856,7 +856,7 @@ Perform error checking:
    (define-values
      (r-stx r-hash)
      (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
-   ;; TODO fix implementation for refiner-things;
+   ;; TODO fix implementation to include refiner-things
    (define p-structs (sort (dict-keys p-hash) grammar-property-less-than))
    (define pre-transform-infos-hash
      (hash 'ag-info ag-hash
@@ -869,7 +869,8 @@ Perform error checking:
        (grammar-property-transform (hash-ref p-stx p-struct p-struct)
                                    ih)))
    ;; TODO - Check duplicates again? Perform other checks?
-   ;; ...
+
+   ;; Begin the next stage of assembly.
    (define (rule-hash->clause-list rules-hash)
      (for/fold ([clauses '()])
                ([rule-name (dict-keys rules-hash)])
