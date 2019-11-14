@@ -46,6 +46,7 @@
 (define-refiner
   tg
   times-two
+  #:follows '(evens-only)
   [Val [(λ (n) (begin
                  (display "will multiply by two")
                  n))]])
