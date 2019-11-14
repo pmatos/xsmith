@@ -1,7 +1,8 @@
 #lang racket/base
 
 (require racket/list
-         racket/dict)
+         racket/dict
+         racket/struct)
 
 (provide
  (struct-out grammar-refiner)
@@ -94,4 +95,9 @@ elements. The above example can be represented via symbols as:
   #:property prop:procedure (λ (stx) (raise-syntax-error
                                       'grammar-refiner
                                       "Can't be used directly as a macro."
-                                      stx)))
+                                      stx))
+  #:methods gen:custom-write
+  [(define write-proc
+     (make-constructor-style-printer
+      (λ (gr) 'grammar-refiner)
+      (λ (gr) (list (grammar-refiner-name gr) (grammar-refiner-follows gr)))))])
