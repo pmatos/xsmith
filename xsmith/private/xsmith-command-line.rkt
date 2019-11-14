@@ -285,7 +285,9 @@
             (let* ([result #f]
                    [out (with-output-to-string
                           (λ () (set! result (proc))))])
-              (set! captured-output out)
+              #;(set! captured-output out)
+              (when (not (eq? out ""))
+                (set! captured-output (string-append captured-output out)))
               result))
           ;;;;;;;;;;;;;;;;
           ;; Actual generation and printing starts here.
@@ -362,7 +364,12 @@
           ;; Everything was successful!
           (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
                                        option-lines)))
-          (display (format "\n\n~a\n" program)))
+          (display (format "\n\n~a\n\n" program))
+          (display (comment-func (flatten
+                                  (list "!!! The following output was captured during execution:"
+                                        ""
+                                        (string-split captured-output "\n")))))
+          (display "\n"))
         ;; Update the seed. (This is used in server mode.)
         (dict-set! (xsmith-options)
                    'random-seed
