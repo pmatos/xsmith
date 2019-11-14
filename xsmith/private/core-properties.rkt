@@ -1030,8 +1030,8 @@ few of these methods.
   (define (debug-print-1 t1 t2)
     (xd-printf "error while unifying types:\n~a\nand\n~a\n" t1 t2)
     (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
-    (xd-printf "with parent of AST type: ~a\n" (ast-node-type
-                                                (parent-node node))))
+    (xd-printf "with parent chain of AST types: ~v\n" (map ast-node-type
+                                                           (ancestor-nodes node))))
   (with-handlers
     ([(λ(x)#t)
       (λ (e)
