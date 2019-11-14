@@ -55,6 +55,8 @@
    ancestor-nodes
    top-ancestor-node
    node-subtype?
+
+   ->bool
    ))
 (module+ for-racr-convenience
   (provide
@@ -102,6 +104,10 @@
     n))
 (define (fresh-var-name [base "var_"])
   (format "~a~a" base (fresh-int!)))
+
+(define (->bool v)
+  ;; I keep using this idiom, but ->bool is clearer.
+  (not (not v)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

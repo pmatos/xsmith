@@ -886,8 +886,9 @@ few of these methods.
           (define visibles-with-type
             (filter (λ (b) (and b
                                 (concrete-type? (binding-type b))
-                                (can-unify? (binding-type b)
-                                            type-needed)))
+                                (satisfies-type-constraint?
+                                 hole
+                                 (binding-type b))))
                     visibles))
           (define visibles/no-func-for-write
             (if (not write?)
@@ -908,7 +909,40 @@ few of these methods.
              (λ (x) (not (member (binding-name x) effect-variable-names)))
              visibles/no-func-for-write))
 
-          (define lift-type (concretize-type type-needed))
+          (define lift-type
+            (if (and (nominal-record-type? type-needed)
+                     (not (nominal-record-type-name type-needed))
+                     (let ([keys (dict-keys (nominal-record-type-inners type-needed))])
+                       (and (not (null? keys)) (->bool (car keys)))))
+                ;; In this case we have a defined nominal-record-type that we need to look up, rather than concretizing.
+                ;; TODO - it would be nice if concretizing did this, but then I would have to change concretize-type to know about the hole and tree and whatnot.
+                (let* ([d (nominal-record-definition-type type-needed)]
+                       [def-filtered
+                         (filter (λ (b) (and b
+                                             (nominal-record-definition-type?
+                                              (binding-type b))
+                                             (can-unify? d (binding-type b))))
+                                 visibles)])
+                  (match def-filtered
+                    [(list def)
+                     (nominal-record-definition-type-type
+                                 (binding-type def))]
+                    [else
+                     (error 'xsmith
+                            "can't find a matching definition for nominal record type: ~v\n"
+                            type-needed)]))
+                (let loop ([count 0]
+                           [t (concretize-type type-needed)])
+                  (define satisfies? (satisfies-type-constraint? hole t))
+                  (cond [satisfies? t]
+                        [(< 100 count)
+                         ;; TODO
+                         ;; Right now we give up after some number of loops.
+                         ;; Generally, this should just be an error.
+                         ;; But for now there are cases (nominal-record-types) where there can be a valid reference but that we can't create a valid lift-type.
+                         #f]
+                        [else (loop (add1 count)
+                                    (concretize-type type-needed))]))))
           ;; TODO - I should check if the type contains a function, not merely IS a function.  And for higher order effects I should check this before concretizing.
           (define function? (function-type? lift-type))
 
@@ -928,13 +962,17 @@ few of these methods.
             (error 'xsmith "Got a function type as a type to assign to.  Xsmith's effect tracking requires that assignment can never have a function type."))
           (define legal+lift
             ;; TODO - lift effect constraints...
-            (if (and (nominal-record-definition-type? lift-type)
-                     (not (null? higher-order-effect-filtered)))
-                higher-order-effect-filtered
-                (cons (make-lift-reference-choice-proc
-                       hole
-                       lift-type)
-                      higher-order-effect-filtered)))
+            (cond [(and (or (not lift-type)
+                            (nominal-record-definition-type? lift-type))
+                        (not (null? higher-order-effect-filtered)))
+                   higher-order-effect-filtered]
+                  [lift-type (cons (make-lift-reference-choice-proc
+                                    hole
+                                    lift-type)
+                                   higher-order-effect-filtered)]
+                  [else (error 'xsmith "When trying to generate a reference, there were no legal choices and xsmith couldn't generate a lifted reference for type: ~v\n (visibles: ~v\n)"
+                               type-needed
+                               visibles)]))
           (hash-set! ref-choices-filtered-hash self legal+lift)
           legal+lift))))
 
@@ -985,7 +1023,6 @@ few of these methods.
     (if (att-value 'xsmith_is-hole? node)
         (and binder-type-field
              (not (ast-bud-node? (ast-child binder-type-field node)))
-             (eprintf "using lifted hole type to unify!\n")
              (ast-child binder-type-field node))
         (att-value '_xsmith_my-type-constraint node)))
   (define my-type-from-parent

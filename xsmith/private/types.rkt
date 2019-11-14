@@ -111,16 +111,13 @@ WIP checklist:
  racket/set
  "scope-graph.rkt"
  "xsmith-utils.rkt"
+ (submod "xsmith-utils.rkt" for-private)
  (for-syntax
   racket/base
   syntax/parse
   racket/syntax
   ))
 (module+ test (require rackunit))
-
-(define (->bool v)
-  ;; I keep using this idiom, but ->bool is clearer.
-  (not (not v)))
 
 
 #|
@@ -1139,7 +1136,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
         (define inner-vals (dict-values inners2))
         (for/and ([k (dict-keys inners1)])
-          (cond [(not k) (->bool (member (dict-ref inners1 k) inner-vals))]
+          (cond [(not k) (let ([needed-type (dict-ref inners1 k)])
+                           (->bool (ormap (λ (x) (can-unify? x needed-type))
+                                          inner-vals)))]
                 [else (and (dict-has-key? inners2 k)
                            (can-unify? (dict-ref inners1 k) (dict-ref inners2 k)))]))]
        [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
@@ -1232,6 +1231,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (mk-product-type (map (λ (x) (r (fresh-type-variable)))
                                  (make-list (random 6) #f))))]
       [(nominal-record-type #f inner-needed)
+       (match (dict-keys inner-needed)
+         [(list) (void)]
+         [(list k) (or (not k) (error 'concretize-type "can't concretize nominal-record-type with a named field but no record name: ~v\n" t))])
        (define needed (dict-ref inner-needed #f (λ () (fresh-type-variable))))
        (define n-random-fields (random record-type-max-fields))
        (define field-list (cons needed
@@ -1364,8 +1366,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   |#
   (match (list v constraint-type)
     [(list (type-variable (type-variable-innard _ #f _ _ _)) _) #f]
-    ;; TODO - I thought this one should be #t, but it seems to be wrong.  Why?
-    [(list _ (type-variable (type-variable-innard _ #f _ _ _))) #f]
+    [(list _ (type-variable (type-variable-innard _ #f _ _ _))) #t]
     [(list (type-variable (type-variable-innard _ (and (? type?) inner-type) _ _ _))
            _)
      (at-least-as-concrete inner-type constraint-type)]
@@ -1435,7 +1436,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (function-type v-arg v-ret) (function-type c-arg c-ret))
      (and (at-least-as-concrete v-arg c-arg)
           (at-least-as-concrete v-ret c-ret))]
-    [(list (function-type _ _) rtype) (eprintf (highlight "rhs when function: ~v\n") rtype)#f]
+    [(list (function-type _ _) rtype) #f]
     [(list (function-type _ _) _) #t]
     [(list (product-type v-inner-list _ _) (product-type c-inner-list _ _))
      (let ([ts v-inner-list]

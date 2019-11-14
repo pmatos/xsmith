@@ -242,7 +242,8 @@
                           (when (null? choices)
                             (error
                              'cish-struct-ref
-                             "No fields in struct with appropriate type.  This should not have happened. Type needed: ~v, types available: ~v"
+                             "No fields in struct with appropriate type in binding: ~v.  This should not have happened. Type needed: ~v, types available: ~v"
+                             choice
                              parent-type
                              (dict-values inner-names)))
                           (define fieldname-choice (random-ref choices))
