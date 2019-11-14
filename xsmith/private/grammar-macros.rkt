@@ -849,10 +849,6 @@ Perform error checking:
    (define-values
      (p-stx p-hash)
      (mk-stx-and-hash #'((p-clause+ ...) ...) grammar-property-name "property" #:extras #'extra-props))
-   (define-values
-     (r-stx r-hash)
-     (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
-   ;; TODO fix implementation to include refiner-things
    (define p-structs (sort (dict-keys p-hash) grammar-property-less-than))
    (define pre-transform-infos-hash
      (hash 'ag-info ag-hash
@@ -864,6 +860,11 @@ Perform error checking:
                ([p-struct p-structs])
        (grammar-property-transform (hash-ref p-stx p-struct p-struct)
                                    ih)))
+   (define-values
+     (r-stx r-hash)
+     (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
+   (define new-infos-hash  ; TODO - rename this as needed after implementation complete
+     (grammar-refiner-transform infos-hash r-hash))
    ;; TODO - Check duplicates again? Perform other checks?
 
    ;; Begin the next stage of assembly.

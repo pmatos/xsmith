@@ -74,16 +74,20 @@ elements. The above example can be represented via symbols as:
                dependencies)))))
   (stratify '() (set) (dict-keys dep-hash) dep-hash))
 
-#;(define (sort-refiners refs-hash)
-  ...)
+(define (sort-refiners refs-hash)
+  (dict-for-each refs-hash
+                 (λ (k v)
+                   (display (format "~a :: ~a\n" k v))))
+  (dict-keys refs-hash))
 
-(define (grammar-refiner-transform grammar-refiner-name-stx
+(define (grammar-refiner-transform infos-hash
                                    refs-hash)
   (define (refs-hash->ref name)
     (hash-ref refs-hash (syntax-local-value name)))
   (define sorted-refs
-    (dict-keys refs-hash))
-  (display (format "sorted-refs\n~a\n\n" sorted-refs)))
+    (sort-refiners refs-hash))
+  ; TODO - return something else
+  infos-hash)
 
 (struct grammar-refiner
   (name follows)
