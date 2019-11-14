@@ -687,11 +687,7 @@ It just reads the values of several other properties and produces the results fo
                            (if (or (and (ast-node? type) (ast-bud-node? type))
                                    (and (ast-node? name) (ast-bud-node? name)))
                                #f
-                               (binding
-                                (ast-child 'name-field-name n)
-                                n
-                                (ast-child 'type-field-name n)
-                                'def-or-param)))))])))
+                               (binding name n type 'def-or-param)))))])))
     (list _xsmith_binder-type-field xsmith_definition-binding-info)))
 
 ;; This property should be a list containing:
@@ -1027,8 +1023,10 @@ few of these methods.
         (att-value '_xsmith_my-type-constraint node)))
   (define my-type-from-parent
     (att-value '_xsmith_type-constraint-from-parent node))
-  ;(define my-type (fresh-type-variable))
-  (define my-type my-type-from-parent)
+  (define best-return-type
+    (if (and my-type-constraint (concrete-type? my-type-constraint))
+        my-type-constraint
+        my-type-from-parent))
   (define (debug-print-1 t1 t2)
     (xd-printf "error while unifying types:\n~a\nand\n~a\n" t1 t2)
     (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
@@ -1039,17 +1037,12 @@ few of these methods.
       (λ (e)
         (debug-print-1 my-type-constraint my-type-from-parent)
         ;(xd-printf "error unifying my-type with my-type-constraint\n")
-        (xd-printf "error unifying my-type (from parent) with my-type-constraint\n")
+        (xd-printf "error unifying my-type-from-parent with my-type-constraint\n")
+        (xd-printf "type-from-parent: ~v\n" my-type-from-parent)
+        (xd-printf "my-type-constraint ~v\n" my-type-constraint)
         (raise e))])
     (when my-type-constraint
-      (unify! my-type my-type-constraint)))
-  #;(with-handlers
-    ([(λ(x)#t)
-      (λ (e)
-        (debug-print-1 my-type-constraint my-type-from-parent)
-        (xd-printf "error unifying my-type with my-parent-type\n")
-        (raise e))])
-    (unify! my-type my-type-from-parent))
+      (unify! my-type-from-parent my-type-constraint)))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
     (let* ([binding (att-value '_xsmith_resolve-reference-name
                                node
@@ -1060,7 +1053,7 @@ few of these methods.
       (with-handlers
         ([(λ(x)#t)
           (λ (e)
-            (debug-print-1 var-type my-type)
+            (debug-print-1 var-type my-type-from-parent)
             (xd-printf "Error unifying types for reference of AST type: ~a\n"
                        (ast-node-type node))
             (xd-printf "Type constraint for this node: ~a\n"
@@ -1074,14 +1067,14 @@ few of these methods.
           ;; If the reference-unify-target is not #t or #f, it still needs to be
           ;; unified. However, unifying here will cause a cycle. Instead, this
           ;; is handled in the type-info property definition.
-          [#t (unify! var-type my-type)]
+          [#t (unify! var-type my-type-from-parent)]
           [else (void)]))
       ;; This shouldn't be necessary, but something is going wrong,
       ;; so I'll give a chance to get this error message.
       (with-handlers
         ([(λ(x)#t)
           (λ (e)
-            (debug-print-1 binding-node-type my-type)
+            (debug-print-1 binding-node-type my-type-from-parent)
             (xd-printf "Error unifying types for reference of AST type: ~a\n"
                        (ast-node-type node))
             (xd-printf "Type annotated at variable definition: ~a\n"
@@ -1089,7 +1082,8 @@ few of these methods.
             (xd-printf "Type that was recorded in scope graph: ~a\n"
                        var-type)
             (raise e))])
-        (unify! binding-node-type my-type))))
+        (unify! binding-node-type my-type-from-parent)
+        (set! best-return-type binding-node-type))))
   (when (and definition-type-field (not (att-value 'xsmith_is-hole? node)))
     (let ([def-type (ast-child definition-type-field node)])
       (when (not (type? def-type))
@@ -1100,14 +1094,15 @@ few of these methods.
         (with-handlers
           ([(λ(x)#t)
             (λ (e)
-              (debug-print-1 def-type my-type)
+              (debug-print-1 def-type my-type-from-parent)
               (xd-printf "Error unifying definition type recorded in definition field.\n")
               (xd-printf "Type constraint on this node: ~v\n" my-type-constraint)
               (xd-printf "Type from parent: ~v\n" my-type-from-parent)
               (xd-printf "Recorded definition type ~v\n" def-type)
               (raise e))])
-          (unify! def-type my-type)))))
-  my-type)
+          (unify! def-type my-type-from-parent)
+          (set! best-return-type def-type)))))
+  best-return-type)
 
 #|
 The type-info property is two-armed.

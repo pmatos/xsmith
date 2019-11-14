@@ -50,7 +50,7 @@
 
 (add-to-grammar
  schemely-core
- [DefinitionContext #f ([definitions : Definition * = (random 3)]
+ [DefinitionContext #f ([definitions : Definition * = 0 #;(random 3)]
                         [expressions : Expression * = (add1 (random 3))])
    #:prop strict-child-order? #t]
  [Program DefinitionContext ()]
@@ -75,7 +75,7 @@
  [FormalParam #f (type [name = (fresh-var-name "arg-")])
               #:prop binder-info (name type parameter)]
 
- [LetStar Expression ([definitions : Definition * = (random 3)]
+ [LetStar Expression ([definitions : Definition * = 0 #;(random 3)]
                       [body : DefinitionContext])
           #:prop strict-child-order? #t]
 
@@ -214,7 +214,7 @@
 (define string (base-type 'string))
 
 (define (type-thunks-for-concretization)
-  (list (λ()float) (λ()int) (λ()bool) (λ()string)))
+  (list (λ()float) (λ()number) (λ()int) (λ()bool) (λ()string)))
 
 (define-generic-type list-type (type))
 (define (fresh-list-type) (list-type (fresh-type-variable)))
@@ -324,8 +324,7 @@
 
  [If [(fresh-type-variable)
       (λ (n t)
-        (define arm-type (fresh-subtype-of t))
-        (hash 'test bool 'then arm-type 'else arm-type))]]
+        (hash 'test bool 'then (fresh-subtype-of t) 'else (fresh-subtype-of t)))]]
  )
 
 (add-prop

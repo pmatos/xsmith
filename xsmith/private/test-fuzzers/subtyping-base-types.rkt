@@ -59,10 +59,9 @@
           [And [bool (λ (n t) (hash 'es (λ (c) (fresh-subtype-of t))))]]
           [StringAppend [string (λ (n t) (hash 'es (λ (c) (fresh-subtype-of t))))]]
           [If [(fresh-type-variable) (λ (n t)
-                                       (let ([arm-type (fresh-subtype-of t)])
-                                         (hash 'test (fresh-subtype-of bool)
-                                               'then arm-type
-                                               'else arm-type)))]]
+                                       (hash 'test (fresh-subtype-of bool)
+                                             'then (fresh-subtype-of t)
+                                             'else (fresh-subtype-of t)))]]
           [StringLength [int (λ (n t) (hash 'Expression (fresh-subtype-of string)))]]
           )
 
