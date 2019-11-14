@@ -258,8 +258,8 @@
                                (map (λ(x)(fresh-type-variable))
                                     (ast-children (ast-child 'params n)))))
             (define return-type (fresh-type-variable))
-            (subtype-unify! (function-type args-type return-type)
-                            t)
+            (unify! (function-type args-type return-type)
+                    t)
             (define args-list (product-type-inner-type-list args-type))
             (hash-set
              (for/hash ([c (ast-children (ast-child 'params n))]
