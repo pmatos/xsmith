@@ -1,8 +1,11 @@
 #lang racket/base
 
-(require racket/list
-         racket/dict
-         racket/struct)
+(require
+ racket/list
+ racket/dict
+ racket/struct
+ racket/match
+ )
 
 (provide
  (struct-out grammar-refiner)
@@ -89,13 +92,21 @@ elements. The above example can be represented via symbols as:
                dependencies)))))
   (stratify '() (set) (dict-keys dep-hash) dep-hash))
 
+(define (fix-follows follows)
+  (match follows
+    [(list quote (list quote real-follows)) real-follows]
+    [(list quote real-follows) real-follows]
+    [(list real-follows) (list real-follows)]
+    [(list) (list)]
+    [real-follows (list real-follows)]))
+
 (define (sort-refiners refs-hash)
   (display (format "refs-hash: ~a\n\n" refs-hash))
   (define refiners-dependencies-hash
     (for/hash ([ref (dict-keys refs-hash)])
       (values
        (grammar-refiner-name ref)
-       (grammar-refiner-follows ref))))
+       (fix-follows (grammar-refiner-follows ref)))))
   (display (format "refiners-dependencies-hash: ~a\n\n" refiners-dependencies-hash))
   (define sorted-refs (stratify refiners-dependencies-hash))
   (display (format "sorted-refs\n~a\n\n" sorted-refs))
