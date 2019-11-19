@@ -92,6 +92,20 @@ elements. The above example can be represented via symbols as:
                dependencies)))))
   (stratify '() (set) (dict-keys dep-hash) dep-hash))
 
+#|
+Users can specify a #:follows on grammar-refiners. This functions normalizes
+inputs to reduce errors. Users can specify #:follows as any of the following:
+
+  #:follows foo
+  #:follows 'foo
+  #:follows (foo)
+  #:follows '(foo)
+
+When multiple arguments are to be given, a list form *must* be used:
+
+  #:follows (foo bar)
+  #:follows '(foo bar)
+|#
 (define (fix-follows follows)
   (match follows
     [(list quote (list quote real-follows)) real-follows]
