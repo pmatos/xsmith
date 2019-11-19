@@ -62,12 +62,27 @@ elements. The above example can be represented via symbols as:
   (define (stratify layers added elements dependencies)
     (if (empty? elements)
         (reverse layers)  ; Put the layer without dependencies first.
-        (let ([queue (filter (λ (e) (andmap (λ (x) x)
+        #;(let ([queue (filter values
+                             (for/list ([element elements])
+                               (let* ([deps (hash-ref dependencies element)]
+                                      [satisfied-deps (map (λ (dep) (set-has-key? added dep))
+                                                           deps)]
+                                      [all-deps-satisfied? (andmap values satisfied-deps)])
+                                 (if all-deps-satisfied?
+                                     element
+                                     #f))))])
+          ...)
+        (let ([queue (filter (λ (e) (andmap values
                                             (map (λ (d) (set-has-key? added d))
                                                  (hash-ref dependencies e))))
                              elements)])
           (if (empty? queue)
-              (raise-argument-error 'stratify "non-empty queue" queue)
+              (raise-arguments-error 'stratify
+                                     "received an empty queue"
+                                     "elements" elements
+                                     "added" added
+                                     "dependencies" dependencies
+                                     "layers" layers)
               (stratify
                (cons queue layers)
                (set-append added queue)
