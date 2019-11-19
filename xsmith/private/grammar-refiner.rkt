@@ -60,21 +60,20 @@ elements. The above example can be represented via symbols as:
 |#
 (define (stratify dep-hash)
   (define (stratify layers added elements dependencies)
+    #|
+    layers       - the accumulated layers of dependencies (a list of lists of elements)
+    added        - a set denoting which elements have already been added to the layers
+    elements     - the list of elements remaining to add
+    dependencies - a map from each element to a list of elements it depends on
+    |#
+    (display (format "stratify\n  layers: ~a\n  added: ~a\n  elements: ~a\n  dependencies: ~a\n\n"
+                     layers added elements dependencies))
     (if (empty? elements)
         (reverse layers)  ; Put the layer without dependencies first.
-        #;(let ([queue (filter values
-                             (for/list ([element elements])
-                               (let* ([deps (hash-ref dependencies element)]
-                                      [satisfied-deps (map (λ (dep) (set-has-key? added dep))
-                                                           deps)]
-                                      [all-deps-satisfied? (andmap values satisfied-deps)])
-                                 (if all-deps-satisfied?
-                                     element
-                                     #f))))])
-          ...)
-        (let ([queue (filter (λ (e) (andmap values
-                                            (map (λ (d) (set-has-key? added d))
-                                                 (hash-ref dependencies e))))
+        (let ([queue  ; Create a list of elements that can be added with the current layers.
+               (filter (λ (e) (andmap values
+                                      (map (λ (d) (set-has-key? added d))
+                                           (hash-ref dependencies e))))
                              elements)])
           (if (empty? queue)
               (raise-arguments-error 'stratify
@@ -91,12 +90,13 @@ elements. The above example can be represented via symbols as:
   (stratify '() (set) (dict-keys dep-hash) dep-hash))
 
 (define (sort-refiners refs-hash)
+  (display (format "refs-hash: ~a\n\n" refs-hash))
   (define refiners-dependencies-hash
     (for/hash ([ref (dict-keys refs-hash)])
       (values
        (grammar-refiner-name ref)
        (grammar-refiner-follows ref))))
-  (display (format "refiners-dependencies-hash\n~a\n\n" refiners-dependencies-hash))
+  (display (format "refiners-dependencies-hash: ~a\n\n" refiners-dependencies-hash))
   (define sorted-refs (stratify refiners-dependencies-hash))
   (display (format "sorted-refs\n~a\n\n" sorted-refs))
   #;(dict-for-each refs-hash
