@@ -69,7 +69,7 @@ elements. The above example can be represented via symbols as:
     elements     - the list of elements remaining to add
     dependencies - a map from each element to a list of elements it depends on
     |#
-    (display (format "stratify\n  layers: ~a\n  added: ~a\n  elements: ~a\n  dependencies: ~a\n\n"
+    #;(display (format "stratify\n  layers: ~a\n  added: ~a\n  elements: ~a\n  dependencies: ~a\n\n"
                      layers added elements dependencies))
     (if (empty? elements)
         (reverse layers)  ; Put the layer without dependencies first.
@@ -115,35 +115,37 @@ When multiple arguments are to be given, a list form *must* be used:
     [real-follows (list real-follows)]))
 
 (define (sort-refiners refs-hash)
-  (display (format "refs-hash: ~a\n\n" refs-hash))
+  ; Extract dependencies for stratification.
   (define refiners-dependencies-hash
     (for/hash ([ref (dict-keys refs-hash)])
       (values
        (grammar-refiner-name ref)
        (fix-follows (grammar-refiner-follows ref)))))
-  (display (format "refiners-dependencies-hash: ~a\n\n" refiners-dependencies-hash))
-  (define sorted-refs (stratify refiners-dependencies-hash))
-  (display (format "sorted-refs\n~a\n\n" sorted-refs))
-  #;(dict-for-each refs-hash
-                 (λ (k v)
-                   (display (format "~a :: ~a\n" k v))))
-  (dict-keys refs-hash))
+  ; Separate the refiners into layers based on dependency, then flatten them
+  ; into a single correctly-ordered list.
+  (flatten (stratify refiners-dependencies-hash)))
 
 (define (grammar-refiner-transform infos-hash
                                    refs-hash)
-  (define (refs-hash->ref name)
+  #;(define (refs-hash->ref name)
     (hash-ref refs-hash (syntax-local-value name)))
   (define sorted-refs
     (sort-refiners refs-hash))
+  (define names->funcs
+    (for/hash ([(refiner funcs) (in-hash refs-hash)])
+      (values
+       (grammar-refiner-name refiner)
+       funcs)))
   ; TODO - return something else
   infos-hash)
 
 (struct grammar-refiner
   (name follows)
-  #:property prop:procedure (λ (stx) (raise-syntax-error
-                                      'grammar-refiner
-                                      "Can't be used directly as a macro."
-                                      stx))
+  #:property prop:procedure (λ (stx)
+                              (raise-syntax-error
+                               'grammar-refiner
+                               "Can't be used directly as a macro."
+                               stx))
   #:methods gen:custom-write
   [(define write-proc
      (make-constructor-style-printer
