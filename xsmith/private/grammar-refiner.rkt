@@ -91,7 +91,15 @@ elements. The above example can be represented via symbols as:
   (stratify '() (set) (dict-keys dep-hash) dep-hash))
 
 (define (sort-refiners refs-hash)
-  (dict-for-each refs-hash
+  (define refiners-dependencies-hash
+    (for/hash ([ref (dict-keys refs-hash)])
+      (values
+       (grammar-refiner-name ref)
+       (grammar-refiner-follows ref))))
+  (display (format "refiners-dependencies-hash\n~a\n\n" refiners-dependencies-hash))
+  (define sorted-refs (stratify refiners-dependencies-hash))
+  (display (format "sorted-refs\n~a\n\n" sorted-refs))
+  #;(dict-for-each refs-hash
                  (λ (k v)
                    (display (format "~a :: ~a\n" k v))))
   (dict-keys refs-hash))
