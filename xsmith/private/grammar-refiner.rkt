@@ -125,7 +125,7 @@ When multiple arguments are to be given, a list form *must* be used:
   ; into a single correctly-ordered list.
   (flatten (stratify refiners-dependencies-hash)))
 
-(define (grammar-refiner-transform infos-hash
+(define (grammar-refiners-transform infos-hash
                                    refs-hash)
   #;(define (refs-hash->ref name)
     (hash-ref refs-hash (syntax-local-value name)))

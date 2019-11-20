@@ -864,7 +864,7 @@ Perform error checking:
      (r-stx r-hash)
      (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
    (define new-infos-hash  ; TODO - rename this as needed after implementation complete
-     (grammar-refiner-transform infos-hash r-hash))
+     (grammar-refiners-transform infos-hash r-hash))
    ;; TODO - Check duplicates again? Perform other checks?
 
    ;; Begin the next stage of assembly.
