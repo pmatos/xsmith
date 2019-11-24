@@ -865,6 +865,7 @@ Perform error checking:
      (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
    (define sorted-transformers
      (grammar-refiners->transformers r-hash))
+
    ;; TODO - Check duplicates again? Perform other checks?
 
    ;; Begin the next stage of assembly.
@@ -883,12 +884,14 @@ Perform error checking:
       [(n-ag-clause ...) (rule-hash->clause-list
                           (dict-ref infos-hash 'ag-info))]
       [(n-cm-clause ...) (rule-hash->clause-list
-                          (dict-ref infos-hash 'cm-info))])
+                          (dict-ref infos-hash 'cm-info))]
+      [(r-trans ...) sorted-transformers])
      #'(assemble_stage4
         spec
         (n-g-part ...)
         (n-ag-clause ...)
-        (n-cm-clause ...)))])
+        (n-cm-clause ...)
+        (r-trans ...)))])
 
 (define-syntax-parser assemble_stage4
   ;; Sort the grammar clauses.
@@ -898,7 +901,8 @@ Perform error checking:
   [(_ spec
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
-      (cm-clause:prop-clause ...))
+      (cm-clause:prop-clause ...)
+      (r-trans ...))
    (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
    (define (grammar-part-n-parents gp)
      (length (grammar-clause->parent-chain gp all-g-part-hash)))
