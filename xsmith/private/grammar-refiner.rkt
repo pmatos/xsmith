@@ -204,6 +204,12 @@ on their indicated #:follows dependencies.
        (dict-ref transformers-by-refiner ref))))
   sorted-transformers)
 
+#|
+The grammar-refiner struct groups refiner names with a #:follows declaration
+that allows for specifying the sequence in which refiners should be applied. The
+actual definition of the refiner (the transformation function which will be
+applied to a node) is specified separately.
+|#
 (struct grammar-refiner
   (name follows)
   #:property prop:procedure (λ (stx)
