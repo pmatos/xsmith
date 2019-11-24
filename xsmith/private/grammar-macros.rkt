@@ -911,20 +911,22 @@ Perform error checking:
                         <
                         #:key grammar-part-n-parents
                         #:cache-keys? #t)])
-     #'(assemble_stage6
+     #'(assemble_stage5
         spec
         (g-part-sorted ...)
         (ag-clause ...)
-        (cm-clause ...)))])
+        (cm-clause ...)
+        (r-trans ...)))])
 
-(define-syntax-parser assemble_stage6
+(define-syntax-parser assemble_stage5
   ;; Assemble everything!
   ;; First we use with-syntax and syntax-parse to bind a bunch of names
   ;; that are needed in the template.  Then there is a giant template.
   [(_ spec
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
-      (cm-clause:prop-clause ...))
+      (cm-clause:prop-clause ...)
+      (r-trans ...))
    (define (node->choice node-name-stx)
      (format-id #'here "~aChoice%" node-name-stx))
 
