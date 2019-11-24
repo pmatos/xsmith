@@ -10,8 +10,12 @@
 
 (provide
  (struct-out grammar-refiner)
- (all-defined-out))
+ grammar-refiners->transformers)
 
+#|
+Here we define sets as hashes where the values are always #t. These are used for
+easier management of uniqueness properties without having to deal with values.
+|#
 (define (set . ks)
   (make-immutable-hash
    (map (λ (k) (cons k #t))
@@ -130,8 +134,7 @@ on their indicated #:follows dependencies.
   ; into a single correctly-ordered list.
   (flatten (stratify refiners-dependencies-hash)))
 
-(define (grammar-refiners-transform infos-hash
-                                    refs-hash)
+(define (grammar-refiners->transformers refs-hash)
   ; Produce a predicate to test a node's type.
   (define (type->pred type)
     #'(λ (n) (eq? type (node-type n))))
@@ -198,8 +201,7 @@ on their indicated #:follows dependencies.
     (flatten
      (for/list ([ref sorted-refiners])
        (dict-ref transformers-by-refiner ref))))
-  ;;;; TODO - return something else
-  infos-hash)
+  sorted-transformers)
 
 (struct grammar-refiner
   (name follows)
