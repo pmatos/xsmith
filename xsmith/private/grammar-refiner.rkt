@@ -5,6 +5,7 @@
  racket/dict
  racket/struct
  racket/match
+ syntax/parse
  )
 
 (provide
@@ -114,10 +115,14 @@ When multiple arguments are to be given, a list form *must* be used:
     [(list) (list)]
     [real-follows (list real-follows)]))
 
-(define (sort-refiners refs-hash)
+#|
+Given a list of grammar-refiners, return a list of refiner names ordered based
+on their indicated #:follows dependencies.
+|#
+(define (sort-refiners refs)
   ; Extract dependencies for stratification.
   (define refiners-dependencies-hash
-    (for/hash ([ref (dict-keys refs-hash)])
+    (for/hash ([ref refs])
       (values
        (grammar-refiner-name ref)
        (fix-follows (grammar-refiner-follows ref)))))
@@ -126,17 +131,74 @@ When multiple arguments are to be given, a list form *must* be used:
   (flatten (stratify refiners-dependencies-hash)))
 
 (define (grammar-refiners-transform infos-hash
-                                   refs-hash)
-  #;(define (refs-hash->ref name)
-    (hash-ref refs-hash (syntax-local-value name)))
-  (define sorted-refs
-    (sort-refiners refs-hash))
-  (define names->funcs
+                                    refs-hash)
+  ; Produce a predicate to test a node's type.
+  (define (type->pred type)
+    #'(λ (n) (eq? type (node-type n))))
+  ; Merge multiple predicates into a single predicate. All predicates must be
+  ; satisfied by the input to pass, hence the conjunction.
+  (define (preds->pred preds)
+    #'(λ (n)
+        (for/fold ([res #t])
+                  ([p preds])
+          (and res (p n)))))
+  ; Given a predicate and a transformer function, produce a final transformer.
+  (define (pred+func->trans pred func)
+    #'(λ (n)
+        (and (pred n)
+             (func n))))
+  ; Extract a pair of syntax functions from the syntax-list of functions that
+  ; correspond to a specific node type.
+  ;
+  ; The syntax-list of functions should either have one or two functions in it.
+  ; When there is only one, it is a transformer function that should be applied
+  ; to a node type in all cases. When there are two, the first function is a
+  ; predicate to test whether a transformer should be run, and the second is the
+  ; transformer function.
+  (define (funcs->func-pair stx)
+    (match (syntax->list stx)
+      [(list pred func)
+       (cons pred func)]
+      [(list func)
+       (cons #f func)]
+      [_ (cons #f #f)]))
+  ; Given a map from types to syntax-lists of functions associated with each
+  ; type, produce a list of transformers. Each transformer will correspond to a
+  ; single type.
+  (define (func-hash->transformers funcs-by-type)
+    (for/list ([(type funcs) (in-dict funcs-by-type)])
+      (match-let* ([type-pred (type->pred type)]
+                   [(cons pred func)
+                    (match (funcs->func-pair funcs)
+                      [(cons _ #f)
+                       (raise-argument-error 'grammar-refiner-transform
+                                             "(syntax? (-> ast-node? ast-node?)"
+                                             #f)]
+                      [(cons #f func)
+                       (cons type-pred func)]
+                      [(cons pred func)
+                       (cons (preds->pred (list type-pred pred)) func)])])
+        (pred+func->trans pred func))))
+  ; Map refiner names to maps of functions (for easier lookup).
+  (define func-hashes-by-refiner
     (for/hash ([(refiner funcs) (in-hash refs-hash)])
       (values
        (grammar-refiner-name refiner)
        funcs)))
-  ; TODO - return something else
+  ; A map from refiner names to their associated transformers (as syntax
+  ; objects).
+  (define transformers-by-refiner
+    (for/hash ([(ref funcs-by-type) (in-dict func-hashes-by-refiner)])
+      (values ref
+              (func-hash->transformers funcs-by-type))))
+  ; Sort the refiners based on their #:follows declarations.
+  (define sorted-refiners
+    (sort-refiners (dict-keys refs-hash)))
+  (define sorted-transformers
+    (flatten
+     (for/list ([ref sorted-refiners])
+       (dict-ref transformers-by-refiner ref))))
+  ;;;; TODO - return something else
   infos-hash)
 
 (struct grammar-refiner
