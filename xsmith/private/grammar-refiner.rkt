@@ -145,11 +145,6 @@ on their indicated #:follows dependencies.
         (for/fold ([res #t])
                   ([p preds])
           (and res (p n)))))
-  ; Given a predicate and a transformer function, produce a final transformer.
-  (define (pred+func->trans pred func)
-    #'(λ (n)
-        (and (pred n)
-             (func n))))
   ; Extract a pair of syntax functions from the syntax-list of functions that
   ; correspond to a specific node type.
   ;
@@ -165,6 +160,12 @@ on their indicated #:follows dependencies.
       [(list func)
        (cons #f func)]
       [_ (cons #f #f)]))
+  ; Given a predicate and a transformer function, produce a final transformer.
+  (define (pred+func->trans pred func)
+    (with-syntax ([pred pred]
+                  [func func])
+      #'(λ (n) (and (pred n)
+                    (func n)))))
   ; Given a map from types to syntax-lists of functions associated with each
   ; type, produce a list of transformers. Each transformer will correspond to a
   ; single type.
