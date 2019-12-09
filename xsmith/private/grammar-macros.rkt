@@ -460,7 +460,7 @@
 ;;; Functions implementing the RACR attributes that xsmith defines by default.
 
 ;; Implements the <spec-name>-generate-ast function.
-(define ((ast-generator-generator fresh-node-func) node-name)
+(define ((ast-generator-generator fresh-node-func refiner-names) node-name)
   (define root (fresh-node-func node-name))
   (with-handlers ([(λ (e) #t)
                    (λ (e) (raise (list 'ast-gen-error e root) #t))])
@@ -475,6 +475,7 @@
                   #t)]
                [else #f]))])
       (perform-rewrites root 'top-down fill-in))
+    (display (format "refiner-names: ~a\n\n" refiner-names))
     root))
 
 (define xsmith_find-a-descendant-function
@@ -932,14 +933,9 @@ Perform error checking:
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
       (cm-clause:prop-clause ...)
-      (r-name ...))
+      (ref-name ...))
    (define (node->choice node-name-stx)
      (format-id #'here "~aChoice%" node-name-stx))
-
-   (define r-names
-     (for/list ([r-name (syntax->list #'(r-name ...))])
-       (syntax-parse r-name
-         [((~datum att-rule) name-stx) #'name-stx])))
 
    (define grammar-hash
      (grammar-clauses-stx->clause-hash #'(g-part ...)))
@@ -1228,7 +1224,9 @@ Perform error checking:
                      (compile-ag-specifications)))
 
                  ;; Define an ast-generator with a hygiene-bending name
-                 (define generate-ast-func (ast-generator-generator fresh-node-func))
+                 (define refiner-names
+                   (map syntax->datum (syntax->list #'(ref-name ...))))
+                 (define generate-ast-func (ast-generator-generator fresh-node-func refiner-names))
                  ))])]))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
