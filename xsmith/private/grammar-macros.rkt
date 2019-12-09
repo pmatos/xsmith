@@ -849,20 +849,29 @@ Perform error checking:
    (define-values
      (p-stx p-hash)
      (mk-stx-and-hash #'((p-clause+ ...) ...) grammar-property-name "property" #:extras #'extra-props))
+   (define-values
+     (r-stx r-hash)
+     (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
    (define p-structs (sort (dict-keys p-hash) grammar-property-less-than))
+   (define r-structs (sort-refiners (dict-keys r-hash)))
    (define pre-transform-infos-hash
      (hash 'ag-info ag-hash
            'cm-info cm-hash
            'grammar-info g-hash
-           'props-info p-hash))
-   (define infos-hash
+           'props-info p-hash
+           'refs-info r-hash))
+   (define pre-refs-infos-hash
      (for/fold ([ih pre-transform-infos-hash])
                ([p-struct p-structs])
        (grammar-property-transform (hash-ref p-stx p-struct p-struct)
                                    ih)))
-   (define-values
-     (r-stx r-hash)
-     (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
+   (define infos-hash
+     (for/fold ([ih pre-refs-infos-hash])
+               ([r-struct r-structs])
+       (grammar-refiner-transform (hash-ref r-stx r-struct r-struct)
+                                  ih)))
+   (define ref-att-rule-names (map refiner-stx->att-rule-name r-structs))
+
    (define sorted-transformers
      (grammar-refiners->transformers r-hash))
 

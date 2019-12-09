@@ -1,15 +1,20 @@
 #lang racket/base
 
 (require
+ "grammar-properties.rkt"
  racket/list
  racket/dict
  racket/struct
  racket/match
+ racket/syntax
  syntax/parse
  )
 
 (provide
  (struct-out grammar-refiner)
+ sort-refiners
+ refiner-stx->att-rule-name
+ grammar-refiner-transform
  grammar-refiners->transformers)
 
 #|
@@ -74,8 +79,6 @@ elements. The above example can be represented via symbols as:
     elements     - the list of elements remaining to add
     dependencies - a map from each element to a list of elements it depends on
     |#
-    #;(display (format "stratify\n  layers: ~a\n  added: ~a\n  elements: ~a\n  dependencies: ~a\n\n"
-                     layers added elements dependencies))
     (if (empty? elements)
         (reverse layers)  ; Put the layer without dependencies first.
         (let ([queue  ; Create a list of elements that can be added with the current layers.
@@ -120,7 +123,7 @@ When multiple arguments are to be given, a list form *must* be used:
     [real-follows (list real-follows)]))
 
 #|
-Given a list of grammar-refiners, return a list of refiner names ordered based
+Given a list of grammar-refiners, return a list of those refiners ordered based
 on their indicated #:follows dependencies.
 |#
 (define (sort-refiners refs)
@@ -132,7 +135,80 @@ on their indicated #:follows dependencies.
        (fix-follows (grammar-refiner-follows ref)))))
   ; Separate the refiners into layers based on dependency, then flatten them
   ; into a single correctly-ordered list.
-  (flatten (stratify refiners-dependencies-hash)))
+  (define sorted-names (flatten (stratify refiners-dependencies-hash)))
+  ; Convert names back into the grammar-refiner objects we received initially.
+  (map (λ (name)
+         (findf (λ (ref)
+                  (eq? name
+                       (grammar-refiner-name ref)))
+                refs))
+       sorted-names))
+
+(define (refiner-stx->att-rule-name ref-stx)
+  (let ([ref-name (grammar-refiner-name ref-stx)])
+    (with-syntax
+      ([att-rule-name
+        (format-id #'ref-name #:source #'ref-name "_xsmith_auto-ref_~a" ref-name)])
+      #'(att-rule
+         att-rule-name))))
+
+(define (grammar-refiner-transform grammar-ref-name-stx
+                                   infos-hash)
+  (define (infos->section infos-hash pa)
+    (syntax-parse pa
+      [p:property-arg-refiner (hash-ref (hash-ref infos-hash 'refs-info)
+                                        (syntax-local-value #'p.name)
+                                        (hash))]
+      [p:property-arg-att-rule (hash-ref (hash-ref infos-hash 'ag-info)
+                                         (syntax->datum #'p.name)
+                                         (hash))]))
+  (define (section->infos ref-arg new-hash infos-hash)
+    (syntax-parse ref-arg
+      [r:property-arg-refiner
+       (define refs-hash (hash-ref infos-hash 'refs-info))
+       (define this-ref-hash
+         (hash-ref refs-hash (syntax-local-value #'r.name) (hash)))
+       (hash-set infos-hash 'refs-info
+                 (hash-set refs-hash
+                           (syntax-local-value #'r.name)
+                           (for/fold ([combined this-ref-hash])
+                                     ([k (dict-keys new-hash)])
+                             (define old-val (dict-ref combined k '()))
+                             (define new-val
+                               (syntax-parse (dict-ref new-hash k)
+                                 [(nv ...) (syntax->list #'(nv ...))]
+                                 [bad-stx (raise-syntax-error
+                                           (syntax->datum #'r.name)
+                                           "bad return from refiner transformer"
+                                           #'bad-stx
+                                           #'r.name)]))
+                             (hash-set combined k (append old-val
+                                                          new-val)))
+                           new-hash))]
+      [p:property-arg-att-rule
+       (define rules-hash (hash-ref infos-hash 'ag-info))
+       (define this-rule-hash
+         (hash-ref rules-hash (syntax->datum #'p.name) (hash)))
+       (hash-set infos-hash #'ag-info
+                 (hash-set rules-hash
+                           (syntax->datum #'p.name)
+                           (for/fold ([combined this-rule-hash])
+                                     ([k (dict-keys new-hash)])
+                             (when (dict-ref combined k #f)
+                               (raise-syntax-error 'grammar-refiner-transform
+                                                   "duplicate rule"
+                                                   #'p.name))
+                             (define new-val (dict-ref new-hash k))
+                             (hash-set combined k new-val))))]))
+  (syntax-parse grammar-ref-name-stx
+    [gr:grammar-refiner-stx
+     (let* ([slv (syntax-local-value #'gr)]
+            [append (refiner-stx->att-rule-name slv)])
+       (define ret (infos->section infos-hash #'(refiner gr)))
+      (section->infos append ret infos-hash))]))
+
+
+
 
 (define (grammar-refiners->transformers refs-hash)
   ; Produce a predicate to test a node's type.
@@ -144,7 +220,8 @@ on their indicated #:follows dependencies.
     #'(λ (n)
         (for/fold ([res #t])
                   ([p preds])
-          (and res (p n)))))
+          (and re
+               s (p n)))))
   ; Extract a pair of syntax functions from the syntax-list of functions that
   ; correspond to a specific node type.
   ;
@@ -200,7 +277,7 @@ on their indicated #:follows dependencies.
     (sort-refiners (dict-keys refs-hash)))
   (define sorted-transformers
     (flatten
-     (for/list ([ref sorted-refiners])
+     (for/list ([ref (map grammar-refiner-name sorted-refiners)])
        (dict-ref transformers-by-refiner ref))))
   sorted-transformers)
 
@@ -222,3 +299,9 @@ applied to a node) is specified separately.
      (make-constructor-style-printer
       (λ (gr) 'grammar-refiner)
       (λ (gr) (list (grammar-refiner-name gr) (grammar-refiner-follows gr)))))])
+
+(define-syntax-class grammar-refiner-stx
+  (pattern gr:id
+           #:when (grammar-refiner? (syntax-local-value #'gr (λ () #f)))))
+(define-syntax-class property-arg-refiner
+  (pattern ((~datum refiner) name:id)))
