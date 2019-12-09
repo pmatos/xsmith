@@ -872,9 +872,6 @@ Perform error checking:
                                   ih)))
    (define ref-att-rule-names (map refiner-stx->att-rule-name r-structs))
 
-   (define sorted-transformers
-     (grammar-refiners->transformers r-hash))
-
    ;; TODO - Check duplicates again? Perform other checks?
 
    ;; Begin the next stage of assembly.
@@ -894,13 +891,13 @@ Perform error checking:
                           (dict-ref infos-hash 'ag-info))]
       [(n-cm-clause ...) (rule-hash->clause-list
                           (dict-ref infos-hash 'cm-info))]
-      [(r-trans ...) sorted-transformers])
+      [(r-name ...) ref-att-rule-names])
      #'(assemble_stage4
         spec
         (n-g-part ...)
         (n-ag-clause ...)
         (n-cm-clause ...)
-        (r-trans ...)))])
+        (r-name ...)))])
 
 (define-syntax-parser assemble_stage4
   ;; Sort the grammar clauses.
@@ -911,7 +908,7 @@ Perform error checking:
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
       (cm-clause:prop-clause ...)
-      (r-trans ...))
+      (r-name ...))
    (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
    (define (grammar-part-n-parents gp)
      (length (grammar-clause->parent-chain gp all-g-part-hash)))
@@ -925,7 +922,7 @@ Perform error checking:
         (g-part-sorted ...)
         (ag-clause ...)
         (cm-clause ...)
-        (r-trans ...)))])
+        (r-name ...)))])
 
 (define-syntax-parser assemble_stage5
   ;; Assemble everything!
@@ -935,9 +932,14 @@ Perform error checking:
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
       (cm-clause:prop-clause ...)
-      (r-trans ...))
+      (r-name ...))
    (define (node->choice node-name-stx)
      (format-id #'here "~aChoice%" node-name-stx))
+
+   (define r-names
+     (for/list ([r-name (syntax->list #'(r-name ...))])
+       (syntax-parse r-name
+         [((~datum att-rule) name-stx) #'name-stx])))
 
    (define grammar-hash
      (grammar-clauses-stx->clause-hash #'(g-part ...)))
