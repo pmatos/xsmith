@@ -14,8 +14,7 @@
  (struct-out grammar-refiner)
  sort-refiners
  refiner-stx->att-rule-name
- grammar-refiner-transform
- grammar-refiners->transformers)
+ grammar-refiner-transform)
 
 #|
 Here we define sets as hashes where the values are always #t. These are used for
@@ -206,80 +205,6 @@ on their indicated #:follows dependencies.
             [append (refiner-stx->att-rule-name slv)])
        (define ret (infos->section infos-hash #'(refiner gr)))
       (section->infos append ret infos-hash))]))
-
-
-
-
-(define (grammar-refiners->transformers refs-hash)
-  ; Produce a predicate to test a node's type.
-  (define (type->pred type)
-    #'(λ (n) (eq? type (node-type n))))
-  ; Merge multiple predicates into a single predicate. All predicates must be
-  ; satisfied by the input to pass, hence the conjunction.
-  (define (preds->pred preds)
-    #'(λ (n)
-        (for/fold ([res #t])
-                  ([p preds])
-          (and re
-               s (p n)))))
-  ; Extract a pair of syntax functions from the syntax-list of functions that
-  ; correspond to a specific node type.
-  ;
-  ; The syntax-list of functions should either have one or two functions in it.
-  ; When there is only one, it is a transformer function that should be applied
-  ; to a node type in all cases. When there are two, the first function is a
-  ; predicate to test whether a transformer should be run, and the second is the
-  ; transformer function.
-  (define (funcs->func-pair stx)
-    (match (syntax->list stx)
-      [(list pred func)
-       (cons pred func)]
-      [(list func)
-       (cons #f func)]
-      [_ (cons #f #f)]))
-  ; Given a predicate and a transformer function, produce a final transformer.
-  (define (pred+func->trans pred func)
-    (with-syntax ([pred pred]
-                  [func func])
-      #'(λ (n) (and (pred n)
-                    (func n)))))
-  ; Given a map from types to syntax-lists of functions associated with each
-  ; type, produce a list of transformers. Each transformer will correspond to a
-  ; single type.
-  (define (func-hash->transformers funcs-by-type)
-    (for/list ([(type funcs) (in-dict funcs-by-type)])
-      (match-let* ([type-pred (type->pred type)]
-                   [(cons pred func)
-                    (match (funcs->func-pair funcs)
-                      [(cons _ #f)
-                       (raise-argument-error 'grammar-refiner-transform
-                                             "(syntax? (-> ast-node? ast-node?)"
-                                             #f)]
-                      [(cons #f func)
-                       (cons type-pred func)]
-                      [(cons pred func)
-                       (cons (preds->pred (list type-pred pred)) func)])])
-        (pred+func->trans pred func))))
-  ; Map refiner names to maps of functions (for easier lookup).
-  (define func-hashes-by-refiner
-    (for/hash ([(refiner funcs) (in-hash refs-hash)])
-      (values
-       (grammar-refiner-name refiner)
-       funcs)))
-  ; A map from refiner names to their associated transformers (as syntax
-  ; objects).
-  (define transformers-by-refiner
-    (for/hash ([(ref funcs-by-type) (in-dict func-hashes-by-refiner)])
-      (values ref
-              (func-hash->transformers funcs-by-type))))
-  ; Sort the refiners based on their #:follows declarations.
-  (define sorted-refiners
-    (sort-refiners (dict-keys refs-hash)))
-  (define sorted-transformers
-    (flatten
-     (for/list ([ref (map grammar-refiner-name sorted-refiners)])
-       (dict-ref transformers-by-refiner ref))))
-  sorted-transformers)
 
 #|
 The grammar-refiner struct groups refiner names with a #:follows declaration
