@@ -169,22 +169,22 @@ to whatever is needed.
   (syntax-parse grammar-ref-name-stx
     [gr:grammar-refiner-stx
      (let* ([slv (syntax-local-value #'gr)]
-            [append (refiner-stx->att-rule-name slv)])
+            [ref-name (refiner-stx->att-rule-name slv)])
        (define ret (hash-ref (hash-ref infos-hash 'refs-info)
                              slv
                              (hash)))
        (define att-rules-hash (hash-ref infos-hash 'ag-info))
        (define this-rules-hash
-         (hash-ref att-rules-hash (syntax->datum #'append) (hash)))
+         (hash-ref att-rules-hash (syntax->datum #'ref-name) (hash)))
        (hash-set infos-hash #'ag-info
                  (hash-set att-rules-hash
-                           (syntax->datum #'append)
+                           (syntax->datum #'ref-name)
                            (for/fold ([combined this-rules-hash])
                                      ([k (dict-keys ret)])
                              (when (dict-ref combined k #f)
                                (raise-syntax-error 'grammar-refiner-transform
                                                    "duplicate rule"
-                                                   #'append))
+                                                   #'ref-name))
                              (define new-val (dict-ref ret k))
                              (hash-set combined k new-val)))))]))
 
