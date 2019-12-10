@@ -475,7 +475,11 @@
                   #t)]
                [else #f]))])
       (perform-rewrites root 'top-down fill-in))
-    (display (format "refiner-names: ~a\n\n" refiner-names))
+    (define refiner-funcs
+      (for/list ([refiner-name refiner-names])
+        (λ (n) (att-value refiner-name n))))
+    (for ([f refiner-funcs])
+      (perform-rewrites root 'top-down f))
     root))
 
 (define xsmith_find-a-descendant-function
