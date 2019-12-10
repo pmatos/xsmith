@@ -176,7 +176,7 @@ to whatever is needed.
        (define att-rules-hash (hash-ref infos-hash 'ag-info))
        (define this-rules-hash
          (hash-ref att-rules-hash ref-name (hash)))
-       (hash-set infos-hash #'ag-info
+       (hash-set infos-hash 'ag-info
                  (hash-set att-rules-hash
                            ref-name
                            (for/fold ([combined this-rules-hash])
