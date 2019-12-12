@@ -8,6 +8,7 @@
  racket/match
  racket/syntax
  syntax/parse
+ (for-template racket/base)
  )
 
 (provide
