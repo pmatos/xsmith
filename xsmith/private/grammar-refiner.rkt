@@ -165,17 +165,16 @@ large function to be used with RACR's `perform-rewrites` function.
 |#
 (define (ref-funcs->refiner funcs-stx)
   (define funcs (syntax->list funcs-stx))
-  (display (format "ref-funcs->refiner: ~a\n" funcs))
-  (define refiner
-    (match funcs
-      [(list func)
-       func]
-      [_
-       (with-syntax ([(func ...) funcs])
-         #'(λ (n)
-             (and func ...)))]))
-  (display (format "  => ~a\n" refiner))
-  refiner)
+  (match funcs
+    ;; If there is only one function in the list, return it as-is.
+    [(list func)
+     func]
+    ;; Otherwise, merge the functions into a single function where each other
+    ;; function is and-ed together.
+    [_
+     (with-syntax ([(func ...) funcs])
+       #'(λ (n)
+           (and func ...)))]))
 
 #|
 Given a grammar refiner and an infos hash, transforms the refiner into an
