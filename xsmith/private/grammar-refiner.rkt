@@ -156,6 +156,26 @@ correspond to this refiner. For a refiner named "my-refiner", this will produce:
         (format-id #'ref-name #:source #'ref-name "_xsmith_auto-ref_~a" ref-name)])
       #'att-rule-name)))
 
+
+#|
+Refiner values consist of a list of (optional) predicate functions followed by
+a single transformation function. This function will combine these into a single
+large function to be used with RACR's `perform-rewrites` function.
+|#
+(define (ref-funcs->refiner funcs-stx)
+  (define funcs (syntax->list funcs-stx))
+  (display (format "ref-funcs->refiner: ~a\n" funcs))
+  (define refiner
+    (match funcs
+      [(list func)
+       func]
+      [_
+       (with-syntax ([(func ...) funcs])
+         #'(λ (n)
+             (and func ...)))]))
+  (display (format "  => ~a\n" refiner))
+  refiner)
+
 #|
 Given a grammar refiner and an infos hash, transforms the refiner into an
 att-rule and puts it in the infos-hash in the appropriate position.
@@ -185,8 +205,10 @@ to whatever is needed.
                                (raise-syntax-error 'grammar-refiner-transform
                                                    "duplicate rule"
                                                    #'ref-name))
-                             (define new-val (dict-ref ret k))
-                             (hash-set combined k new-val)))))]))
+                             (define refiner
+                               (ref-funcs->refiner (dict-ref ret k)))
+                             (display (format "refiner: ~a\n\n" refiner))
+                             (hash-set combined k refiner)))))]))
 
 #|
 The grammar-refiner struct groups refiner names with a #:follows declaration
