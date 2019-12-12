@@ -8,7 +8,7 @@
  racket/match
  racket/syntax
  syntax/parse
- (for-template racket/base)
+ (for-template racket/base)  ;; This is required for providing λ at runtime.
  )
 
 (provide
