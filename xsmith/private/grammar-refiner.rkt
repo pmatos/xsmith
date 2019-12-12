@@ -207,7 +207,6 @@ to whatever is needed.
                                                    #'ref-name))
                              (define refiner
                                (ref-funcs->refiner (dict-ref ret k)))
-                             (display (format "refiner: ~a\n\n" refiner))
                              (hash-set combined k refiner)))))]))
 
 #|
