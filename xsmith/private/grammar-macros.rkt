@@ -474,13 +474,13 @@
                   (execute-inter-choice-transform-queue)
                   #t)]
                [else #f]))])
-      (perform-rewrites root 'top-down fill-in))
-    (define refiner-funcs
-      (for/list ([refiner-name refiner-names])
-        (λ (n) (att-value refiner-name n))))
-    (for ([f refiner-funcs])
-      (perform-rewrites root 'top-down f))
-    root))
+      (perform-rewrites root 'top-down fill-in)))
+  (define refiner-funcs
+    (for/list ([refiner-name refiner-names])
+      (λ (n) (att-value refiner-name n))))
+  (for ([f refiner-funcs])
+    (perform-rewrites root 'top-down f))
+  root)
 
 (define xsmith_find-a-descendant-function
   ;;; Find the first node that satisfies the predicate (the given node included)
