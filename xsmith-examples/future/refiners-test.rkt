@@ -33,8 +33,7 @@
 (define-refiner
   tg
   evens-only
-  [Prog [(λ (n) #t)
-         (λ (n) (begin
+  [Prog [(λ (n) (begin
                   (display "top-level program node")
                   n))]]
   [Val [(λ (n) (odd? (ast-child 'v n)))
