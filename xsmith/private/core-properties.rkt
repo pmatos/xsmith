@@ -1013,7 +1013,45 @@ few of these methods.
      (parent-node-type)))
   my-type-from-parent)
 
-(define (xsmith_type-info-func node reference-unify-target reference-field definition-type-field)
+(define (xsmith_type-info-func node
+                               reference-unify-target
+                               reference-field
+                               definition-type-field
+                               parameter?)
+  #|
+  Here we unify types we get from the various sources of typing info:
+  * The type that a grammar node claims for itself
+  * The type assigned by the parent node
+  * The type annotated in the node for a definition
+
+  Since we support subtypes, the unification must be a subtype unification.
+  In particular, at any point in the tree, a subtype may be used for its supertype.
+
+  Doing subtype unification here roughly corresponds to having a separate
+  subtype rule (besides the user-supplied type rules) of the form:
+
+  Γ ⊢ e : T_sub,   T_sub <: T_sup
+  ———————————————————————————————
+       Γ ⊢ e : T_sup
+
+  Note that some types have different variances in their subtype relations.
+  These variance rules are encoded in the `subtype-unify!` function.
+  Eg. functions are subtypes when they have covariant return types and contravariant argument types, while boxes are invariant.
+
+  As an example, imagine this subtree:
+  (application (lambda ...) (argument ...))
+  The application node must fulfil some type t1.
+  The application then gives its children types: t2->t1 for the function and t2 for the argument, where t2 is a fresh type variable.
+  However, the lambda node is free to be a subtype of t2->t1, say t2p->t1p, so we do subtype-unify here rather than symmetric-unify.
+  The subtype relation machinery enforces that the t2p type is a SUPERTYPE of t2, while t1p is a subtype of t1.
+  Similarly, the argument node is allowed to be a subtype of t2, t2q.
+
+  An interesting case for this machinery is write references.
+  For writes, the right-hand-side expression needs to be a subtype of the variable's type, and its relation to the return type is irrelevant.
+  If the return is the variable itself (default behavior -- as in C assignment expressions), the variable needs to be a subtype of the return type.
+
+  TODO - maybe allow users to set a flag to enable/disable subtyping in this way.
+  |#
   (define binder-type-field (att-value '_xsmith_binder-type-field node))
   (define my-type-constraint
     (if (att-value 'xsmith_is-hole? node)
@@ -1021,12 +1059,9 @@ few of these methods.
              (not (ast-bud-node? (ast-child binder-type-field node)))
              (ast-child binder-type-field node))
         (att-value '_xsmith_my-type-constraint node)))
+  (define my-type (or my-type-constraint (fresh-type-variable)))
   (define my-type-from-parent
     (att-value '_xsmith_type-constraint-from-parent node))
-  (define best-return-type
-    (if (and my-type-constraint (concrete-type? my-type-constraint))
-        my-type-constraint
-        my-type-from-parent))
   (define (debug-print-1 t1 t2)
     (xd-printf "error while unifying types:\n~a\nand\n~a\n" t1 t2)
     (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
@@ -1041,8 +1076,7 @@ few of these methods.
         (xd-printf "type-from-parent: ~v\n" my-type-from-parent)
         (xd-printf "my-type-constraint ~v\n" my-type-constraint)
         (raise e))])
-    (when my-type-constraint
-      (unify! my-type-from-parent my-type-constraint)))
+    (subtype-unify! my-type my-type-from-parent))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
     (let* ([binding (att-value '_xsmith_resolve-reference-name
                                node
@@ -1067,7 +1101,12 @@ few of these methods.
           ;; If the reference-unify-target is not #t or #f, it still needs to be
           ;; unified. However, unifying here will cause a cycle. Instead, this
           ;; is handled in the type-info property definition.
-          [#t (unify! var-type my-type-from-parent)]
+          ;; Note that we symmetrically unify here.
+          ;; We do this to ensure that for writes, the RHS doesn't end up being a
+          ;; different, incompatible subtype from the variable subtype.
+          ;; The reference node is already related by subtyping to the type
+          ;; assigned by its parent.  So we already have the flexibility of subtyping.
+          [#t (unify! var-type my-type)]
           [else (void)]))
       ;; This shouldn't be necessary, but something is going wrong,
       ;; so I'll give a chance to get this error message.
@@ -1082,8 +1121,9 @@ few of these methods.
             (xd-printf "Type that was recorded in scope graph: ~a\n"
                        var-type)
             (raise e))])
-        (unify! binding-node-type my-type-from-parent)
-        (set! best-return-type binding-node-type))))
+        ;(unify! binding-node-type my-type-from-parent)
+        (unify! var-type binding-node-type)
+        )))
   (when (and definition-type-field (not (att-value 'xsmith_is-hole? node)))
     (let ([def-type (ast-child definition-type-field node)])
       (when (not (type? def-type))
@@ -1100,9 +1140,13 @@ few of these methods.
               (xd-printf "Type from parent: ~v\n" my-type-from-parent)
               (xd-printf "Recorded definition type ~v\n" def-type)
               (raise e))])
-          (unify! def-type my-type-from-parent)
-          (set! best-return-type def-type)))))
-  best-return-type)
+          (unify! def-type my-type)))))
+  (when (and definition-type-field
+             parameter?)
+    ;; Parameters are another special case.  These aren't meant to be subtypes,
+    ;; rather, they reflect the type annotation of the lambda term.
+    (unify! my-type my-type-from-parent))
+  my-type)
 
 #|
 The type-info property is two-armed.
@@ -1197,6 +1241,13 @@ The second arm is a function that takes the type that the node has been assigned
                      #''type-field-name]
                     [else #'#f]))))
 
+    (define parameter?-hash
+      (for/hash ([n nodes])
+        (values n (syntax-parse (dict-ref binder-info-info n #'#f)
+                    [(name-field-name type-field-name (~datum parameter))
+                     #'#t]
+                    [else #'#f]))))
+
     (define _xsmith_children-type-dict-info
       (for/hash ([n (dict-keys node-child-dict-funcs)])
         (values n #`(λ (node)
@@ -1208,6 +1259,11 @@ The second arm is a function that takes the type that the node has been assigned
                       (define reference-unify-target
                         #,(dict-ref node-reference-unify-target n))
                       (when (and reference-unify-target (not (eq? #t reference-unify-target)))
+                        ;; This is the case that we can't handle in
+                        ;; xsmith_type-info-func to avoid a cycle.
+                        ;; Note that we symmetrically unify, to ensure that
+                        ;; the RHS (which can be a subtype of the parent assignment)
+                        ;; isn't a different, incompatible subtype than the LHS.
                         (unify!
                          (binding-type (att-value '_xsmith_resolve-reference-name
                                                   node
@@ -1234,7 +1290,8 @@ The second arm is a function that takes the type that the node has been assigned
                            node
                            #,(dict-ref node-reference-unify-target n)
                            #,(dict-ref node-reference-field n)
-                           #,(dict-ref binder-type-field n)))))))
+                           #,(dict-ref binder-type-field n)
+                           #,(dict-ref parameter?-hash n)))))))
     (define _xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
                    #;(eprintf "testing type for ~a\n" this)
