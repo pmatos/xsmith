@@ -226,10 +226,10 @@
 
 
 (define numeric-bin-op/no-relation-to-return
-  (λ (n t) (hash 'l (fresh-subtype-of number) 'r (fresh-subtype-of number))))
+  (λ (n t) (hash 'l number 'r number)))
 (define numeric-bin-op-subtype
   (λ (n t)
-    (hash 'l (fresh-subtype-of t) 'r (fresh-subtype-of t))))
+    (hash 'l t 'r t)))
 
 (add-prop
  schemely-core
@@ -239,18 +239,18 @@
                        (define last-expression
                          (car (reverse (ast-children
                                         (ast-child 'expressions n)))))
-                       (hash last-expression (fresh-subtype-of t)
+                       (hash last-expression t
                              'definitions (λ (c) (fresh-type-variable))
                              'expressions (λ (c) (fresh-type-variable))))]]
- [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression (fresh-subtype-of t)))]]
+ [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
  [VariableReference [(fresh-type-variable) (no-child-types)]]
  ;; TODO - the type of a variable write must not be function, which is checked dynamically.  But it would be better if this were accomplished in some way that just let me write an unconstrained type variable here and filter out the possibility of set! on a function rather than having a runtime error.  Even this verbose type doesn't capture all the non-function types I can have, since there are a ton of possible list types (including nested lists).
  [SetBangRet [(fresh-type-variable number bool string
                                    (list-type (fresh-type-variable
                                                number bool string)))
-              (λ (n t) (hash 'Expression (fresh-subtype-of t)))]]
+              (λ (n t) (hash 'Expression t))]]
  [LetStar [(fresh-type-variable) (λ (n t)
-                                   (hash 'body (fresh-subtype-of t)
+                                   (hash 'body t
                                          'definitions (λ (c) (fresh-type-variable))))]]
  [Lambda [(function-type (product-type #f) (fresh-type-variable))
           (λ (n t)
@@ -278,9 +278,9 @@
                  (hash-set
                   (for/hash ([arg args]
                              [arg-type args-type-list])
-                    (values arg (fresh-subtype-of arg-type)))
+                    (values arg arg-type))
                   'procedure
-                  (fresh-subtype-of (function-type args-type t))))]]
+                  (function-type args-type t)))]]
  [FormalParam [(fresh-type-variable) (no-child-types)]]
 
  [LiteralBool [bool (no-child-types)]]
@@ -290,10 +290,10 @@
 
  [LiteralInt [int (no-child-types)]]
  [LiteralFloat [float (no-child-types)]]
- [Plus [(fresh-subtype-of number) numeric-bin-op-subtype]]
- [Minus [(fresh-subtype-of number) numeric-bin-op-subtype]]
- [Times [(fresh-subtype-of number) numeric-bin-op-subtype]]
- [SafeDivide [(fresh-subtype-of number) numeric-bin-op-subtype]]
+ [Plus [number numeric-bin-op-subtype]]
+ [Minus [number numeric-bin-op-subtype]]
+ [Times [number numeric-bin-op-subtype]]
+ [SafeDivide [number numeric-bin-op-subtype]]
  [LessThan [bool numeric-bin-op/no-relation-to-return]]
  [GreaterThan [bool numeric-bin-op/no-relation-to-return]]
 
@@ -304,18 +304,18 @@
  [LiteralEmptyList [(fresh-list-type) (no-child-types)]]
  [List [(fresh-list-type) (λ (n t)
                             (define lt (fresh-list-type))
-                            (subtype-unify! lt t)
+                            (unify! lt t)
                             (define inner (list-type-type lt))
                             (hash 'arguments inner))]]
  [Cons [(fresh-list-type) (λ (n t)
                             (define lt (fresh-list-type))
-                            (subtype-unify! lt t)
+                            (unify! lt t)
                             (define inner (list-type-type lt))
-                            (hash 'v inner 'l (fresh-subtype-of t)))]]
+                            (hash 'v inner 'l t))]]
  [SafeCar [(fresh-type-variable)
-           (λ (n t) (hash 'default (fresh-subtype-of t)
-                          'list (list-type (fresh-subtype-of t))))]]
- [SafeCdr [(fresh-list-type) (λ (n t) (hash 'Expression (fresh-subtype-of t)))]]
+           (λ (n t) (hash 'default t
+                          'list (list-type t)))]]
+ [SafeCdr [(fresh-list-type) (λ (n t) (hash 'Expression t))]]
  [EmptyP [bool (λ (n t) (hash 'Expression (fresh-list-type)))]]
 
  [EqualP [bool (λ (n t)
@@ -324,7 +324,7 @@
 
  [If [(fresh-type-variable)
       (λ (n t)
-        (hash 'test bool 'then (fresh-subtype-of t) 'else (fresh-subtype-of t)))]]
+        (hash 'test bool 'then t 'else t))]]
  )
 
 (add-prop
@@ -334,7 +334,7 @@
                 [ftype (function-type
                         (product-type #f)
                         (fresh-type-variable))]
-                [unification-dumb-return-value (subtype-unify! ftype type)]
+                [unification-dumb-return-value (unify! ftype type)]
                 [params (map (λ (t) (make-fresh-node 'FormalParam
                                                      (hash 'type t)))
                              (or (product-type-inner-type-list

@@ -43,26 +43,25 @@
 
 (add-prop arith type-info
           [Definition [(fresh-type-variable)
-                       (λ (n t) (hash 'Expression (fresh-subtype-of t)))]]
+                       (λ (n t) (hash 'Expression t))]]
           [LetStar [(fresh-type-variable)
                     (λ (n t) (hash 'definitions (λ (cn) (fresh-type-variable))
                                    'sideEs (λ (cn) (fresh-type-variable))
-                                   'Expression (fresh-subtype-of t)))]]
+                                   'Expression t))]]
           [LiteralInt [int (λ (n t) (hash))]]
           [LiteralFloat [float (λ (n t) (hash))]]
           [LiteralBool [bool (λ (n t) (hash))]]
           [LiteralString [string (λ (n t) (hash))]]
           #;[VariableReference [(fresh-type-variable) (λ (n t) (hash))]]
           #;[SetBangRet [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
-          [Addition [(fresh-subtype-of number)
-                     (λ (n t) (hash 'es (λ (c) (fresh-subtype-of t))))]]
-          [And [bool (λ (n t) (hash 'es (λ (c) (fresh-subtype-of t))))]]
-          [StringAppend [string (λ (n t) (hash 'es (λ (c) (fresh-subtype-of t))))]]
+          [Addition [number (λ (n t) (hash 'es (λ (c) t)))]]
+          [And [bool (λ (n t) (hash 'es (λ (c) t)))]]
+          [StringAppend [string (λ (n t) (hash 'es (λ (c) t)))]]
           [If [(fresh-type-variable) (λ (n t)
-                                       (hash 'test (fresh-subtype-of bool)
-                                             'then (fresh-subtype-of t)
-                                             'else (fresh-subtype-of t)))]]
-          [StringLength [int (λ (n t) (hash 'Expression (fresh-subtype-of string)))]]
+                                       (hash 'test bool
+                                             'then t
+                                             'else t))]]
+          [StringLength [int (λ (n t) (hash 'Expression string))]]
           )
 
 (add-prop arith render-node-info
