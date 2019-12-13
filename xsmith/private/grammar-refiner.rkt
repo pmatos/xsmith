@@ -8,7 +8,9 @@
  racket/match
  racket/syntax
  syntax/parse
- (for-template racket/base)  ;; This is required for providing λ at runtime.
+ (for-template
+  racr
+  racket/base)  ;; This is required for providing λ at runtime.
  )
 
 (provide
@@ -174,7 +176,12 @@ large function to be used with RACR's `perform-rewrites` function.
     [_
      (with-syntax ([(func ...) funcs])
        #'(λ (n)
-           (and func ...)))]))
+           (let ([res (and (func n) ...)])
+             (if res
+                 (begin
+                   (rewrite-subtree n res)
+                   #t)
+                 #f))))]))
 
 #|
 Given a grammar refiner and an infos hash, transforms the refiner into an
