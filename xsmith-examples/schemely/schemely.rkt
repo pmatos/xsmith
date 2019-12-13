@@ -335,12 +335,21 @@
                         (product-type #f)
                         (fresh-type-variable))]
                 [unification-dumb-return-value (unify! ftype type)]
-                [params (map (λ (t) (make-fresh-node 'FormalParam
-                                                     (hash 'type t)))
+                [params (map (λ (t)
+                               (xd-printf "making fresh FormalParam with type: ~v\n" t)
+                               (make-fresh-node 'FormalParam
+                                                (hash 'type t)))
                              (or (product-type-inner-type-list
                                   (function-type-arg-type ftype))
                                  (map (λ (x) (fresh-type-variable))
                                       (make-list (arg-length) #f))))])
+           (xd-printf "lambda type: ~v, FormalParams types: ~v\n"
+                      type
+                      (map (λ (x) (ast-child 'type x))
+                           params))
+           (unify! (product-type (map (λ (x) (ast-child 'type x))
+                                      params))
+                   (function-type-arg-type ftype))
            (hash
             'type type
             'params params))]

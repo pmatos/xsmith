@@ -889,7 +889,7 @@ few of these methods.
           (define visibles-with-type
             (filter (λ (b) (and b
                                 (concrete-type? (binding-type b))
-                                (satisfies-type-constraint?
+                                (can-unify-node-with-type?
                                  hole
                                  (binding-type b))))
                     visibles))
@@ -936,7 +936,7 @@ few of these methods.
                             type-needed)]))
                 (let loop ([count 0]
                            [t (concretize-type type-needed)])
-                  (define satisfies? (satisfies-type-constraint? hole t))
+                  (define satisfies? (can-unify-node-with-type? hole t))
                   (cond [satisfies? t]
                         [(< 100 count)
                          ;; TODO
@@ -1302,7 +1302,7 @@ The second arm is a function that takes the type that the node has been assigned
     (define _xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
                    #;(eprintf "testing type for ~a\n" this)
-                   (satisfies-type-constraint?
+                   (can-unify-node-with-type?
                     (current-hole)
                     (send this _xsmith_my-type-constraint)))))
     (define _xsmith_reference-options!-info
@@ -1330,10 +1330,10 @@ The second arm is a function that takes the type that the node has been assigned
      xsmith_get-reference!-info
      )))
 
-(define (satisfies-type-constraint? hole type-constraint)
+(define (can-unify-node-with-type? node-in-question type-constraint)
   #|
   We need to call `can-unify?`, but we do type checking lazily.
-  This means that the hole type may need to unify with a cousin node's type
+  This means that the node type may need to unify with a cousin node's type
   to get all of its constraints, and `can-unify` may give us the wrong answer
   if we haven't done that unification.
 
@@ -1342,12 +1342,13 @@ The second arm is a function that takes the type that the node has been assigned
   to always give a correct answer, and break the loop when it is.
 
   We start by going to sibling nodes, and when any type shares variables with
-  the hole type, we recur down its subtree as far as variables are shared.
+  the node-in-question type, we recur down its subtree as far as variables are shared.
   After each sibling we go up the parent chain and repeat.
   |#
   (when (not (type? type-constraint))
-    (error 'satisfies-type-constraint? "given non-type value: ~v" type-constraint))
-  (define hole-type (att-value 'xsmith_type hole))
+    (error 'can-unify-node-with-type? "given non-type value: ~v" type-constraint))
+  ;; The name hole-type is now wrong, given that it's now a predicate for arbitrary nodes.  But I'm leaving it.
+  (define hole-type (att-value 'xsmith_type node-in-question))
 
   ;;; Begin traversal
   (define maybe-can-unify?
@@ -1367,8 +1368,8 @@ The second arm is a function that takes the type that the node has been assigned
         (when (at-least-as-concrete hole-type type-constraint)
             (break!! #t)))
       (break?!)
-      (let parent-loop ([p (ast-parent hole)]
-                        [child hole])
+      (let parent-loop ([p (ast-parent node-in-question)]
+                        [child node-in-question])
         (define (resolve-types node)
           (match node
             [(? (λ (n) (not (ast-node? n)))) (void)]
