@@ -52,6 +52,8 @@
  render-hole-info
 
  make-lift-reference-choice-proc
+
+ force-type-exploration-for-node!
  )
 
 (module+ for-private
@@ -868,6 +870,19 @@ few of these methods.
          [choice (if (procedure? choice/proc) (choice/proc) choice/proc)])
     choice))
 
+(define (type-satisfaction-loop node-to-satisfy
+                                build-type-thunk
+                                type->use-type
+                                failure-thunk
+                                max-tries)
+  (let loop ([count 0]
+             [t (build-type-thunk)])
+    (define satisfies? (can-unify-node-with-type? node-to-satisfy t))
+    (cond [satisfies? t]
+          [(< max-tries count) (failure-thunk)]
+          [else (loop (add1 count)
+                      (build-type-thunk))])))
+
 (define (_xsmith_reference-options!-func self hole node-r/w-type)
   (define type-needed (att-value 'xsmith_type hole))
   (let ([ref-choices-filtered
@@ -934,18 +949,16 @@ few of these methods.
                      (error 'xsmith
                             "can't find a matching definition for nominal record type: ~v\n"
                             type-needed)]))
-                (let loop ([count 0]
-                           [t (concretize-type type-needed)])
-                  (define satisfies? (can-unify-node-with-type? hole t))
-                  (cond [satisfies? t]
-                        [(< 100 count)
-                         ;; TODO
-                         ;; Right now we give up after some number of loops.
-                         ;; Generally, this should just be an error.
-                         ;; But for now there are cases (nominal-record-types) where there can be a valid reference but that we can't create a valid lift-type.
-                         #f]
-                        [else (loop (add1 count)
-                                    (concretize-type type-needed))]))))
+                (type-satisfaction-loop
+                 hole
+                 (λ () (concretize-type type-needed))
+                 (λ(x)x)
+                 (λ() #f)
+                 ;; TODO
+                 ;; Right now we give up after some number of loops.
+                 ;; Generally, this should just be an error.
+                 ;; But for now there are cases (nominal-record-types) where there can be a valid reference but that we can't create a valid lift-type.
+                 100)))
           ;; TODO - I should check if the type contains a function, not merely IS a function.  And for higher order effects I should check this before concretizing.
           (define function? (function-type? lift-type))
 
@@ -1079,8 +1092,9 @@ few of these methods.
       (λ (e)
         (debug-print-1 my-type-constraint my-type-from-parent)
         ;(xd-printf "error unifying my-type with my-type-constraint\n")
-        (xd-printf "error unifying my-type-from-parent with my-type-constraint\n")
+        (xd-printf "error subtype-unifying my-type to my-type-from-parent\n")
         (xd-printf "type-from-parent: ~v\n" my-type-from-parent)
+        (xd-printf "my-type ~v\n" my-type)
         (xd-printf "my-type-constraint ~v\n" my-type-constraint)
         (raise e))])
     (subtype-unify! my-type my-type-from-parent))
@@ -1123,6 +1137,7 @@ few of these methods.
             (debug-print-1 binding-node-type my-type-from-parent)
             (xd-printf "Error unifying types for reference of AST type: ~a\n"
                        (ast-node-type node))
+            (xd-printf "Type in scope graph and type annotated at variable definition differ.  This shouldn't happen.\n")
             (xd-printf "Type annotated at variable definition: ~a\n"
                        binding-node-type)
             (xd-printf "Type that was recorded in scope graph: ~a\n"
@@ -1330,7 +1345,9 @@ The second arm is a function that takes the type that the node has been assigned
      xsmith_get-reference!-info
      )))
 
-(define (can-unify-node-with-type? node-in-question type-constraint)
+(define (can-unify-node-with-type? node-in-question type-constraint
+                                   #:break-when-more-concrete?
+                                   [break-when-more-concrete? #t])
   #|
   We need to call `can-unify?`, but we do type checking lazily.
   This means that the node type may need to unify with a cousin node's type
@@ -1365,7 +1382,8 @@ The second arm is a function that takes the type that the node has been assigned
           (break!! #t))
         (when (not (can-unify? hole-type type-constraint))
           (break!! #f))
-        (when (at-least-as-concrete hole-type type-constraint)
+        (when (and break-when-more-concrete?
+                   (at-least-as-concrete hole-type type-constraint))
             (break!! #t)))
       (break?!)
       (let parent-loop ([p (ast-parent node-in-question)]
@@ -1439,6 +1457,10 @@ The second arm is a function that takes the type that the node has been assigned
   ;; that no more unification can change the result of this predicate.
   (and maybe-can-unify?
        (can-unify? hole-type type-constraint)))
+
+(define (force-type-exploration-for-node! node)
+  (can-unify-node-with-type? node (fresh-type-variable)
+                             #:break-when-more-concrete? #f))
 
 
 (define-property strict-child-order?
