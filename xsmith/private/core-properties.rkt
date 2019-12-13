@@ -301,9 +301,16 @@ hole for the type.
                                     'xsmithlifterwrapped))
                          all-values-in-order))
 
+               (define all-values/type-sanitized
+                 ;; If a type is put in an AST node (eg. for binding nodes), it
+                 ;; must be concrete, or different passes of the type discovery
+                 ;; traversal can allow it to unify with different things.
+                 (map (λ (v) (if (type? v) (concretize-type v) v))
+                      all-values+xsmith-injected))
+
                (create-ast (current-racr-spec)
                            '#,node
-                           all-values+xsmith-injected))))))
+                           all-values/type-sanitized))))))
     (list _xsmith_fresh-info)))
 
 (define-property child-node-name-dict
