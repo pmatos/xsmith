@@ -491,10 +491,7 @@
           (ast-parent lifting-hole-node))
         (define hole-index-in-parent
           (ast-child-index lifting-hole-node))
-        ;; I don't think this unification should be necessary, but let's be safe.
-        ;; For lifts, the lifted type should not be a subtype of the lifting reference
-        ;; in the case of write references.
-        (unify! type (att-value 'xsmith_type lifting-hole-node))
+
         ;; TODO - these field names should probably be looked up...
         (rewrite-terminal 'name new-hole name)
         (rewrite-terminal 'xsmithliftdepth
