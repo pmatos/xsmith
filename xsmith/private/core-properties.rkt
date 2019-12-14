@@ -1086,7 +1086,8 @@ few of these methods.
     (xd-printf "error while unifying types:\n~a\nand\n~a\n" t1 t2)
     (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
     (xd-printf "with parent chain of AST types: ~v\n" (map ast-node-type
-                                                           (ancestor-nodes node))))
+                                                           (ancestor-nodes node)))
+    (xd-printf "(Note that type variables may have already been unified)\n"))
   (with-handlers
     ([(λ(x)#t)
       (λ (e)
@@ -1158,6 +1159,7 @@ few of these methods.
             (λ (e)
               (debug-print-1 def-type my-type-from-parent)
               (xd-printf "Error unifying definition type recorded in definition field.\n")
+              (xd-printf "Type of this node: ~v\n" my-type)
               (xd-printf "Type constraint on this node: ~v\n" my-type-constraint)
               (xd-printf "Type from parent: ~v\n" my-type-from-parent)
               (xd-printf "Recorded definition type ~v\n" def-type)
