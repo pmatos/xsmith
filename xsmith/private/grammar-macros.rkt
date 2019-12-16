@@ -77,6 +77,7 @@
  racket/class
  racket/dict
  racket/list
+ racket/match
  racket/string
  racket/stxparam
  racket/splicing
@@ -461,7 +462,10 @@
 
 ;; Implements the <spec-name>-generate-ast function.
 (define ((ast-generator-generator fresh-node-func refiner-names) node-name)
+  ;; Generate a fresh root based on the input node type.
   (define root (fresh-node-func node-name))
+  ;; Starting at the root, replace holes with valid nodes. If an error is
+  ;; encountered, wrap it to be handled further up.
   (with-handlers ([(λ (e) #t)
                    (λ (e) (raise (list 'ast-gen-error e root) #t))])
     (let ([fill-in
@@ -475,11 +479,57 @@
                   #t)]
                [else #f]))])
       (perform-rewrites root 'top-down fill-in)))
+  ;; Create refiner functions for each refiner.
   (define refiner-funcs
     (for/list ([refiner-name refiner-names])
       (λ (n) (att-value refiner-name n))))
+  ;; Similar to RACR's `perform-rewrites`, except that it is less greedy in the
+  ;; application of functions. Rewriting is automatically performed on nodes
+  ;; one-at-a-time, which circumvents problems arising from the rewriting of
+  ;; subtrees during attribute evaluation (which `perform-rewrites` will not
+  ;; allow).
+  (define (perform-refiner-rewrites n refiner)
+    ;; Find the AST's root.
+    (define root
+      (let loop ([n n])
+        (if (ast-has-parent? n)
+            (loop (ast-parent n))
+            n)))
+    ;; Return the first non-#f value in a list, if one exists.
+    (define (first-or-false xs)
+      (and (not (empty? xs))
+           (or (car xs)
+               (first-or-false (cdr xs)))))
+    ;; Apply the refiner to every node of the tree, starting at the root, until it
+    ;; returns a non-false value. If the refiner succeeds on any node, return a
+    ;; pair of the original node with the refined value.
+    (define (find-and-apply n)
+      (and
+       (ast-node? n)  ;; TODO - sometimes (ast-children n) returns #f values; why?
+       (or
+        (let ([new-n (refiner n)])
+          (if new-n
+              (cons n new-n)
+              #f))
+        (first-or-false
+         (map find-and-apply
+              (ast-children n))))))
+    ;; Start the refinement process at the root. If a match is found, commit the
+    ;; rewrite and start the search again. Produces a list of the new nodes upon
+    ;; completion.
+    (let loop ()
+      (match (find-and-apply root)
+        [(cons old-n new-n)
+         (begin
+           (rewrite-subtree old-n new-n)
+           (cons new-n (loop)))]
+        [#f (list)])))
+  ;; Apply the refiner rewrites in order. Note that each refiner will be applied
+  ;; to the tree repeatedly until it returns #f for every node, at which point
+  ;; the next refiner will be applied.
   (for ([f refiner-funcs])
-    (perform-rewrites root 'top-down f))
+    (perform-refiner-rewrites root f))
+  ;; Return the root of the AST.
   root)
 
 (define xsmith_find-a-descendant-function
