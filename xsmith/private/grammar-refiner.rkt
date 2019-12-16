@@ -173,15 +173,9 @@ large function to be used with RACR's `perform-rewrites` function.
      func]
     ;; Otherwise, merge the functions into a single function where each other
     ;; function is and-ed together.
-    [_
-     (with-syntax ([(func ...) funcs])
-       #'(λ (n)
-           (let ([res (and (func n) ...)])
-             (if res
-                 (begin
-                   (rewrite-subtree n res)
-                   #t)
-                 #f))))]))
+    [_ (with-syntax ([(func ...) funcs])
+         #'(λ (n)
+             (and (func n) ...)))]))
 
 #|
 Given a grammar refiner and an infos hash, transforms the refiner into an
