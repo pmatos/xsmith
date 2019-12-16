@@ -33,22 +33,19 @@
 (define-refiner
   tg
   evens-only
-  [Prog [(λ (n) (begin
-                  (display "top-level program node")
-                  n))]]
+  [#f [(λ (n) #f)]]
   [Val [(λ (n) (odd? (ast-child 'v n)))
         (λ (n) (begin
-                 ;; Print a message and return the node unchanged (for now).
-                 (display "odd value encountered")
-                 n))]])
+                 (eprintf (format "odd value encountered: ~a\n" (ast-child 'v n)))
+                 (make-fresh-node 'Val (hash 'v (+ 1 (ast-child 'v n))))))]])
 
-(define-refiner
+#;(define-refiner
   tg
   times-two
   #:follows evens-only
   [Val [(λ (n) (begin
                  (display "will multiply by two")
-                 n))]])
+                 (make-fresh-node )))]])
 
 (assemble-spec-components t tg)
 
