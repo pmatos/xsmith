@@ -27,11 +27,14 @@
  [FormalParam #f (type [name = (fresh-var-name "arg-")])
               #:prop binder-info (name type parameter)]
  [LiteralInt Expression ([v = (random 100)])]
+ [LiteralFloat Expression ([v = (* (random) (random 100))])]
  [Addition Expression ([es : Expression * = (+ 1 (random 5))])
            #:prop choice-weight 50])
 
 
-(define int (base-type 'int))
+(define number (base-type 'number))
+(define int (base-type 'int number))
+(define float (base-type 'float number))
 (add-prop arith type-info
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [LetStar [(fresh-type-variable)
@@ -52,9 +55,10 @@
                                 'argument arg-type))]]
           [FormalParam [(fresh-type-variable) (hash)]]
           [LiteralInt [int (λ (n t) (hash))]]
+          [LiteralFloat [float (λ (n t) (hash))]]
           [VariableReference [(fresh-type-variable) (λ (n t) (hash))]]
-          [SetBangRet [int (λ (n t) (hash 'Expression t))]]
-          [Addition [int (λ (n t) (hash 'es t))]])
+          [SetBangRet [number (λ (n t) (hash 'Expression t))]]
+          [Addition [number (λ (n t) (hash 'es t))]])
 
 (add-prop arith render-node-info
           [LetStar
@@ -73,6 +77,7 @@
           [Application (λ (n) `(,(render-node (ast-child 'procedure n))
                                 ,(render-node (ast-child 'argument n))))]
           [LiteralInt (λ (n) (ast-child 'v n))]
+          [LiteralFloat (λ (n) (ast-child 'v n))]
           [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
           [SetBangRet (λ (n) `(begin (set! ,(string->symbol (ast-child 'name n))
                                            ,(render-node
