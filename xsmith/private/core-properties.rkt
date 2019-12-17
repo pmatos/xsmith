@@ -1378,6 +1378,7 @@ The second arm is a function that takes the type that the node has been assigned
     (error 'can-unify-node-with-type? "given non-type value: ~v" type-constraint))
   ;; The name hole-type is now wrong, given that it's now a predicate for arbitrary nodes.  But I'm leaving it.
   (define hole-type (att-value 'xsmith_type node-in-question))
+  (define hole? (att-value 'xsmith_is-hole? node-in-question))
 
   ;;; Begin traversal
   (define maybe-can-unify?
@@ -1453,6 +1454,11 @@ The second arm is a function that takes the type that the node has been assigned
                            (sibling-loop (ast-children n)))
                          (rec ns)]))))
           (rec nodes))
+        (when (and (eq? node-in-question child) (not hole?))
+          ;; IE this is the first iteration.
+          ;; The children of the original node may have relevant data that they
+          ;; add to the parent.
+          (sibling-loop (ast-children node-in-question)))
         (sibling-loop (ast-children p))
         (when (and (ast-has-parent? p)
                    (or
