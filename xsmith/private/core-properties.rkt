@@ -288,6 +288,7 @@ hole for the type.
                                     current-hole)
                                    (define ct (concretize-type t))
                                    (xd-printf "concretized to: ~v\n" ct)
+                                   (unify! ct t)
                                    ct))])
                        (hash-set all-values-hash
                                  binder-type-field
