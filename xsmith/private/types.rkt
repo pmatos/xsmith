@@ -533,314 +533,324 @@ TODO - when generating a record ref, I'll need to compare something like (record
   * Subtype-unified type variables form a lattice, and any time a lower bound becomes an upper bound (or vice-versa), the lattice between those two nodes is squashed to a single node.
   * recursion into inner type structures (function, generic, etc) will operate on type-specific meanings of subtyping -- generics will have a way of specifying per field whether the field is invariant (the default), covariant, or contravariant
   |#
-  (match (list sub super)
-    ;; type variable x2
-    [(list (type-variable tvi-sub)
-           (type-variable tvi-sup))
+  #;(define can-unify-result
+    (can-subtype-unify? sub super))
+  #;(when (not can-unify-result)
+    (xd-printf "\nWarning: subtype-unify! called when can-subtype-unify? claims unification is impossible.  If this doesn't error, there's a problem.\n")
+    (xd-printf "Called with subtype: ~v, supertype: ~v\n" sub super))
+  (with-handlers ([(λ(e)#t)
+                   (λ(e)
+                     #;(when can-unify-result
+                       (xd-printf "\n\nsubtype-unify! errored even though can-subtype-unify? said it should pass!\n\n"))
+                     (raise e))])
+    (match (list sub super)
+      ;; type variable x2
+      [(list (type-variable tvi-sub)
+             (type-variable tvi-sup))
 
-     ;; TODO - check that one is not recursively contained in the structure of the other.
+       ;; TODO - check that one is not recursively contained in the structure of the other.
 
-     ;; Type variables may have any number of base-type-ranges as possibilities.
-     ;; When subtype-unifying, each base-type-range pair is tried for unification.
-     ;; All successes then replace the old base-type-ranges.
-     ;; (Except the new ranges are tested against each other -- any range that fits entirely within another is eliminated.)
+       ;; Type variables may have any number of base-type-ranges as possibilities.
+       ;; When subtype-unifying, each base-type-range pair is tried for unification.
+       ;; All successes then replace the old base-type-ranges.
+       ;; (Except the new ranges are tested against each other -- any range that fits entirely within another is eliminated.)
 
-     (define tvi-sub-uppers (type-variable-innard->transitive-upper-bounds tvi-sub))
-     (define tvi-sub-lowers (type-variable-innard->transitive-lower-bounds tvi-sub))
-     (define already-done?
-       (or (eq? tvi-sub tvi-sup)
-           (member tvi-sup tvi-sub-uppers)))
-     (define squash-case?
-       ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
-       (member tvi-sup tvi-sub-lowers))
+       (define tvi-sub-uppers (type-variable-innard->transitive-upper-bounds tvi-sub))
+       (define tvi-sub-lowers (type-variable-innard->transitive-lower-bounds tvi-sub))
+       (define already-done?
+         (or (eq? tvi-sub tvi-sup)
+             (member tvi-sup tvi-sub-uppers)))
+       (define squash-case?
+         ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
+         (member tvi-sup tvi-sub-lowers))
 
-     (cond
-       [already-done? (void)]
-       [squash-case?
-        (define tvi-sup-lowers (type-variable-innard->transitive-lower-bounds tvi-sup))
-        (define intersection
-          (set-union (list tvi-sup tvi-sub)
-                     (set-intersect tvi-sup-lowers tvi-sub-uppers)))
-        (define new-handles (apply set-union
-                                   ;; The innard handle sets are mutable sets,
-                                   ;; and here I need immutable sets.
-                                   (map (λ (x) (set->list
-                                                (type-variable-innard-handle-set x)))
-                                        intersection)))
-        (match-define (list lower-change upper-change)
-          (subtype-unify!/type-variable-innards tvi-sub tvi-sup))
+       (cond
+         [already-done? (void)]
+         [squash-case?
+          (define tvi-sup-lowers (type-variable-innard->transitive-lower-bounds tvi-sup))
+          (define intersection
+            (set-union (list tvi-sup tvi-sub)
+                       (set-intersect tvi-sup-lowers tvi-sub-uppers)))
+          (define new-handles (apply set-union
+                                     ;; The innard handle sets are mutable sets,
+                                     ;; and here I need immutable sets.
+                                     (map (λ (x) (set->list
+                                                  (type-variable-innard-handle-set x)))
+                                          intersection)))
+          (match-define (list lower-change upper-change)
+            (subtype-unify!/type-variable-innards tvi-sub tvi-sup))
 
-        (define new-type
-          (type-variable-innard-type tvi-sub))
+          (define new-type
+            (type-variable-innard-type tvi-sub))
 
-        (define new-lowers
-          (set-subtract (apply set-union
-                               (map type-variable-innard-lower-bounds
-                                    intersection))
-                        intersection))
-        (define new-uppers
-          (set-subtract (apply set-union
-                               (map type-variable-innard-upper-bounds
-                                    intersection))
-                        intersection))
-        (define new-innard
-          (type-variable-innard new-handles new-type #f new-lowers new-uppers))
-        (for ([h new-handles])
-          (set-type-variable-tvi! h new-innard))
-        (for ([i intersection])
-          (set-type-variable-innard-forward! i new-innard))
-        (when (or lower-change upper-change)
-          (ripple-subtype-unify-changes '() (list new-innard)))]
-       [else
-        (set-type-variable-innard-upper-bounds!
-         tvi-sub
-         (cons tvi-sup (type-variable-innard-upper-bounds tvi-sub)))
-        (set-type-variable-innard-lower-bounds!
-         tvi-sup
-         (cons tvi-sub (type-variable-innard-lower-bounds tvi-sup)))
+          (define new-lowers
+            (set-subtract (apply set-union
+                                 (map type-variable-innard-lower-bounds
+                                      intersection))
+                          intersection))
+          (define new-uppers
+            (set-subtract (apply set-union
+                                 (map type-variable-innard-upper-bounds
+                                      intersection))
+                          intersection))
+          (define new-innard
+            (type-variable-innard new-handles new-type #f new-lowers new-uppers))
+          (for ([h new-handles])
+            (set-type-variable-tvi! h new-innard))
+          (for ([i intersection])
+            (set-type-variable-innard-forward! i new-innard))
+          (when (or lower-change upper-change)
+            (ripple-subtype-unify-changes '() (list new-innard)))]
+         [else
+          (set-type-variable-innard-upper-bounds!
+           tvi-sub
+           (cons tvi-sup (type-variable-innard-upper-bounds tvi-sub)))
+          (set-type-variable-innard-lower-bounds!
+           tvi-sup
+           (cons tvi-sub (type-variable-innard-lower-bounds tvi-sup)))
 
-        (define dones (list (cons tvi-sub tvi-sup)))
-        (match (subtype-unify!/type-variable-innards tvi-sub tvi-sup)
-          [(list #f #f) (void)]
-          [(list #f #t) (ripple-subtype-unify-changes dones
-                                                      (list tvi-sup))]
-          [(list #t #f) (ripple-subtype-unify-changes dones
-                                                      (list tvi-sub))]
-          [(list #t #t) (ripple-subtype-unify-changes dones
-                                                      (list tvi-sub tvi-sup))])])]
-    ;; type variable left
-    [(list (type-variable tvi-sub)
-           _)
-     (define t (type-variable-innard-type tvi-sub))
-     (match t
-       [(list possibilities ...)
-        (define new-possibilities (filter (λ (p) (can-subtype-unify? p super))
-                                          possibilities))
-        (set-type-variable-innard-type!
-         tvi-sub
-         (match new-possibilities
-           [(list) (error 'subtype-unify!
-                          "can't unify these types: ~v and ~v"
-                          sub super)]
-           [(list (? base-type-range?) ...)
-            (define super-range (match super
-                                  [(base-type-range _ _) super]
-                                  [(base-type _ _) (base-type-range #f super)]))
-            (define new-ranges
-              (filter-map
-               (λ (sub)
-                 (define x (base-type-ranges->unified-versions sub super-range))
-                 (and x (car x)))
-               new-possibilities))
-            (match new-ranges
-              [(list) (error 'subtype-unify!
-                             "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
-                             sub super)]
-              [(list one) one]
-              [else new-ranges])]
-           [(list non-base)
-            (subtype-unify! non-base super)
-            non-base]))]
-       [#f (match super
-             [(base-type-range super-low super-high)
-              (set-type-variable-innard-type! tvi-sub
-                                              (base-type-range #f super-high))]
-             [(? base-type?)
-              (set-type-variable-innard-type! tvi-sub (base-type-range #f super))]
-             [else
-              (set-type-variable-innard-type! tvi-sub
-                                              (type->skeleton-with-vars super))
-              (subtype-unify! (type-variable-innard-type tvi-sub) super)])]
-       [non-variable (subtype-unify! non-variable super)])
+          (define dones (list (cons tvi-sub tvi-sup)))
+          (match (subtype-unify!/type-variable-innards tvi-sub tvi-sup)
+            [(list #f #f) (void)]
+            [(list #f #t) (ripple-subtype-unify-changes dones
+                                                        (list tvi-sup))]
+            [(list #t #f) (ripple-subtype-unify-changes dones
+                                                        (list tvi-sub))]
+            [(list #t #t) (ripple-subtype-unify-changes dones
+                                                        (list tvi-sub tvi-sup))])])]
+      ;; type variable left
+      [(list (type-variable tvi-sub)
+             _)
+       (define t (type-variable-innard-type tvi-sub))
+       (match t
+         [(list possibilities ...)
+          (define new-possibilities (filter (λ (p) (can-subtype-unify? p super))
+                                            possibilities))
+          (set-type-variable-innard-type!
+           tvi-sub
+           (match new-possibilities
+             [(list) (error 'subtype-unify!
+                            "can't unify these types: ~v and ~v"
+                            sub super)]
+             [(list (? base-type-range?) ...)
+              (define super-range (match super
+                                    [(base-type-range _ _) super]
+                                    [(base-type _ _) (base-type-range #f super)]))
+              (define new-ranges
+                (filter-map
+                 (λ (sub)
+                   (define x (base-type-ranges->unified-versions sub super-range))
+                   (and x (car x)))
+                 new-possibilities))
+              (match new-ranges
+                [(list) (error 'subtype-unify!
+                               "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
+                               sub super)]
+                [(list one) one]
+                [else new-ranges])]
+             [(list non-base)
+              (subtype-unify! non-base super)
+              non-base]))]
+         [#f (match super
+               [(base-type-range super-low super-high)
+                (set-type-variable-innard-type! tvi-sub
+                                                (base-type-range #f super-high))]
+               [(? base-type?)
+                (set-type-variable-innard-type! tvi-sub (base-type-range #f super))]
+               [else
+                (set-type-variable-innard-type! tvi-sub
+                                                (type->skeleton-with-vars super))
+                (subtype-unify! (type-variable-innard-type tvi-sub) super)])]
+         [non-variable (subtype-unify! non-variable super)])
 
-     (when (not (equal? t (type-variable-innard-type tvi-sub)))
-       (ripple-subtype-unify-changes '() (list tvi-sub)))]
+       (when (not (equal? t (type-variable-innard-type tvi-sub)))
+         (ripple-subtype-unify-changes '() (list tvi-sub)))]
 
-    ;; type variable right -- this code is basically the same as the above... maybe it could be unified better...
-    [(list _
-           (type-variable tvi-sup))
+      ;; type variable right -- this code is basically the same as the above... maybe it could be unified better...
+      [(list _
+             (type-variable tvi-sup))
 
-     (define t (type-variable-innard-type tvi-sup))
-     (match t
-       [(list possibilities ...)
-        (define new-possibilities (filter (λ (p) (can-subtype-unify? sub p))
-                                          possibilities))
-        (set-type-variable-innard-type!
-         tvi-sup
-         (match new-possibilities
-           [(list) (error 'subtype-unify!
-                          "can't unify the following types: ~v and ~v"
-                          sub super)]
-           [(list (? base-type-range?) ...)
-            (define sub-range
-              (match sub
-                [(base-type-range _ _) sub]
-                [(base-type _ _) (base-type-range sub sub)]))
-            (define new-ranges
-              (filter-map
-               (λ (super)
-                 (define x (base-type-ranges->unified-versions sub-range super))
-                 (and x (car x)))
-               new-possibilities))
-            (match new-ranges
-              [(list) (error 'subtype-unify!
-                             "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
-                             sub super)]
-              [(list one) one]
-              [else new-ranges])]
-           [(list non-base)
-            (subtype-unify! sub non-base)
-            non-base]))]
-       [#f (match sub
-             [(base-type-range sub-low sub-high)
-              (set-type-variable-innard-type!
-               tvi-sup
-               (base-type-range sub-high (base-type->superest sub-high)))]
-             [(? base-type?)
-              (set-type-variable-innard-type!
-               tvi-sup
-               (base-type-range sub (base-type->superest sub)))]
-             [else
-              (set-type-variable-innard-type!
-               tvi-sup
-               (type->skeleton-with-vars sub))
-              (subtype-unify! sub (type-variable-innard-type tvi-sup))])]
-       [non-variable (subtype-unify! sub non-variable)])
+       (define t (type-variable-innard-type tvi-sup))
+       (match t
+         [(list possibilities ...)
+          (define new-possibilities (filter (λ (p) (can-subtype-unify? sub p))
+                                            possibilities))
+          (set-type-variable-innard-type!
+           tvi-sup
+           (match new-possibilities
+             [(list) (error 'subtype-unify!
+                            "can't unify the following types: ~v and ~v"
+                            sub super)]
+             [(list (? base-type-range?) ...)
+              (define sub-range
+                (match sub
+                  [(base-type-range _ _) sub]
+                  [(base-type _ _) (base-type-range sub sub)]))
+              (define new-ranges
+                (filter-map
+                 (λ (super)
+                   (define x (base-type-ranges->unified-versions sub-range super))
+                   (and x (car x)))
+                 new-possibilities))
+              (match new-ranges
+                [(list) (error 'subtype-unify!
+                               "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
+                               sub super)]
+                [(list one) one]
+                [else new-ranges])]
+             [(list non-base)
+              (subtype-unify! sub non-base)
+              non-base]))]
+         [#f (match sub
+               [(base-type-range sub-low sub-high)
+                (set-type-variable-innard-type!
+                 tvi-sup
+                 (base-type-range sub-high (base-type->superest sub-high)))]
+               [(? base-type?)
+                (set-type-variable-innard-type!
+                 tvi-sup
+                 (base-type-range sub (base-type->superest sub)))]
+               [else
+                (set-type-variable-innard-type!
+                 tvi-sup
+                 (type->skeleton-with-vars sub))
+                (subtype-unify! sub (type-variable-innard-type tvi-sup))])]
+         [non-variable (subtype-unify! sub non-variable)])
 
-     (when (not (equal? t (type-variable-innard-type tvi-sup)))
-       (ripple-subtype-unify-changes '() (list tvi-sup)))]
-
-
-    ;; product type
-    [(list (product-type inner1 lowers1 uppers1)
-           (product-type inner2 lowers2 uppers2))
-
-     (define (inner-unify! sub super)
-       (for-each (λ (l r) (subtype-unify! l r))
-                 (product-type-inner-type-list sub)
-                 (product-type-inner-type-list super)))
-
-     (define (ripple-length! len pt done-list)
-       ;; Propagate length to all related product types.
-       ;; At each step, unify the lists.
-       ;; This basically initializes all of the inner lists of a graph
-       ;; of product-types that had been subtype-unified to each other
-       ;; with none of them having a concrete length yet.
-       ;; Once they are initialized, the inner type variables can carry
-       ;; all the info about subtype relations, and the outer product types
-       ;; are free to be simple lists.
-       (if (memq pt done-list)
-           done-list
-           (let ([supers (product-type-upper-bounds pt)]
-                 [subs (product-type-lower-bounds pt)])
-             (set-product-type-inner-type-list!
-              pt
-              (map (λ (x) (fresh-type-variable))
-                   (make-list len #f)))
-             (define done-list-1
-               (for/fold ([done-list (cons pt done-list)])
-                         ([super supers])
-                 (define new-list (ripple-length! len super done-list))
-                 (inner-unify! pt super)
-                 new-list))
-             (define done-list-2
-               (for/fold ([done-list done-list-1])
-                         ([sub subs])
-                 (define new-list (ripple-length! len sub done-list))
-                 (inner-unify! sub pt)
-                 new-list))
-             (set-product-type-upper-bounds! pt '())
-             (set-product-type-lower-bounds! pt '())
-             done-list-2)))
-
-     (define l1 (and inner1 (length inner1)))
-     (define l2 (and inner2 (length inner2)))
-
-     (when (and l1 l2 (not (equal? l1 l2)))
-       (error 'subtype-unify!
-              "Tried to unify two product types with unequal lengths (~v and ~v): ~v, ~v"
-              l1 l2
-              sub super))
-
-     (match (list inner1 inner2)
-       [(list #f #f)
-        (when (not (member super (product-type-upper-bounds sub)))
-          (set-product-type-upper-bounds!
-           sub
-           (cons super (product-type-upper-bounds sub))))
-        (when (not (member sub (product-type-lower-bounds super)))
-          (set-product-type-lower-bounds!
-           super
-           (cons sub (product-type-lower-bounds super))))]
-       [(list #f _)
-        (ripple-length! l2 sub '())
-        (inner-unify! sub super)]
-       [(list _ #f)
-        (ripple-length! l1 super '())
-        (inner-unify! sub super)]
-       [else (inner-unify! sub super)])]
+       (when (not (equal? t (type-variable-innard-type tvi-sup)))
+         (ripple-subtype-unify-changes '() (list tvi-sup)))]
 
 
-    ;; nominal record type
-    [(list (nominal-record-type name1 innards1)
-           (nominal-record-type name2 innards2))
-     ;; TODO - nominal record types for the first pass should not be subtypable.  It should be easy to later add a supertype field -- subtyping with nominal records should be easy compared to various other things.
-     ;;(todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")
-     ;; TODO - the below is the implementation of non-subtype `unify!`.  For now, let's assume nominal records don't subtype unify, only normal unify.
-     (define (fail)
-       (error 'subtype-unify!
-              "can't unify types: ~v and ~v"
-              sub super))
-     (define t1 sub)
-     (define t2 super)
+      ;; product type
+      [(list (product-type inner1 lowers1 uppers1)
+             (product-type inner2 lowers2 uppers2))
 
-     (match (list sub super)
-       [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
-        ;; TODO - do a sanity check that the inners match up and error if they don't.
-        (set-nominal-record-type-name! t1 name2)
-        (set-nominal-record-type-inners! t1 inners2)]
-       [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
-        ;; TODO - do a sanity check that the inners match up and error if they don't.
-        (set-nominal-record-type-name! t2 name1)
-        (set-nominal-record-type-inners! t2 inners1)]
-       [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
-        (when (not (equal? name1 name2))
-          (fail))])]
-    ;; nominal record definition type
-    [(list (nominal-record-definition-type inner1)
-           (nominal-record-definition-type inner2))
-     ;; TODO -for now this is symmetric, but later should be subtypable.
-     (unify! inner1 inner2)]
+       (define (inner-unify! sub super)
+         (for-each (λ (l r) (subtype-unify! l r))
+                   (product-type-inner-type-list sub)
+                   (product-type-inner-type-list super)))
 
-    ;; function type
-    [(list (function-type arg-l ret-l)
-           (function-type arg-r ret-r))
-     ;; covariant return
-     (subtype-unify! ret-l ret-r)
-     ;; contravariant arguments
-     (subtype-unify! arg-r arg-l)]
-    ;; generic type
-    [(list (generic-type name1 constructor1 type-arguments1)
-           (generic-type name2 constructor2 type-arguments2))
-     (unless (eq? constructor1 constructor2)
-       (error 'subtype-unify!
-              "TODO - better message -- tried to unify different generic types."))
-     ;; TODO - generic types need to store the variance type for each field.
-     ;;        For a start, let's assume all fields are invariant.
-     (for-each (λ (isub isuper)
-                 (subtype-unify! isub isuper)
-                 (subtype-unify! isuper isub))
-               type-arguments1
-               type-arguments2)]
+       (define (ripple-length! len pt done-list)
+         ;; Propagate length to all related product types.
+         ;; At each step, unify the lists.
+         ;; This basically initializes all of the inner lists of a graph
+         ;; of product-types that had been subtype-unified to each other
+         ;; with none of them having a concrete length yet.
+         ;; Once they are initialized, the inner type variables can carry
+         ;; all the info about subtype relations, and the outer product types
+         ;; are free to be simple lists.
+         (if (memq pt done-list)
+             done-list
+             (let ([supers (product-type-upper-bounds pt)]
+                   [subs (product-type-lower-bounds pt)])
+               (set-product-type-inner-type-list!
+                pt
+                (map (λ (x) (fresh-type-variable))
+                     (make-list len #f)))
+               (define done-list-1
+                 (for/fold ([done-list (cons pt done-list)])
+                           ([super supers])
+                   (define new-list (ripple-length! len super done-list))
+                   (inner-unify! pt super)
+                   new-list))
+               (define done-list-2
+                 (for/fold ([done-list done-list-1])
+                           ([sub subs])
+                   (define new-list (ripple-length! len sub done-list))
+                   (inner-unify! sub pt)
+                   new-list))
+               (set-product-type-upper-bounds! pt '())
+               (set-product-type-lower-bounds! pt '())
+               done-list-2)))
 
-    ;; base type
-    [(list (or (? base-type?) (? base-type-range?))
-           (or (? base-type?) (? base-type-range?)))
-     (unless (can-subtype-unify? sub super)
-       (error 'subtype-unify!
-              "Base types: type ~v is not a subtype of type ~v."
-              sub super))]
-    [else (error 'subtype-unify! "case analysis reached end: can't unify types: ~v and ~v" sub super)]))
+       (define l1 (and inner1 (length inner1)))
+       (define l2 (and inner2 (length inner2)))
+
+       (when (and l1 l2 (not (equal? l1 l2)))
+         (error 'subtype-unify!
+                "Tried to unify two product types with unequal lengths (~v and ~v): ~v, ~v"
+                l1 l2
+                sub super))
+
+       (match (list inner1 inner2)
+         [(list #f #f)
+          (when (not (member super (product-type-upper-bounds sub)))
+            (set-product-type-upper-bounds!
+             sub
+             (cons super (product-type-upper-bounds sub))))
+          (when (not (member sub (product-type-lower-bounds super)))
+            (set-product-type-lower-bounds!
+             super
+             (cons sub (product-type-lower-bounds super))))]
+         [(list #f _)
+          (ripple-length! l2 sub '())
+          (inner-unify! sub super)]
+         [(list _ #f)
+          (ripple-length! l1 super '())
+          (inner-unify! sub super)]
+         [else (inner-unify! sub super)])]
+
+
+      ;; nominal record type
+      [(list (nominal-record-type name1 innards1)
+             (nominal-record-type name2 innards2))
+       ;; TODO - nominal record types for the first pass should not be subtypable.  It should be easy to later add a supertype field -- subtyping with nominal records should be easy compared to various other things.
+       ;;(todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")
+       ;; TODO - the below is the implementation of non-subtype `unify!`.  For now, let's assume nominal records don't subtype unify, only normal unify.
+       (define (fail)
+         (error 'subtype-unify!
+                "can't unify types: ~v and ~v"
+                sub super))
+       (define t1 sub)
+       (define t2 super)
+
+       (match (list sub super)
+         [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
+          ;; TODO - do a sanity check that the inners match up and error if they don't.
+          (set-nominal-record-type-name! t1 name2)
+          (set-nominal-record-type-inners! t1 inners2)]
+         [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
+          ;; TODO - do a sanity check that the inners match up and error if they don't.
+          (set-nominal-record-type-name! t2 name1)
+          (set-nominal-record-type-inners! t2 inners1)]
+         [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
+          (when (not (equal? name1 name2))
+            (fail))])]
+      ;; nominal record definition type
+      [(list (nominal-record-definition-type inner1)
+             (nominal-record-definition-type inner2))
+       ;; TODO -for now this is symmetric, but later should be subtypable.
+       (unify! inner1 inner2)]
+
+      ;; function type
+      [(list (function-type arg-l ret-l)
+             (function-type arg-r ret-r))
+       ;; covariant return
+       (subtype-unify! ret-l ret-r)
+       ;; contravariant arguments
+       (subtype-unify! arg-r arg-l)]
+      ;; generic type
+      [(list (generic-type name1 constructor1 type-arguments1)
+             (generic-type name2 constructor2 type-arguments2))
+       (unless (eq? constructor1 constructor2)
+         (error 'subtype-unify!
+                "TODO - better message -- tried to unify different generic types."))
+       ;; TODO - generic types need to store the variance type for each field.
+       ;;        For a start, let's assume all fields are invariant.
+       (for-each (λ (isub isuper)
+                   (subtype-unify! isub isuper)
+                   (subtype-unify! isuper isub))
+                 type-arguments1
+                 type-arguments2)]
+
+      ;; base type
+      [(list (or (? base-type?) (? base-type-range?))
+             (or (? base-type?) (? base-type-range?)))
+       (unless (can-subtype-unify? sub super)
+         (error 'subtype-unify!
+                "Base types: type ~v is not a subtype of type ~v."
+                sub super))]
+      [else (error 'subtype-unify! "case analysis reached end: can't unify types: ~v and ~v" sub super)])))
 
 (define (ripple-subtype-unify-changes done-pair-list innard-work-list)
   (define (done-pair-list-remove-with done-list target)
