@@ -36,6 +36,8 @@
  add-att-rule
  add-choice-rule
  add-prop
+ define-refiner
+ add-refiner
  assemble-spec-components/core
  current-racr-spec
  (all-from-out "define-grammar-property.rkt")
@@ -75,6 +77,7 @@
  racket/class
  racket/dict
  racket/list
+ racket/match
  racket/string
  racket/stxparam
  racket/splicing
@@ -94,6 +97,7 @@
   racket/dict
   racket/match
   "grammar-properties.rkt"
+  "grammar-refiner.rkt"
   "spec-component-struct.rkt"
   ))
 
@@ -346,8 +350,9 @@
               ([component-project (list spec-component-struct-grammar-info
                                         spec-component-struct-att-rule-info
                                         spec-component-struct-choice-rule-info
-                                        spec-component-struct-property-info)]
-               [subhash-key '(grammar-info ag-info cm-info props-info)])
+                                        spec-component-struct-property-info
+                                        spec-component-struct-refiner-info)]
+               [subhash-key '(grammar-info ag-info cm-info props-info refiners-info)])
       (define subhash
         (for/fold ([h (hash)])
                   ([p (map (λ (x) (component-project x))
@@ -374,7 +379,7 @@
    ;; on a define-for-syntax variable it is visible every time.
    #`(begin
        (define-for-syntax #,spec-inner-id
-         (spec-component-struct (hash) (hash) (hash) (hash)))
+         (spec-component-struct (hash) (hash) (hash) (hash) (hash)))
        (define-syntax component-name
          (spec-component-struct-ref (quote-syntax #,spec-inner-id))))])
 
@@ -408,13 +413,13 @@
 (define-for-syntax (add-prop-generic component-getter component-setter arg-stx)
   (syntax-parse arg-stx
     [(component:spec-component
-      prop/ag/cm-name:id
+      prop/refiner/ag/cm-name:id
       [(~and node-name (~or node-name-id:id #f)) prop:expr] ...+)
      (stuff-spec-component #'component
                            component-getter
                            component-setter
-                           #'((prop/ag/cm-name node-name) ...)
-                           #'([prop/ag/cm-name node-name prop] ...))]))
+                           #'((prop/refiner/ag/cm-name node-name) ...)
+                           #'([prop/refiner/ag/cm-name node-name prop] ...))]))
 (define-syntax-parser add-att-rule
   [(_ arg ...) (add-prop-generic
                 #'spec-component-struct-att-rule-info
@@ -430,14 +435,37 @@
                 #'spec-component-struct-property-info
                 #'set-spec-component-struct-property-info
                 #'(arg ...))])
+(define-syntax-parser add-refiner
+  [(_ arg ...) (add-prop-generic
+                #'spec-component-struct-refiner-info
+                #'set-spec-component-struct-refiner-info
+                #'(arg ...))])
+
+;; Refiners used for iterative refinement of ASTs.
+(define-syntax-parser define-refiner
+  [(_ component:spec-component
+      refiner-name:id
+      (~optional (~seq #:follows follows:expr))
+      clause ...)
+   #'(begin
+       (define-syntax refiner-name
+         (grammar-refiner 'refiner-name
+                          (~? 'follows '())))
+       (add-refiner
+        component
+        refiner-name
+        clause ...))])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Functions implementing the RACR attributes that xsmith defines by default.
 
 ;; Implements the <spec-name>-generate-ast function.
-(define ((ast-generator-generator fresh-node-func) node-name)
+(define ((ast-generator-generator fresh-node-func refiner-names) node-name)
+  ;; Generate a fresh root based on the input node type.
   (define root (fresh-node-func node-name))
+  ;; Starting at the root, replace holes with valid nodes. If an error is
+  ;; encountered, wrap it to be handled further up.
   (with-handlers ([(λ (e) #t)
                    (λ (e) (raise (list 'ast-gen-error e root) #t))])
     (let ([fill-in
@@ -450,8 +478,59 @@
                   (execute-inter-choice-transform-queue)
                   #t)]
                [else #f]))])
-      (perform-rewrites root 'top-down fill-in))
-    root))
+      (perform-rewrites root 'top-down fill-in)))
+  ;; Create refiner functions for each refiner.
+  (define refiner-funcs
+    (for/list ([refiner-name refiner-names])
+      (λ (n) (att-value refiner-name n))))
+  ;; Similar to RACR's `perform-rewrites`, except that it is less greedy in the
+  ;; application of functions. Rewriting is automatically performed on nodes
+  ;; one-at-a-time, which circumvents problems arising from the rewriting of
+  ;; subtrees during attribute evaluation (which `perform-rewrites` will not
+  ;; allow).
+  (define (perform-refiner-rewrites n refiner)
+    ;; Find the AST's root.
+    (define root
+      (let loop ([n n])
+        (if (ast-has-parent? n)
+            (loop (ast-parent n))
+            n)))
+    ;; Return the first non-#f value in a list, if one exists.
+    (define (first-or-false xs)
+      (and (not (empty? xs))
+           (or (car xs)
+               (first-or-false (cdr xs)))))
+    ;; Apply the refiner to every node of the tree, starting at the root, until it
+    ;; returns a non-false value. If the refiner succeeds on any node, return a
+    ;; pair of the original node with the refined value.
+    (define (find-and-apply n)
+      (and
+       (ast-node? n)  ;; TODO - sometimes (ast-children n) returns #f values; why?
+       (or
+        (let ([new-n (refiner n)])
+          (if new-n
+              (cons n new-n)
+              #f))
+        (first-or-false
+         (map find-and-apply
+              (ast-children n))))))
+    ;; Start the refinement process at the root. If a match is found, commit the
+    ;; rewrite and start the search again. Produces a list of the new nodes upon
+    ;; completion.
+    (let loop ()
+      (match (find-and-apply root)
+        [(cons old-n new-n)
+         (begin
+           (rewrite-subtree old-n new-n)
+           (cons new-n (loop)))]
+        [#f (list)])))
+  ;; Apply the refiner rewrites in order. Note that each refiner will be applied
+  ;; to the tree repeatedly until it returns #f for every node, at which point
+  ;; the next refiner will be applied.
+  (for ([f refiner-funcs])
+    (perform-refiner-rewrites root f))
+  ;; Return the root of the AST.
+  root)
 
 (define xsmith_find-a-descendant-function
   ;;; Find the first node that satisfies the predicate (the given node included)
@@ -673,15 +752,23 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
             (define ag-parts (parts->stx 'ag-info))
             (define cm-parts (parts->stx 'cm-info))
             (define props-parts (parts->stx 'props-info))
+            (define refiners-parts (parts->stx 'refiners-info))
             #`(assemble_stage3
                spec-name
                extra-props-name
                #,g-parts
                #,ag-parts
                #,cm-parts
-               #,props-parts)])
+               #,props-parts
+               #,refiners-parts)])
          (assemble_stage2 spec extra-props)))])
 
+#|
+Stage 3
+
+Perform error checking:
+ - check for duplicates in grammar clauses, att-rules, and choice rules
+|#
 (define-syntax-parser assemble_stage3
   ;; These first patterns are error checking patterns that match when there
   ;; are duplicate definitions in the grammar or rules.
@@ -690,7 +777,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
       (pre ... (g-part1:grammar-clause g-part2:grammar-clause c ...) post ...)
       ag-clauses
       cm-clauses
-      prop-clauses)
+      prop-clauses
+      refiners-clauses)
    (raise-syntax-error #f "duplicate definitions for grammar clause"
                        #'g-part1 #f #'g-part2)]
   [(_ spec
@@ -698,7 +786,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
       grammar-clauses
       (pre ... (ag1:prop-clause ag2:prop-clause c ...) post ...)
       cm-clauses
-      prop-clauses)
+      prop-clauses
+      refiners-clauses)
    (raise-syntax-error #f "duplicate definitions for att-rule"
                        #'ag1 #f #'ag2)]
   [(_ spec
@@ -706,7 +795,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
       grammar-clauses
       ag-clauses
       (pre ... (cm1:prop-clause cm2:prop-clause c ...) post ...)
-      prop-clauses)
+      prop-clauses
+      refiners-clauses)
    (raise-syntax-error #f "duplicate definitions for choice rule"
                        #'ag1 #f #'ag2)]
   ;; If the syntax has not been parsed by one of the above, it is duplicate-free.
@@ -716,96 +806,130 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
       ((g-part:grammar-clause) ...)
       ((ag-clause:prop-clause) ...)
       ((cm-clause:prop-clause) ...)
-      ((p-clause+:prop-clause ...) ...))
-   (define p-clauses (flatten (map syntax->list
-                                   (syntax->list #'((p-clause+ ...) ...)))))
-   (define (clause->list p-c-stx)
-     (syntax-parse p-c-stx
-       [p:prop-clause (list #'p.prop-name
-                            #'p.node-name
-                            #'p.prop-val)]))
-   (define p-lists (map clause->list p-clauses))
-   ;; I want one syntax object to point to for each property object.
-   (define prop->prop-stx
-     (for/fold ([h (for/fold ([h (hash)])
-                             ([pl p-lists])
-                     (dict-set h
-                               (syntax-local-value
-                                (car pl)
-                                (λ ()
-                                  (raise-syntax-error
-                                   #f
-                                   "Identifier not defined as a property."
-                                   (car pl))))
-                               (car pl)))])
-               ([prop (syntax->list #'extra-props)])
-       (dict-set h (syntax-local-value prop) prop)))
-   (define starter-prop-hash (for/hash ([k (dict-keys prop->prop-stx)])
-                               (values k (hash))))
-   (define prop-hash-with-lists
-     ;; a tiered hash from prop-struct->node-name->val-stx-list
-     (for/fold ([h starter-prop-hash])
-               ([pl p-lists])
-       (match pl
-         [(list prop-stx node-name-stx val-stx)
-          (let* ([prop (syntax-local-value prop-stx)]
-                 [node-hash (dict-ref h prop (hash))]
+      ((p-clause+:prop-clause ...) ...)
+      ((r-clause+:prop-clause ...) ...))
+   ;;;;;;;
+   ;; Utility functions.
+   ;;;;
+   (define (flatten-clauses clauses)
+     (flatten (map syntax->list
+                   (syntax->list clauses))))
+   (define (extract-fields clauses)
+     (define (clause->list stx)
+       (syntax-parse stx
+         [c:prop-clause (list #'c.prop-name
+                              #'c.node-name
+                              #'c.prop-val)]))
+     (map clause->list clauses))
+   (define (simplify-user-stx lists type)
+     (for/fold ([h (hash)])
+               ([l lists])
+       (dict-set h
+                 (syntax-local-value
+                  (car l)
+                  (λ ()
+                    (raise-syntax-error
+                     #f
+                     (format "Identifier not defined as a ~a." type)
+                     (car l))))
+                 (car l))))
+   (define (simplify-stx lists type #:extras [extras #f])
+     (define user-stx (simplify-user-stx lists type))
+     (if extras
+         (for/fold ([h user-stx])
+                   ([c (syntax->list extras)])
+           (dict-set h (syntax-local-value c) c))
+         user-stx))
+   (define (mk-starter-hash simplified-stx)
+     (for/hash ([k (dict-keys simplified-stx)])
+       (values k (hash))))
+   (define (mk-hash-with-lists starter-hash c-lists)
+     (for/fold ([h starter-hash])
+               ([cl c-lists])
+       (match cl
+         [(list clause-stx node-name-stx val-stx)
+          (let* ([clause (syntax-local-value clause-stx)]
+                 [node-hash (dict-ref h clause (hash))]
                  [node-name (syntax->datum node-name-stx)]
                  [current-node-name-list (dict-ref node-hash node-name '())])
             (dict-set h
-                      prop
+                      clause
                       (dict-set node-hash
                                 node-name
                                 (cons val-stx current-node-name-list))))])))
-   ;; Switch from a list of syntax objects to a single syntax object for
-   ;; properties that do not `allow-duplicates?`, and a syntax-object list
-   ;; for those that do.
-   ;; For easier parsing on the receiving side.
-   (define prop-hash
-     (for/hash ([pk (dict-keys prop-hash-with-lists)])
-       (define subhash (dict-ref prop-hash-with-lists pk))
+   (define (mk-clause-hash-from-lists-hash clause-hash-with-lists get-name type)
+     (for/hash ([ck (dict-keys clause-hash-with-lists)])
+       (define subhash (dict-ref clause-hash-with-lists ck))
        (values
-        pk
+        ck
         (for/hash ([nk (dict-keys subhash)])
           (values
            nk
-           (if (grammar-property-allow-duplicates? pk)
-               (datum->syntax #f (dict-ref subhash nk))
-               (syntax-parse (dict-ref subhash nk)
-                 [(a) #'a]
-                 [(a b ...)
-                  (raise-syntax-error
-                   #f
-                   (format
-                    "duplicate definition of ~a property for node ~a."
-                    (grammar-property-name pk)
-                    nk)
-                   #'a)])))))))
-
+           (syntax-parse (dict-ref subhash nk)
+             [(a) #'a]
+             [(a b ...)
+              (raise-syntax-error
+               #f
+               (format "duplicate definitions of ~a ~a for node ~a."
+                       (get-name ck)
+                       type
+                       nk)
+               #'a)]))))))
+   (define (mk-stx-and-hash clauses get-clause-name clause-type #:extras [extras #f])
+     (define x-clauses (flatten-clauses clauses))
+     (define x-lists (extract-fields x-clauses))
+     (define x-stx (simplify-stx x-lists clause-type #:extras extras))
+     (define starter-x-hash (mk-starter-hash x-stx))
+     (define x-hash-with-lists (mk-hash-with-lists starter-x-hash x-lists))
+     (define x-hash (mk-clause-hash-from-lists-hash x-hash-with-lists get-clause-name clause-type))
+     (values
+      x-stx
+      x-hash))
+   ;;;;;;;
+   ;; Implementation.
+   ;;;;
+   ;; Process all the various kinds of grammar properties. Shorthand is:
+   ;;  - g  = grammar clause
+   ;;  - ag = attribute rule
+   ;;  - cm = choice rule
+   ;;  - p  = property
+   ;;  - r  = refiner
    (define g-parts (syntax->list #'(g-part ...)))
-   ;; g-hash is a single-level hash node-name->node-spec-stx
-   (define g-hash (for/hash ([g g-parts])
-                    (syntax-parse g
-                      [gc:grammar-clause (values (syntax->datum #'gc.node-name) g)])))
-
+   (define g-hash
+     (for/hash ([g g-parts])
+       (syntax-parse g
+         [gc:grammar-clause (values (syntax->datum #'gc.node-name) g)])))
    (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clause ...))))
    (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
-
-   (define prop-structs (sort (dict-keys prop-hash) grammar-property-less-than))
+   (define-values
+     (p-stx p-hash)
+     (mk-stx-and-hash #'((p-clause+ ...) ...) grammar-property-name "property" #:extras #'extra-props))
+   (define-values
+     (r-stx r-hash)
+     (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
+   (define p-structs (sort (dict-keys p-hash) grammar-property-less-than))
+   (define r-structs (sort-refiners (dict-keys r-hash)))
    (define pre-transform-infos-hash
      (hash 'ag-info ag-hash
            'cm-info cm-hash
            'grammar-info g-hash
-           'props-info prop-hash))
-
-   ;; Run the transformers!
-   (define infos-hash
+           'props-info p-hash
+           'refs-info r-hash))
+   (define pre-refs-infos-hash
      (for/fold ([ih pre-transform-infos-hash])
-               ([prop-struct prop-structs])
-       (grammar-property-transform (hash-ref prop->prop-stx prop-struct prop-struct)
+               ([p-struct p-structs])
+       (grammar-property-transform (hash-ref p-stx p-struct p-struct)
                                    ih)))
+   (define infos-hash
+     (for/fold ([ih pre-refs-infos-hash])
+               ([r-struct r-structs])
+       (grammar-refiner-transform (hash-ref r-stx r-struct r-struct)
+                                  ih)))
+   (define ref-att-rule-names (map refiner-stx->att-rule-name r-structs))
 
-   ;; TODO - check duplicates again?  Other checks?
+   ;; TODO - Check duplicates again? Perform other checks?
+
+   ;; Begin the next stage of assembly.
    (define (rule-hash->clause-list rules-hash)
      (for/fold ([clauses '()])
                ([rule-name (dict-keys rules-hash)])
@@ -815,18 +939,20 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                     #,(datum->syntax #'here node-name)
                     #,(dict-ref nodes-hash node-name)))
                clauses)))
-   (define ag-prop-clauses
-     (rule-hash->clause-list (dict-ref infos-hash 'ag-info)))
-   (with-syntax ([(n-g-part ...) (dict-values (dict-ref infos-hash 'grammar-info))]
-                 [(n-ag-clause ...) (rule-hash->clause-list
-                                     (dict-ref infos-hash 'ag-info))]
-                 [(n-cm-clause ...) (rule-hash->clause-list
-                                     (dict-ref infos-hash 'cm-info))])
+   (with-syntax
+     ([(n-g-part ...) (dict-values
+                       (dict-ref infos-hash 'grammar-info))]
+      [(n-ag-clause ...) (rule-hash->clause-list
+                          (dict-ref infos-hash 'ag-info))]
+      [(n-cm-clause ...) (rule-hash->clause-list
+                          (dict-ref infos-hash 'cm-info))]
+      [(r-name ...) ref-att-rule-names])
      #'(assemble_stage4
         spec
         (n-g-part ...)
         (n-ag-clause ...)
-        (n-cm-clause ...)))])
+        (n-cm-clause ...)
+        (r-name ...)))])
 
 (define-syntax-parser assemble_stage4
   ;; Sort the grammar clauses.
@@ -836,7 +962,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
   [(_ spec
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
-      (cm-clause:prop-clause ...))
+      (cm-clause:prop-clause ...)
+      (r-name ...))
    (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
    (define (grammar-part-n-parents gp)
      (length (grammar-clause->parent-chain gp all-g-part-hash)))
@@ -849,7 +976,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
         spec
         (g-part-sorted ...)
         (ag-clause ...)
-        (cm-clause ...)))])
+        (cm-clause ...)
+        (r-name ...)))])
 
 (define-syntax-parser assemble_stage5
   ;; Assemble everything!
@@ -858,7 +986,8 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
   [(_ spec
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
-      (cm-clause:prop-clause ...))
+      (cm-clause:prop-clause ...)
+      (ref-name ...))
    (define (node->choice node-name-stx)
      (format-id #'here "~aChoice%" node-name-stx))
 
@@ -1149,7 +1278,9 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                      (compile-ag-specifications)))
 
                  ;; Define an ast-generator with a hygiene-bending name
-                 (define generate-ast-func (ast-generator-generator fresh-node-func))
+                 (define refiner-names
+                   (map syntax->datum (syntax->list #'(ref-name ...))))
+                 (define generate-ast-func (ast-generator-generator fresh-node-func refiner-names))
                  ))])]))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

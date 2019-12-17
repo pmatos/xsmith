@@ -577,6 +577,39 @@ When a user tries @verb{(att-value 'some-bool-flag <node-of-type-B>)} it will re
 
 
 
+@section{Refiners}
+
+Xsmith supports iterative refinement, which is a technique that allows for the modification of an existing AST.
+There are no default refiners, and their use is entirely optional.
+You might use a refiner to handle simplifications due to a post-generation analysis, such as using native mathematical operations instead of a specialized library when it has been proven that such operations will not produce unsafe results.
+
+@defform[(define-refiner spec-name
+                         refiner-name
+                         maybe-follows
+                         refiner-clause ...)
+#:grammar [(maybe-follows (code:line)
+                          (code:line #:follows refiner-name ...))]]{
+
+Each @racket[refiner-clause] is a list of functions that each take exactly one argument: a node.
+The final function in the list (the "refiner function") must return an AST node which will replace the node that was passed in to the function.
+Each preceding function is a predicate that determines whether the refiner function will be run.
+The list need only provide a refiner function; the predicate functions are optional.
+
+@racketblock[
+(define-refiner
+ my-spec-component
+ make-even
+ (code:comment "We provide a default case for all nodes so the function will not fail.")
+ [#f [(λ (n) #f)]]
+ (code:comment "Any Val node with an odd v field will be replaced with a new Val node")
+ (code:comment "whose v field is twice the old value.")
+ [Val [(λ (n) (odd? (ast-child 'v n)))
+       (λ (n) (make-fresh-node 'Val (hash 'v (* 2 (ast-child 'v n)))))]])
+]
+}
+
+
+
 @section{Scope Graph Functions}
 
 This section describes the API to the @seclink["scope-graph"]{Scope Graph} model of binding.
