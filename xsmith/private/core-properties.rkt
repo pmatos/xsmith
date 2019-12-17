@@ -901,9 +901,16 @@ few of these methods.
 
           (define visibles
             (att-value '_xsmith_visible-bindings hole))
+          (define my-choice-type-constraint (send self _xsmith_my-type-constraint))
           (define visibles-with-type
             (filter (λ (b) (and b
                                 (concrete-type? (binding-type b))
+                                ;; Sometimes a reference choice may have a stricter
+                                ;; type requirement than the hole node.  So we ask
+                                ;; if it can unify with the choice type constraint
+                                ;; AND the actual hole.
+                                (can-unify? (binding-type b)
+                                            my-choice-type-constraint)
                                 (can-unify-node-with-type?
                                  hole
                                  (binding-type b))))
@@ -1100,9 +1107,10 @@ few of these methods.
         (raise e))])
     (subtype-unify! my-type my-type-from-parent))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
-    (let* ([binding (att-value '_xsmith_resolve-reference-name
+    (let* ([var-name (ast-child reference-field node)]
+           [binding (att-value '_xsmith_resolve-reference-name
                                node
-                               (ast-child reference-field node))]
+                               var-name)]
            [binding-node (binding-ast-node binding)]
            [binding-node-type (att-value 'xsmith_type binding-node)]
            [var-type (binding-type binding)])
@@ -1118,6 +1126,7 @@ few of these methods.
                        my-type-from-parent)
             (xd-printf "Type annotated at variable definition: ~a\n"
                        var-type)
+            (xd-printf "Variable name: ~a\n" var-name)
             (raise e))])
         (match reference-unify-target
           ;; If the reference-unify-target is not #t or #f, it still needs to be
@@ -1143,6 +1152,7 @@ few of these methods.
                        binding-node-type)
             (xd-printf "Type that was recorded in scope graph: ~a\n"
                        var-type)
+            (xd-printf "Variable name: ~a\n" var-name)
             (raise e))])
         ;(unify! binding-node-type my-type-from-parent)
         (unify! var-type binding-node-type)
