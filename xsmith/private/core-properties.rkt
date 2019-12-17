@@ -276,12 +276,19 @@ hole for the type.
                  (if binder-type-field
                      (let* ([t (hash-ref all-values-hash
                                          binder-type-field)]
-                            [concretized (if (concrete-type? t)
-                                             t
-                                             (begin
-                                               (force-type-exploration-for-node!
-                                                current-hole)
-                                               (concretize-type t)))])
+                            [concretized
+                             (if (concrete-type? t)
+                                 t
+                                 (let ()
+                                   (xd-printf
+                                    "Concretizing binding ~a.  Type: ~v, "
+                                    (hash-ref all-values-hash binder-name-field)
+                                    t)
+                                   (force-type-exploration-for-node!
+                                    current-hole)
+                                   (define ct (concretize-type t))
+                                   (xd-printf "concretized to: ~v\n" ct)
+                                   ct))])
                        (hash-set all-values-hash
                                  binder-type-field
                                  concretized))
@@ -1045,6 +1052,7 @@ few of these methods.
                                reference-unify-target
                                reference-field
                                definition-type-field
+                               definition-name-field
                                parameter?)
   #|
   Here we unify types we get from the various sources of typing info:
@@ -1176,6 +1184,7 @@ few of these methods.
             (λ (e)
               (debug-print-1 def-type my-type-from-parent)
               (xd-printf "Error unifying definition type recorded in definition field.\n")
+              (xd-printf "binding name: ~a\n" (ast-child definition-name-field node))
               (xd-printf "Type of this node: ~v\n" my-type)
               (xd-printf "Type constraint on this node: ~v\n" my-type-constraint)
               (xd-printf "Type from parent: ~v\n" my-type-from-parent)
@@ -1273,13 +1282,20 @@ The second arm is a function that takes the type that the node has been assigned
     (define node-reference-field (for/hash ([n nodes]
                                             [i node-reference-info-cleansed])
                                    (values n (second i))))
+
+    ;; TODO - I should clean this up by making a syntax class to parse the binder-info property and get this info more easily.
     (define binder-type-field
       (for/hash ([n nodes])
         (values n (syntax-parse (dict-ref binder-info-info n #'#f)
                     [(name-field-name type-field-name def/param)
                      #''type-field-name]
                     [else #'#f]))))
-
+    (define binder-name-field
+      (for/hash ([n nodes])
+        (values n (syntax-parse (dict-ref binder-info-info n #'#f)
+                    [(name-field-name type-field-name def/param)
+                     #''name-field-name]
+                    [else #'#f]))))
     (define parameter?-hash
       (for/hash ([n nodes])
         (values n (syntax-parse (dict-ref binder-info-info n #'#f)
@@ -1330,6 +1346,7 @@ The second arm is a function that takes the type that the node has been assigned
                            #,(dict-ref node-reference-unify-target n)
                            #,(dict-ref node-reference-field n)
                            #,(dict-ref binder-type-field n)
+                           #,(dict-ref binder-name-field n)
                            #,(dict-ref parameter?-hash n)))))))
     (define _xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
