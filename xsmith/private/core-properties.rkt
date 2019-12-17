@@ -1390,6 +1390,7 @@ The second arm is a function that takes the type that the node has been assigned
     (let/cc break!!
       (define binding-nodes-started '())
       (define binding-nodes-finished '())
+      (define parent-nodes-done '())
       (define (relevant? other-type)
         (contains-type-variables? other-type
                                   (type->type-variable-list hole-type)))
@@ -1441,7 +1442,8 @@ The second arm is a function that takes the type that the node has been assigned
                          ;; repeatedly when we hit references to it.
                          (when (att-value 'xsmith_definition-binding n)
                            (set! binding-nodes-finished
-                                 (cons n binding-nodes-finished)))
+                                 (cons n binding-nodes-finished))
+                           (parent-loop (ast-parent n) n))
 
                          ;; If the node is a reference, the definition site
                          ;; may have nodes that will affect the type.
@@ -1459,22 +1461,25 @@ The second arm is a function that takes the type that the node has been assigned
                            (sibling-loop (ast-children n)))
                          (rec ns)]))))
           (rec nodes))
-        (when (and (eq? node-in-question child) (not hole?))
-          ;; IE this is the first iteration.
-          ;; The children of the original node may have relevant data that they
-          ;; add to the parent.
-          (sibling-loop (ast-children node-in-question)))
-        (and p (sibling-loop (ast-children p)))
-        (when (and p
-                   (ast-has-parent? p)
-                   (or
-                    ;; If the current node (child) includes relevant variables,
-                    ;; its siblings may too even if the parent doesn't.
-                    (relevant? (att-value 'xsmith_type child))
-                    ;; If the parent includes relevant variables its siblings
-                    ;; or ancestors might as well.
-                    (relevant? (att-value 'xsmith_type p))))
-          (parent-loop (parent-node p) p)))))
+        (when (not (memq p parent-nodes-done))
+          (set! parent-nodes-done (cons p parent-nodes-done))
+          (and p (att-value 'xsmith_type p))
+          (when (and (eq? node-in-question child) (not hole?))
+            ;; IE this is the first iteration.
+            ;; The children of the original node may have relevant data that they
+            ;; add to the parent.
+            (sibling-loop (ast-children node-in-question)))
+          (and p (sibling-loop (ast-children p)))
+          (when (and p
+                     (ast-has-parent? p)
+                     (or
+                      ;; If the current node (child) includes relevant variables,
+                      ;; its siblings may too even if the parent doesn't.
+                      (relevant? (att-value 'xsmith_type child))
+                      ;; If the parent includes relevant variables its siblings
+                      ;; or ancestors might as well.
+                      (relevant? (att-value 'xsmith_type p))))
+            (parent-loop (parent-node p) p))))))
   ;;; End traversal
 
   ;; The hole type is now either maximally unified or sufficiently concrete
