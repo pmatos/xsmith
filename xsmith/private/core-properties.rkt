@@ -696,7 +696,9 @@ It just reads the values of several other properties and produces the results fo
                            (if (or (and (ast-node? type) (ast-bud-node? type))
                                    (and (ast-node? name) (ast-bud-node? name)))
                                #f
-                               (binding name n type 'def-or-param)))))])))
+                               (begin
+                                 (unify! type (att-value 'xsmith_type n))
+                                 (binding name n type 'def-or-param))))))])))
     (list _xsmith_binder-type-field xsmith_definition-binding-info)))
 
 ;; This property should be a list containing:
@@ -1090,6 +1092,7 @@ few of these methods.
   (define my-type-from-parent
     (att-value '_xsmith_type-constraint-from-parent node))
   (define (debug-print-1 t1 t2)
+    (xd-printf "\n\n")
     (xd-printf "error while unifying types:\n~a\nand\n~a\n" t1 t2)
     (xd-printf "for node of AST type: ~a\n" (ast-node-type node))
     (xd-printf "with parent chain of AST types: ~v\n" (map ast-node-type
@@ -1105,7 +1108,12 @@ few of these methods.
         (xd-printf "my-type ~v\n" my-type)
         (xd-printf "my-type-constraint ~v\n" my-type-constraint)
         (raise e))])
-    (subtype-unify! my-type my-type-from-parent))
+    (if (and definition-type-field
+             parameter?)
+        ;; Parameters are a special case.  These aren't meant to be subtypes,
+        ;; rather, they reflect the type annotation of the lambda term.
+        (unify! my-type my-type-from-parent)
+        (subtype-unify! my-type my-type-from-parent)))
   (when (and reference-field (not (att-value 'xsmith_is-hole? node)))
     (let* ([var-name (ast-child reference-field node)]
            [binding (att-value '_xsmith_resolve-reference-name
@@ -1154,12 +1162,12 @@ few of these methods.
                        var-type)
             (xd-printf "Variable name: ~a\n" var-name)
             (raise e))])
-        ;(unify! binding-node-type my-type-from-parent)
         (unify! var-type binding-node-type)
         )))
-  (when (and definition-type-field (not (att-value 'xsmith_is-hole? node)))
+  (when definition-type-field
     (let ([def-type (ast-child definition-type-field node)])
-      (when (not (type? def-type))
+      (when (and (not (att-value 'xsmith_is-hole? node))
+                 (not (type? def-type)))
         (xd-printf "WARNING: definition node type field has non-type value: ~v\n"
                    def-type))
       (when (type? def-type)
@@ -1178,11 +1186,6 @@ few of these methods.
                               (att-value 'xsmith_type (parent-node node))))
               (raise e))])
           (unify! def-type my-type)))))
-  (when (and definition-type-field
-             parameter?)
-    ;; Parameters are another special case.  These aren't meant to be subtypes,
-    ;; rather, they reflect the type annotation of the lambda term.
-    (unify! my-type my-type-from-parent))
   my-type)
 
 #|
