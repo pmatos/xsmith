@@ -92,6 +92,8 @@
                          [rtype (fresh-type-variable)]
                          [ftype (function-type atype rtype)]
                          [unification-dumb-return-value (unify! ftype type)]
+                         ;; this exploration should be unnecessary
+                         ;[_ (force-type-exploration-for-node! current-hole)]
                          [FormalParam (make-fresh-node 'FormalParam
                                                        (hash 'type atype))])
                     (hash
