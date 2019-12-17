@@ -1466,7 +1466,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ))
 
 (module+ test
-  (check-true (at-least-as-concrete (fresh-type-variable) (fresh-type-variable)))
   (check-true (at-least-as-concrete (mk-base-type 'foo) (fresh-type-variable)))
   (check-true (at-least-as-concrete (mk-base-type 'foo)
                                     (fresh-type-variable (mk-base-type 'foo)
