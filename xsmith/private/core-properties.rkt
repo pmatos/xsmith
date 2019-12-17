@@ -274,11 +274,17 @@ hole for the type.
                       (if (procedure? v) (v) v)))))
                (define all-values-hash/binder-sanitized
                  (if binder-type-field
-                     (hash-set all-values-hash
-                               binder-type-field
-                               (concretize-type
-                                (hash-ref all-values-hash
-                                          binder-type-field)))
+                     (let* ([t (hash-ref all-values-hash
+                                         binder-type-field)]
+                            [concretized (if (concrete-type? t)
+                                             t
+                                             (begin
+                                               (force-type-exploration-for-node!
+                                                current-hole)
+                                               (concretize-type t)))])
+                       (hash-set all-values-hash
+                                 binder-type-field
+                                 concretized))
                      all-values-hash))
                (define all-values-hash/seq-transformed
                  (for/hash ([f-name (list field-name ...)]
@@ -303,16 +309,9 @@ hole for the type.
                                     'xsmithlifterwrapped))
                          all-values-in-order))
 
-               (define all-values/type-sanitized
-                 ;; If a type is put in an AST node (eg. for binding nodes), it
-                 ;; must be concrete, or different passes of the type discovery
-                 ;; traversal can allow it to unify with different things.
-                 (map (λ (v) (if (type? v) (concretize-type v) v))
-                      all-values+xsmith-injected))
-
                (create-ast (current-racr-spec)
                            '#,node
-                           all-values/type-sanitized))))))
+                           all-values+xsmith-injected))))))
     (list _xsmith_fresh-info)))
 
 (define-property child-node-name-dict
@@ -1405,7 +1404,7 @@ The second arm is a function that takes the type that the node has been assigned
                    (at-least-as-concrete hole-type type-constraint))
             (break!! #t)))
       (break?!)
-      (let parent-loop ([p (ast-parent node-in-question)]
+      (let parent-loop ([p (parent-node node-in-question)]
                         [child node-in-question])
         (define (resolve-types node)
           (match node
@@ -1465,8 +1464,9 @@ The second arm is a function that takes the type that the node has been assigned
           ;; The children of the original node may have relevant data that they
           ;; add to the parent.
           (sibling-loop (ast-children node-in-question)))
-        (sibling-loop (ast-children p))
-        (when (and (ast-has-parent? p)
+        (and p (sibling-loop (ast-children p)))
+        (when (and p
+                   (ast-has-parent? p)
                    (or
                     ;; If the current node (child) includes relevant variables,
                     ;; its siblings may too even if the parent doesn't.
