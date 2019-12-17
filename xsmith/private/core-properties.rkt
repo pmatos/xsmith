@@ -1173,6 +1173,9 @@ few of these methods.
               (xd-printf "Type constraint on this node: ~v\n" my-type-constraint)
               (xd-printf "Type from parent: ~v\n" my-type-from-parent)
               (xd-printf "Recorded definition type ~v\n" def-type)
+              (xd-printf "Parent type: ~v\n\n"
+                         (and (parent-node node)
+                              (att-value 'xsmith_type (parent-node node))))
               (raise e))])
           (unify! def-type my-type)))))
   (when (and definition-type-field
