@@ -286,7 +286,8 @@ hole for the type.
                                     t)
                                    (force-type-exploration-for-node!
                                     current-hole)
-                                   (define ct (concretize-type t))
+                                   (define ct
+                                     (concretize-type t #:at-node current-hole))
                                    (xd-printf "concretized to: ~v\n" ct)
                                    (unify! ct t)
                                    ct))])
@@ -967,7 +968,8 @@ few of these methods.
                             type-needed)]))
                 (type-satisfaction-loop
                  hole
-                 (λ () (concretize-type type-needed))
+                 (λ () (concretize-type type-needed
+                                        #:at-node hole))
                  (λ(x)x)
                  (λ() #f)
                  ;; TODO

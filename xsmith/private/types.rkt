@@ -75,6 +75,8 @@ WIP checklist:
  (rename-out [make-nominal-record-definition nominal-record-definition-type])
  nominal-record-definition-type?
  nominal-record-definition-type-type
+ ;nominal-record-definition-type?/with-field
+ ;nominal-record-type?/with-field
 
  type?
 
@@ -86,7 +88,9 @@ WIP checklist:
   [subtype-unify! (-> type? type? any/c)]
   [can-unify? (-> type? type? any/c)]
   [can-subtype-unify? (-> type? type? any/c)]
-  [concretize-type (-> type? type?)]
+  [concretize-type (->* (type?)
+                        (#:at-node ast-node?)
+                        type?)]
   [rename concrete? concrete-type? (-> type? any/c)]
   [rename mk-product-type product-type (-> (or/c #f (listof type?)) type?)]
   [function-type (-> type? type? type?)]
@@ -111,6 +115,7 @@ WIP checklist:
  racket/set
  "scope-graph.rkt"
  "xsmith-utils.rkt"
+ racr
  (submod "xsmith-utils.rkt" for-private)
  (for-syntax
   racket/base
@@ -418,6 +423,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define (make-nominal-record-definition nominal-record-type)
   ;; TODO - this should be verified to be actually a nominal-record-type
   (nominal-record-definition-type nominal-record-type))
+
+(define (nominal-record-type?/with-field nrt)
+  ;; predicate for when a NRT type has a named field but not a name overall.
+  (and (nominal-record-type? nrt)
+       (not (nominal-record-type-name nrt))
+       (not (null? (filter (λ(x)x)
+                           (dict-keys (nominal-record-type-inners nrt)))))))
 
 
 ;; Generic types are given a name which is a symbol.  But it is just for printing.
@@ -1205,7 +1217,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define type-max-depth 5)
 (define record-type-max-fields 5)
 
-(define (concretize-type t)
+(define (concretize-type t
+                         #:at-node [node #f])
   (define (recur t depth)
     (define (r t) (recur t (add1 depth)))
     (match t
@@ -1241,19 +1254,29 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (mk-product-type (map (λ (x) (r (fresh-type-variable)))
                                  (make-list (random 6) #f))))]
       [(nominal-record-type #f inner-needed)
-       (match (dict-keys inner-needed)
-         [(list) (void)]
-         [(list k) (or (not k) (error 'concretize-type "can't concretize nominal-record-type with a named field but no record name: ~v\n" t))])
-       (define needed (dict-ref inner-needed #f (λ () (fresh-type-variable))))
-       (define n-random-fields (random record-type-max-fields))
-       (define field-list (cons needed
-                                (map (λ (x) (fresh-type-variable))
-                                     (make-list n-random-fields #f))))
-       (concretize-type
-        (nominal-record-type (fresh-var-name "record_")
-                             (for/list ([f field-list])
-                               (cons (fresh-var-name "field_")
-                                     (r f)))))]
+       (if (nominal-record-type?/with-field t)
+           (if node
+               (let* ([d (nominal-record-definition-type t)]
+                      [references
+                       (filter (λ (b) (and b
+                                           (nominal-record-definition-type?
+                                            (binding-type b))
+                                           (can-unify? d (binding-type b))))
+                               (att-value '_xsmith_visible-bindings node))])
+                 (match references
+                   [(list b) (nominal-record-definition-type-type (binding-type b))]
+                   [else (error 'concretize-type "can't find suitable definition for nominal-record-type: ~v\n" t)]))
+               (error 'concretize-type "can't concretize nominal-record-type with a named field but no record name unless a #:node argument is given: ~v\n" t))
+           (let* ([needed (dict-ref inner-needed #f (λ () (fresh-type-variable)))]
+                  [n-random-fields (random record-type-max-fields)]
+                  [field-list (cons needed
+                                    (map (λ (x) (fresh-type-variable))
+                                         (make-list n-random-fields #f)))])
+             (concretize-type
+              (nominal-record-type (fresh-var-name "record_")
+                                   (for/list ([f field-list])
+                                     (cons (fresh-var-name "field_")
+                                           (r f)))))))]
       [(nominal-record-type name inners) t]
       [(nominal-record-definition-type inner)
        (nominal-record-definition-type (r inner))]
