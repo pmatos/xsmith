@@ -1095,7 +1095,7 @@ few of these methods.
   (define my-type-constraint
     (if (att-value 'xsmith_is-hole? node)
         (and binder-type-field
-             (not (ast-bud-node? (ast-child binder-type-field node)))
+             (not (bud-node? (ast-child binder-type-field node)))
              (ast-child binder-type-field node))
         (att-value '_xsmith_my-type-constraint node)))
   (define my-type (or my-type-constraint (fresh-type-variable)))
@@ -1399,6 +1399,9 @@ The second arm is a function that takes the type that the node has been assigned
   the node-in-question type, we recur down its subtree as far as variables are shared.
   After each sibling we go up the parent chain and repeat.
   |#
+  (when (not (ast-node? node-in-question))
+    (error 'can-unify-node-type-with-type?!
+           "given non-node value: ~v" node-in-question))
   (when (not (type? type-constraint))
     (error 'can-unify-node-type-with-type?!
            "given non-type value: ~v" type-constraint))

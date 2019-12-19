@@ -34,6 +34,7 @@
  fresh-var-name
  fresh-int!
 
+ datt-value
  xd-printf
  get-xsmith-debug-log!
  )
@@ -55,6 +56,8 @@
    ancestor-nodes
    top-ancestor-node
    node-subtype?
+   bud-node?
+   list-node?
 
    ->bool
    ))
@@ -71,6 +74,8 @@
    ancestor-nodes
    top-ancestor-node
    node-subtype?
+   bud-node?
+   list-node?
    ))
 
 (require
@@ -138,6 +143,14 @@
 (define (node-has-type? n t)
   (eq? (node-type n) t))
 
+
+(define (bud-node? n)
+  (and (ast-node? n)
+       (ast-bud-node? n)))
+(define (list-node? n)
+  (and (ast-node? n)
+       (ast-list-node? n)))
+
 (define (parent-node n)
   ;; I've had several bugs where I used a parent node that was a list-node
   ;; thinking it was the grandparent node.  The list nodes are generally
@@ -183,6 +196,23 @@
   (begin0
       (get-output-string xsmith-debug-log-port)
     (set! xsmith-debug-log-port (open-output-string))))
+
+
+(define (datt-value sym node . args)
+  (xd-printf "calling att-value ~v on node ~v with args ~v\n"
+             sym
+             (or (node-type node) node)
+             args)
+  (define result
+    (with-handlers ([(λ(e)#t)
+                     (λ(e)
+                       (xd-printf
+                        "ERROR in att-value ~v on node ~v with args ~v\n"
+                        sym (or (node-type node) node) args)
+                       (raise e))])
+      (apply att-value sym node args)))
+  (xd-printf "att-value ~v result: ~v\n" sym result)
+  result)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
