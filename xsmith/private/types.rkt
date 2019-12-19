@@ -524,6 +524,16 @@ TODO - when generating a record ref, I'll need to compare something like (record
                  (base-type-range #f dog))
                 (list (base-type-range dog dog)
                       (base-type-range dog dog)))
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range penguin penguin)
+                 (base-type-range #f bird))
+                (list (base-type-range penguin penguin)
+                      (base-type-range penguin bird)))
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range #f bird)
+                 (base-type-range penguin penguin))
+                (list (base-type-range #f penguin)
+                      (base-type-range penguin penguin)))
   )
 (define (type-lists->unified-base-types sub-list super-list)
   (define result
@@ -1741,6 +1751,22 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
   (check-false (can-subtype-unify? bird penguin1))
 
+  ;; Tests for my subtyping + function parameter bug
+  (define bird-will-be-penguin (fresh-type-variable (base-type-range #f bird)))
+  (define bird-will-be-penguin/left (fresh-type-variable (base-type-range #f bird)))
+  (define bird-will-be-penguin/right (fresh-type-variable (base-type-range #f bird)))
+  (unify! bird-will-be-penguin penguin)
+  (subtype-unify! bird-will-be-penguin/left penguin)
+  (subtype-unify! penguin bird-will-be-penguin/right)
+  (check-eq? (type-variable-innard-type
+              (type-variable-tvi bird-will-be-penguin))
+             penguin)
+  (check-equal? (type-variable-innard-type
+                 (type-variable-tvi bird-will-be-penguin/left))
+                (base-type-range #f penguin))
+  (check-equal? (type-variable-innard-type
+                 (type-variable-tvi bird-will-be-penguin/right))
+                (base-type-range penguin bird))
 
 
   ;; testing contains-type-variables over a graph
