@@ -1804,6 +1804,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (for* ([n1 graph-nodes]
          [n2 graph-nodes])
     (ccv n1 n2))
+
+
+  (define tv-nominal-record-type (fresh-type-variable (any-nominal-record-type)))
+  (check-true (can-unify? tv-nominal-record-type (any-nominal-record-type)))
+  (check-not-exn (λ () (unify! tv-nominal-record-type (any-nominal-record-type))))
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
