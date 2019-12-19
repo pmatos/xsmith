@@ -148,7 +148,6 @@ The following are maybe not variables but constrain how I need to think about th
 Type variable innards contain a set of handles (type variables with that innard),
 a "type", which is either:
 • #f - unconstrained
-• a non-variable type (though it may contain type variables)
 • a list - constrained to be one of the types in the list
 A type variable list may not contain type variables and may not contain more than one of each compound type.  Eg. it may contain any number of base types but only one function type or record type.  However, the function or record type contained my be only partially specified (eg. may contain type variables).
 
@@ -668,22 +667,25 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 [(list) (error 'subtype-unify!
                                "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
                                sub super)]
-                [(list one) one]
+                [(list one) new-ranges]
                 [else new-ranges])]
              [(list non-base)
               (subtype-unify! non-base super)
-              non-base]))]
+              (list non-base)]))]
          [#f (match super
                [(base-type-range super-low super-high)
-                (set-type-variable-innard-type! tvi-sub
-                                                (base-type-range #f super-high))]
+                (set-type-variable-innard-type!
+                 tvi-sub
+                 (list (base-type-range #f super-high)))]
                [(? base-type?)
-                (set-type-variable-innard-type! tvi-sub (base-type-range #f super))]
+                (set-type-variable-innard-type!
+                 tvi-sub
+                 (list (base-type-range #f super)))]
                [else
-                (set-type-variable-innard-type! tvi-sub
-                                                (type->skeleton-with-vars super))
-                (subtype-unify! (type-variable-innard-type tvi-sub) super)])]
-         [non-variable (subtype-unify! non-variable super)])
+                (set-type-variable-innard-type!
+                 tvi-sub
+                 (list (type->skeleton-with-vars super)))
+                (subtype-unify! (car (type-variable-innard-type tvi-sub)) super)])])
 
        (when (not (equal? t (type-variable-innard-type tvi-sub)))
          (ripple-subtype-unify-changes '() (list tvi-sub)))]
@@ -718,26 +720,25 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 [(list) (error 'subtype-unify!
                                "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
                                sub super)]
-                [(list one) one]
+                [(list one) new-ranges]
                 [else new-ranges])]
              [(list non-base)
               (subtype-unify! sub non-base)
-              non-base]))]
+              (list non-base)]))]
          [#f (match sub
                [(base-type-range sub-low sub-high)
                 (set-type-variable-innard-type!
                  tvi-sup
-                 (base-type-range sub-high (base-type->superest sub-high)))]
+                 (list (base-type-range sub-high (base-type->superest sub-high))))]
                [(? base-type?)
                 (set-type-variable-innard-type!
                  tvi-sup
-                 (base-type-range sub (base-type->superest sub)))]
+                 (list (base-type-range sub (base-type->superest sub))))]
                [else
                 (set-type-variable-innard-type!
                  tvi-sup
-                 (type->skeleton-with-vars sub))
-                (subtype-unify! sub (type-variable-innard-type tvi-sup))])]
-         [non-variable (subtype-unify! sub non-variable)])
+                 (list (type->skeleton-with-vars sub)))
+                (subtype-unify! sub (car (type-variable-innard-type tvi-sup)))])])
 
        (when (not (equal? t (type-variable-innard-type tvi-sup)))
          (ripple-subtype-unify-changes '() (list tvi-sup)))]
@@ -988,7 +989,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
                    "can't unify types ~v and ~v (this one shouldn't happen...)"
                    (car err-values)
                    (cadr err-values)))]
-         [(list t) t]
          [(list ts ...) ts]))
      (define all-sub (append sub-bases sub-compounds))
      (define all-super (append super-bases super-compounds))
@@ -1078,7 +1078,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (cond
     [(not (type-variable-innard-type tvi)) #t]
     [else
-     (define t (flatten (list (type-variable-innard-type tvi))))
+     (define t (type-variable-innard-type tvi))
      (define (struct-rec predicate)
        (match (filter predicate t)
          [(list) #f]
@@ -1233,6 +1233,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     (define (r t) (recur t (add1 depth)))
     (match t
       ;; TODO - type generation needs some kind of depth limit if composite types can contain composite types.
+      [(type-variable (type-variable-innard _ (list one-type) _ _ _))
+       (r one-type)]
       [(type-variable
         (type-variable-innard _ (and maybe-options (or #f (list _ ...))) _ _ _))
        (define options (or maybe-options
@@ -1251,8 +1253,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                   options-use)))
          (error 'concretize-type (format "Received a typeless type variable in options.  Don't use (fresh-type-variable) when parameterizing current-xsmith-type-constructor-thunks." options-use)))
        (r (random-ref options-use))]
-      [(type-variable (type-variable-innard _ non-list-type _ _ _))
-       (r non-list-type)]
       [(base-type _ _) t]
       [(base-type-range low high)
        ;; TODO - this should be a random choice.  But I also need to deal with the #f low case and enumerate all possibilities.  For now I just want to get the code working again.
@@ -1410,12 +1410,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (match (list v constraint-type)
     [(list (type-variable (type-variable-innard _ #f _ _ _)) _) #f]
     [(list _ (type-variable (type-variable-innard _ #f _ _ _))) #t]
-    [(list (type-variable (type-variable-innard _ (and (? type?) inner-type) _ _ _))
+    [(list (type-variable (type-variable-innard _ (list one-type) _ _ _))
            _)
-     (at-least-as-concrete inner-type constraint-type)]
+     (at-least-as-concrete one-type constraint-type)]
     [(list _
-           (type-variable (type-variable-innard _ (and (? type?) inner-type) _ _ _)))
-     (at-least-as-concrete v inner-type)]
+           (type-variable (type-variable-innard _ (list one-type) _ _ _)))
+     (at-least-as-concrete v one-type)]
     ;; two type variables with multiple options
     [(list (type-variable (type-variable-innard _ (list ts ...) _ _ _))
            (type-variable (type-variable-innard _ (list cs ...) _ _ _)))
@@ -1604,6 +1604,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (match innard
               [(type-variable-innard _ _ (and forwarded (? (λ(x)x))) _ _)
                (work vars (cons forwarded todos) dones)]
+              [(type-variable-innard _ (list single-it) _ _ _)
+               (define not-done-inners (if (memq single-it dones)
+                                           (list)
+                                           (list single-it)))
+               (work (cons t vars)
+                     (append not-done-inners not-done-vars todos)
+                     dones)]
               [(type-variable-innard _ (list its ...) _ _ _)
                (define not-done-inners (set-subtract its dones))
                (work (cons t vars)
@@ -1612,13 +1619,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
               [(type-variable-innard _ #f _ _ _)
                (work (cons t vars)
                      (append not-done-vars todos)
-                     dones)]
-              [(type-variable-innard _ it _ _ _)
-               (define not-done-inners (if (memq it dones)
-                                           (list)
-                                           (list it)))
-               (work (cons t vars)
-                     (append not-done-inners not-done-vars todos)
                      dones)])]))]))
   (work '() (list orig-type-normalized) '()))
 
@@ -1758,14 +1758,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (unify! bird-will-be-penguin penguin)
   (subtype-unify! bird-will-be-penguin/left penguin)
   (subtype-unify! penguin bird-will-be-penguin/right)
-  (check-eq? (type-variable-innard-type
-              (type-variable-tvi bird-will-be-penguin))
-             penguin)
-  (check-equal? (type-variable-innard-type
-                 (type-variable-tvi bird-will-be-penguin/left))
+  (check-equal? (car (type-variable-innard-type
+                      (type-variable-tvi bird-will-be-penguin)))
+                (base-type-range penguin penguin))
+  (check-equal? (car (type-variable-innard-type
+                      (type-variable-tvi bird-will-be-penguin/left)))
                 (base-type-range #f penguin))
-  (check-equal? (type-variable-innard-type
-                 (type-variable-tvi bird-will-be-penguin/right))
+  (check-equal? (car (type-variable-innard-type
+                      (type-variable-tvi bird-will-be-penguin/right)))
                 (base-type-range penguin bird))
 
 
