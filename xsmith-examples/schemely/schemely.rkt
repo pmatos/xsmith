@@ -335,6 +335,7 @@
                         (product-type #f)
                         (fresh-type-variable))]
                 [unification-dumb-return-value (unify! ftype type)]
+                [force-exploration-return (force-type-exploration-for-node! current-hole)]
                 [params (map (λ (t)
                                (xd-printf "making fresh FormalParam with type: ~v\n" t)
                                (make-fresh-node 'FormalParam
