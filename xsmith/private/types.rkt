@@ -712,7 +712,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 (filter-map
                  (λ (super)
                    (define x (base-type-ranges->unified-versions sub-range super))
-                   (and x (car x)))
+                   (and x (cadr x)))
                  new-possibilities))
               (match new-ranges
                 [(list) (error 'subtype-unify!
