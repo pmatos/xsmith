@@ -821,29 +821,34 @@ Perform error checking:
                               #'c.node-name
                               #'c.prop-val)]))
      (map clause->list clauses))
-   (define (simplify-user-stx lists type)
-     (for/fold ([h (hash)])
-               ([l lists])
-       (dict-set h
-                 (syntax-local-value
-                  (car l)
-                  (λ ()
-                    (raise-syntax-error
-                     #f
-                     (format "Identifier not defined as a ~a." type)
-                     (car l))))
-                 (car l))))
-   (define (simplify-stx lists type #:extras [extras #f])
-     (define user-stx (simplify-user-stx lists type))
-     (if extras
+   (define (clause-lists->canonical-identifier-dict lists type-for-error extra-props)
+     ;; Return a dictionary that maps from a property/etc struct to a canonical
+     ;; syntax object for that property.
+     (define (clause-syntax-local-value p-stx type-for-error)
+       (syntax-local-value
+        p-stx
+        (λ ()
+          (raise-syntax-error
+           #f
+           (format "Identifier not defined as a ~a." type-for-error)
+           p-stx))))
+     (define user-stx
+       (for/fold ([h (hash)])
+                 ([l lists])
+         (dict-set h
+                   (clause-syntax-local-value (car l) type-for-error)
+                   (car l))))
+     (if extra-props
          (for/fold ([h user-stx])
-                   ([c (syntax->list extras)])
-           (dict-set h (syntax-local-value c) c))
+                   ([c (syntax->list extra-props)])
+           (dict-set h (clause-syntax-local-value c type-for-error) c))
          user-stx))
-   (define (mk-starter-hash simplified-stx)
-     (for/hash ([k (dict-keys simplified-stx)])
+   (define (mk-starter-hash canonical-id-dict)
+     (for/hash ([k (dict-keys canonical-id-dict)])
        (values k (hash))))
    (define (mk-hash-with-lists starter-hash c-lists)
+     ;; Return a tiered dictionary of type:
+     ;; prop/refiner-struct -> node-name -> val-stx-list
      (for/fold ([h starter-hash])
                ([cl c-lists])
        (match cl
@@ -858,6 +863,9 @@ Perform error checking:
                                 node-name
                                 (cons val-stx current-node-name-list))))])))
    (define (mk-clause-hash-from-lists-hash clause-hash-with-lists get-name type)
+     ;; Each clause potentially has a list of user-supplied syntax objects,
+     ;; because users could define a property/refiner clause multiple times.
+     ;; Generally we only want one.  This does the transformation.
      (for/hash ([ck (dict-keys clause-hash-with-lists)])
        (define subhash (dict-ref clause-hash-with-lists ck))
        (values
@@ -865,25 +873,33 @@ Perform error checking:
         (for/hash ([nk (dict-keys subhash)])
           (values
            nk
-           (syntax-parse (dict-ref subhash nk)
-             [(a) #'a]
-             [(a b ...)
-              (raise-syntax-error
-               #f
-               (format "duplicate definitions of ~a ~a for node ~a."
-                       (get-name ck)
-                       type
-                       nk)
-               #'a)]))))))
+           (if (and (grammar-property? ck)
+                    (grammar-property-allow-duplicates? ck))
+               ;; Grammar properties have an optional argument to allow them to
+               ;; receive multiple definitions.  In this case we leave a list of
+               ;; syntax objects and let the property transformer synthesize
+               ;; them into a single result.
+               (datum->syntax #f (dict-ref subhash nk))
+               (syntax-parse (dict-ref subhash nk)
+                 [(a) #'a]
+                 [(a b ...)
+                  (raise-syntax-error
+                   #f
+                   (format "duplicate definitions of ~a ~a for node ~a."
+                           (get-name ck)
+                           type
+                           nk)
+                   #'a)])))))))
    (define (mk-stx-and-hash clauses get-clause-name clause-type #:extras [extras #f])
      (define x-clauses (flatten-clauses clauses))
      (define x-lists (extract-fields x-clauses))
-     (define x-stx (simplify-stx x-lists clause-type #:extras extras))
-     (define starter-x-hash (mk-starter-hash x-stx))
+     (define canonical-id-dict
+       (clause-lists->canonical-identifier-dict x-lists clause-type extras))
+     (define starter-x-hash (mk-starter-hash canonical-id-dict))
      (define x-hash-with-lists (mk-hash-with-lists starter-x-hash x-lists))
      (define x-hash (mk-clause-hash-from-lists-hash x-hash-with-lists get-clause-name clause-type))
      (values
-      x-stx
+      canonical-id-dict
       x-hash))
    ;;;;;;;
    ;; Implementation.
@@ -896,16 +912,17 @@ Perform error checking:
    ;;  - r  = refiner
    (define g-parts (syntax->list #'(g-part ...)))
    (define g-hash
+     ;; g-hash is a single-level dictionary of node-name->node-spec-stx
      (for/hash ([g g-parts])
        (syntax-parse g
          [gc:grammar-clause (values (syntax->datum #'gc.node-name) g)])))
    (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clause ...))))
    (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
    (define-values
-     (p-stx p-hash)
+     (p-canonical-ids p-hash)
      (mk-stx-and-hash #'((p-clause+ ...) ...) grammar-property-name "property" #:extras #'extra-props))
    (define-values
-     (r-stx r-hash)
+     (r-canonical-ids r-hash)
      (mk-stx-and-hash #'((r-clause+ ...) ...) grammar-refiner-name "refiner"))
    (define p-structs (sort (dict-keys p-hash) grammar-property-less-than))
    (define r-structs (sort-refiners (dict-keys r-hash)))
@@ -918,12 +935,12 @@ Perform error checking:
    (define pre-refs-infos-hash
      (for/fold ([ih pre-transform-infos-hash])
                ([p-struct p-structs])
-       (grammar-property-transform (hash-ref p-stx p-struct p-struct)
+       (grammar-property-transform (hash-ref p-canonical-ids p-struct p-struct)
                                    ih)))
    (define infos-hash
      (for/fold ([ih pre-refs-infos-hash])
                ([r-struct r-structs])
-       (grammar-refiner-transform (hash-ref r-stx r-struct r-struct)
+       (grammar-refiner-transform (hash-ref r-canonical-ids r-struct r-struct)
                                   ih)))
    (define ref-att-rule-names (map refiner-stx->att-rule-name r-structs))
 
