@@ -716,28 +716,43 @@ You should specify a type system even for dynamically typed languages so that pr
 
 Example:
 @racketblock[
-(define int (base-type 'int))
-(define float (base-type 'float))
+(define number (base-type 'number))
+(define int (base-type 'int number))
+(define float (base-type 'float number))
 (define bool (base-type 'bool))
 (add-prop
  my-spec-component
  type-info
- [AdditionExpression [(fresh-type-variable int float)
+ [AdditionExpression [(fresh-subtype-of number)
                       (λ (n t) (hash 'l t 'r t))]]
  [EqualityExpression [bool
                       (λ (n t)
                         (define arg-type (fresh-type-variable))
-                        (hash 'l arg-type 'r arg-type))]]
+                        (hash 'l arg-type
+                              (code:comment "You could compute more by using")
+                              (code:comment "a function and computing the type")
+                              (code:comment "given the actual child node.")
+                              'r (λ (r-node) arg-type)))]]
  [Lambda [(function-type (fresh-type-variable) (fresh-type-variable))
           (λ (n t) (hash 'arg (function-type-arg-type t)
                          'Expression (function-type-return-type t)))]])
 ]
 
 The property is two armed.
+The first arm specifies the type(s) that a node can inhabit, and its value is @racket[unify!]-ed with the node's type during type checking.
+The second arm specifies a relationship between a parent node and its children.
+Children nodes are allowed to be subtypes of the type specified by their parent, so a node's type is @racket[subtype-unify!]-ed with the type specified by its parent during type checking.
 
-The first part is the type (or partially-constrained type variable) that the given node can inhabit.  The expression given is evaluated fresh every time a node is type checked or considered for generation.
+The first part is the type (or partially-constrained type variable) that the given node can inhabit.
+The expression given is evaluated fresh every time a node is type checked or considered for generation.
+When determining the type of a node, this value is @racket[unify!]-ed with this value.
 
-The second part is a function that takes a node, its type, and must return a dictionary mapping its children nodes to types.  The dictionary keys may be the node objects of the node's children OR the symbol of the field name the child inhabits.  For kleene-star children, use their node unless they all should receive the same type.
+The second part is a function that takes a node, its type, and must return a dictionary mapping its children nodes to types.
+The dictionary keys may be the node objects of the node's children OR the symbol of the field name the child inhabits.
+The values in the hash may be types or functions from node to type.
+For kleene-star children, if they are all supposed to have the same type, it is convenient to use the field name as the key.
+However, if a kleene-star child needs a different type for each element of the list, you should use the nodes themselves as keys or use a function as dictionary value.
+
 }
 
 
@@ -1034,6 +1049,7 @@ These type constructors and other functions are largely useful for specifying th
 While there are various predicates for different types, at any point in type checking you might actually have a type variable instead of a concrete type.
 So if you want to check if you have a particular type (and maybe deconstruct it), you should maybe create an instance of the type you are interested in, check if it @racket[can-unify?], then @racket[unify!]-ing it if you want to deconstruct it.
 Note that if you do @racket[unify!] a type variable, that unification needs to be consistent between multiple runs of type checking (since it runs multiple times as the tree is constructed).
+In other words, if you randomly choose a type at any point, you need to store that type in a grammar attribute and consistently unify against it.
 
 
 @defproc[(type? [t any/c]) bool?]{
@@ -1065,21 +1081,57 @@ Example:
 ]
 }
 
+@defproc[(fresh-subtype-of [t type?]) type?]{
+Creates a fresh type variable that is constrained to be a subtype of @racket[t].
+}
+
 @defproc[(type-variable? [t any/c]) bool?]{
 Predicate for type variables.
 }
 
 @defproc[(can-unify? [t1 type?] [t2 type?]) bool?]{
 Returns whether two types can be unified without actually unifying them.
+
+Note that if @racket[(can-unify? t1 t2)] is true, then both @racket[(can-subtype-unify? t1 t2)] and @racket[(can-subtype-unify? t2 t1)] are true, but it is NOT the case that @racket[(can-subtype-unify? t1 t2)] and @racket[(can-subtype-unify? t2 t1)] imply that @racket[(can-unify? t1 t2)] is true!
 }
 @defproc[(unify! [t1 type?] [t2 type?]) void?]{
 Unifies two types.  This mutates type variables so that they match other variables or types going forward.
 
 If unification fails an exception is raised.  Right now a failure to unify might mean that type variables are left in a bad state, so code generation should just give up at that point.
+
 }
 
-@defproc[(base-type [name symbol?]) type?]{
+@defproc[(can-subtype-unify? [sub type?] [super type?]) bool?]{
+Returns whether two types can be subtype-unified without actually unifying them.
+}
+@defproc[(subtype-unify! [sub type?] [super type?]) void?]{
+Puts two types into a subtype relationship.
+This mutates type variables so that they are constrained in a lattice relationship with other type variables.
+
+Note that
+@racketblock{
+(begin
+  (subtype-unify! sub super)
+  (subtype-unify! super sub))
+}
+is equivalent to:
+@racketblock{
+(unify! sub super)
+}
+
+If unification fails an exception is raised.
+A failure in unification is basically catastrophic, so no code generation should be attempted after a unification failure.
+
+The @racket[subtype-unify!] function is used automatically during type checking to put a node's type in the subtype relationship with the type its parent provides it, so you probably don't need to use this function manually.
+The @racket[unify!] function is more useful in user code.
+}
+
+@defproc[(base-type [name symbol?] [supertype (or/c #f base-type?) #f]) type?]{
 Creates a base type.  Base types with the same name are the same.
+}
+
+@defproc[(base-type? [x any/c]) any/c]{
+Predicate for base-types.
 }
 
 
@@ -1257,6 +1309,9 @@ The @verb{generate} function passed to @racket[xsmith-command-line] needs to par
 @section{Debug Logging}
 @defproc[(xd-printf [format-string string?] [args (listof any/c)] ...) any/c]{
 Like @racket[printf], but it prints to a buffer that is output when an exception is raised during program generation.
+}
+@defproc[(datt-value [method symbol?] [node ast-node?] [arg any/c] ...) any/c]{
+A wrapper for RACR's @racket[att-value] function that prints trace info using @racket[xd-printf].
 }
 
 
