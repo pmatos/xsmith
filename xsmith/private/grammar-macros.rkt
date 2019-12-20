@@ -570,9 +570,7 @@
           (ast-parent lifting-hole-node))
         (define hole-index-in-parent
           (ast-child-index lifting-hole-node))
-        ;; I don't think this unification should be necessary, but let's be safe.
-        (unify! (att-value 'xsmith_type lifting-hole-node)
-                type)
+
         ;; TODO - these field names should probably be looked up...
         (rewrite-terminal 'name new-hole name)
         (rewrite-terminal 'xsmithliftdepth

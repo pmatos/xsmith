@@ -50,7 +50,7 @@
 
 (add-to-grammar
  schemely-core
- [DefinitionContext #f ([definitions : Definition * = (random 3)]
+ [DefinitionContext #f ([definitions : Definition * = 0 #;(random 3)]
                         [expressions : Expression * = (add1 (random 3))])
    #:prop strict-child-order? #t]
  [Program DefinitionContext ()]
@@ -75,7 +75,7 @@
  [FormalParam #f (type [name = (fresh-var-name "arg-")])
               #:prop binder-info (name type parameter)]
 
- [LetStar Expression ([definitions : Definition * = (random 3)]
+ [LetStar Expression ([definitions : Definition * = 0 #;(random 3)]
                       [body : DefinitionContext])
           #:prop strict-child-order? #t]
 
@@ -90,9 +90,9 @@
  ;; TODO - many of these I've defined as binary but they could be variadic instead.
  [And Expression ([l : Expression] [r : Expression])]
  [Or Expression ([l : Expression] [r : Expression])]
-
- [LiteralNumber Expression ([v = (* (random 1000000)
-                                    (if (equal? 0 (random 2)) -1 1))])]
+ [LiteralNumber Expression (v) #:prop may-be-generated #f]
+ [LiteralInt LiteralNumber ()]
+ [LiteralFloat LiteralNumber ()]
  [Plus Expression ([l : Expression] [r : Expression])]
  [Minus Expression ([l : Expression] [r : Expression])]
  [Times Expression ([l : Expression] [r : Expression])]
@@ -118,6 +118,13 @@
      #:prop strict-child-order? #t]
 
  )
+
+(add-prop schemely-core fresh
+          [LiteralInt (hash 'v (* (random 1000000)
+                                  (if (equal? 0 (random 2)) -1 1)))]
+          [LiteralFloat (hash 'v (* (random)
+                                    (random 1000000)
+                                    (if (equal? 0 (random 2)) -1 1)))])
 
 
 ;; helper for render-node-info
@@ -199,14 +206,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Types
 
+(type-variable-subtype-default #t)
 (define number (base-type 'number))
-(define (number-type? x) (can-unify? x number))
+(define int (base-type 'int number))
+(define float (base-type 'float number))
 (define bool (base-type 'bool))
-(define (bool-type? x) (can-unify? x bool))
 (define string (base-type 'string))
-(define (string-type? x) (can-unify? x string))
 
-(define (type-thunks-for-concretization) (list (λ()number) (λ()bool) (λ()string)))
+(define (type-thunks-for-concretization)
+  (list (λ()float) (λ()number) (λ()int) (λ()bool) (λ()string)))
 
 (define-generic-type list-type (type))
 (define (fresh-list-type) (list-type (fresh-type-variable)))
@@ -217,7 +225,12 @@
   (concretize-type (fresh-type-variable)))
 
 
-(define numeric-bin-op-type (λ (n t) (hash 'l number 'r number)))
+(define numeric-bin-op/no-relation-to-return
+  (λ (n t) (hash 'l number 'r number)))
+(define numeric-bin-op-subtype
+  (λ (n t)
+    (hash 'l t 'r t)))
+
 (add-prop
  schemely-core
  type-info
@@ -275,30 +288,33 @@
  [And [bool (λ (n t) (hash 'l bool 'r bool))]]
  [Or [bool (λ (n t) (hash 'l bool 'r bool))]]
 
- [LiteralNumber [number (no-child-types)]]
- [Plus [number numeric-bin-op-type]]
- [Minus [number numeric-bin-op-type]]
- [Times [number numeric-bin-op-type]]
- [SafeDivide [number numeric-bin-op-type]]
- [LessThan [bool numeric-bin-op-type]]
- [GreaterThan [bool numeric-bin-op-type]]
+ [LiteralInt [int (no-child-types)]]
+ [LiteralFloat [float (no-child-types)]]
+ [Plus [number numeric-bin-op-subtype]]
+ [Minus [number numeric-bin-op-subtype]]
+ [Times [number numeric-bin-op-subtype]]
+ [SafeDivide [number numeric-bin-op-subtype]]
+ [LessThan [bool numeric-bin-op/no-relation-to-return]]
+ [GreaterThan [bool numeric-bin-op/no-relation-to-return]]
 
  [LiteralString [string (no-child-types)]]
  [StringAppend [string (λ (n t) (hash 'l string 'r string))]]
- [StringLength [number (λ (n t) (hash 'Expression string))]]
+ [StringLength [int (λ (n t) (hash 'Expression string))]]
 
  [LiteralEmptyList [(fresh-list-type) (no-child-types)]]
  [List [(fresh-list-type) (λ (n t)
                             (define lt (fresh-list-type))
-                            (unify! t lt)
+                            (unify! lt t)
                             (define inner (list-type-type lt))
                             (hash 'arguments inner))]]
  [Cons [(fresh-list-type) (λ (n t)
                             (define lt (fresh-list-type))
-                            (unify! t lt)
+                            (unify! lt t)
                             (define inner (list-type-type lt))
                             (hash 'v inner 'l t))]]
- [SafeCar [(fresh-type-variable) (λ (n t) (hash 'default t 'list (list-type t)))]]
+ [SafeCar [(fresh-type-variable)
+           (λ (n t) (hash 'default t
+                          'list (list-type t)))]]
  [SafeCdr [(fresh-list-type) (λ (n t) (hash 'Expression t))]]
  [EmptyP [bool (λ (n t) (hash 'Expression (fresh-list-type)))]]
 
@@ -306,7 +322,9 @@
                  (define arg-type (fresh-type-variable))
                  (hash 'l arg-type 'r arg-type))]]
 
- [If [(fresh-type-variable) (λ (n t) (hash 'test bool 'then t 'else t))]]
+ [If [(fresh-type-variable)
+      (λ (n t)
+        (hash 'test bool 'then t 'else t))]]
  )
 
 (add-prop
@@ -317,12 +335,22 @@
                         (product-type #f)
                         (fresh-type-variable))]
                 [unification-dumb-return-value (unify! ftype type)]
-                [params (map (λ (t) (make-fresh-node 'FormalParam
-                                                     (hash 'type t)))
+                [force-exploration-return (force-type-exploration-for-node! current-hole)]
+                [params (map (λ (t)
+                               (xd-printf "making fresh FormalParam with type: ~v\n" t)
+                               (make-fresh-node 'FormalParam
+                                                (hash 'type t)))
                              (or (product-type-inner-type-list
                                   (function-type-arg-type ftype))
                                  (map (λ (x) (fresh-type-variable))
                                       (make-list (arg-length) #f))))])
+           (xd-printf "lambda type: ~v, FormalParams types: ~v\n"
+                      type
+                      (map (λ (x) (ast-child 'type x))
+                           params))
+           (unify! (product-type (map (λ (x) (ast-child 'type x))
+                                      params))
+                   (function-type-arg-type ftype))
            (hash
             'type type
             'params params))]
