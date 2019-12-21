@@ -1177,27 +1177,36 @@ Predicate for product types.
 Returns the list of types in the product-type, or @racket[#f] for a product-type with a length that is still unspecified.
 }
 
-@defform[(define-generic-type name (type-argument ...))]{
+@defform[(define-generic-type name (field-spec ...))
+         #:grammar
+         ([field-spec [field-name variance]
+                      field-name]
+          [variance invariant
+                    covariant
+                    contravariant])]{
 Used to create generic types.
 
 This form defines a constructor @racket[name], a predicate @racket[name]@verb{?}, and one accessor for each type-argument @racket[name]@verb{-}@racket[type-argument] a la @racket[struct].
+If no variance is given for a field, it is invariant when subtyping.
 
 Each instance of a generic type can be unified with other instances of the same generic.
 
 Example:
 @racketblock[
-(define int (base-type 'int))
-(define-generic-type list-type (type))
+(define number (base-type 'number))
+(define int (base-type 'int number))
+(define-generic-type list-type ([type covariant]))
 
-(define t1 (list-type int))
+(define t1 (list-type number))
 (generic-type? t1) (code:comment "#t")
 (list-type? t1) (code:comment "#t")
-(generic-type-type-arguments t1) (code:comment "(list int)")
-(list-type-type t1) (code:comment "int")
+(generic-type-type-arguments t1) (code:comment "(list number)")
+(list-type-type t1) (code:comment "number")
 
-(define t2 (list-type (fresh-type-variable)))
-(can-unify? t1 t2) (code:comment "#t")
-(unify! t1 t2)
+(define t2 (list-type int))
+(can-subtype-unify? t1 t2) (code:comment "#f")
+(can-subtype-unify? t2 t1) (code:comment "#t")
+(can-unify? t1 t2) (code:comment "#f")
 ]
 }
 
