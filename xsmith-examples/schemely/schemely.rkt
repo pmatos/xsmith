@@ -216,7 +216,7 @@
 (define (type-thunks-for-concretization)
   (list (λ()float) (λ()number) (λ()int) (λ()bool) (λ()string)))
 
-(define-generic-type list-type (type))
+(define-generic-type list-type ([type covariant]))
 (define (fresh-list-type) (list-type (fresh-type-variable)))
 
 (define no-child-types (λ (n t) (hash)))
