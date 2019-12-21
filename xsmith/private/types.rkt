@@ -434,28 +434,39 @@ TODO - when generating a record ref, I'll need to compare something like (record
 ;; Generic types are given a name which is a symbol.  But it is just for printing.
 ;; They are compared with `eq?` on their constructor, which is bound to the name
 ;; by `define-generic-type`.
-(struct generic-type (name constructor type-arguments) #:transparent)
+(struct generic-type (name constructor type-arguments subtype-variances) #:transparent)
+
+(begin-for-syntax
+  (define-syntax-class generic-field-spec
+    (pattern field:id
+             #:attr variance #'invariant)
+    (pattern [field:id (~and variance (~or (~datum covariant)
+                                           (~datum contravariant)
+                                           (~datum invariant)))])))
 (define-syntax (define-generic-type stx)
   (syntax-parse stx
-    [(_ name:id (field:id ...))
-     (define field-length (length (syntax->list #'(field ...))))
+    [(_ name:id (field-spec:generic-field-spec ...))
+     (define field-length (length (syntax->list #'(field-spec ...))))
      (with-syntax ([(accessor-name ...) (map (λ (x) (format-id #'name
                                                                "~a-~a"
                                                                #'name
                                                                x))
-                                             (syntax->list #'(field ...)))]
+                                             (syntax->list #'(field-spec.field ...)))]
                    [(accessor-index ...)
                     (map (λ (x) (datum->syntax
                                  #'name
                                  (- field-length
                                     (length
-                                     (member x (syntax->list #'(field ...)))))))
-                         (syntax->list #'(field ...)))]
+                                     (member x (syntax->list
+                                                #'(field-spec.field ...)))))))
+                         (syntax->list #'(field-spec.field ...)))]
                    [predicate-name (format-id #'name "~a?" #'name)]
                    [field-length-stx (datum->syntax #f field-length)])
        #'(begin
-           (define (name field ...)
-             (generic-type 'name name (list field ...)))
+           (define (name field-spec.field ...)
+             (generic-type 'name name
+                           (list field-spec.field ...)
+                           (list 'field-spec.variance ...)))
            (define (predicate-name x)
              (and (generic-type? x)
                   (eq? name (generic-type-constructor x))))
@@ -483,7 +494,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 (define (type->skeleton-with-vars t)
   (match t
-    [(generic-type name constructor inners)
+    [(generic-type name constructor inners variances)
      (apply constructor (map (λ(x) (fresh-type-variable))
                              inners))]
     [(? product-type?) (mk-product-type #f)]
@@ -866,18 +877,21 @@ TODO - when generating a record ref, I'll need to compare something like (record
        ;; contravariant arguments
        (rec arg-r arg-l ur? ul?)]
       ;; generic type
-      [(list (generic-type name1 constructor1 type-arguments1)
-             (generic-type name2 constructor2 type-arguments2))
+      [(list (generic-type name1 constructor1 type-arguments1 variances1)
+             (generic-type name2 constructor2 type-arguments2 variances2))
        (unless (eq? constructor1 constructor2)
          (error 'subtype-unify!
                 "TODO - better message -- tried to unify different generic types."))
-       ;; TODO - generic types need to store the variance type for each field.
-       ;;        For a start, let's assume all fields are invariant.
-       (for-each (λ (isub isuper)
-                   (rec isub isuper)
-                   (rec isuper isub ur? ul?))
+       (for-each (λ (isub isuper variance)
+                   (match variance
+                     ['invariant (begin
+                                   (rec isub isuper)
+                                   (rec isuper isub ur? ul?))]
+                     ['covariant (rec isub isuper)]
+                     ['contravariant (rec isuper isub ur? ul?)]))
                  type-arguments1
-                 type-arguments2)]
+                 type-arguments2
+                 variances1)]
 
       ;; base type
       [(list (or (? base-type?) (? base-type-range?))
@@ -1082,16 +1096,20 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; TODO -for now this is symmetric, but later should be subtypable.
      (rec inner1 inner2)]
     ;; generic-type
-    [(list (generic-type name1 constructor1 type-arguments1)
-           (generic-type name2 constructor2 type-arguments2))
+    [(list (generic-type name1 constructor1 type-arguments1 variances1)
+           (generic-type name2 constructor2 type-arguments2 variances2))
      ;; TODO - generic types need to store the variance type for each field.
      ;;        For a start, let's assume all fields are invariant.
      (and (eq? constructor1 constructor2)
           (for/and ([l type-arguments1]
-                    [r type-arguments2])
-            (can-unify? l r
-                        #:under-type-variable-left? ul?
-                        #:under-type-variable-right? ur?)))]
+                    [r type-arguments2]
+                    [v variances1])
+            (match v
+              ['invariant (can-unify? l r
+                                      #:under-type-variable-left? ul?
+                                      #:under-type-variable-right? ur?)]
+              ['covariant (rec l r)]
+              ['contravariant (rec r l ur? ul?)])))]
     ;; base-type
     [(list (base-type lname lsuper) (base-type rname rsuper))
      (->bool (member super (base-type->parent-chain sub)))]
@@ -1129,10 +1147,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(? nominal-record-type?) (struct-rec nominal-record-type?)]
        [(? nominal-record-definition-type?)
         (struct-rec nominal-record-definition-type?)]
-       [(generic-type name constructor type-arguments)
+       [(generic-type name constructor type-arguments variances)
         (define inner-matched
           (filter (λ (x) (match x
-                           [(generic-type _ iconstructor _)
+                           [(generic-type _ iconstructor _ _)
                             (eq? constructor iconstructor)]
                            [else #f]))
                   t))
@@ -1232,8 +1250,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (nominal-record-definition-type inner2))
      (rec inner1 inner2)]
     ;; generic-type
-    [(list (generic-type name1 constructor1 type-arguments1)
-           (generic-type name2 constructor2 type-arguments2))
+    [(list (generic-type name1 constructor1 type-arguments1 variances1)
+           (generic-type name2 constructor2 type-arguments2 variances2))
      (and (eq? constructor1 constructor2)
           (for/and ([inner-l type-arguments1]
                     [inner-r type-arguments2])
@@ -1341,7 +1359,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (nominal-record-definition-type (r inner))]
       [(function-type arg return) (function-type (r arg)
                                                  (r return))]
-      [(generic-type name ctor inners) (generic-type name ctor (map r inners))]
+      [(generic-type name ctor inners vs)
+       (generic-type name ctor (map r inners) vs)]
       [else (error 'concretize-type "internal error -- no case for type: ~a" t)]))
   (recur t 0))
 
@@ -1439,7 +1458,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(nominal-record-definition-type inner) (concrete? inner)]
     [(product-type itl lb ub)
      (and (list? itl) (andmap concrete? itl))]
-    [(generic-type _ _ inners)
+    [(generic-type _ _ inners _)
      (andmap concrete? inners)]))
 
 (define (highlight arg)
@@ -1549,11 +1568,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (nominal-record-definition-type inner2))
      (at-least-as-concrete inner1 inner2)]
     [(list (nominal-record-definition-type _) _) #t]
-    [(list (generic-type v-n v-ctor v-inners) (generic-type c-n c-ctor c-inners))
+    [(list (generic-type v-n v-ctor v-inners v-vars)
+           (generic-type c-n c-ctor c-inners v-vars))
      (if (eq? v-ctor c-ctor)
          (andmap at-least-as-concrete v-inners c-inners)
          #t)]
-    [(list (generic-type _ _ _) _) #t]
+    [(list (generic-type _ _ _ _) _) #t]
     ;; No else, so we get an error if there are new types that we don't extend this with.
     ))
 
@@ -1601,7 +1621,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(nominal-record-type name inners)
      (ormap rec (dict-values inners))]
     [(nominal-record-definition-type inner) (rec inner)]
-    [(generic-type name constructor inners)
+    [(generic-type name constructor inners variances)
      (ormap rec inners)]
     [(type-variable t-innard)
      (not (set-empty?
@@ -1642,7 +1662,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (work vars (append (dict-values inners) todos) dones)]
            [(nominal-record-definition-type inner)
             (work vars (cons inner todos) dones)]
-           [(generic-type name constructor inners)
+           [(generic-type name constructor inners variances)
             (work vars (append inners todos) dones)]
            [(type-variable innard)
             (define bounds
@@ -1858,6 +1878,43 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (define tv-nominal-record-type (fresh-type-variable (any-nominal-record-type)))
   (check-true (can-unify? tv-nominal-record-type (any-nominal-record-type)))
   (check-not-exn (λ () (unify! tv-nominal-record-type (any-nominal-record-type))))
+
+
+  ;; tests for generic types and subtyping
+  (let ()
+    (define-generic-type g ([i invariant] [co covariant] [contra contravariant]))
+
+    (define-syntax (subtype-check stx)
+      (syntax-parse stx
+        [(_ t/f sub super)
+         #'(let ([bool t/f]
+                 [b sub]
+                 [p super])
+             (check-equal? t/f (can-subtype-unify? b p))
+             (if bool
+                 (check-not-exn (λ () (subtype-unify! b p)))
+                 (check-exn exn? (λ () (subtype-unify! b p)))))]))
+
+    (subtype-check #t (g dog dog dog) (g dog dog dog))
+    (subtype-check #t (g dog labradoodle animal) (g dog dog dog))
+
+    ;; check that invariance holds
+    (subtype-check #f
+                   (g labradoodle labradoodle animal)
+                   (g dog dog dog))
+    (subtype-check #f
+                   (g animal labradoodle animal)
+                   (g dog dog dog))
+    ;; check that covariance holds
+    (subtype-check #f
+                   (g dog animal animal)
+                   (g dog dog dog))
+    ;; check that contravariance holds
+    (subtype-check #f
+                   (g dog labradoodle labradoodle)
+                   (g dog dog dog))
+    )
+
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
