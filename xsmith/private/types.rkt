@@ -1464,7 +1464,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define (highlight arg)
   (format "\033[31m~a\033[0m\n" arg))
 (define (at-least-as-concrete v constraint-type)
-  ;; TODO - this function was broken even before adding subtyping.  Now it is probably more so.  I need to re-examine how it is used to fix it.  But it is there just as an optimization that maybe isn't entirely necessary, so I'm just not going to worry about it for now.
   #|
   Returns #t when:
   • they are different types
