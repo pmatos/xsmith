@@ -57,8 +57,6 @@ WIP checklist:
  product-type?
  product-type-inner-type-list
  ;product-type-inner-type-list
- ;record-type?
- ;record-type-name
 
  define-generic-type
  generic-type?
@@ -71,6 +69,9 @@ WIP checklist:
  nominal-record-type?
  nominal-record-type-name
  nominal-record-type-inners
+
+ structural-record-type?
+ structural-record-type-field-dict
 
  (rename-out [make-nominal-record-definition nominal-record-definition-type])
  nominal-record-definition-type?
@@ -431,6 +432,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
                            (dict-keys (nominal-record-type-inners nrt)))))))
 
 
+(struct structural-record-type
+  (field-dict)
+  #:transparent)
+
+
 ;; Generic types are given a name which is a symbol.  But it is just for printing.
 ;; They are compared with `eq?` on their constructor, which is bound to the name
 ;; by `define-generic-type`.
@@ -487,7 +493,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
    ;(sum-type? x)
    (nominal-record-type? x)
    (nominal-record-definition-type? x)
-   ;(record-type? x)
+   (structural-record-type? x)
    (generic-type? x)
    ))
 
@@ -501,6 +507,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(? nominal-record-type?) (nominal-record-type #f (hash))]
     [(? nominal-record-definition-type?) (nominal-record-definition-type
                                           (nominal-record-type #f (hash)))]
+    [(structural-record-type fields)
+     (define new-fields (for/hash ([k (dict-keys fields)])
+                          (values k (fresh-type-variable))))
+     ;; TODO - the fields of the original represent a lower bound on the fields a fresh type can have.  This is the place to inject more fields if desired.
+     (structural-record-type new-fields)]
     [(? function-type?) (function-type (fresh-type-variable) (fresh-type-variable))]))
 
 (define (base-type-ranges->unified-versions sub super)
@@ -868,7 +879,16 @@ TODO - when generating a record ref, I'll need to compare something like (record
              (nominal-record-definition-type inner2))
        ;; TODO -for now this is symmetric, but later should be subtypable.
        (rec inner1 inner2)]
-
+      ;; Structural records
+      [(list (structural-record-type fields-sub)
+             (structural-record-type fields-super))
+       (for ([k (dict-keys fields-super)])
+         (rec (dict-ref fields-sub k
+                        (λ () (error
+                               'subtype-unify!
+                               "subtype didn't contain a necessary field: ~v"
+                               k)))
+              (dict-ref fields-super k)))]
       ;; function type
       [(list (function-type arg-l ret-l)
              (function-type arg-r ret-r))
@@ -1095,6 +1115,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (nominal-record-definition-type inner2))
      ;; TODO -for now this is symmetric, but later should be subtypable.
      (rec inner1 inner2)]
+    ;; structural-record-type
+    [(list (structural-record-type fields-sub)
+           (structural-record-type fields-super))
+     (for/and ([k (dict-keys fields-super)])
+       (and (dict-has-key? fields-sub k)
+            (rec (dict-ref fields-sub k) (dict-ref fields-super k))))]
     ;; generic-type
     [(list (generic-type name1 constructor1 type-arguments1 variances1)
            (generic-type name2 constructor2 type-arguments2 variances2))
@@ -1249,6 +1275,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
      (rec inner1 inner2)]
+    ;; structural-record-type
+    [(list (structural-record-type fields1)
+           (structural-record-type fields2))
+     (and (equal? (dict-keys fields1) (dict-keys fields2))
+          (for/and ([k (dict-keys fields1)])
+            (rec (dict-ref fields1 k) (dict-ref fields2 k))))]
     ;; generic-type
     [(list (generic-type name1 constructor1 type-arguments1 variances1)
            (generic-type name2 constructor2 type-arguments2 variances2))
@@ -1357,6 +1389,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [(nominal-record-type name inners) t]
       [(nominal-record-definition-type inner)
        (nominal-record-definition-type (r inner))]
+      [(structural-record-type fields)
+       (structural-record-type (for/hash ([k (dict-keys fields)])
+                                 (values k (r (dict-ref fields k)))))]
       [(function-type arg return) (function-type (r arg)
                                                  (r return))]
       [(generic-type name ctor inners vs)
@@ -1456,6 +1491,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; If a name is set then it's concrete.
      (->bool name)]
     [(nominal-record-definition-type inner) (concrete? inner)]
+    [(structural-record-type fields)
+     (for/and ([k (dict-keys fields)])
+       (concrete? (dict-ref fields k)))]
     [(product-type itl lb ub)
      (and (list? itl) (andmap concrete? itl))]
     [(generic-type _ _ inners _)
@@ -1567,6 +1605,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (nominal-record-definition-type inner2))
      (at-least-as-concrete inner1 inner2)]
     [(list (nominal-record-definition-type _) _) #t]
+    [(list (structural-record-type fields1)
+           (structural-record-type fields2))
+     (for/and ([k (dict-keys fields2)])
+       (or (not (dict-has-key? fields1 k))
+           (at-least-as-concrete (dict-ref fields1 k) (dict-ref fields2 k))))]
+    [(list (structural-record-type fields1) _) #t]
     [(list (generic-type v-n v-ctor v-inners v-vars)
            (generic-type c-n c-ctor c-inners v-vars))
      (if (eq? v-ctor c-ctor)
@@ -1616,10 +1660,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [#f (->bool (memq t vs))]
        [(list ts ...) (ormap rec ts)])]
     ;[(sum-type)]
-    ;[(record-type)]
     [(nominal-record-type name inners)
      (ormap rec (dict-values inners))]
     [(nominal-record-definition-type inner) (rec inner)]
+    [(structural-record-type fields)
+     (for/or ([k (dict-keys fields)])
+       (rec (dict-ref fields k)))]
     [(generic-type name constructor inners variances)
      (ormap rec inners)]
     [(type-variable t-innard)
@@ -1656,11 +1702,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
                         todos
                         (append all-bounds init-dones))))]
            ;[(sum-type)]
-           ;[(record-type)]
            [(nominal-record-type name inners)
             (work vars (append (dict-values inners) todos) dones)]
            [(nominal-record-definition-type inner)
             (work vars (cons inner todos) dones)]
+           [(structural-record-type fields)
+            (work vars (append (dict-values fields)) dones)]
            [(generic-type name constructor inners variances)
             (work vars (append inners todos) dones)]
            [(type-variable innard)
@@ -1912,6 +1959,20 @@ TODO - when generating a record ref, I'll need to compare something like (record
     (subtype-check #f
                    (g dog labradoodle labradoodle)
                    (g dog dog dog))
+    )
+
+  ;; tests for structural records
+  (let ()
+    (check-false (can-unify? (structural-record-type (hash 'x dog))
+                             (structural-record-type (hash 'x dog 'y dog))))
+    (check-false (can-subtype-unify? (structural-record-type (hash 'x dog))
+                                     (structural-record-type (hash 'x dog 'y dog))))
+    (check-true (can-subtype-unify? (structural-record-type (hash 'x dog 'y dog))
+                                    (structural-record-type (hash 'x dog))))
+    (check-true (can-subtype-unify? (structural-record-type (hash 'x labradoodle
+                                                                  'y dog))
+                                    (structural-record-type (hash 'x dog))))
+
     )
 
   )
