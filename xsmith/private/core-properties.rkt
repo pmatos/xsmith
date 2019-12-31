@@ -1237,28 +1237,36 @@ The second arm is a function that takes the type that the node has been assigned
                     [#f #f]))
         (if c (hash-set h n c) h)))
 
-    (define constraints-checked
+    (define get-constraints-checked
       ;; TODO - I need to put a default implementation that says what node it is, but ties it to `type-info` rather than a private method.
       (for/hash ([n (dict-keys node-type-constraints)])
         (values
          n
-         #`(let ([t #,(dict-ref node-type-constraints n)])
-             (if (type? t)
-                 t
-                 (error 'type-info
-                        "Type constraint returned for node of AST type ~a was not a type: ~a\n"
-                        (quote #,n)
-                        t))))))
+         #`(λ (node)
+             (let ([do-error (λ (bad-type)
+                               (error 'type-info
+                                      "Type constraint returned for node of AST type ~a was not a type: ~a\n"
+                                      (quote #,n)
+                                      bad-type))]
+                   [t #,(dict-ref node-type-constraints n)])
+               (cond [(type? t) t]
+                     [(procedure? t)
+                      (let ([t-prime (t node)])
+                        (if (type? t-prime)
+                            t-prime
+                            (do-error t-prime)))]
+                     [else (do-error t)]))))))
     (define _xsmith_my-type-constraint-info/att-rule
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ () default-base-type))
-          (for/hash ([n (dict-keys constraints-checked)])
-            (values n #`(λ (arg-ignored) #,(dict-ref constraints-checked n))))))
+          (for/hash ([n (dict-keys get-constraints-checked)])
+            (values n #`(λ (node)
+                          (#,(dict-ref get-constraints-checked n) node))))))
     (define _xsmith_my-type-constraint-info/choice-rule
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ () default-base-type))
-          (for/hash ([n (dict-keys constraints-checked)])
-            (values n #`(λ () #,(dict-ref constraints-checked n))))))
+          (for/hash ([n (dict-keys get-constraints-checked)])
+            (values n #`(λ () (#,(dict-ref get-constraints-checked n) current-hole))))))
 
     (define node-child-dict-funcs
       (hash-set
