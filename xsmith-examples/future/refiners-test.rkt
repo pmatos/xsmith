@@ -43,9 +43,10 @@
   tg
   times-two
   #:follows evens-only
+  [#f [(λ (n) #f)]]
   [Val [(λ (n) (begin
-                 (display "will multiply by two")
-                 (make-fresh-node )))]])
+                 (eprintf (format "multiplying by two: ~a\n" (ast-child 'v n)))
+                 (make-fresh-node 'Val (hash 'v (* 2 (ast-child 'v n))))))]])
 
 (assemble-spec-components t tg)
 
