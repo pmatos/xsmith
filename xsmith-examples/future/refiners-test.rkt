@@ -44,15 +44,6 @@
       #:prop wont-over-deepen #t]
  )
 
-(define int (base-type 'int))
-(add-prop
- tg
- type-info
- [Prog [(fresh-type-variable)
-        (λ (n t) (hash 'val t))]]
- [Val [int (λ (n t) (hash))]]
- )
-
 (add-prop
  tg
  render-node-info
