@@ -1337,14 +1337,14 @@
      (h-append
       (text (type->string (function-type-return-type (ast-child 'type n))))
       space
-      (text (ast-child 'name n))
+      (text (format "~a" (ast-child 'name n)))
       lparen
       (h-concat
        (add-between
         (map (λ (fp)
                (h-append (text (type->string (ast-child 'type fp)))
                          space
-                         (text (ast-child 'name fp))))
+                         (text (format "~a" (ast-child 'name fp)))))
              (ast-children (ast-child 'params n)))
         (h-append comma space)))
       rparen
@@ -1353,7 +1353,7 @@
  [StructDefinition
   (λ (n)
     (v-append
-     (h-append (text "struct") space (text (ast-child 'name n)))
+     (h-append (text "struct") space (text (format "~a" (ast-child 'name n))))
      (nest nest-step
            (apply v-append
                   lbrace
@@ -1389,7 +1389,7 @@
         (h-append
          lparen
          (text "struct ")
-         (text (ast-child 'name (ast-child 'structdefref n)))
+         (text (format "~a" (ast-child 'name (ast-child 'structdefref n))))
          rparen
          braces-part)))]
  [IfStatement
@@ -1500,7 +1500,7 @@
      n
      (h-append (hs-append
                 (text (type->string (ast-child 'type n)))
-                (text (ast-child 'name n))
+                (text (format "~a" (ast-child 'name n)))
                 eqsign
                 (render-node (ast-child 'Expression n)))
                semi)))]
@@ -1508,7 +1508,7 @@
   (λ (n)
     (v-comment
      n
-     (hs-append (text (ast-child 'name n))
+     (hs-append (text (format "~a" (ast-child 'name n)))
                 eqsign
                 (render-node (ast-child 'Expression n)))))]
  [LiteralInt
@@ -1525,7 +1525,7 @@
   (λ (n)
     (h-comment
      n
-     (text (ast-child 'name n))))]
+     (text (format "~a" (ast-child 'name n)))))]
  [VolatileVariableReference
   (λ (n) (render-node (ast-child 'VariableReference n)))]
  [VolatileInitializer
@@ -1560,7 +1560,7 @@
               (render-node (ast-child 'structval n))
               rparen
               period
-              (text (ast-child 'fieldname n))))]
+              (text (format "~a" (ast-child 'fieldname n)))))]
  [StructSetField
   (λ (n)
     (h-append lparen
@@ -1568,7 +1568,7 @@
               (render-node (ast-child 'structval n))
               rparen
               period
-              (text (ast-child 'fieldname n))
+              (text (format "~a" (ast-child 'fieldname n)))
               space
               eqsign
               space

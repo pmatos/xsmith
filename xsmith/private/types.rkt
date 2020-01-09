@@ -75,14 +75,22 @@ WIP checklist:
  (rename-out [make-nominal-record-definition nominal-record-definition-type])
  nominal-record-definition-type?
  nominal-record-definition-type-type
+ ;nominal-record-definition-type?/with-field
+ ;nominal-record-type?/with-field
 
  type?
 
  (contract-out
   [fresh-type-variable (->* () () #:rest (listof type?) type?)]
+  [fresh-subtype-of (-> type? type?)]
+  [fresh-supertype-of (-> type? type?)]
   [unify! (-> type? type? any/c)]
+  [subtype-unify! (-> type? type? any/c)]
   [can-unify? (-> type? type? any/c)]
-  [concretize-type (-> type? type?)]
+  [can-subtype-unify? (-> type? type? any/c)]
+  [concretize-type (->* (type?)
+                        (#:at-node ast-node?)
+                        type?)]
   [rename concrete? concrete-type? (-> type? any/c)]
   [rename mk-product-type product-type (-> (or/c #f (listof type?)) type?)]
   [function-type (-> type? type? type?)]
@@ -92,6 +100,7 @@ WIP checklist:
  function-type-return-type
 
  current-xsmith-type-constructor-thunks
+ type-variable-subtype-default
 
  type->type-variable-list
  at-least-as-concrete
@@ -106,16 +115,14 @@ WIP checklist:
  racket/set
  "scope-graph.rkt"
  "xsmith-utils.rkt"
+ racr
+ (submod "xsmith-utils.rkt" for-private)
  (for-syntax
   racket/base
   syntax/parse
   racket/syntax
   ))
 (module+ test (require rackunit))
-
-(define (->bool v)
-  ;; I keep using this idiom, but ->bool is clearer.
-  (not (not v)))
 
 
 #|
@@ -141,7 +148,6 @@ The following are maybe not variables but constrain how I need to think about th
 Type variable innards contain a set of handles (type variables with that innard),
 a "type", which is either:
 • #f - unconstrained
-• a non-variable type (though it may contain type variables)
 • a list - constrained to be one of the types in the list
 A type variable list may not contain type variables and may not contain more than one of each compound type.  Eg. it may contain any number of base types but only one function type or record type.  However, the function or record type contained my be only partially specified (eg. may contain type variables).
 
@@ -174,7 +180,8 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (match innard
     [(type-variable-innard _ _ #f _ _) innard]
     [(type-variable-innard _ _ forwarded _ _)
-     (innard->forward-resolve forwarded)]))
+     (innard->forward-resolve forwarded)]
+    [else innard]))
 
 (define (type-variable-normalize! tv)
   (match tv
@@ -217,7 +224,12 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
 (define type-variable-innard->transitive-upper-bounds
   (type-variable-innard->transitive-DIR-bounds type-variable-innard-upper-bounds))
 
-(define (fresh-type-variable . args)
+
+(define type-variable-subtype-default
+  (make-parameter #t))
+
+(define (fresh-type-variable #:subtype? [subtype? (type-variable-subtype-default)]
+                             . args)
   (when (memf type-variable? args)
     (error 'fresh-type-variable
            "partially constrained type variables can not include type variables in the constraint list.  Given ~a\n"
@@ -235,7 +247,9 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (define type (if (null? args)
                    #f
                    (map (λ (x) (if (base-type? x)
-                                   (base-type-range x x)
+                                   (if subtype?
+                                       (base-type-range #f x)
+                                       (base-type-range x x))
                                    x))
                         args)))
   (define handle-set (weak-seteq))
@@ -244,15 +258,37 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (set-add! handle-set tv)
   tv)
 
+(define (fresh-subtype-of v)
+  (define fv (fresh-type-variable))
+  (subtype-unify! fv v)
+  fv)
+(define (fresh-supertype-of v)
+  (define fv (fresh-type-variable))
+  (subtype-unify! v fv)
+  fv)
+
 #|
 Base types can be declared as subtypes of other base types.
 Inside a type variable, they are always placed in a base-type-range, which gives a minimum and maximum type.
 The minimum may be #f to mean any subtype of the maximum type.
 |#
-(struct base-type (name supertype) #:transparent)
+(struct base-type (name supertype) #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc self port mode)
+     (fprintf port "#<~a>" (base-type-name self)))])
 
 ;; a default base type, for when users don't specify any type rules.
 (define default-base-type (base-type 'xsmith_default-base-type #f))
+
+(module+ test
+  ;; Define some base types for testing
+  (define animal (mk-base-type 'animal))
+  (define bird (mk-base-type 'bird animal))
+  (define penguin (mk-base-type 'penguin bird))
+  (define canine (mk-base-type 'canine animal))
+  (define dog (mk-base-type 'dog canine))
+  (define labradoodle (mk-base-type 'labradoodle dog))
+  )
 
 (define (base-type->parent-chain bt)
   (if (not (base-type-supertype bt))
@@ -311,7 +347,13 @@ The minimum may be #f to mean any subtype of the maximum type.
          (error 'base-type-greatest-lower-bound
                 "incompatible base types: ~v and ~v" a b))]))
 
-(struct base-type-range (sub super) #:transparent)
+(struct base-type-range (sub super)
+  #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc self port mode)
+     (fprintf port "#<range:~a-~a>"
+              (base-type-range-sub self)
+              (base-type-range-super self)))])
 
 (struct function-type (arg-type return-type) #:transparent)
 
@@ -381,32 +423,50 @@ TODO - when generating a record ref, I'll need to compare something like (record
   ;; TODO - this should be verified to be actually a nominal-record-type
   (nominal-record-definition-type nominal-record-type))
 
+(define (nominal-record-type?/with-field nrt)
+  ;; predicate for when a NRT type has a named field but not a name overall.
+  (and (nominal-record-type? nrt)
+       (not (nominal-record-type-name nrt))
+       (not (null? (filter (λ(x)x)
+                           (dict-keys (nominal-record-type-inners nrt)))))))
+
 
 ;; Generic types are given a name which is a symbol.  But it is just for printing.
 ;; They are compared with `eq?` on their constructor, which is bound to the name
 ;; by `define-generic-type`.
-(struct generic-type (name constructor type-arguments) #:transparent)
+(struct generic-type (name constructor type-arguments subtype-variances) #:transparent)
+
+(begin-for-syntax
+  (define-syntax-class generic-field-spec
+    (pattern field:id
+             #:attr variance #'invariant)
+    (pattern [field:id (~and variance (~or (~datum covariant)
+                                           (~datum contravariant)
+                                           (~datum invariant)))])))
 (define-syntax (define-generic-type stx)
   (syntax-parse stx
-    [(_ name:id (field:id ...))
-     (define field-length (length (syntax->list #'(field ...))))
+    [(_ name:id (field-spec:generic-field-spec ...))
+     (define field-length (length (syntax->list #'(field-spec ...))))
      (with-syntax ([(accessor-name ...) (map (λ (x) (format-id #'name
                                                                "~a-~a"
                                                                #'name
                                                                x))
-                                             (syntax->list #'(field ...)))]
+                                             (syntax->list #'(field-spec.field ...)))]
                    [(accessor-index ...)
                     (map (λ (x) (datum->syntax
                                  #'name
                                  (- field-length
                                     (length
-                                     (member x (syntax->list #'(field ...)))))))
-                         (syntax->list #'(field ...)))]
+                                     (member x (syntax->list
+                                                #'(field-spec.field ...)))))))
+                         (syntax->list #'(field-spec.field ...)))]
                    [predicate-name (format-id #'name "~a?" #'name)]
                    [field-length-stx (datum->syntax #f field-length)])
        #'(begin
-           (define (name field ...)
-             (generic-type 'name name (list field ...)))
+           (define (name field-spec.field ...)
+             (generic-type 'name name
+                           (list field-spec.field ...)
+                           (list 'field-spec.variance ...)))
            (define (predicate-name x)
              (and (generic-type? x)
                   (eq? name (generic-type-constructor x))))
@@ -421,6 +481,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (or
    (type-variable? x)
    (base-type? x)
+   (base-type-range? x)
    (function-type? x)
    (product-type? x)
    ;(sum-type? x)
@@ -433,7 +494,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 (define (type->skeleton-with-vars t)
   (match t
-    [(generic-type name constructor inners)
+    [(generic-type name constructor inners variances)
      (apply constructor (map (λ(x) (fresh-type-variable))
                              inners))]
     [(? product-type?) (mk-product-type #f)]
@@ -457,6 +518,33 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (define new-r (base-type-range new-rsub rsup))
             (list new-l new-r)))]
     [else #f]))
+(module+ test
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range #f dog)
+                 (base-type-range labradoodle canine))
+                (list (base-type-range #f dog)
+                      (base-type-range labradoodle canine)))
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range labradoodle canine)
+                 (base-type-range #f dog))
+                (list (base-type-range labradoodle dog)
+                      (base-type-range labradoodle dog)))
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range dog canine)
+                 (base-type-range #f dog))
+                (list (base-type-range dog dog)
+                      (base-type-range dog dog)))
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range penguin penguin)
+                 (base-type-range #f bird))
+                (list (base-type-range penguin penguin)
+                      (base-type-range penguin bird)))
+  (check-equal? (base-type-ranges->unified-versions
+                 (base-type-range #f bird)
+                 (base-type-range penguin penguin))
+                (list (base-type-range #f penguin)
+                      (base-type-range penguin penguin)))
+  )
 (define (type-lists->unified-base-types sub-list super-list)
   (define result
     (filter (λ(x)x)
@@ -469,7 +557,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (list new-subs new-sups))
 
 
-(define (subtype-unify! sub super)
+(define (subtype-unify! sub super
+                        #:under-type-variable-left? [ul? #f]
+                        #:under-type-variable-right? [ur? #f])
   #|
   * This sets variables to be in each others' upper- and lower-bounds.
   * As variables are unified, possibilities that don't fit with variables they are unified with (or concrete types they are unified with) are filtered out.
@@ -477,302 +567,340 @@ TODO - when generating a record ref, I'll need to compare something like (record
   * Subtype-unified type variables form a lattice, and any time a lower bound becomes an upper bound (or vice-versa), the lattice between those two nodes is squashed to a single node.
   * recursion into inner type structures (function, generic, etc) will operate on type-specific meanings of subtyping -- generics will have a way of specifying per field whether the field is invariant (the default), covariant, or contravariant
   |#
-  (match (list sub super)
-    ;; type variable x2
-    [(list (type-variable tvi-sub)
-           (type-variable tvi-sup))
+  #;(define can-unify-result
+    (can-subtype-unify? sub super))
+  #;(when (not can-unify-result)
+    (xd-printf "\nWarning: subtype-unify! called when can-subtype-unify? claims unification is impossible.  If this doesn't error, there's a problem.\n")
+    (xd-printf "Called with subtype: ~v, supertype: ~v\n" sub super))
+  (define (rec sub super [under-l? ul?] [under-r? ur?])
+    (subtype-unify! sub super
+                    #:under-type-variable-left? under-l?
+                    #:under-type-variable-right? ur?))
+  (with-handlers ([(λ(e)#t)
+                   (λ(e)
+                     #;(when can-unify-result
+                       (xd-printf "\n\nsubtype-unify! errored even though can-subtype-unify? said it should pass!\n\n"))
+                     (raise e))])
+    (match (list sub super)
+      ;; type variable x2
+      [(list (type-variable tvi-sub)
+             (type-variable tvi-sup))
 
-     ;; TODO - check that one is not recursively contained in the structure of the other.
+       ;; TODO - check that one is not recursively contained in the structure of the other.
 
-     ;; Type variables may have any number of base-type-ranges as possibilities.
-     ;; When subtype-unifying, each base-type-range pair is tried for unification.
-     ;; All successes then replace the old base-type-ranges.
-     ;; (Except the new ranges are tested against each other -- any range that fits entirely within another is eliminated.)
+       ;; Type variables may have any number of base-type-ranges as possibilities.
+       ;; When subtype-unifying, each base-type-range pair is tried for unification.
+       ;; All successes then replace the old base-type-ranges.
+       ;; (Except the new ranges are tested against each other -- any range that fits entirely within another is eliminated.)
 
-     (define tvi-sub-uppers (type-variable-innard->transitive-upper-bounds tvi-sub))
-     (define tvi-sub-lowers (type-variable-innard->transitive-lower-bounds tvi-sub))
-     (define already-done?
-       (or (eq? tvi-sub tvi-sup)
-           (member tvi-sup tvi-sub-uppers)))
-     (define squash-case?
-       ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
-       (member tvi-sup tvi-sub-lowers))
+       (define tvi-sub-uppers (type-variable-innard->transitive-upper-bounds tvi-sub))
+       (define tvi-sub-lowers (type-variable-innard->transitive-lower-bounds tvi-sub))
+       (define already-done?
+         (or (eq? tvi-sub tvi-sup)
+             (member tvi-sup tvi-sub-uppers)))
+       (define squash-case?
+         ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
+         (member tvi-sup tvi-sub-lowers))
 
-     (cond
-       [already-done? (void)]
-       [squash-case?
-        (define tvi-sup-lowers (type-variable-innard->transitive-lower-bounds tvi-sup))
-        (define intersection
-          (set-union (list tvi-sup tvi-sub)
-                     (set-intersect tvi-sup-lowers tvi-sub-uppers)))
-        (define new-handles (apply set-union
-                                   ;; The innard handle sets are mutable sets,
-                                   ;; and here I need immutable sets.
-                                   (map (λ (x) (set->list
-                                                (type-variable-innard-handle-set x)))
-                                        intersection)))
-        (match-define (list lower-change upper-change)
-          (subtype-unify!/type-variable-innards tvi-sub tvi-sup))
+       (cond
+         [already-done? (void)]
+         [squash-case?
+          (define tvi-sup-lowers (type-variable-innard->transitive-lower-bounds tvi-sup))
+          (define intersection
+            (set-union (list tvi-sup tvi-sub)
+                       (set-intersect tvi-sup-lowers tvi-sub-uppers)))
+          (define new-handles (apply set-union
+                                     ;; The innard handle sets are mutable sets,
+                                     ;; and here I need immutable sets.
+                                     (map (λ (x) (set->list
+                                                  (type-variable-innard-handle-set x)))
+                                          intersection)))
+          (match-define (list lower-change upper-change)
+            (subtype-unify!/type-variable-innards tvi-sub tvi-sup))
 
-        (define new-type
-          (type-variable-innard-type tvi-sub))
+          (define new-type
+            (type-variable-innard-type tvi-sub))
 
-        (define new-lowers
-          (set-subtract (apply set-union
-                               (map type-variable-innard-lower-bounds
-                                    intersection))
-                        intersection))
-        (define new-uppers
-          (set-subtract (apply set-union
-                               (map type-variable-innard-upper-bounds
-                                    intersection))
-                        intersection))
-        (define new-innard
-          (type-variable-innard new-handles new-type #f new-lowers new-uppers))
-        (for ([h new-handles])
-          (set-type-variable-tvi! h new-innard))
-        (for ([i intersection])
-          (set-type-variable-innard-forward! i new-innard))
-        (when (or lower-change upper-change)
-          (ripple-subtype-unify-changes '() (list new-innard)))]
-       [else
-        (set-type-variable-innard-upper-bounds!
-         tvi-sub
-         (cons tvi-sup (type-variable-innard-upper-bounds tvi-sub)))
-        (set-type-variable-innard-lower-bounds!
-         tvi-sup
-         (cons tvi-sub (type-variable-innard-lower-bounds tvi-sup)))
+          (define new-lowers
+            (set-subtract (apply set-union
+                                 (map type-variable-innard-lower-bounds
+                                      intersection))
+                          intersection))
+          (define new-uppers
+            (set-subtract (apply set-union
+                                 (map type-variable-innard-upper-bounds
+                                      intersection))
+                          intersection))
+          (define new-innard
+            (type-variable-innard new-handles new-type #f new-lowers new-uppers))
+          (for ([h new-handles])
+            (set-type-variable-tvi! h new-innard))
+          (for ([i intersection])
+            (set-type-variable-innard-forward! i new-innard))
+          (when (or lower-change upper-change)
+            (ripple-subtype-unify-changes '() (list new-innard)))]
+         [else
+          (set-type-variable-innard-upper-bounds!
+           tvi-sub
+           (cons tvi-sup (type-variable-innard-upper-bounds tvi-sub)))
+          (set-type-variable-innard-lower-bounds!
+           tvi-sup
+           (cons tvi-sub (type-variable-innard-lower-bounds tvi-sup)))
 
-        (define dones (list (cons tvi-sub tvi-sup)))
-        (match (subtype-unify!/type-variable-innards tvi-sub tvi-sup)
-          [(list #f #f) (void)]
-          [(list #f #t) (ripple-subtype-unify-changes dones
-                                                      (list tvi-sup))]
-          [(list #t #f) (ripple-subtype-unify-changes dones
-                                                      (list tvi-sub))]
-          [(list #t #t) (ripple-subtype-unify-changes dones
-                                                      (list tvi-sub tvi-sup))])])]
-    ;; type variable left
-    [(list (type-variable tvi-sub)
-           _)
-     (define t (type-variable-innard-type tvi-sub))
-     (match t
-       [(list possibilities ...)
-        (define new-possibilities (filter (λ (p) (can-subtype-unify? p super))
-                                          possibilities))
-        (set-type-variable-innard-type!
-         tvi-sub
-         (match new-possibilities
-           [(list) (error 'subtype-unify!
-                          "can't unify these types: ~v and ~v"
-                          sub super)]
-           [(list (? base-type-range?) ...)
-            (define super-range (base-type-range super super))
-            (define new-ranges
-              (filter-map
-               (λ (sub)
-                 (define x (base-type-ranges->unified-versions sub super-range))
-                 (and x (car x)))
-               new-possibilities))
-            (match new-ranges
-              [(list) (error 'subtype-unify!
-                             "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
-                             sub super)]
-              [(list one) one]
-              [else new-ranges])]
-           [(list non-base)
-            (subtype-unify! non-base super)
-            non-base]))]
-       [#f (match super
-             [(? base-type?)
-              (set-type-variable-innard-type! tvi-sub (base-type-range #f super))]
-             [else
-              (set-type-variable-innard-type! tvi-sub
-                                              (type->skeleton-with-vars super))
-              (subtype-unify! (type-variable-innard-type tvi-sub) super)])]
-       [non-variable (subtype-unify! non-variable super)])
+          (define dones (list (cons tvi-sub tvi-sup)))
+          (match (subtype-unify!/type-variable-innards tvi-sub tvi-sup)
+            [(list #f #f) (void)]
+            [(list #f #t) (ripple-subtype-unify-changes dones
+                                                        (list tvi-sup))]
+            [(list #t #f) (ripple-subtype-unify-changes dones
+                                                        (list tvi-sub))]
+            [(list #t #t) (ripple-subtype-unify-changes dones
+                                                        (list tvi-sub tvi-sup))])])]
+      ;; type variable left
+      [(list (type-variable tvi-sub)
+             _)
+       (define t (type-variable-innard-type tvi-sub))
+       (match t
+         [(list possibilities ...)
+          (define new-possibilities
+            (filter (λ (p)
+                      (can-subtype-unify? p super
+                                          #:under-type-variable-left? #t
+                                          #:under-type-variable-right? ur?))
+                    possibilities))
+          (set-type-variable-innard-type!
+           tvi-sub
+           (match new-possibilities
+             [(list) (error 'subtype-unify!
+                            "can't unify these types: ~v and ~v"
+                            sub super)]
+             [(list (? base-type-range?) ...)
+              (define super-range (match super
+                                    [(base-type-range _ _) super]
+                                    [(base-type _ _) (base-type-range #f super)]))
+              (define new-ranges
+                (filter-map
+                 (λ (sub)
+                   (define x (base-type-ranges->unified-versions sub super-range))
+                   (and x (car x)))
+                 new-possibilities))
+              (match new-ranges
+                [(list) (error 'subtype-unify!
+                               "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
+                               sub super)]
+                [(list one) new-ranges]
+                [else new-ranges])]
+             [(list non-base)
+              (rec non-base super #t ur?)
+              (list non-base)]))]
+         [#f (match super
+               [(base-type-range super-low super-high)
+                (set-type-variable-innard-type!
+                 tvi-sub
+                 (list (base-type-range #f super-high)))]
+               [(? base-type?)
+                (set-type-variable-innard-type!
+                 tvi-sub
+                 (list (base-type-range #f super)))]
+               [else
+                (set-type-variable-innard-type!
+                 tvi-sub
+                 (list (type->skeleton-with-vars super)))
+                (rec (car (type-variable-innard-type tvi-sub)) super ul? #t)])])
 
-     (when (not (equal? t (type-variable-innard-type tvi-sub)))
-       (ripple-subtype-unify-changes '() (list tvi-sub)))]
+       (when (not (equal? t (type-variable-innard-type tvi-sub)))
+         (ripple-subtype-unify-changes '() (list tvi-sub)))]
 
-    ;; type variable right -- this code is basically the same as the above... maybe it could be unified better...
-    [(list _
-           (type-variable tvi-sup))
+      ;; type variable right -- this code is basically the same as the above... maybe it could be unified better...
+      [(list _
+             (type-variable tvi-sup))
 
-     (define t (type-variable-innard-type tvi-sup))
-     (match t
-       [(list possibilities ...)
-        (define new-possibilities (filter (λ (p) (can-subtype-unify? sub p))
-                                          possibilities))
-        (set-type-variable-innard-type!
-         tvi-sup
-         (match new-possibilities
-           [(list) (error 'subtype-unify!
-                          "can't unify the following types: ~v and ~v"
-                          sub super)]
-           [(list (? base-type-range?) ...)
-            (define sub-range (base-type-range sub sub))
-            (define new-ranges
-              (filter-map
-               (λ (super)
-                 (define x (base-type-ranges->unified-versions sub-range super))
-                 (and x (car x)))
-               new-possibilities))
-            (match new-ranges
-              [(list) (error 'subtype-unify!
-                             "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
-                             sub super)]
-              [(list one) one]
-              [else new-ranges])]
-           [(list non-base)
-            (subtype-unify! sub non-base)
-            non-base]))]
-       [#f (match sub
-             [(? base-type?)
-              (set-type-variable-innard-type!
-               tvi-sup
-               (base-type-range sub (base-type->superest sub)))]
-             [else
-              (set-type-variable-innard-type!
-               tvi-sup
-               (type->skeleton-with-vars sub))
-              (subtype-unify! sub (type-variable-innard-type tvi-sup))])]
-       [non-variable (subtype-unify! sub non-variable)])
+       (define t (type-variable-innard-type tvi-sup))
+       (match t
+         [(list possibilities ...)
+          (define new-possibilities
+            (filter (λ (p) (can-subtype-unify? sub p
+                                               #:under-type-variable-left? ul?
+                                               #:under-type-variable-right? #t))
+                    possibilities))
+          (set-type-variable-innard-type!
+           tvi-sup
+           (match new-possibilities
+             [(list) (error 'subtype-unify!
+                            "can't unify the following types: ~v and ~v"
+                            sub super)]
+             [(list (? base-type-range?) ...)
+              (define sub-range
+                (match sub
+                  [(base-type-range _ _) sub]
+                  [(base-type _ _) (base-type-range sub sub)]))
+              (define new-ranges
+                (filter-map
+                 (λ (super)
+                   (define x (base-type-ranges->unified-versions sub-range super))
+                   (and x (cadr x)))
+                 new-possibilities))
+              (match new-ranges
+                [(list) (error 'subtype-unify!
+                               "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
+                               sub super)]
+                [(list one) new-ranges]
+                [else new-ranges])]
+             [(list non-base)
+              (rec sub non-base ul? #t)
+              (list non-base)]))]
+         [#f (match sub
+               [(base-type-range sub-low sub-high)
+                (set-type-variable-innard-type!
+                 tvi-sup
+                 (list (base-type-range sub-high (base-type->superest sub-high))))]
+               [(? base-type?)
+                (set-type-variable-innard-type!
+                 tvi-sup
+                 (list (base-type-range sub (base-type->superest sub))))]
+               [else
+                (set-type-variable-innard-type!
+                 tvi-sup
+                 (list (type->skeleton-with-vars sub)))
+                (rec sub (car (type-variable-innard-type tvi-sup)) ul? #t)])])
 
-     (when (not (equal? t (type-variable-innard-type tvi-sup)))
-       (ripple-subtype-unify-changes '() (list tvi-sup)))]
-
-
-    ;; product type
-    [(list (product-type inner1 lowers1 uppers1)
-           (product-type inner2 lowers2 uppers2))
-
-     (define (inner-unify! sub super)
-       (for-each (λ (l r) (subtype-unify! l r))
-                 (product-type-inner-type-list sub)
-                 (product-type-inner-type-list super)))
-
-     (define (ripple-length! len pt done-list)
-       ;; Propagate length to all related product types.
-       ;; At each step, unify the lists.
-       ;; This basically initializes all of the inner lists of a graph
-       ;; of product-types that had been subtype-unified to each other
-       ;; with none of them having a concrete length yet.
-       ;; Once they are initialized, the inner type variables can carry
-       ;; all the info about subtype relations, and the outer product types
-       ;; are free to be simple lists.
-       (if (memq pt done-list)
-           done-list
-           (let ([supers (product-type-upper-bounds pt)]
-                 [subs (product-type-lower-bounds pt)])
-             (set-product-type-inner-type-list!
-              pt
-              (map (λ (x) (fresh-type-variable))
-                   (make-list len #f)))
-             (define done-list-1
-               (for/fold ([done-list (cons pt done-list)])
-                         ([super supers])
-                 (define new-list (ripple-length! len super done-list))
-                 (inner-unify! pt super)
-                 new-list))
-             (define done-list-2
-               (for/fold ([done-list done-list-1])
-                         ([sub subs])
-                 (define new-list (ripple-length! len sub done-list))
-                 (inner-unify! sub pt)
-                 new-list))
-             (set-product-type-upper-bounds! pt '())
-             (set-product-type-lower-bounds! pt '())
-             done-list-2)))
-
-     (define l1 (and inner1 (length inner1)))
-     (define l2 (and inner2 (length inner2)))
-
-     (when (and l1 l2 (not (equal? l1 l2)))
-       (error 'subtype-unify!
-              "Tried to unify two product types with unequal lengths (~v and ~v): ~v, ~v"
-              l1 l2
-              sub super))
-
-     (match (list inner1 inner2)
-       [(list #f #f)
-        (when (not (member super (product-type-upper-bounds sub)))
-          (set-product-type-upper-bounds!
-           sub
-           (cons super (product-type-upper-bounds sub))))
-        (when (not (member sub (product-type-lower-bounds super)))
-          (set-product-type-lower-bounds!
-           super
-           (cons sub (product-type-lower-bounds super))))]
-       [(list #f _)
-        (ripple-length! l2 sub '())
-        (inner-unify! sub super)]
-       [(list _ #f)
-        (ripple-length! l1 super '())
-        (inner-unify! sub super)]
-       [else (inner-unify! sub super)])]
+       (when (not (equal? t (type-variable-innard-type tvi-sup)))
+         (ripple-subtype-unify-changes '() (list tvi-sup)))]
 
 
-    ;; nominal record type
-    [(list (nominal-record-type name1 innards1)
-           (nominal-record-type name2 innards2))
-     ;; TODO - nominal record types for the first pass should not be subtypable.  It should be easy to later add a supertype field -- subtyping with nominal records should be easy compared to various other things.
-     ;;(todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")
-     ;; TODO - the below is the implementation of non-subtype `unify!`.  For now, let's assume nominal records don't subtype unify, only normal unify.
-     (define (fail)
-       (error 'subtype-unify!
-              "can't unify types: ~v and ~v"
-              sub super))
-     (define t1 sub)
-     (define t2 super)
+      ;; product type
+      [(list (product-type inner1 lowers1 uppers1)
+             (product-type inner2 lowers2 uppers2))
 
-     (match (list sub super)
-       [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
-        ;; TODO - do a sanity check that the inners match up and error if they don't.
-        (set-nominal-record-type-name! t1 name2)
-        (set-nominal-record-type-inners! t1 inners2)]
-       [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
-        ;; TODO - do a sanity check that the inners match up and error if they don't.
-        (set-nominal-record-type-name! t2 name1)
-        (set-nominal-record-type-inners! t2 inners1)]
-       [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
-        (when (not (equal? name1 name2))
-          (fail))])]
-    ;; nominal record definition type
-    [(list (nominal-record-definition-type inner1)
-           (nominal-record-definition-type inner2))
-     ;; TODO -for now this is symmetric, but later should be subtypable.
-     (unify! inner1 inner2)]
+       (define (inner-unify! sub super)
+         (for-each (λ (l r) (rec l r))
+                   (product-type-inner-type-list sub)
+                   (product-type-inner-type-list super)))
 
-    ;; function type
-    [(list (function-type arg-l ret-l)
-           (function-type arg-r ret-r))
-     ;; covariant return
-     (subtype-unify! ret-l ret-r)
-     ;; contravariant arguments
-     (subtype-unify! arg-r arg-l)]
-    ;; generic type
-    [(list (generic-type name1 constructor1 type-arguments1)
-           (generic-type name2 constructor2 type-arguments2))
-     (unless (eq? constructor1 constructor2)
-       (error 'subtype-unify!
-              "TODO - better message -- tried to unify different generic types."))
-     ;; TODO - generic types need to store the variance type for each field.
-     ;;        For a start, let's assume all fields are invariant.
-     (for-each (λ (isub isuper)
-                 (subtype-unify! isub isuper)
-                 (subtype-unify! isuper isub))
-               type-arguments1
-               type-arguments2)]
+       (define (ripple-length! len pt done-list)
+         ;; Propagate length to all related product types.
+         ;; At each step, unify the lists.
+         ;; This basically initializes all of the inner lists of a graph
+         ;; of product-types that had been subtype-unified to each other
+         ;; with none of them having a concrete length yet.
+         ;; Once they are initialized, the inner type variables can carry
+         ;; all the info about subtype relations, and the outer product types
+         ;; are free to be simple lists.
+         (if (memq pt done-list)
+             done-list
+             (let ([supers (product-type-upper-bounds pt)]
+                   [subs (product-type-lower-bounds pt)])
+               (set-product-type-inner-type-list!
+                pt
+                (map (λ (x) (fresh-type-variable))
+                     (make-list len #f)))
+               (define done-list-1
+                 (for/fold ([done-list (cons pt done-list)])
+                           ([super supers])
+                   (define new-list (ripple-length! len super done-list))
+                   (inner-unify! pt super)
+                   new-list))
+               (define done-list-2
+                 (for/fold ([done-list done-list-1])
+                           ([sub subs])
+                   (define new-list (ripple-length! len sub done-list))
+                   (inner-unify! sub pt)
+                   new-list))
+               (set-product-type-upper-bounds! pt '())
+               (set-product-type-lower-bounds! pt '())
+               done-list-2)))
 
-    ;; base type
-    [(list (or (? base-type?) (? base-type-range?))
-           (or (? base-type?) (? base-type-range?)))
-     (unless (can-subtype-unify? sub super)
-       (error 'subtype-unify!
-              "Base types: type ~v is not a subtype of type ~v."
-              sub super))]
-    [else (error 'subtype-unify! "case analysis reached end: can't unify types: ~v and ~v" sub super)]))
+       (define l1 (and inner1 (length inner1)))
+       (define l2 (and inner2 (length inner2)))
+
+       (when (and l1 l2 (not (equal? l1 l2)))
+         (error 'subtype-unify!
+                "Tried to unify two product types with unequal lengths (~v and ~v): ~v, ~v"
+                l1 l2
+                sub super))
+
+       (match (list inner1 inner2)
+         [(list #f #f)
+          (when (not (member super (product-type-upper-bounds sub)))
+            (set-product-type-upper-bounds!
+             sub
+             (cons super (product-type-upper-bounds sub))))
+          (when (not (member sub (product-type-lower-bounds super)))
+            (set-product-type-lower-bounds!
+             super
+             (cons sub (product-type-lower-bounds super))))]
+         [(list #f _)
+          (ripple-length! l2 sub '())
+          (inner-unify! sub super)]
+         [(list _ #f)
+          (ripple-length! l1 super '())
+          (inner-unify! sub super)]
+         [else (inner-unify! sub super)])]
+
+
+      ;; nominal record type
+      [(list (nominal-record-type name1 innards1)
+             (nominal-record-type name2 innards2))
+       ;; TODO - nominal record types for the first pass should not be subtypable.  It should be easy to later add a supertype field -- subtyping with nominal records should be easy compared to various other things.
+       ;;(todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")
+       ;; TODO - the below is the implementation of non-subtype `unify!`.  For now, let's assume nominal records don't subtype unify, only normal unify.
+       (define (fail)
+         (error 'subtype-unify!
+                "can't unify types: ~v and ~v"
+                sub super))
+       (define t1 sub)
+       (define t2 super)
+
+       (match (list sub super)
+         [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
+          ;; TODO - do a sanity check that the inners match up and error if they don't.
+          (set-nominal-record-type-name! t1 name2)
+          (set-nominal-record-type-inners! t1 inners2)]
+         [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
+          ;; TODO - do a sanity check that the inners match up and error if they don't.
+          (set-nominal-record-type-name! t2 name1)
+          (set-nominal-record-type-inners! t2 inners1)]
+         [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
+          (when (not (equal? name1 name2))
+            (fail))])]
+      ;; nominal record definition type
+      [(list (nominal-record-definition-type inner1)
+             (nominal-record-definition-type inner2))
+       ;; TODO -for now this is symmetric, but later should be subtypable.
+       (rec inner1 inner2)]
+
+      ;; function type
+      [(list (function-type arg-l ret-l)
+             (function-type arg-r ret-r))
+       ;; covariant return
+       (rec ret-l ret-r)
+       ;; contravariant arguments
+       (rec arg-r arg-l ur? ul?)]
+      ;; generic type
+      [(list (generic-type name1 constructor1 type-arguments1 variances1)
+             (generic-type name2 constructor2 type-arguments2 variances2))
+       (unless (eq? constructor1 constructor2)
+         (error 'subtype-unify!
+                "TODO - better message -- tried to unify different generic types."))
+       (for-each (λ (isub isuper variance)
+                   (match variance
+                     ['invariant (begin
+                                   (rec isub isuper)
+                                   (rec isuper isub ur? ul?))]
+                     ['covariant (rec isub isuper)]
+                     ['contravariant (rec isuper isub ur? ul?)]))
+                 type-arguments1
+                 type-arguments2
+                 variances1)]
+
+      ;; base type
+      [(list (or (? base-type?) (? base-type-range?))
+             (or (? base-type?) (? base-type-range?)))
+       (unless (can-subtype-unify? sub super)
+         (error 'subtype-unify!
+                "Base types: type ~v is not a subtype of type ~v."
+                sub super))]
+      [else (error 'subtype-unify! "case analysis reached end: can't unify types: ~v and ~v" sub super)])))
 
 (define (ripple-subtype-unify-changes done-pair-list innard-work-list)
   (define (done-pair-list-remove-with done-list target)
@@ -836,7 +964,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
                [(base-type-range low high) (base-type-range #f high)]
                [else
                 (define inner-sub (type->skeleton-with-vars t))
-                (subtype-unify! inner-sub t)
+                (subtype-unify! inner-sub t
+                                #:under-type-variable-left? #t
+                                #:under-type-variable-right? #t)
                 inner-sub]))
            r))
      (list #t #f)]
@@ -849,7 +979,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 (base-type-range low (base-type->superest high))]
                [else
                 (define inner-sup (type->skeleton-with-vars t))
-                (subtype-unify! t inner-sup)
+                (subtype-unify! t inner-sup
+                                #:under-type-variable-left? #t
+                                #:under-type-variable-right? #t)
                 inner-sup]))
            l))
      (list #f #t)]
@@ -866,19 +998,32 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                  subtypes)]
                     [sup (filter (λ(x) (not (base-type-range? x)))
                                  supertypes)])
-          (and (can-subtype-unify? sub sup)
-               (subtype-unify! sub sup)
+          (and (can-subtype-unify? sub sup
+                                   #:under-type-variable-left? #t
+                                   #:under-type-variable-right? #t)
+               (subtype-unify! sub sup
+                               #:under-type-variable-left? #t
+                               #:under-type-variable-right? #t)
                (list sub sup)))))
      (define sub-compounds (map first compound-type-pairs))
      (define super-compounds (map second compound-type-pairs))
 
      (define (->use t-list)
        (match t-list
-         [(list) (error 'subtype-unify!
-                        "can't unify types ~v and ~v (this one shouldn't happen...)"
-                        (set-first (type-variable-innard-handle-set sub))
-                        (set-first (type-variable-innard-handle-set super)))]
-         [(list t) t]
+         [(list)
+          (let ([err-values
+                 (with-handlers ([(λ(e)#t) (λ(e) (error 'xsmith
+                                                        "Internal error while raising subtyping error."))])
+                   (list (set-first
+                          (type-variable-innard-handle-set
+                           (innard->forward-resolve sub)))
+                         (set-first
+                          (type-variable-innard-handle-set
+                           (innard->forward-resolve super)))))])
+            (error 'subtype-unify!
+                   "can't unify types ~v and ~v (this one shouldn't happen...)"
+                   (car err-values)
+                   (cadr err-values)))]
          [(list ts ...) ts]))
      (define all-sub (append sub-bases sub-compounds))
      (define all-super (append super-bases super-compounds))
@@ -889,7 +1034,17 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (list (not (set=? subtypes all-sub))
            (not (set=? supertypes all-super)))]))
 
-(define (can-subtype-unify? sub super)
+(define (can-subtype-unify?
+         sub super
+         ;; These keyword arguments are to allow nominal-record-types to unify
+         ;; when under type variables but not otherwise.  They are not exported
+         ;; in the contract-out.
+         #:under-type-variable-left? [ul? #f]
+         #:under-type-variable-right? [ur? #f])
+  (define (rec sub super [under-l? ul?] [under-r? ur?])
+    (can-subtype-unify? sub super
+                        #:under-type-variable-left? under-l?
+                        #:under-type-variable-right? under-r?))
   (match (list sub super)
     ;; 2x type-variable
     [(list (type-variable tvi-sub)
@@ -906,69 +1061,76 @@ TODO - when generating a record ref, I'll need to compare something like (record
              (equal? (base-type->superest lsup)
                      (base-type->superest rsup))]
             [(list (base-type-range lsub _) (base-type-range _ rsup))
-             (can-subtype-unify? lsub rsup)]
-            [else (can-subtype-unify? sub sup)]))])]
+             (rec lsub rsup #t #t)]
+            [else (rec sub sup #t #t)]))])]
     ;; left type-variable
     [(list (type-variable tvi-sub) _)
      (can-X-unify?/one-type-variable-innard
-      tvi-sub super can-subtype-unify?)]
+      tvi-sub super (λ (l r) (rec l r #t ur?)))]
     ;; right type-variable
     [(list _ (type-variable tvi-sup))
      (can-X-unify?/one-type-variable-innard
       tvi-sup sub (λ (super sub)
-                    (can-subtype-unify? sub super)))]
+                    (rec sub super ul? #t)))]
     ;; function-type
     [(list (function-type arg-l ret-l)
            (function-type arg-r ret-r))
      (and
       ;; covariant return
-      (can-subtype-unify? ret-l ret-r)
+      (rec ret-l ret-r)
       ;; contravariant arguments
-      (can-subtype-unify? arg-r arg-l))]
+      (rec arg-r arg-l ur? ul?))]
     ;; product-type
     [(list (product-type inner1 lowers1 uppers1)
            (product-type inner2 lowers2 uppers2))
-     (can-X-unify?/product-type sub super can-subtype-unify?)]
+     (can-X-unify?/product-type sub super rec)]
     ;; nominal-record-type
     [(list (? nominal-record-type?) (? nominal-record-type?))
      ;; TODO - make this actually subtypable
-     (can-unify? sub super)]
+     (can-unify? sub super
+                 #:under-type-variable-left? ul?
+                 #:under-type-variable-right? ur?)]
     ;; nominal-record-definition-type
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
      ;; TODO -for now this is symmetric, but later should be subtypable.
-     (can-unify? inner1 inner2)]
+     (rec inner1 inner2)]
     ;; generic-type
-    [(list (generic-type name1 constructor1 type-arguments1)
-           (generic-type name2 constructor2 type-arguments2))
+    [(list (generic-type name1 constructor1 type-arguments1 variances1)
+           (generic-type name2 constructor2 type-arguments2 variances2))
      ;; TODO - generic types need to store the variance type for each field.
      ;;        For a start, let's assume all fields are invariant.
      (and (eq? constructor1 constructor2)
           (for/and ([l type-arguments1]
-                    [r type-arguments2])
-            (and (can-subtype-unify? l r)
-                 (can-subtype-unify? l r))))]
+                    [r type-arguments2]
+                    [v variances1])
+            (match v
+              ['invariant (can-unify? l r
+                                      #:under-type-variable-left? ul?
+                                      #:under-type-variable-right? ur?)]
+              ['covariant (rec l r)]
+              ['contravariant (rec r l ur? ul?)])))]
     ;; base-type
     [(list (base-type lname lsuper) (base-type rname rsuper))
      (->bool (member super (base-type->parent-chain sub)))]
     ;; While base-type-ranges can only be in type variables, it is convenient to recursively use this function to test them
     [(list (base-type-range l-low l-high) (base-type-range r-low r-high))
-     (if l-low
-         (->bool (member r-high (base-type->parent-chain l-low)))
-         (and (equal? (base-type->superest l-high) (base-type->superest r-high))
-              (or (equal? l-high r-high)
-                  (not (member l-high (base-type->parent-chain r-high))))))]
+     (->bool
+      (if l-low
+          (member r-high (base-type->parent-chain l-low))
+          (or (member r-high (base-type->parent-chain l-high))
+              (member l-high (base-type->parent-chain r-high)))))]
     [(list (base-type _ _) (base-type-range _ _))
-     (can-subtype-unify? (base-type-range sub sub) super)]
+     (rec (base-type-range sub sub) super)]
     [(list (base-type-range _ _) (base-type _ _))
-     (can-subtype-unify? sub (base-type-range super super))]
+     (rec sub (base-type-range super super))]
     [else #f]))
 
 (define (can-X-unify?/one-type-variable-innard tvi rtype inner-can-unify?)
   (cond
     [(not (type-variable-innard-type tvi)) #t]
     [else
-     (define t (flatten (list (type-variable-innard-type tvi))))
+     (define t (type-variable-innard-type tvi))
      (define (struct-rec predicate)
        (match (filter predicate t)
          [(list) #f]
@@ -978,7 +1140,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
         (for/or ([possibility t])
           (match possibility
             [(base-type-range low high)
-             ;; for left
              (inner-can-unify? possibility rtype)]
             [else #f]))]
        [(? function-type?) (struct-rec function-type?)]
@@ -986,10 +1147,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(? nominal-record-type?) (struct-rec nominal-record-type?)]
        [(? nominal-record-definition-type?)
         (struct-rec nominal-record-definition-type?)]
-       [(generic-type name constructor type-arguments)
+       [(generic-type name constructor type-arguments variances)
         (define inner-matched
           (filter (λ (x) (match x
-                           [(generic-type _ iconstructor _)
+                           [(generic-type _ iconstructor _ _)
                             (eq? constructor iconstructor)]
                            [else #f]))
                   t))
@@ -1021,7 +1182,17 @@ TODO - when generating a record ref, I'll need to compare something like (record
 ;; (type-variable dog penguin) (type-variable labradoodle bird)
 ;; where each side can subtype-unify with the other, but they can't be subtype
 ;; unified in BOTH directions.
-(define (can-unify? l r)
+(define (can-unify?
+         l r
+         ;; These keyword arguments are to allow nominal-record-types to unify
+         ;; when under type variables but not otherwise.  They are not exported
+         ;; in the contract-out.
+         #:under-type-variable-left? [ul? #t]
+         #:under-type-variable-right? [ur? #t])
+  (define (rec l r [under-l? ul?] [under-r? ur?])
+    (can-unify? l r
+                #:under-type-variable-left? under-l?
+                #:under-type-variable-right? under-r?))
   (match (list l r)
     ;; 2x type-variable
     [(list (type-variable tvi-l)
@@ -1033,59 +1204,86 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(list ls rs)
         (for*/or ([ll ls]
                   [rr rs])
-          (can-unify? ll rr))])]
+          (rec ll rr #t #t))])]
     ;; left type-variable
     [(list (type-variable tvi-l) _)
-     (can-X-unify?/one-type-variable-innard tvi-l r can-unify?)]
+     (can-X-unify?/one-type-variable-innard tvi-l r (λ (l r) (rec l r #t ur?)))]
     ;; right type-variable
     [(list _ (type-variable tvi-r))
-     (can-X-unify?/one-type-variable-innard tvi-r l can-unify?)]
+     (can-X-unify?/one-type-variable-innard tvi-r l (λ (l r) (rec l r ul? #t)))]
     ;; function-type
     [(list (function-type arg-l ret-l)
            (function-type arg-r ret-r))
      (and
-      (can-unify? ret-l ret-r)
-      (can-unify? arg-r arg-l))]
+      (rec ret-l ret-r)
+      (rec arg-r arg-l))]
     ;; product-type
     [(list (product-type inner1 lowers1 uppers1)
            (product-type inner2 lowers2 uppers2))
-     (can-X-unify?/product-type l r can-unify?)]
+     (can-X-unify?/product-type l r rec)]
     ;; nominal-record-type
     [(list (? nominal-record-type?) (? nominal-record-type?))
-     (define t1 l)
-     (define t2 r)
      (match (list l r)
        [(list (nominal-record-type #f inners1) (nominal-record-type #f inners2))
-        ;; For now, just be conservative to not need to change variable representation...
-        #f]
+        (->bool (and (or ul? ur?)
+                     (for/and ([k (dict-keys inners1)])
+                       (or (not (dict-has-key? inners2 k))
+                           (rec (dict-ref inners1 k) (dict-ref inners2 k))))
+                     (for/and ([k (dict-keys inners2)])
+                       (or (not (dict-has-key? inners1 k))
+                           (rec (dict-ref inners1 k) (dict-ref inners2 k))))))]
        [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
         (define inner-vals (dict-values inners2))
         (for/and ([k (dict-keys inners1)])
-          (cond [(not k) (->bool (member (dict-ref inners1 k) inner-vals))]
+          (cond [(not k) (let ([needed-type (dict-ref inners1 k)])
+                           (->bool (ormap (λ (x) (rec x needed-type))
+                                          inner-vals)))]
                 [else (and (dict-has-key? inners2 k)
-                           (can-unify? (dict-ref inners1 k) (dict-ref inners2 k)))]))]
+                           (rec (dict-ref inners1 k) (dict-ref inners2 k)))]))]
        [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
-        (can-unify? t2 t1)]
+        (rec r l ur? ul?)]
        [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
         ;; TODO - verify that names are unique?
         (equal? name1 name2)])]
     ;; nominal-record-definition-type
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
-     (can-unify? inner1 inner2)]
+     (rec inner1 inner2)]
     ;; generic-type
-    [(list (generic-type name1 constructor1 type-arguments1)
-           (generic-type name2 constructor2 type-arguments2))
+    [(list (generic-type name1 constructor1 type-arguments1 variances1)
+           (generic-type name2 constructor2 type-arguments2 variances2))
      (and (eq? constructor1 constructor2)
           (for/and ([inner-l type-arguments1]
                     [inner-r type-arguments2])
-            (can-unify? inner-l inner-r)))]
+            (rec inner-l inner-r)))]
     ;; base-type
-    ;; While base-type-ranges can only be in type variables, it is convenient to recursively use this function to test them
-    [(list (or (base-type _ _) (base-type-range _ _))
-           (or (base-type _ _) (base-type-range _ _)))
-     (and (can-subtype-unify? l r)
-          (can-subtype-unify? r l))]
+    [(list (base-type _ _) (base-type _ _))
+     (equal? l r)]
+    [(list (base-type-range l-low l-high) (base-type-range r-low r-high))
+     ;; In this case we return the new range that the variables would occupy if symmetrically unified.
+     (define new-high
+       (cond [(member r-high (base-type->parent-chain l-high))
+              l-high]
+             [(member l-high (base-type->parent-chain r-high))
+              r-high]
+             [else 'bad]))
+     (and (not (eq? new-high 'bad))
+          (let ([new-low (match (list l-low r-low)
+                           [(list #f _) r-low]
+                           [(list _ #f) l-low]
+                           [else
+                            (cond [(member r-low (base-type->parent-chain l-low))
+                                   r-low]
+                                  [(member l-low (base-type->parent-chain r-low))
+                                   l-low]
+                                  [else 'bad])])])
+            (and (not (eq? 'bad new-low))
+                 (or (not new-low)
+                     (->bool (member new-high (base-type->parent-chain new-low)))))))]
+    [(list (base-type _ _) (base-type-range _ _))
+     (can-unify? (base-type-range l l) r)]
+    [(list (base-type-range _ _) (base-type _ _))
+     (can-unify? l (base-type-range r r))]
     [else #f]))
 
 
@@ -1096,11 +1294,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define type-max-depth 5)
 (define record-type-max-fields 5)
 
-(define (concretize-type t)
+(define (concretize-type t
+                         #:at-node [node #f])
   (define (recur t depth)
     (define (r t) (recur t (add1 depth)))
     (match t
       ;; TODO - type generation needs some kind of depth limit if composite types can contain composite types.
+      [(type-variable (type-variable-innard _ (list one-type) _ _ _))
+       (r one-type)]
       [(type-variable
         (type-variable-innard _ (and maybe-options (or #f (list _ ...))) _ _ _))
        (define options (or maybe-options
@@ -1119,8 +1320,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                   options-use)))
          (error 'concretize-type (format "Received a typeless type variable in options.  Don't use (fresh-type-variable) when parameterizing current-xsmith-type-constructor-thunks." options-use)))
        (r (random-ref options-use))]
-      [(type-variable (type-variable-innard _ non-list-type _ _ _))
-       (r non-list-type)]
       [(base-type _ _) t]
       [(base-type-range low high)
        ;; TODO - this should be a random choice.  But I also need to deal with the #f low case and enumerate all possibilities.  For now I just want to get the code working again.
@@ -1132,22 +1331,36 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (mk-product-type (map (λ (x) (r (fresh-type-variable)))
                                  (make-list (random 6) #f))))]
       [(nominal-record-type #f inner-needed)
-       (define needed (dict-ref inner-needed #f (λ () (fresh-type-variable))))
-       (define n-random-fields (random record-type-max-fields))
-       (define field-list (cons needed
-                                (map (λ (x) (fresh-type-variable))
-                                     (make-list n-random-fields #f))))
-       (concretize-type
-        (nominal-record-type (fresh-var-name "record_")
-                             (for/list ([f field-list])
-                               (cons (fresh-var-name "field_")
-                                     (r f)))))]
+       (if (nominal-record-type?/with-field t)
+           (if node
+               (let* ([d (nominal-record-definition-type t)]
+                      [references
+                       (filter (λ (b) (and b
+                                           (nominal-record-definition-type?
+                                            (binding-type b))
+                                           (can-unify? d (binding-type b))))
+                               (att-value '_xsmith_visible-bindings node))])
+                 (match references
+                   [(list b) (nominal-record-definition-type-type (binding-type b))]
+                   [else (error 'concretize-type "can't find suitable definition for nominal-record-type: ~v\n" t)]))
+               (error 'concretize-type "can't concretize nominal-record-type with a named field but no record name unless a #:node argument is given: ~v\n" t))
+           (let* ([needed (dict-ref inner-needed #f (λ () (fresh-type-variable)))]
+                  [n-random-fields (random record-type-max-fields)]
+                  [field-list (cons needed
+                                    (map (λ (x) (fresh-type-variable))
+                                         (make-list n-random-fields #f)))])
+             (concretize-type
+              (nominal-record-type (fresh-var-name "record_")
+                                   (for/list ([f field-list])
+                                     (cons (fresh-var-name "field_")
+                                           (r f)))))))]
       [(nominal-record-type name inners) t]
       [(nominal-record-definition-type inner)
        (nominal-record-definition-type (r inner))]
       [(function-type arg return) (function-type (r arg)
                                                  (r return))]
-      [(generic-type name ctor inners) (generic-type name ctor (map r inners))]
+      [(generic-type name ctor inners vs)
+       (generic-type name ctor (map r inners) vs)]
       [else (error 'concretize-type "internal error -- no case for type: ~a" t)]))
   (recur t 0))
 
@@ -1245,9 +1458,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(nominal-record-definition-type inner) (concrete? inner)]
     [(product-type itl lb ub)
      (and (list? itl) (andmap concrete? itl))]
-    [(generic-type _ _ inners)
+    [(generic-type _ _ inners _)
      (andmap concrete? inners)]))
 
+(define (highlight arg)
+  (format "\033[31m~a\033[0m\n" arg))
 (define (at-least-as-concrete v constraint-type)
   ;; TODO - this function was broken even before adding subtyping.  Now it is probably more so.  I need to re-examine how it is used to fix it.  But it is there just as an optimization that maybe isn't entirely necessary, so I'm just not going to worry about it for now.
   #|
@@ -1261,62 +1476,79 @@ TODO - when generating a record ref, I'll need to compare something like (record
   of the tree than we need to.
   |#
   (match (list v constraint-type)
-    [(list _ (type-variable c-innard))
-     (match c-innard
-       [(type-variable-innard _ #f _ _ _) #t]
-       [(type-variable-innard _ (list cs ...) _ _ _)
-        (match v
-          [(type-variable (type-variable-innard _ #f _ _ _)) #f]
-          [(type-variable (type-variable-innard _ (list ts ...) _ _ _))
-           (or
-            ;; check if every case in ts is covered in cs
-            (for/and ([t ts])
-              (match t
-                [(base-type _ _) (for/or ([c (filter base-type? cs)])
-                                   (or (can-subtype-unify? t c)
-                                       (can-subtype-unify? c t)))]
-                [(? function-type?)
-                 (ormap (λ (c) (at-least-as-concrete t c))
-                        (filter function-type? cs))]
-                [(? product-type?)
-                 (ormap (λ (c) (at-least-as-concrete t c))
-                        (filter product-type? cs))]
-                [(? generic-type?)
-                 (ormap (λ (c) (at-least-as-concrete t c))
-                        (filter (λ (c) (and (generic-type? c)
-                                            (eq? (generic-type-constructor c)
-                                                 (generic-type-constructor t))))
-                                cs))]
-                ;; TODO - more cases, and make `else` an error.
-                [else #f]))
-            ;; check if they have nothing in common
-            (for/and ([c cs])
-              (match c
-                [(base-type cn _) (for/and ([t (filter base-type? ts)])
-                                    (not (or (can-subtype-unify? c t)
-                                             (can-subtype-unify? t c))))]
-                [(? function-type?)
-                 (null? (filter function-type? ts))]
-                [(? product-type?)
-                 (null? (filter product-type? ts))]
-                [(? generic-type?)
-                 (null? (filter generic-type? ts))]
-                ;; TODO - more cases, and make `else` an error.
-                [else #f])))]
-          [(type-variable (type-variable-innard _ t _ _ _))
-           (for/and ([c cs]) (at-least-as-concrete t c))]
-          [else (for/and ([c cs]) (at-least-as-concrete v c))])]
-       [(type-variable-innard _ c _ _ _) (at-least-as-concrete v c)])]
-    [(list (type-variable innard) _)
-     (match innard
-       [(type-variable-innard _ #f _ _ _) #f]
-       [(type-variable-innard _ (list t ...) _ _ _) #f]
-       [(type-variable-innard _ t _ _ _) (at-least-as-concrete t constraint-type)])]
+    [(list (type-variable (type-variable-innard _ #f _ _ _)) _) #f]
+    [(list _ (type-variable (type-variable-innard _ #f _ _ _))) #t]
+    [(list (type-variable (type-variable-innard _ (list one-type) _ _ _))
+           _)
+     (at-least-as-concrete one-type constraint-type)]
+    [(list _
+           (type-variable (type-variable-innard _ (list one-type) _ _ _)))
+     (at-least-as-concrete v one-type)]
+    ;; two type variables with multiple options
+    [(list (type-variable (type-variable-innard _ (list ts ...) _ _ _))
+           (type-variable (type-variable-innard _ (list cs ...) _ _ _)))
+     (or
+      ;; check if every case in ts is covered in cs
+      (for/and ([t ts])
+          (match t
+            [(base-type _ _) (for/or ([c (filter base-type? cs)])
+                               (or (can-subtype-unify? t c)
+                                   (can-subtype-unify? c t)))]
+            [(base-type-range _ _) (for/or ([c (filter base-type-range? cs)])
+                                     (or (can-subtype-unify? t c)
+                                         (can-subtype-unify? c t)))]
+            [(? function-type?)
+             (ormap (λ (c) (at-least-as-concrete t c))
+                    (filter function-type? cs))]
+            [(? product-type?)
+             (ormap (λ (c) (at-least-as-concrete t c))
+                    (filter product-type? cs))]
+            [(? generic-type?)
+             (ormap (λ (c) (at-least-as-concrete t c))
+                    (filter (λ (c) (and (generic-type? c)
+                                        (eq? (generic-type-constructor c)
+                                             (generic-type-constructor t))))
+                            cs))]
+            ;; TODO - more cases, and make `else` an error.
+            [else #f]))
+      ;; check if they have nothing in common
+      (for/and ([c cs])
+        (match c
+          [(? (λ (x) (or (base-type? x)
+                         (base-type-range? x))))
+           (for/and ([t (filter (λ (x) (or (base-type? x)
+                                           (base-type-range? x)))
+                                ts)])
+             (and (not (can-subtype-unify? c t))
+                  (not (can-subtype-unify? t c))))]
+          [(? function-type?)
+           (null? (filter function-type? ts))]
+          [(? product-type?)
+           (null? (filter product-type? ts))]
+          [(? generic-type?)
+           (null? (filter generic-type? ts))]
+          [(? nominal-record-type?)
+           (null? (filter nominal-record-type? ts))]
+          [(? nominal-record-definition-type?)
+           (null? (filter nominal-record-definition-type? ts))])))]
+    ;; left type variable with multiple options
+    [(list (type-variable (type-variable-innard _ (list ts ...) _ _ _))
+           _)
+     (for/and ([t ts]) (at-least-as-concrete t constraint-type))]
+    ;; right type variable with multiple options
+    [(list _
+           (type-variable (type-variable-innard _ (list cs ...) _ _ _)))
+     (for/and ([c cs]) (at-least-as-concrete v c))]
     ;; No more variables
+    [(list (type-variable _) _) (error 'at-least-as-concrete "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
+    [(list _ (type-variable _)) (error 'at-least-as-concrete "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
     [(list (base-type _ _) _) #t]
+    [(list (base-type-range _ _) _) #t]
     [(list (function-type v-arg v-ret) (function-type c-arg c-ret))
      (and (at-least-as-concrete v-arg c-arg)
           (at-least-as-concrete v-ret c-ret))]
+    [(list (function-type _ _) rtype) #f]
+    [(list (function-type _ _) _) #t]
     [(list (product-type v-inner-list _ _) (product-type c-inner-list _ _))
      (let ([ts v-inner-list]
            [cs c-inner-list])
@@ -1326,24 +1558,26 @@ TODO - when generating a record ref, I'll need to compare something like (record
          [else (if (equal? (length ts) (length cs))
                    (andmap at-least-as-concrete ts cs)
                    #t)]))]
-    ;[(list (sum-type aoeu) (sum-type aoeu))]
-    ;[(list (record-type aoeu) (record-type aoeu))]
+    [(list (product-type _ _ _) _) #t]
     [(list (nominal-record-type v-name v-inners)
            (nominal-record-type c-name c-inners))
      ;; For now be conservative.
      (->bool v-name)]
+    [(list (nominal-record-type _ _) _) #t]
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
      (at-least-as-concrete inner1 inner2)]
-    [(list (generic-type v-n v-ctor v-inners) (generic-type c-n c-ctor c-inners))
+    [(list (nominal-record-definition-type _) _) #t]
+    [(list (generic-type v-n v-ctor v-inners v-vars)
+           (generic-type c-n c-ctor c-inners v-vars))
      (if (eq? v-ctor c-ctor)
          (andmap at-least-as-concrete v-inners c-inners)
          #t)]
-    ;; TODO - this function always needs to have all types represented here to be accurate.
-    [else #f #;#t]))
+    [(list (generic-type _ _ _ _) _) #t]
+    ;; No else, so we get an error if there are new types that we don't extend this with.
+    ))
 
 (module+ test
-  (check-true (at-least-as-concrete (fresh-type-variable) (fresh-type-variable)))
   (check-true (at-least-as-concrete (mk-base-type 'foo) (fresh-type-variable)))
   (check-true (at-least-as-concrete (mk-base-type 'foo)
                                     (fresh-type-variable (mk-base-type 'foo)
@@ -1387,7 +1621,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(nominal-record-type name inners)
      (ormap rec (dict-values inners))]
     [(nominal-record-definition-type inner) (rec inner)]
-    [(generic-type name constructor inners)
+    [(generic-type name constructor inners variances)
      (ormap rec inners)]
     [(type-variable t-innard)
      (not (set-empty?
@@ -1428,7 +1662,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (work vars (append (dict-values inners) todos) dones)]
            [(nominal-record-definition-type inner)
             (work vars (cons inner todos) dones)]
-           [(generic-type name constructor inners)
+           [(generic-type name constructor inners variances)
             (work vars (append inners todos) dones)]
            [(type-variable innard)
             (define bounds
@@ -1439,6 +1673,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (match innard
               [(type-variable-innard _ _ (and forwarded (? (λ(x)x))) _ _)
                (work vars (cons forwarded todos) dones)]
+              [(type-variable-innard _ (list single-it) _ _ _)
+               (define not-done-inners (if (memq single-it dones)
+                                           (list)
+                                           (list single-it)))
+               (work (cons t vars)
+                     (append not-done-inners not-done-vars todos)
+                     dones)]
               [(type-variable-innard _ (list its ...) _ _ _)
                (define not-done-inners (set-subtract its dones))
                (work (cons t vars)
@@ -1447,21 +1688,24 @@ TODO - when generating a record ref, I'll need to compare something like (record
               [(type-variable-innard _ #f _ _ _)
                (work (cons t vars)
                      (append not-done-vars todos)
-                     dones)]
-              [(type-variable-innard _ it _ _ _)
-               (define not-done-inners (if (memq it dones)
-                                           (list)
-                                           (list it)))
-               (work (cons t vars)
-                     (append not-done-inners not-done-vars todos)
                      dones)])]))]))
   (work '() (list orig-type-normalized) '()))
 
 (define (type-variable->canonical-type-variable tv)
-  (match tv
-    [(type-variable (type-variable-innard handles _ _ _ _)) (set-first handles)]
-    [(type-variable-innard handles _ _ _ _) (set-first handles)]
-    [else tv]))
+  (if (not (or (type-variable? tv)
+               (type-variable-innard? tv)))
+      tv
+      (let* ([tvi (if (type-variable? tv)
+                      (begin (type-variable-normalize! tv)
+                             (type-variable-tvi tv))
+                      (innard->forward-resolve tv))]
+             [handles (type-variable-innard-handle-set tvi)])
+        (cond [(and (set-empty? handles) (type-variable? tv)) tv]
+              [(set-empty? handles)
+               (define new-var (type-variable tvi))
+               (set-add! handles new-var)
+               new-var]
+              [else (set-first handles)]))))
 
 (module+ test
   (define v1 (fresh-type-variable))
@@ -1541,17 +1785,136 @@ TODO - when generating a record ref, I'll need to compare something like (record
                        (type->type-variable-list sv5)))
 
 
-  (define bird (mk-base-type 'bird))
-  (define penguin (mk-base-type 'penguin bird))
-  (define dog (mk-base-type 'dog))
-  (define labradoodle (mk-base-type 'labradoodle dog))
-
-  (define birddog1 (fresh-type-variable bird labradoodle))
-  (define birddog2 (fresh-type-variable dog penguin))
+  ;; Check differences between symmetric and subtype can-unify?
+  (define birddog1 (fresh-type-variable (base-type-range bird bird)
+                                        (base-type-range labradoodle labradoodle)))
+  (define birddog2 (fresh-type-variable (base-type-range dog dog)
+                                        (base-type-range penguin penguin)))
   (check-true (can-subtype-unify? birddog1 birddog2))
   (check-true (can-subtype-unify? birddog2 birddog1))
   (check-false (can-unify? birddog1 birddog2))
   (check-false (can-unify? birddog2 birddog1))
+  (subtype-unify! birddog1 birddog2)
+  (check-true (can-subtype-unify? birddog1 canine))
+  (check-false (can-subtype-unify? birddog1 bird))
+  (check-true (can-subtype-unify? labradoodle birddog2))
+  (check-false (can-subtype-unify? birddog2 labradoodle))
+
+  (check-equal? (base-type->parent-chain penguin)
+                (list penguin bird animal))
+
+  (define animal1 (fresh-subtype-of animal))
+  (define bird1 (fresh-type-variable))
+  (subtype-unify! bird1 animal)
+  (subtype-unify! bird1 animal1)
+  (subtype-unify! bird1 bird)
+  (check-true (can-subtype-unify? bird1 penguin))
+  (check-true (can-subtype-unify? penguin bird1))
+  (define penguin1 (fresh-type-variable))
+  (subtype-unify! penguin1 animal1)
+  (subtype-unify! penguin1 penguin)
+  (check-true (can-subtype-unify? penguin1 bird))
+  (check-true (can-subtype-unify? penguin penguin1))
+  (check-true (can-subtype-unify? penguin1 bird1))
+  (check-true (can-subtype-unify? bird1 penguin1))
+
+  (check-false (can-subtype-unify? bird penguin1))
+
+  ;; Tests for my subtyping + function parameter bug
+  (define bird-will-be-penguin (fresh-type-variable (base-type-range #f bird)))
+  (define bird-will-be-penguin/left (fresh-type-variable (base-type-range #f bird)))
+  (define bird-will-be-penguin/right (fresh-type-variable (base-type-range #f bird)))
+  (unify! bird-will-be-penguin penguin)
+  (subtype-unify! bird-will-be-penguin/left penguin)
+  (subtype-unify! penguin bird-will-be-penguin/right)
+  (check-equal? (car (type-variable-innard-type
+                      (type-variable-tvi bird-will-be-penguin)))
+                (base-type-range penguin penguin))
+  (check-equal? (car (type-variable-innard-type
+                      (type-variable-tvi bird-will-be-penguin/left)))
+                (base-type-range #f penguin))
+  (check-equal? (car (type-variable-innard-type
+                      (type-variable-tvi bird-will-be-penguin/right)))
+                (base-type-range penguin bird))
+
+
+  ;; testing contains-type-variables over a graph
+  (define v-a (fresh-type-variable))
+  (define v-a+b (fresh-type-variable))
+  (define v-a+a (fresh-type-variable))
+  (define v-aa (fresh-type-variable))
+  (define v-ab (fresh-type-variable))
+  (define v-aaa (fresh-type-variable))
+  (define v-aab (fresh-type-variable))
+  (define v-aab+a (fresh-type-variable))
+  (define v-aab+b (fresh-type-variable))
+
+  (subtype-unify! v-aa v-a)
+  (subtype-unify! v-ab v-a)
+  (subtype-unify! v-aaa v-aa)
+  (subtype-unify! v-a v-a+a)
+  (subtype-unify! v-a v-a+b)
+  (subtype-unify! v-aab v-aab+a)
+  (subtype-unify! v-aab v-aab+b)
+
+  ;; do some tests before connecting everything
+  (define (ccv #:t [t #t] l r)
+    (define c (if t check-true check-false))
+    (c (contains-type-variables? l (type->type-variable-list r)))
+    (c (contains-type-variables? r (type->type-variable-list l))))
+  (ccv v-aa v-a+a)
+  (ccv v-aaa v-a+b)
+  (ccv #:t #f v-aab v-a+b)
+  (ccv v-aab+a v-aab)
+
+  ;; connect the rest of the graph.  Now they should all be connected.
+  (subtype-unify! v-aab v-aa)
+  (define graph-nodes (list v-a v-a+b v-a+a v-aa v-ab v-aaa v-aab v-aab+a v-aab+b))
+  (for* ([n1 graph-nodes]
+         [n2 graph-nodes])
+    (ccv n1 n2))
+
+
+  (define tv-nominal-record-type (fresh-type-variable (any-nominal-record-type)))
+  (check-true (can-unify? tv-nominal-record-type (any-nominal-record-type)))
+  (check-not-exn (λ () (unify! tv-nominal-record-type (any-nominal-record-type))))
+
+
+  ;; tests for generic types and subtyping
+  (let ()
+    (define-generic-type g ([i invariant] [co covariant] [contra contravariant]))
+
+    (define-syntax (subtype-check stx)
+      (syntax-parse stx
+        [(_ t/f sub super)
+         #'(let ([bool t/f]
+                 [b sub]
+                 [p super])
+             (check-equal? t/f (can-subtype-unify? b p))
+             (if bool
+                 (check-not-exn (λ () (subtype-unify! b p)))
+                 (check-exn exn? (λ () (subtype-unify! b p)))))]))
+
+    (subtype-check #t (g dog dog dog) (g dog dog dog))
+    (subtype-check #t (g dog labradoodle animal) (g dog dog dog))
+
+    ;; check that invariance holds
+    (subtype-check #f
+                   (g labradoodle labradoodle animal)
+                   (g dog dog dog))
+    (subtype-check #f
+                   (g animal labradoodle animal)
+                   (g dog dog dog))
+    ;; check that covariance holds
+    (subtype-check #f
+                   (g dog animal animal)
+                   (g dog dog dog))
+    ;; check that contravariance holds
+    (subtype-check #f
+                   (g dog labradoodle labradoodle)
+                   (g dog dog dog))
+    )
+
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

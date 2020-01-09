@@ -242,7 +242,8 @@
                           (when (null? choices)
                             (error
                              'cish-struct-ref
-                             "No fields in struct with appropriate type.  This should not have happened. Type needed: ~v, types available: ~v"
+                             "No fields in struct with appropriate type in binding: ~v.  This should not have happened. Type needed: ~v, types available: ~v"
+                             choice
                              parent-type
                              (dict-values inner-names)))
                           (define fieldname-choice (random-ref choices))
@@ -283,6 +284,7 @@
                               (if main?
                                   "main_inner"
                                   (fresh-var-name "func_")))]
+                    [_side-effect (force-type-exploration-for-node! current-hole)]
                     [type (or (dict-ref lift-fields 'type #f)
                               (if main?
                                   (function-type (product-type '()) int)
@@ -490,20 +492,22 @@ Type definitions are in cish-utils.rkt
  [StructReference [(fresh-type-variable)
                    (λ (n t)
                      (define type-with-field
-                       (nominal-record-type-with (ast-child 'fieldname n) t))
+                       (fresh-type-variable
+                        (nominal-record-type-with (ast-child 'fieldname n) t)))
                      (hash 'structval type-with-field
                            'structdefref (nominal-record-definition-type
                                           type-with-field)))]]
  [StructSetField [(fresh-type-variable)
                   (λ (n t)
                     (define type-with-field
-                      (nominal-record-type-with (ast-child 'fieldname n) t))
+                      (fresh-type-variable
+                       (nominal-record-type-with (ast-child 'fieldname n) t)))
                     (hash 'structval type-with-field
                           'updateval t
                           'structdefref (nominal-record-definition-type
                                          type-with-field)))]]
  [LiteralStruct
-  [(any-nominal-record-type)
+  [(fresh-type-variable (any-nominal-record-type))
    (λ (n t)
      (if (att-value 'xsmith_is-hole? (ast-child 'structdefref n))
          (hash 'structdefref (nominal-record-definition-type t))

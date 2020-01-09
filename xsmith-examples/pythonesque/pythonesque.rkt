@@ -1,6 +1,5 @@
 #!/usr/bin/env racket
 #lang racket/base
-
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah

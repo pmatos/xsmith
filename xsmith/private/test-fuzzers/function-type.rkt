@@ -1,4 +1,35 @@
 #lang racket/base
+;; -*- mode: Racket -*-
+;;
+;; Copyright (c) 2019 The University of Utah
+;; All rights reserved.
+;;
+;; This file is part of Xsmith, a generator of highly effective fuzz testers.
+;;
+;; Redistribution and use in source and binary forms, with or without
+;; modification, are permitted provided that the following conditions are met:
+;;
+;;   * Redistributions of source code must retain the above copyright notice,
+;;     this list of conditions and the following disclaimer.
+;;
+;;   * Redistributions in binary form must reproduce the above copyright
+;;     notice, this list of conditions and the following disclaimer in the
+;;     documentation and/or other materials provided with the distribution.
+;;
+;; THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+;; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+;; IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+;; ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+;; LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+;; CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+;; SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+;; INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+;; CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+;; ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+;; POSSIBILITY OF SUCH DAMAGE.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (require xsmith xsmith/racr-convenience racr racket/pretty racket/string racket/port)
 
 (define-spec-component arith)
@@ -27,11 +58,14 @@
  [FormalParam #f (type [name = (fresh-var-name "arg-")])
               #:prop binder-info (name type parameter)]
  [LiteralInt Expression ([v = (random 100)])]
+ [LiteralFloat Expression ([v = (* (random) (random 100))])]
  [Addition Expression ([es : Expression * = (+ 1 (random 5))])
            #:prop choice-weight 50])
 
 
-(define int (base-type 'int))
+(define number (base-type 'number))
+(define int (base-type 'int number))
+(define float (base-type 'float number))
 (add-prop arith type-info
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [LetStar [(fresh-type-variable)
@@ -52,9 +86,10 @@
                                 'argument arg-type))]]
           [FormalParam [(fresh-type-variable) (hash)]]
           [LiteralInt [int (λ (n t) (hash))]]
+          [LiteralFloat [float (λ (n t) (hash))]]
           [VariableReference [(fresh-type-variable) (λ (n t) (hash))]]
-          [SetBangRet [int (λ (n t) (hash 'Expression t))]]
-          [Addition [int (λ (n t) (hash 'es t))]])
+          [SetBangRet [number (λ (n t) (hash 'Expression t))]]
+          [Addition [number (λ (n t) (hash 'es t))]])
 
 (add-prop arith render-node-info
           [LetStar
@@ -73,6 +108,7 @@
           [Application (λ (n) `(,(render-node (ast-child 'procedure n))
                                 ,(render-node (ast-child 'argument n))))]
           [LiteralInt (λ (n) (ast-child 'v n))]
+          [LiteralFloat (λ (n) (ast-child 'v n))]
           [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
           [SetBangRet (λ (n) `(begin (set! ,(string->symbol (ast-child 'name n))
                                            ,(render-node
@@ -87,6 +123,8 @@
                          [rtype (fresh-type-variable)]
                          [ftype (function-type atype rtype)]
                          [unification-dumb-return-value (unify! ftype type)]
+                         ;; this exploration should be unnecessary
+                         ;[_ (force-type-exploration-for-node! current-hole)]
                          [FormalParam (make-fresh-node 'FormalParam
                                                        (hash 'type atype))])
                     (hash
@@ -115,3 +153,7 @@
                   (with-output-to-string
                     (λ ()
                       (pretty-print ast (current-output-port) 1)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; End of file.

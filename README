@@ -2,8 +2,8 @@
 
             Xsmith --- a generator of highly effective fuzz testers
 
-                          William Hatch and Eric Eide
-                   <william@hatch.uno>, <eeide@cs.utah.edu>
+		 William Hatch, Pierce Darragh, and Eric Eide
+     <william@hatch.uno>, <pierce.darragh@gmail.com>, <eeide@cs.utah.edu>
 
                     University of Utah School of Computing
                             https://www.cs.utah.edu/
