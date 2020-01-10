@@ -12,10 +12,11 @@
 (add-to-grammar
  sm
  [Prog #f ([arith : ArithOp])]
- [Val #f ([v = (random lower-bound upper-bound)])
+ [ArithOrVal #f ()]
+ [Val ArithOrVal ([v = (random lower-bound upper-bound)])
       #:prop wont-over-deepen #t]
- [ArithOp #f ([lhs : Val]
-              [rhs : Val])]
+ [ArithOp ArithOrVal ([lhs : ArithOrVal]
+                      [rhs : ArithOrVal])]
  ;; Safe arithmetic operations.
  [SafeArithOp ArithOp ()]
  [SafePlusOp SafeArithOp ()]
@@ -23,18 +24,20 @@
  [SafeTimesOp SafeArithOp ()]
  [SafeDivideOp SafeArithOp ()]
  ;; Unsafe arithmetic operations.
- [UnsafeArithOp ArithOp ()]
- [UnsafePlusOp UnsafeArithOp ()]
- [UnsafeMinusOp UnsafeArithOp ()]
- [UnsafeTimesOp UnsafeArithOp ()]
- [UnsafeDivideOp UnsafeArithOp ()]
+ [UnsafePlusOp SafePlusOp ()]
+ [UnsafeMinusOp SafeMinusOp ()]
+ [UnsafeTimesOp SafeTimesOp ()]
+ [UnsafeDivideOp SafeDivideOp ()]
  )
 
 (add-prop
  sm
  may-be-generated
+ ;; Abstract nodes.
+ [ArithOrVal #f]
  [ArithOp #f]
- [UnsafeArithOp #f]
+ [SafeArithOp #f]
+ ;; Unsafe operations cannot be directly generated.
  [UnsafePlusOp #f]
  [UnsafeMinusOP #f]
  [UnsafeTimesOp #f]
@@ -42,11 +45,9 @@
 
 
 (define (render-arith-op op n)
-  (format
-   "~a ~a ~a"
-   (render-node (ast-child 'lhs n))
-   op
-   (render-node (ast-child 'rhs n))))
+  `(,op
+    ,(render-node (ast-child 'lhs n))
+    ,(render-node (ast-child 'rhs n))))
 
 (add-prop
  sm
@@ -54,10 +55,10 @@
  [Prog (λ (n) (render-node (ast-child 'arith n)))]
  [Val (λ (n) (number->string (ast-child 'v n)))]
  ;; Safe arithmetic operations.
- [SafePlusOp (λ (n) (render-arith-op "++" n))]
- [SafeMinusOp (λ (n) (render-arith-op "--" n))]
- [SafeTimesOp (λ (n) (render-arith-op "**" n))]
- [SafeDivideOp (λ (n) (render-arith-op "//" n))]
+ [SafePlusOp (λ (n) (render-arith-op "safe-+" n))]
+ [SafeMinusOp (λ (n) (render-arith-op "safe--" n))]
+ [SafeTimesOp (λ (n) (render-arith-op "safe-*" n))]
+ [SafeDivideOp (λ (n) (render-arith-op "safe-/" n))]
  ;; Unsafe arithmetic operations.
  [UnsafePlusOp (λ (n) (render-arith-op "+" n))]
  [UnsafeMinusOp (λ (n) (render-arith-op "-" n))]
@@ -69,4 +70,5 @@
 
 (xsmith-command-line
  (λ () (m-generate-ast 'Prog))
- #:fuzzer-name "safe-math-test-fuzzer")
+ #:fuzzer-name "safe-math-test-fuzzer"
+ #:default-max-depth 5)
