@@ -107,6 +107,8 @@ WIP checklist:
  type->type-variable-list
  at-least-as-concrete
  contains-type-variables?
+
+ type-variable->type
  )
 
 (require
@@ -177,6 +179,14 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
    [forward #:mutable]
    [lower-bounds #:mutable]
    [upper-bounds #:mutable]))
+
+(define (type-variable->type tv)
+  (match tv
+    [(type-variable (type-variable-innard _ (list the-type) _ _ _))
+     the-type]
+    [else (error 'type-variable->type
+                 "not a type variable resolved to a single type: ~v"
+                 tv)]))
 
 (define (innard->forward-resolve innard)
   (match innard
