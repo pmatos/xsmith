@@ -1174,6 +1174,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(? nominal-record-type?) (struct-rec nominal-record-type?)]
        [(? nominal-record-definition-type?)
         (struct-rec nominal-record-definition-type?)]
+       [(? structural-record-type?)
+        (struct-rec structural-record-type?)]
        [(generic-type name constructor type-arguments variances)
         (define inner-matched
           (filter (λ (x) (match x
