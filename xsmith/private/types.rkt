@@ -71,6 +71,7 @@ WIP checklist:
  nominal-record-type-inners
 
  structural-record-type?
+ structural-record-type
  structural-record-type-field-dict
 
  (rename-out [make-nominal-record-definition nominal-record-definition-type])
