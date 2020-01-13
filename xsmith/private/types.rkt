@@ -1985,6 +1985,18 @@ TODO - when generating a record ref, I'll need to compare something like (record
     (check-true (can-subtype-unify? (structural-record-type (hash 'x labradoodle
                                                                   'y dog))
                                     (structural-record-type (hash 'x dog))))
+    (check-true (can-subtype-unify? (structural-record-type (hash 'x labradoodle
+                                                                  'y dog))
+                                    (fresh-subtype-of
+                                     (structural-record-type (hash 'x dog)))))
+    (check-false (can-subtype-unify? (structural-record-type (hash 'x labradoodle
+                                                                   'y dog))
+                                     (fresh-subtype-of
+                                      (structural-record-type (hash 'x dog 'z bird)))))
+    (check-true (can-unify? (structural-record-type (hash 'x labradoodle
+                                                          'y dog))
+                            (fresh-subtype-of
+                             (structural-record-type (hash)))))
 
     )
 
