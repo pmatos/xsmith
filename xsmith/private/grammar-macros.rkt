@@ -1202,8 +1202,11 @@ Perform error checking:
                    (for ([field-to-be-copied fields-to-be-copied])
                      (enqueue-refiner-replacement-transform
                       (λ ()
+                        (define original-child (ast-child field-to-be-copied original-node))
+                        (rewrite-subtree original-child
+                                         (create-ast-bud))
                         (rewrite-subtree (ast-child field-to-be-copied new-node)
-                                         (ast-child field-to-be-copied original-node)))))
+                                         original-child))))
                    ;; Return the new node.)
                    new-node)
                  (define node-attr-length-hash
