@@ -517,11 +517,6 @@
         (if (ast-has-parent? n)
             (loop (ast-parent n))
             n)))
-    ;; Return the first non-#f value in a list, if one exists.
-    (define (first-or-false xs)
-      (and (not (empty? xs))
-           (or (car xs)
-               (first-or-false (cdr xs)))))
     ;; Apply the refiner to every node of the tree, starting at the root, until it
     ;; returns a non-false value. If the refiner succeeds on any node, return a
     ;; pair of the original node with the refined value.
@@ -535,9 +530,11 @@
                 (execute-refiner-replacement-transform-queue)
                 (cons n new-n))
               #f))
-        (first-or-false
-         (map find-and-apply
-              (ast-children n))))))
+        ;; `ormap` is used in place of `findf` so that the result of the
+        ;; function is returned instead of the element to which the function was
+        ;; applied. `ormap` also applies the function sequentially and stops at
+        ;; the first element which does not return #f.
+        (ormap find-and-apply (ast-children n)))))
     ;; Start the refinement process at the root. If a match is found, commit the
     ;; rewrite and start the search again. Produces a list of the new nodes upon
     ;; completion.
