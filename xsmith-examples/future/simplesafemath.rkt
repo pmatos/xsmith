@@ -69,6 +69,11 @@
  [UnsafeDivideOp (λ (n) (render-arith-op "UNSAFE-/" n))]
  )
 
+(add-prop
+ sm
+ render-bud-info
+ [#f (λ (b) `(BUD))])
+
 
 (define (subtree-is-safe? n)
   #;(eprintf (format "subtree-is-safe? ~a\n" n))
