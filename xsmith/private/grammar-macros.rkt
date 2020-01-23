@@ -521,20 +521,22 @@
     ;; returns a non-false value. If the refiner succeeds on any node, return a
     ;; pair of the original node with the refined value.
     (define (find-and-apply n)
-      (and
-       (ast-node? n)  ;; TODO - sometimes (ast-children n) returns #f values; why?
-       (or
-        (let ([new-n (refiner n)])
-          (if new-n
-              (begin
-                (execute-refiner-replacement-transform-queue)
-                (cons n new-n))
-              #f))
-        ;; `ormap` is used in place of `findf` so that the result of the
-        ;; function is returned instead of the element to which the function was
-        ;; applied. `ormap` also applies the function sequentially and stops at
-        ;; the first element which does not return #f.
-        (ormap find-and-apply (ast-children n)))))
+      (cond
+        [(not (ast-node? n))  ;; Don't attempt to apply to invalid targets.
+         #f]
+        [(ast-bud-node? n)  ;; Don't attempt to apply to buds, as they represent in-progress refinements.
+         #f]
+        [else
+         (let ([new-n (refiner n)])
+           (if new-n
+               (begin
+                 (execute-refiner-replacement-transform-queue)
+                 (cons n new-n))
+               ;; `ormap` is used in place of `findf` so that the result of the
+               ;; function is returned instead of the element to which the function was
+               ;; applied. `ormap` also applies the function sequentially and stops at
+               ;; the first element which does not return #f.
+               (ormap find-and-apply (ast-children n))))]))
     ;; Start the refinement process at the root. If a match is found, commit the
     ;; rewrite and start the search again. Produces a list of the new nodes upon
     ;; completion.
@@ -1199,9 +1201,12 @@ Perform error checking:
                    (for ([field-to-be-copied fields-to-be-copied])
                      (enqueue-refiner-replacement-transform
                       (λ ()
+                        ;; Identify the original child that we wish to copy to the new node.
                         (define original-child (ast-child field-to-be-copied original-node))
+                        ;; Replace the original child with a bud, orphaning the child.
                         (rewrite-subtree original-child
                                          (create-ast-bud))
+                        ;; Adopt the original child into the new node, replacing the temporary bud.
                         (rewrite-subtree (ast-child field-to-be-copied new-node)
                                          original-child))))
                    ;; Return the new node.)
