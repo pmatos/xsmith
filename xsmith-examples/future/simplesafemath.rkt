@@ -74,6 +74,11 @@
  render-bud-info
  [#f (λ (b) `(BUD))])
 
+(add-prop
+ sm
+ render-hole-info
+ [#f (λ (h) `(HOLE))])
+
 
 (define (subtree-is-safe? n)
   #;(eprintf (format "subtree-is-safe? ~a\n" n))
