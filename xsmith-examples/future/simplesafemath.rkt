@@ -63,16 +63,11 @@
  [SafeTimesOp (λ (n) (render-arith-op "*" n))]
  [SafeDivideOp (λ (n) (render-arith-op "/" n))]
  ;; Unsafe arithmetic operations.
- [UnsafePlusOp (λ (n) (render-arith-op "UNSAFE-+" n))]
- [UnsafeMinusOp (λ (n) (render-arith-op "UNSAFE--" n))]
- [UnsafeTimesOp (λ (n) (render-arith-op "UNSAFE-*" n))]
- [UnsafeDivideOp (λ (n) (render-arith-op "UNSAFE-/" n))]
+ [UnsafePlusOp (λ (n) (render-arith-op "!+" n))]
+ [UnsafeMinusOp (λ (n) (render-arith-op "!-" n))]
+ [UnsafeTimesOp (λ (n) (render-arith-op "!*" n))]
+ [UnsafeDivideOp (λ (n) (render-arith-op "!/" n))]
  )
-
-(add-prop
- sm
- render-bud-info
- [#f (λ (b) `(BUD))])
 
 (add-prop
  sm
@@ -80,27 +75,40 @@
  [#f (λ (h) `(HOLE))])
 
 
+(define safe-types
+  '('SafePlusOp
+    'SafeMinusOp
+    'SafeTimesOp
+    'SafeDivideOp))
+
 (define (subtree-is-safe? n)
-  #;(eprintf (format "subtree-is-safe? ~a\n" n))
   (or
    (eq? (node-type n) 'Val)
    (and
     (ormap (λ (t) (eq? (node-type n) t))
-           '('SafePlusOp
-             'SafeMinusOp
-             'SafeTimesOp
-             'SafeDivideOp))
-    (subtree-is-safe? (ast-child 'lhs n))
-    (subtree-is-safe? (ast-child 'rhs n)))))
+           safe-types)
+    #;(subtree-is-safe? (ast-child 'lhs n))
+    #;(subtree-is-safe? (ast-child 'rhs n))
+    (ast-children-are-safe? n))))
+
+(define (ast-children-are-safe? n)
+  (and
+   (subtree-is-safe? (ast-child 'lhs n))
+   (subtree-is-safe? (ast-child 'rhs n))))
 
 
 (define-refiner
   sm
   make-math-unsafe
   [#f [(λ (n) #f)]]
-  [SafePlusOp [(λ (n) (subtree-is-safe? (ast-child 'lhs n)))
-               (λ (n) (subtree-is-safe? (ast-child 'rhs n)))
-               (λ (n) (make-replacement-node 'UnsafePlusOp n (hash 'lhs (make-fresh-node 'Val (hash 'v 42)))))]]
+  [SafePlusOp [(λ (n) (ast-children-are-safe? n))
+               (λ (n) (make-replacement-node 'UnsafePlusOp n))]]
+  [SafeMinusOp [(λ (n) (ast-children-are-safe? n))
+                (λ (n) (make-replacement-node 'UnsafeMinusOp n))]]
+  [SafeTimesOp [(λ (n) (ast-children-are-safe? n))
+                (λ (n) (make-replacement-node 'UnsafeTimesOp n))]]
+  [SafeDivideOp [(λ (n) (ast-children-are-safe? n))
+                 (λ (n) (make-replacement-node 'UnsafeDivideOp n))]]
   )
 
 (assemble-spec-components m sm)
