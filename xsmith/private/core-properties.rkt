@@ -1670,10 +1670,10 @@ Users can call `(render-node <node>)`, `(render-hole <hole>)`, or
 (define (render-node node)
   (when (not (ast-node? node))
     (error "render-node received object which is not a RACR AST node:" node))
-  (case
+  (cond
     [(ast-bud-node? node)
      (render-bud node)]
-    [(att-value 'xsmith_is_hole? node)
+    [(att-value 'xsmith_is-hole? node)
      (render-hole node)]
     [else
      (att-value '_xsmith_render-node node)]))
