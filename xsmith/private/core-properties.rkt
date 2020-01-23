@@ -50,8 +50,6 @@
  render-node-info
  render-hole
  render-hole-info
- render-bud
- render-bud-info
 
  make-lift-reference-choice-proc
 
@@ -1648,10 +1646,9 @@ The second arm is a function that takes the type that the node has been assigned
           _xsmith_no-io-conflict?-info)))
 
 #|
-There are a few properties involved in rendering ASTs for pretty-printing:
+There are two properties involved in rendering ASTs for pretty-printing:
  - render-node
  - render-hole
- - render-bud
 
 The `render-node` property allows users to specify functions for rendering each
 type of node. They may also give a default render function via #f. These can
@@ -1659,13 +1656,12 @@ return any type, but if the type is not a string then the user should specify
 the `#:format-render` argument in the `xsmith-command-line` function to handle
 converting the rendered output to a string for printing.
 
-Functions specified this way will be wrapped with a test to determine the type
-of the supplied argument. If it's actually a hole, then `render-hole` will be
-called instead. If it's an AST bud node, then `render-bud` will be called.
+Functions specified this way will be wrapped with a test to determine whether
+the supplied argument is actually a hole. If it is, then `render-hole` will be
+called instead.
 
-Users can call `(render-node <node>)`, `(render-hole <hole>)`, or
-`(render-bud <bud>)` instead of the longer-winded
-`(att-value 'render-node-info <node>)`-style calls.
+Users can call `(render-node <node>)` and `(render-hole <hole>)` instead of the
+longer-winded `(att-value 'render-node-info <node>)`-style calls.
 |#
 (define (render-node node)
   (when (not (ast-node? node))
@@ -1707,22 +1703,6 @@ Users can call `(render-node <node>)`, `(render-hole <hole>)`, or
             (values n
                     v))))
     (list _xsmith_render-hole-info)))
-
-(define (render-bud bud)
-  (att-value '_xsmith_render-bud bud))
-
-(define-property render-bud-info
-  #:appends
-  (att-rule _xsmith_render-bud)
-  #:transformer
-  (λ (this-prop-info)
-    (define _xsmith_render-bud-info
-      (if (dict-empty? this-prop-info)
-          (hash #f #'(λ (b) "[[BUD]]"))
-          (for/hash ([(n v) (in-dict this-prop-info)])
-            (values n
-                    v))))
-    (list _xsmith_render-bud-info)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
