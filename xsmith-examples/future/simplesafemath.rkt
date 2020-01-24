@@ -3,7 +3,8 @@
 (require
  xsmith
  xsmith/racr-convenience
- racr)
+ racr
+ racket/pretty)
 
 (define-spec-component sm)
 
@@ -56,58 +57,67 @@
  sm
  render-node-info
  [Prog (λ (n) (render-node (ast-child 'arith n)))]
- [Val (λ (n) (number->string (ast-child 'v n)))]
+ [Val (λ (n) (ast-child 'v n))]
  ;; Safe arithmetic operations.
- [SafePlusOp (λ (n) (render-arith-op "+" n))]
- [SafeMinusOp (λ (n) (render-arith-op "-" n))]
- [SafeTimesOp (λ (n) (render-arith-op "*" n))]
- [SafeDivideOp (λ (n) (render-arith-op "/" n))]
+ [SafePlusOp (λ (n) (render-arith-op '+ n))]
+ [SafeMinusOp (λ (n) (render-arith-op '- n))]
+ [SafeTimesOp (λ (n) (render-arith-op '* n))]
+ [SafeDivideOp (λ (n) (render-arith-op '/ n))]
  ;; Unsafe arithmetic operations.
- [UnsafePlusOp (λ (n) (render-arith-op "!+" n))]
- [UnsafeMinusOp (λ (n) (render-arith-op "!-" n))]
- [UnsafeTimesOp (λ (n) (render-arith-op "!*" n))]
- [UnsafeDivideOp (λ (n) (render-arith-op "!/" n))]
+ [UnsafePlusOp (λ (n) (render-arith-op '!+ n))]
+ [UnsafeMinusOp (λ (n) (render-arith-op '!- n))]
+ [UnsafeTimesOp (λ (n) (render-arith-op '!* n))]
+ [UnsafeDivideOp (λ (n) (render-arith-op '!/ n))]
  )
 
 (add-prop
  sm
  render-hole-info
- [#f (λ (h) `(HOLE))])
+ [#f (λ (h) `(HOLE ,(node-type h)))])
 
 
-(define safe-types
+(define safe-arith-types
   '('SafePlusOp
     'SafeMinusOp
     'SafeTimesOp
     'SafeDivideOp))
 
-(define (subtree-is-safe? n)
-  (or
-   (eq? (node-type n) 'Val)
-   (and
-    (ormap (λ (t) (eq? (node-type n) t))
-           safe-types)
-    #;(subtree-is-safe? (ast-child 'lhs n))
-    #;(subtree-is-safe? (ast-child 'rhs n))
-    (ast-children-are-safe? n))))
+(define (safe? n)
+  (let ([t (node-type n)])
+    (or
+     (eq? t 'Val)
+     (and
+      (ormap (λ (at) (eq? t at))
+             safe-arith-types)
+      (safe? (ast-child 'lhs n))
+      (safe? (ast-child 'rhs n))))))
 
-(define (ast-children-are-safe? n)
-  (and
-   (subtree-is-safe? (ast-child 'lhs n))
-   (subtree-is-safe? (ast-child 'rhs n))))
+(define (make-unsafe? n)
+  (let* ([lhs (ast-child 'lhs n)]
+         [rhs (ast-child 'rhs n)]
+         [lhs-type (node-type lhs)]
+         [rhs-type (node-type rhs)])
+    (or
+     (and
+      (eq? lhs-type 'Val)
+      (eq? rhs-type 'Val)
+      (odd? (ast-child 'v lhs))
+      (odd? (ast-child 'v rhs)))
+     (not (safe? lhs))
+     (not (safe? rhs)))))
 
 
 (define-refiner
   sm
   make-math-unsafe
   [#f [(λ (n) #f)]]
-  [SafePlusOp [(λ (n) (ast-children-are-safe? n))
+  [SafePlusOp [(λ (n) (make-unsafe? n))
                (λ (n) (make-replacement-node 'UnsafePlusOp n))]]
-  [SafeMinusOp [(λ (n) (ast-children-are-safe? n))
+  [SafeMinusOp [(λ (n) (make-unsafe? n))
                 (λ (n) (make-replacement-node 'UnsafeMinusOp n))]]
-  [SafeTimesOp [(λ (n) (ast-children-are-safe? n))
+  [SafeTimesOp [(λ (n) (make-unsafe? n))
                 (λ (n) (make-replacement-node 'UnsafeTimesOp n))]]
-  [SafeDivideOp [(λ (n) (ast-children-are-safe? n))
+  [SafeDivideOp [(λ (n) (make-unsafe? n))
                  (λ (n) (make-replacement-node 'UnsafeDivideOp n))]]
   )
 
@@ -116,4 +126,6 @@
 (xsmith-command-line
  (λ () (m-generate-ast 'Prog))
  #:fuzzer-name "safe-math-test-fuzzer"
- #:default-max-depth 5)
+ #:default-max-depth 5
+ #:format-render (λ (s) (parameterize ([pretty-print-columns 0])
+                          (pretty-format s))))
