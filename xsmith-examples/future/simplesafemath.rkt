@@ -94,8 +94,10 @@
 (define (safe? n)
   (and
    (not (att-value 'is-unsafe-type? n))
-   (safe? (ast-child 'lhs n))
-   (safe? (ast-child 'rhs n))))
+   (if (ast-subtype? n 'SafeArithOp)
+       (and (safe? (ast-child 'lhs n))
+            (safe? (ast-child 'rhs n)))
+       #t)))
 
 (define (make-unsafe? n)
   (let* ([lhs (ast-child 'lhs n)]
