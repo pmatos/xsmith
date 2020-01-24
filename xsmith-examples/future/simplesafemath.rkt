@@ -47,7 +47,6 @@
  [UnsafeTimesOp #f]
  [UnsafeDivideOp #f])
 
-
 (define (render-arith-op op n)
   `(,op
     ,(render-node (ast-child 'lhs n))
@@ -76,21 +75,27 @@
  [#f (λ (h) `(HOLE ,(node-type h)))])
 
 
-(define safe-arith-types
-  '('SafePlusOp
-    'SafeMinusOp
-    'SafeTimesOp
-    'SafeDivideOp))
+;;;;;;;;
+;; The initial AST is built with guaranteed-safe arithmetic operations. After
+;; initial generation is complete, some analysis is done so that some operations
+;; can be replaced with their unsafe counterparts.
+;;
+;; In this specific example, arithmetic done on two odd values is allowed to be
+;; made unsafe. (This is an arbitrary rule.) Unsafety is then propagated
+;; upwards, requiring that any operation whose operand is unsafe must itself be
+;; unsafe.
+
+(add-att-rule
+ sm
+ is-unsafe-type?
+ [#f (λ (n) #f)]
+ [UnsafeArithOp (λ (n) #t)])
 
 (define (safe? n)
-  (let ([t (node-type n)])
-    (or
-     (eq? t 'Val)
-     (and
-      (ormap (λ (at) (eq? t at))
-             safe-arith-types)
-      (safe? (ast-child 'lhs n))
-      (safe? (ast-child 'rhs n))))))
+  (and
+   (not (att-value 'is-unsafe-type? n))
+   (safe? (ast-child 'lhs n))
+   (safe? (ast-child 'rhs n))))
 
 (define (make-unsafe? n)
   (let* ([lhs (ast-child 'lhs n)]
@@ -106,7 +111,6 @@
      (not (safe? lhs))
      (not (safe? rhs)))))
 
-
 (define-refiner
   sm
   make-math-unsafe
@@ -120,6 +124,8 @@
   [SafeDivideOp [(λ (n) (make-unsafe? n))
                  (λ (n) (make-replacement-node 'UnsafeDivideOp n))]]
   )
+
+;;;;;;;;
 
 (assemble-spec-components m sm)
 
