@@ -42,7 +42,7 @@
  [UnsafeArithOp #f]
  ;; Unsafe operations cannot be directly generated.
  [UnsafePlusOp #f]
- [UnsafeMinusOP #f]
+ [UnsafeMinusOp #f]
  [UnsafeTimesOp #f]
  [UnsafeDivideOp #f])
 
