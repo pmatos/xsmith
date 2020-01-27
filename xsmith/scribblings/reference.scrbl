@@ -231,7 +231,7 @@ Adds grammar productions to @racket[spec-component].
 Names for the node and fields are limited to alphabetic characters.  You may want to use camelCase style names since kebab-style or snake_style names due to this limitation.
 
 Fields are then specified.
-Each nonternimal inherits all fields of its parent nodes.
+Each nonterminal inherits all fields of its parent nodes.
 A field has a name, a type, an optional kleene star, and an optional initialization expression.
 The type of each field is the name of the nonterminal that it must be or @racket[#f] for fields that may contain arbitrary Racket values.
 A field name may be the same as the type, in which case the type does not need to be specified.
