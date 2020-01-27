@@ -49,7 +49,7 @@
 (add-to-grammar
  verilog-core
  [Source #f
-  ([modules : ModuleDecl])]
+  ([modules : ModuleDecl * = (random 1 5)])]
  [ModuleDecl #f
   ([name])]
  )
@@ -62,8 +62,10 @@
  render-node-info
  [Source
   (λ (n)
-    (v-append
-     (render-node (ast-child 'modules n))))]
+    (v-concat
+     (apply-infix line
+                  (map render-node
+                       (ast-children (ast-child 'modules n))))))]
  [ModuleDecl
   (λ (n)
     (v-append
