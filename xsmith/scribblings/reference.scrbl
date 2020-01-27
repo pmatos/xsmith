@@ -1314,6 +1314,10 @@ The @verb{generate} function passed to @racket[xsmith-command-line] needs to par
 }
 
 
+@section{Miscellaneous Utilities}
+
+TODO - document fresh-int! and fresh-var-name
+
 
 @section{Debug Logging}
 @defproc[(xd-printf [format-string string?] [args (listof any/c)] ...) any/c]{
