@@ -1316,7 +1316,19 @@ The @verb{generate} function passed to @racket[xsmith-command-line] needs to par
 
 @section{Miscellaneous Utilities}
 
-TODO - document fresh-int! and fresh-var-name
+@defproc[(fresh-int!) number?]{
+Returns a unique integer.  The state of the generator is reset for each program generated, so that generation is reproducible.
+
+Basically, use this rather than using your own unique number generator.
+}
+@defproc[(fresh-var-name [template string?]) string?]{
+Returns a name created by appending a fresh integer to the end of @racket[template].
+
+Example:
+@racketblock[
+(fresh-var-name "variable_") (code:comment "returns the string \"variable_123\", or something like it.")
+]
+}
 
 
 @section{Debug Logging}
