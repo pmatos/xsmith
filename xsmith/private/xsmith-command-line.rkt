@@ -364,11 +364,15 @@
           ;; Everything was successful!
           (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
                                        option-lines)))
-          (display (format "\n\n~a\n\n" program))
-          (display (comment-func (flatten
-                                  (list "!!! The following output was captured during execution:"
-                                        ""
-                                        (string-split captured-output "\n")))))
+          (display (format "\n\n~a\n" program))
+          (when (non-empty-string? captured-output)
+            (display "\n")
+            (display (comment-func (flatten
+                                    (list "!!! The following output was captured during execution:"
+                                          ""
+                                          (string-split captured-output "\n")))))
+            (display "\n"))
+
           (display "\n"))
         ;; Update the seed. (This is used in server mode.)
         (dict-set! (xsmith-options)

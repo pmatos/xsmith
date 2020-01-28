@@ -142,7 +142,7 @@ hole for the type.
   (grammar)
   (property binder-info)
   (property reference-info)
-  #:appends (choice-rule _xsmith_fresh)
+  #:appends (choice-rule _xsmith_fresh) (att-rule _xsmith_field-names)
   #:transformer
   (λ (this-prop-info grammar-info binder-info-info reference-info-info)
     (define nodes (dict-keys grammar-info))
@@ -166,6 +166,14 @@ hole for the type.
                 (syntax-parse (dict-ref reference-info-info node #'#f)
                   [(_ name:id (~optional (~seq #:unifies target))) (syntax->datum #'name)]
                   [else #f]))))
+
+    (define _xsmith_field-names-info
+      (for/hash ([node nodes])
+        (define fields (dict-ref field-info-hash node))
+        (define field-names (map grammar-node-field-struct-name fields))
+        (values
+         node
+         #`(λ (n) '(#,@(map (λ (name) (datum->syntax #f name)) field-names))))))
 
     ;; I need to create a lambda (of zero args) that evaluates the given expression (if it exists), then calls a thunk to get the default value for any fields not specified in the list received.
     (define _xsmith_fresh-info
@@ -321,7 +329,7 @@ hole for the type.
                (create-ast (current-racr-spec)
                            '#,node
                            all-values+xsmith-injected))))))
-    (list _xsmith_fresh-info)))
+    (list _xsmith_fresh-info _xsmith_field-names-info)))
 
 (define-property child-node-name-dict
   #:reads (grammar)
@@ -1656,14 +1664,15 @@ Users can call `(render-node <node>)` and `(render-hole <hole>)` instead of the
 longer-winded `(att-value 'render-node-info <node>)`-style calls.
 |#
 (define (render-node node)
-  (if (att-value 'xsmith_is-hole? node)
-      (render-hole node)
-      (att-value '_xsmith_render-node node)))
-
-#;(define-syntax-rule (render-node node)
-  (if (att-value 'xsmith_is-hole? node)
-      (render-hole node)
-      (att-value '_xsmith_render-node node)))
+  (when (not (ast-node? node))
+    (error "render-node received object which is not a RACR AST node:" node))
+  (cond
+    [(ast-bud-node? node)
+     (error 'render-node "cannot render bud node")]
+    [(att-value 'xsmith_is-hole? node)
+     (render-hole node)]
+    [else
+     (att-value '_xsmith_render-node node)]))
 
 (define-property render-node-info
   #:appends
@@ -1679,9 +1688,6 @@ longer-winded `(att-value 'render-node-info <node>)`-style calls.
     (list _xsmith_render-node-info)))
 
 (define (render-hole hole)
-  (att-value '_xsmith_render-hole hole))
-
-#;(define-syntax-rule (render-hole hole)
   (att-value '_xsmith_render-hole hole))
 
 (define-property render-hole-info

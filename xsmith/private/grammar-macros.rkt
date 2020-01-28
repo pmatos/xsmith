@@ -46,6 +46,7 @@
 
  make-hole
  make-fresh-node
+ make-replacement-node
 
  ;; these should not be public, but are needed by other xsmith modules
  current-force-deepen
@@ -112,6 +113,11 @@
                        'make-fresh-node
                        "Not in a context where make-fresh-node is parameterized"
                        #'stx)]))
+(define-syntax-parameter make-replacement-node
+  (syntax-parser [stx (raise-syntax-error
+                       'make-replacement-node
+                       "Not in a context where make-replacement-node is parameterized"
+                       #'stx)]))
 
 ;;; This is parameterized for the `fresh` property implementation.
 (define-syntax-parameter current-racr-spec
@@ -120,19 +126,39 @@
                        "current-racr-spec used without being parameterized"
                        #'stx)]))
 
-;; If you try to add a lift node during choice transformation racr will complain,
-;; so this inter-choice-transform-queue allows the lift to be queued for completion
-;; before the next choice is started.
-(define inter-choice-transform-queue-box (box '()))
+;; There are a few places where we want to allow modification of a tree during
+;; attribute evaluation, but this is forbidden by RACR. To circumvent the issue,
+;; we instead use queues of thunks to be run after attribute evaluation has
+;; concluded.
+(define (make-queue-box) (box '()))
+(define (clear-queue-box queue-box)
+  (set-box! queue-box '()))
+(define (enqueue-thunk queue-box new-thunk)
+  (set-box! queue-box
+            (cons new-thunk
+                  (unbox queue-box))))
+(define (execute-queued-thunks queue-box)
+  (define thunks (reverse (unbox queue-box)))
+  (set-box! queue-box '())
+  (for ([thunk thunks])
+    (thunk)))
+
+;;; TODO - a macro should be written to provide these functions more readily.
+;; These are for adding lift nodes during choice transformation.
+(define inter-choice-transform-queue-box (make-queue-box))
 (define (enqueue-inter-choice-transform transform-thunk)
-  (set-box! inter-choice-transform-queue-box
-            (cons transform-thunk
-                  (unbox inter-choice-transform-queue-box))))
+  (enqueue-thunk inter-choice-transform-queue-box transform-thunk))
 (define (execute-inter-choice-transform-queue)
-  (define transforms (reverse (unbox inter-choice-transform-queue-box)))
-  (set-box! inter-choice-transform-queue-box '())
-  (for ([transform transforms])
-    (transform)))
+  (execute-queued-thunks inter-choice-transform-queue-box))
+
+;; These are for replacing nodes whole during refiner evaluation.
+(define refiner-replacement-transform-queue-box (make-queue-box))
+(define (clear-refiner-replacement-transform-queue)
+  (clear-queue-box refiner-replacement-transform-queue-box))
+(define (enqueue-refiner-replacement-transform transform-thunk)
+  (enqueue-thunk refiner-replacement-transform-queue-box transform-thunk))
+(define (execute-refiner-replacement-transform-queue)
+  (execute-queued-thunks refiner-replacement-transform-queue-box))
 
 (define current-force-deepen (make-parameter #f))
 
@@ -495,25 +521,32 @@
         (if (ast-has-parent? n)
             (loop (ast-parent n))
             n)))
-    ;; Return the first non-#f value in a list, if one exists.
-    (define (first-or-false xs)
-      (and (not (empty? xs))
-           (or (car xs)
-               (first-or-false (cdr xs)))))
     ;; Apply the refiner to every node of the tree, starting at the root, until it
     ;; returns a non-false value. If the refiner succeeds on any node, return a
     ;; pair of the original node with the refined value.
     (define (find-and-apply n)
-      (and
-       (ast-node? n)  ;; TODO - sometimes (ast-children n) returns #f values; why?
-       (or
-        (let ([new-n (refiner n)])
-          (if new-n
-              (cons n new-n)
-              #f))
-        (first-or-false
-         (map find-and-apply
-              (ast-children n))))))
+      (cond
+        [(not (ast-node? n))  ;; Don't attempt to apply to invalid targets.
+         #f]
+        [(ast-bud-node? n)  ;; Don't attempt to apply to buds, as they represent in-progress refinements.
+         #f]
+        [else
+         (let ([new-n (refiner n)])
+           (if new-n
+               ;; If a non-#f value is returned, the refinement is considered successful.
+               ;; Any enqueued interior replacements will be executed, and the new node will be added to the list of replacements.
+               (begin
+                 (execute-refiner-replacement-transform-queue)
+                 (cons n new-n))
+               ;; If #f is returned, the refinement is considered failed.
+               ;; Enqueued interior replacements will be cleared, and the search will continue.
+               (begin
+                 (clear-refiner-replacement-transform-queue)
+                 ;; `ormap` is used in place of `findf` so that the result of the
+                 ;; function is returned instead of the element to which the function was
+                 ;; applied. `ormap` also applies the function sequentially and stops at
+                 ;; the first element which does not return #f.
+                 (ormap find-and-apply (ast-children n)))))]))
     ;; Start the refinement process at the root. If a match is found, commit the
     ;; rewrite and start the search again. Produces a list of the new nodes upon
     ;; completion.
@@ -1154,7 +1187,40 @@ Perform error checking:
                  ;; `with-specification` to see things there, but definitions
                  ;; in that scope are not available.
                  (define fresh-node-func #f)
-
+                 ;; This function is used for enabling whole-node replacement
+                 ;; in refiners.
+                 (define (replacement-node-func type original-node fields)
+                   ;; Identify which fields are being copied and which will be replaced entirely.
+                   ;; Any field not named in `fields` is assumed to be copied from `original-node`.
+                   ;; TODO - this should instead look at the fields expected by 'Type nodes instead of assuming identical children
+                   (define original-field-names (att-value '_xsmith_field-names original-node))
+                   (define new-field-names (hash-keys fields))
+                   (define fields-to-be-copied
+                     (filter (λ (f) (not (member f new-field-names)))
+                             original-field-names))
+                   ;; Create new replacement node with bud nodes wherever copied children should go.
+                   (define (hash-merge . hs)
+                     (apply hash (flatten (map hash->list hs))))
+                   (define budded-fields
+                     (for/hash ([f fields-to-be-copied])
+                       (values f
+                               (create-ast-bud))))
+                   (define new-fields (hash-merge budded-fields fields))
+                   (define new-node (fresh-node-func type new-fields))
+                   ;; Enqueue thunks to replace these buds with the original children later.
+                   (for ([field-to-be-copied fields-to-be-copied])
+                     (enqueue-refiner-replacement-transform
+                      (λ ()
+                        ;; Identify the original child that we wish to copy to the new node.
+                        (define original-child (ast-child field-to-be-copied original-node))
+                        ;; Replace the original child with a bud, orphaning the child.
+                        (rewrite-subtree original-child
+                                         (create-ast-bud))
+                        ;; Adopt the original child into the new node, replacing the temporary bud.
+                        (rewrite-subtree (ast-child field-to-be-copied new-node)
+                                         original-child))))
+                   ;; Return the new node.)
+                   new-node)
                  (define node-attr-length-hash
                    (make-immutable-hash
                     (list
@@ -1206,6 +1272,13 @@ Perform error checking:
                            (syntax-parser [(_ node-sym:expr (~optional dict-expr:expr))
                                            #`(fresh-node-func
                                               node-sym
+                                              #,(or (attribute dict-expr)
+                                                    #'(hash)))])]
+                          [make-replacement-node
+                           (syntax-parser [(_ node-sym:expr orig-node:expr (~optional dict-expr:expr))
+                                           #`(replacement-node-func
+                                              node-sym
+                                              orig-node
                                               #,(or (attribute dict-expr)
                                                     #'(hash)))])])
                        (ag-rule att-rule-name

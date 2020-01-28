@@ -610,6 +610,33 @@ The list need only provide a refiner function; the predicate functions are optio
 
 
 
+@defform[(make-replacement-node new-node-type
+                                original-node
+                                [children])
+ #:grammar [(children (hash child-name child-value ...))]]{
+
+During refinement, you may wish to replace an entire node with a new node of a different type.
+@racket[make-replacement-node] handles all the logic involved in ``replacing'' a node in RACR for you.
+
+A @racket[new-node-type] must be given, which is a symbol corresponding to a node type in the grammar.
+Then, @racket[original-node] is the node which is being replaced.
+The new node will completely take the place of the old node; there will no longer be any references to @racket[original-node] in the AST.
+Additionally, all children of the @racket[original-node] will be copied to the new node except those replaced by the @racket[children] hash.
+This is simply a hash of child names to values, just like in @racket[make-fresh-node].
+
+@racketblock[
+(define-refiner
+ my-spec-component
+ replace-plus-with-minus
+ [PlusOp [(λ (n) (make-replacement-node 'MinusOp n))]])
+]
+
+Note that @racket[make-replacement-node] should only be used in the bodies of refiner functions!
+If a replacement is made but the refiner fails for some other reason (i.e., it returns @racket[#f]), the replacement will be undone.
+}
+
+
+
 @section{Scope Graph Functions}
 
 This section describes the API to the @seclink["scope-graph"]{Scope Graph} model of binding.

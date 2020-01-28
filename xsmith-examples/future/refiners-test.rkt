@@ -44,15 +44,6 @@
       #:prop wont-over-deepen #t]
  )
 
-(define int (base-type 'int))
-(add-prop
- tg
- type-info
- [Prog [(fresh-type-variable)
-        (λ (n t) (hash 'val t))]]
- [Val [int (λ (n t) (hash))]]
- )
-
 (add-prop
  tg
  render-node-info
@@ -73,9 +64,10 @@
   tg
   times-two
   #:follows evens-only
+  [#f [(λ (n) #f)]]
   [Val [(λ (n) (begin
-                 (display "will multiply by two")
-                 (make-fresh-node )))]])
+                 (eprintf (format "multiplying by two: ~a\n" (ast-child 'v n)))
+                 (make-fresh-node 'Val (hash 'v (* 2 (ast-child 'v n))))))]])
 
 (assemble-spec-components t tg)
 
