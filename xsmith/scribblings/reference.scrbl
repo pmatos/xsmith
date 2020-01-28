@@ -630,6 +630,9 @@ This is simply a hash of child names to values, just like in @racket[make-fresh-
  replace-plus-with-minus
  [PlusOp [(λ (n) (make-replacement-node 'MinusOp n))]])
 ]
+
+Note that @racket[make-replacement-node] should only be used in the bodies of refiner functions!
+If a replacement is made but the refiner fails for some other reason (i.e., it returns @racket[#f]), the replacement will be undone.
 }
 
 
