@@ -94,7 +94,6 @@
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
     (let* ([ast (cish-generate-ast 'Program)]
-           [pre-analysis-print (printf "/*\n")]
            [ast (if (xsmith-feature-enabled? 'unsafe-math/range)
                     (begin
                       (printf "Starting range analysis...\n")
@@ -104,9 +103,7 @@
                     (begin
                       (printf "Starting symbolic analysis...\n")
                       (ast-add-unsafe-math/symbolic ast))
-                    ast)]
-           [post-analysis-print (printf "*/\n")]
-           )
+                    ast)])
       ast)))
 
 (define cish-features-list
