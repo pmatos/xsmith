@@ -228,7 +228,7 @@ Adds grammar productions to @racket[spec-component].
 @racket[node-name] will be the name of the grammar production in @(racr).
 @racket[parent-name] is either the name of the parent grammar production or @racket[#f].
 
-Names for the node and fields are limited to alphabetic characters.  You may want to use camelCase style names since kebab-style or snake_style names due to this limitation.
+Names for the node and fields are limited to alphabetic characters.  You may want to use camelCase style names since kebab-style or snake_style names are invalid due to this limitation.
 
 Fields are then specified.
 Each nonterminal inherits all fields of its parent nodes.
