@@ -51,7 +51,7 @@
  [Source #f
   ([modules : ModuleDecl * = (random 1 5)])]
  [ModuleDecl #f
-  ([name])]
+  ([name = (fresh-module-name)])]
  )
 
 ;;
@@ -69,7 +69,7 @@
  [ModuleDecl
   (λ (n)
     (v-append
-     (h-append (text "module") space (text "NAME") #;(text (ast-child 'name n)) semi)
+     (h-append (text "module") space (text (ast-child 'name n)) semi)
      (text "endmodule")))]
  )
 
@@ -87,6 +87,9 @@
 
 (define (type-thunks-for-concretization)
   (list (λ () verilog-module-type)))
+
+(define (fresh-module-name)
+  (fresh-var-name "module"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
