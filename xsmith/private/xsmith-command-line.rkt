@@ -33,7 +33,14 @@
 (require
  racket/contract
  racket/contract/base
- (only-in racr ast-node?))
+ (only-in racr ast-node?)
+ racket/string
+ )
+
+(define (dash-dash-string? s)
+  (and (string? s)
+       (string-prefix? s "--")))
+
 (provide
  (contract-out
   [xsmith-command-line
@@ -44,6 +51,10 @@
          #:features (listof
                      (or/c (list/c symbol? boolean?)
                            (list/c symbol? boolean? (listof string?))))
+         #:extra-parameters (listof (list/c dash-dash-string?
+                                            string?
+                                            parameter?
+                                            (or/c procedure? #f)))
          #:default-max-depth number?
          #:format-render (-> any/c string?))
         void?)]
@@ -82,6 +93,7 @@
                                                                   lines)
                                                              "\n"))]
                              #:features [features-list '()]
+                             #:extra-parameters [extra-parameters (list)]
                              #:default-max-depth [default-max-depth 5]
                              #:format-render [format-render-func #f])
 
@@ -144,6 +156,36 @@
                        "bool")])
                   features-list)))))
 
+  (define extra-param-box-default (gensym))
+  (match-define (list (list extra-param-boxes
+                            extra-param-handlers
+                            extra-param-params)
+                      ...)
+    (map (λ (p)
+           (match p
+             [(list name docstring param normalizer)
+              (let* ([b (box extra-param-box-default)]
+                     [handler (λ (v) (set-box! b
+                                               (if normalizer
+                                                   (normalizer v)
+                                                   v)))])
+                (list b handler param))]))
+         extra-parameters))
+
+  (define extra-parameters-command-line-segment
+    (if (null? extra-parameters)
+        '()
+        `((help-labels "")
+          (help-labels "[[LANGUAGE-SPECIFIC EXTRA PARAMETERS]]")
+          (once-each
+           ,@(for/list ([param-spec extra-parameters]
+                        [handler extra-param-handlers])
+               (match param-spec
+                 [(list name docstring param normalizer)
+                  `[(,name)
+                    ,(λ (flag v) (handler v))
+                    [,docstring "arg"]]]))))))
+
   (define version-info
     (format "~a~a, in Racket ~a"
             (cond [(and fuzzer-name fuzzer-version)
@@ -205,6 +247,7 @@
        (,(format "Set maximum tree depth (default ~a)" default-max-depth)
         "number")])
      ,@features-command-line-segment
+     ,@extra-parameters-command-line-segment
 
      (help-labels "")
      (help-labels "[[INFORMATION OPTIONS]]")
@@ -224,8 +267,7 @@
    ;; unknown-proc
    )
 
-
-  (define (generate-and-print!)
+  (define (generate-and-print!/xsmith-parameterized)
     (parameterize ([current-xsmith-max-depth max-depth]
                    [current-xsmith-features features]
                    [xsmith-options options]
@@ -379,6 +421,22 @@
                    'random-seed
                    (modulo (add1 seed)
                            random-seed-max)))))
+
+  (define (generate-and-print!)
+    (define (do-parameterized param-pairs thunk)
+      (match param-pairs
+        ['() (thunk)]
+        [(list (cons param param-val) rest ...)
+         (parameterize ([param param-val])
+           (do-parameterized rest thunk))]))
+    (define param-pairs
+      (filter
+       (λ(x)x)
+       (map (λ (p b) (and (not (eq? (unbox b) extra-param-box-default))
+                          (cons p (unbox b))))
+            extra-param-params
+            extra-param-boxes)))
+    (do-parameterized param-pairs generate-and-print!/xsmith-parameterized))
 
   (if server?
       (let ([serve/servlet (dynamic-require 'web-server/servlet-env 'serve/servlet)]

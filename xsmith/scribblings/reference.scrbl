@@ -1377,6 +1377,11 @@ A wrapper for RACR's @racket[att-value] function that prints trace info using @r
 [#:fuzzer-version fuzzer-version (or/c #f string?)]
 [#:features features (listof (or/c (list/c symbol? boolean?)
                                    (list/c symbol? boolean? string?)))]
+[#:extra-parameters param-specs
+                    (listof (list/c string?
+                                    string?
+                                    parameter?
+                                    (or/c #f procedure?)))]
 [#:default-max-depth default-max-depth number?]
 [#:format-render format-func (-> any/c string?)])
 any/c]{
@@ -1401,6 +1406,11 @@ Based on options supplied, it may print a help message and terminate the program
 Each feature will be included in the command-line options as @verb{--with-<feature-name>}.
 Documentation strings will be displayed in the @verb{--help} text, one per line.
 The values of these features is available via @racket[xsmith-feature-enabled?].
+
+@racket[param-specs] is a list of specifications for extra custom command line parameters.
+Each list contains the switch string (which must begin with @racket["--"] and have no spaces), a documentation string, a parameter, and a normalization function (or @racket[#f]).
+Example:
+@racketblock[#:extra-parameters (list "--max-widgets" "The maximum number of widgets" widget-parameter string->number)]
 
 @racket[default-max-depth] is a positive (non-zero) number that limits the maximum depth of your language's generated AST.  The larger this number, the more complex the programs generated can be.
 
