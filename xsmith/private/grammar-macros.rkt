@@ -131,6 +131,8 @@
 ;; we instead use queues of thunks to be run after attribute evaluation has
 ;; concluded.
 (define (make-queue-box) (box '()))
+(define (clear-queue-box queue-box)
+  (set-box! queue-box '()))
 (define (enqueue-thunk queue-box new-thunk)
   (set-box! queue-box
             (cons new-thunk
@@ -151,6 +153,8 @@
 
 ;; These are for replacing nodes whole during refiner evaluation.
 (define refiner-replacement-transform-queue-box (make-queue-box))
+(define (clear-refiner-replacement-transform-queue)
+  (clear-queue-box refiner-replacement-transform-queue-box))
 (define (enqueue-refiner-replacement-transform transform-thunk)
   (enqueue-thunk refiner-replacement-transform-queue-box transform-thunk))
 (define (execute-refiner-replacement-transform-queue)
@@ -529,14 +533,20 @@
         [else
          (let ([new-n (refiner n)])
            (if new-n
+               ;; If a non-#f value is returned, the refinement is considered successful.
+               ;; Any enqueued interior replacements will be executed, and the new node will be added to the list of replacements.
                (begin
                  (execute-refiner-replacement-transform-queue)
                  (cons n new-n))
-               ;; `ormap` is used in place of `findf` so that the result of the
-               ;; function is returned instead of the element to which the function was
-               ;; applied. `ormap` also applies the function sequentially and stops at
-               ;; the first element which does not return #f.
-               (ormap find-and-apply (ast-children n))))]))
+               ;; If #f is returned, the refinement is considered failed.
+               ;; Enqueued interior replacements will be cleared, and the search will continue.
+               (begin
+                 (clear-refiner-replacement-transform-queue)
+                 ;; `ormap` is used in place of `findf` so that the result of the
+                 ;; function is returned instead of the element to which the function was
+                 ;; applied. `ormap` also applies the function sequentially and stops at
+                 ;; the first element which does not return #f.
+                 (ormap find-and-apply (ast-children n)))))]))
     ;; Start the refinement process at the root. If a match is found, commit the
     ;; rewrite and start the search again. Produces a list of the new nodes upon
     ;; completion.
