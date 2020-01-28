@@ -231,7 +231,7 @@ Adds grammar productions to @racket[spec-component].
 Names for the node and fields are limited to alphabetic characters.  You may want to use camelCase style names since kebab-style or snake_style names due to this limitation.
 
 Fields are then specified.
-Each nonternimal inherits all fields of its parent nodes.
+Each nonterminal inherits all fields of its parent nodes.
 A field has a name, a type, an optional kleene star, and an optional initialization expression.
 The type of each field is the name of the nonterminal that it must be or @racket[#f] for fields that may contain arbitrary Racket values.
 A field name may be the same as the type, in which case the type does not need to be specified.
@@ -1340,6 +1340,22 @@ It should consist of a list of thunks that each produce a fully concrete type wh
 The @verb{generate} function passed to @racket[xsmith-command-line] needs to parameterize this.
 }
 
+
+@section{Miscellaneous Utilities}
+
+@defproc[(fresh-int!) number?]{
+Returns a unique integer.  The state of the generator is reset for each program generated, so that generation is reproducible.
+
+Basically, use this rather than using your own unique number generator.
+}
+@defproc[(fresh-var-name [template string?]) string?]{
+Returns a name created by appending a fresh integer to the end of @racket[template].
+
+Example:
+@racketblock[
+(fresh-var-name "variable_") (code:comment "returns the string \"variable_123\", or something like it.")
+]
+}
 
 
 @section{Debug Logging}
