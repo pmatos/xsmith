@@ -1,7 +1,7 @@
 #lang scribble/base
 @; -*- mode: Scribble -*-
 @;
-@; Copyright (c) 2019 The University of Utah
+@; Copyright (c) 2019-2020 The University of Utah
 @; All rights reserved.
 @;
 @; This file is part of Xsmith, a generator of highly effective fuzz testers.
@@ -37,7 +37,7 @@ The code is available
 Utah Flux Research Group's GitLab server}.
 
 
-Xsmith is Copyright (c) 2016--2019 The University of Utah.
+Xsmith is Copyright (c) 2016--2020 The University of Utah.
 
 Xsmith is distributed under the following license, which is often called
 the ``BSD License.''
