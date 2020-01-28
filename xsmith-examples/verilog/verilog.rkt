@@ -44,12 +44,20 @@
  racket/string
  )
 
+(define max-modules
+  (make-parameter 5))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define-spec-component verilog-core)
 
+;;
+;;
+;;
 (add-to-grammar
  verilog-core
  [Source #f
-  ([modules : ModuleDecl * = (random 1 5)])]
+  ([modules : ModuleDecl * = (random 1 (max-modules))])]
  [ModuleDecl #f
   ([name = (fresh-module-name)])]
  )
@@ -126,6 +134,11 @@
    #:fuzzer-version	"0.0"
    #:comment-wrap	verilog-comment-wrap
    #:format-render	verilog-format-render
+   #:extra-parameters
+   (list (list "--max-modules"
+               "The maximum number of Verilog modules in the generated program"
+               max-modules
+               string->number))
    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
