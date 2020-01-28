@@ -1,7 +1,7 @@
 #lang scribble/manual
 @; -*- mode: Scribble -*-
 @;
-@; Copyright (c) 2019 The University of Utah
+@; Copyright (c) 2019, 2020 The University of Utah
 @; All rights reserved.
 @;
 @; This file is part of Xsmith, a generator of highly effective fuzz testers.
@@ -1410,7 +1410,7 @@ The values of these features is available via @racket[xsmith-feature-enabled?].
 @racket[param-specs] is a list of specifications for extra custom command line parameters.
 Each list contains the switch string (which must begin with @racket["--"] and have no spaces), a documentation string, a parameter, and a normalization function (or @racket[#f]).
 Example:
-@racketblock[#:extra-parameters (list "--max-widgets" "The maximum number of widgets" widget-parameter string->number)]
+@racketblock[#:extra-parameters (list (list "--max-widgets" "The maximum number of widgets" widget-parameter string->number))]
 
 @racket[default-max-depth] is a positive (non-zero) number that limits the maximum depth of your language's generated AST.  The larger this number, the more complex the programs generated can be.
 
