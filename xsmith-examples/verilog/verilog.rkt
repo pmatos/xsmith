@@ -47,6 +47,15 @@
 (define max-modules
   (make-parameter 5))
 
+(define max-module-items
+  (make-parameter 5))
+
+(define max-block-statements
+  (make-parameter 5))
+
+(define indent-spaces
+  (make-parameter 2))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-spec-component verilog-core)
@@ -56,15 +65,73 @@
 ;;
 (add-to-grammar
  verilog-core
- [Source #f
+ [Source
+  #f
   ([modules : ModuleDecl * = (random 1 (max-modules))])]
- [ModuleDecl #f
-  ([name = (fresh-module-name)])]
+ [ModuleDecl
+  #f
+  ([name = (fresh-module-name)]
+   [items : ModuleItem * = (random 1 (max-module-items))])]
+
+ [ModuleItem
+  #f
+  ()
+  #:prop may-be-generated #f]
+ [InitialConstruct
+  ModuleItem
+  ([stmt : Statement])]
+ [AlwaysConstruct
+  ModuleItem
+  ([stmt : Statement])]
+
+ [Statement
+  #f
+  ()
+  #:prop may-be-generated #f]
+ [BlockStatement
+  Statement
+  ([stmts : Statement * = (random 1 (max-block-statements))])]
+ [ArrowStatement
+  Statement
+  ([lhs = (fresh-lhs)]
+   [rhs : Expression])]
+ [EqualStatement
+  Statement
+  ([lhs = (fresh-lhs)]
+   [rhs : Expression])]
+
+ [Expression
+  #f
+  ()
+  #:prop may-be-generated #f]
+ [NumberLiteral
+  Expression
+  ([v = (random 0 10)])]
  )
 
 ;;
 ;;
 ;;
+(add-prop
+ verilog-core
+ wont-over-deepen
+ [ArrowStatement #t]
+ [EqualStatement #t]
+ )
+
+
+;;
+;;
+;;
+(define kw-always	(text "always"))
+(define kw-arrow	(text "<="))
+(define kw-begin	(text "begin"))
+(define kw-end		(text "end"))
+(define kw-endmodule	(text "endmodule"))
+(define kw-equal	(text "="))
+(define kw-initial	(text "initial"))
+(define kw-module	(text "module"))
+
 (add-prop
  verilog-core
  render-node-info
@@ -77,8 +144,45 @@
  [ModuleDecl
   (λ (n)
     (v-append
-     (h-append (text "module") space (text (ast-child 'name n)) semi)
-     (text "endmodule")))]
+     (h-append kw-module space (text (ast-child 'name n)) semi)
+     (indent 2
+             (v-concat
+              (map render-node
+                   (ast-children (ast-child 'items n)))))
+     kw-endmodule))]
+
+ [InitialConstruct
+  (λ (n)
+    (h-append kw-initial space (render-node (ast-child 'stmt n))))]
+ [AlwaysConstruct
+  (λ (n)
+    (h-append kw-always space (render-node (ast-child 'stmt n))))]
+
+ [BlockStatement
+  (λ (n)
+    (v-append
+     kw-begin
+     (indent 2
+             (v-concat
+              (map render-node
+                   (ast-children (ast-child 'stmts n)))))
+     kw-end))]
+ [ArrowStatement
+  (λ (n)
+    (h-append (text (ast-child 'lhs n))
+              space kw-arrow space
+              (render-node (ast-child 'rhs n))
+              semi))]
+ [EqualStatement
+  (λ (n)
+    (h-append (text (ast-child 'lhs n))
+              space kw-equal space
+              (render-node (ast-child 'rhs n))
+              semi))]
+
+ [NumberLiteral
+  (λ (n)
+    (text (number->string (ast-child 'v n))))]
  )
 
 ;;
@@ -86,6 +190,7 @@
 ;;
 (assemble-spec-components
  verilog
+ #:properties (wont-over-deepen)
  verilog-core)
 
 ;;
@@ -98,6 +203,9 @@
 
 (define (fresh-module-name)
   (fresh-var-name "module"))
+
+(define (fresh-lhs)
+  (fresh-var-name "v"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -135,10 +243,30 @@
    #:comment-wrap	verilog-comment-wrap
    #:format-render	verilog-format-render
    #:extra-parameters
-   (list (list "--max-modules"
-               "The maximum number of Verilog modules in the generated program"
-               max-modules
-               string->number))
+   (list
+    ;;
+    ;; Options that set code-size limits
+    ;;
+    (list "--max-modules"
+          "The maximum number of Verilog modules in the generated program"
+          max-modules
+          string->number)
+    (list "--max-module-items"
+          "The maximum number of items in a Verilog module"
+          max-module-items
+          string->number)
+    (list "--max-block-statements"
+          "The maximum number of statements within a block statement"
+          max-modules
+          string->number)
+    ;;
+    ;; Options that control pretty-printing
+    ;;
+    (list "--indent-spaces"
+          "The number of spaces per level of indentation"
+          max-modules
+          string->number)
+    )
    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
