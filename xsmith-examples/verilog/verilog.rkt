@@ -99,6 +99,22 @@
   Statement
   ([lhs = (fresh-lhs)]
    [rhs : Expression])]
+ [IfStatement
+  Statement
+  ([cond : Expression]
+   [then : MaybeStatement]
+   [else : MaybeStatement])]
+ [MaybeStatement
+  #f
+  ()
+  #:prop may-be-generated #f]
+ [JustStatement
+  MaybeStatement
+  ([stmt : Statement])]
+ [NothingStatement
+  MaybeStatement
+  ()
+  ]
 
  [Expression
   #f
@@ -126,9 +142,11 @@
 (define kw-always	(text "always"))
 (define kw-arrow	(text "<="))
 (define kw-begin	(text "begin"))
+(define kw-else		(text "else"))
 (define kw-end		(text "end"))
 (define kw-endmodule	(text "endmodule"))
 (define kw-equal	(text "="))
+(define kw-if		(text "if"))
 (define kw-initial	(text "initial"))
 (define kw-module	(text "module"))
 
@@ -145,7 +163,7 @@
   (λ (n)
     (v-append
      (h-append kw-module space (text (ast-child 'name n)) semi)
-     (indent 2
+     (indent (indent-spaces)
              (v-concat
               (map render-node
                    (ast-children (ast-child 'items n)))))
@@ -162,7 +180,7 @@
   (λ (n)
     (v-append
      kw-begin
-     (indent 2
+     (indent (indent-spaces)
              (v-concat
               (map render-node
                    (ast-children (ast-child 'stmts n)))))
@@ -179,6 +197,21 @@
               space kw-equal space
               (render-node (ast-child 'rhs n))
               semi))]
+ [IfStatement
+  (λ (n)
+    (v-append
+     (h-append kw-if space lparen
+               (render-node (ast-child 'cond n))
+               rparen)
+     (indent (indent-spaces) (render-node (ast-child 'then n)))
+     kw-else
+     (indent (indent-spaces) (render-node (ast-child 'else n)))))]
+ [JustStatement
+  (λ (n)
+    (render-node (ast-child 'stmt n)))]
+ [NothingStatement
+  (λ (n)
+    semi)]
 
  [NumberLiteral
   (λ (n)
