@@ -83,6 +83,52 @@
  [AlwaysConstruct
   ModuleItem
   ([stmt : Statement])]
+ [Declaration
+  ModuleItem
+  ([dir : MaybeDirection]
+   [net : MaybeNet]
+   [signed : MaybeSigned]
+   [name = (fresh-id)]
+   [init : MaybeConstExpression])]
+
+ ;;;;;
+
+ ;; "Maybe pattern" instances
+
+ [MaybeDirection	#f		() #:prop may-be-generated #f]
+ [JustDirection		MaybeDirection	([dir : Direction])]
+ [NothingDirection	MaybeDirection	()]
+
+ [MaybeNet		#f		() #:prop may-be-generated #f]
+ [JustNet		MaybeNet	([net : Net])]
+ [NothingNet		MaybeNet	()]
+
+ [MaybeSigned		#f		() #:prop may-be-generated #f]
+ [JustSigned		MaybeSigned	([signed : Signed])]
+ [NothingSigned		MaybeSigned	()]
+
+ [MaybeConstExpression	#f		() #:prop may-be-generated #f]
+ [JustConstExpression	MaybeConstExpression	([cexpr : ConstExpression])]
+ [NothingConstExpression	MaybeConstExpression	()]
+
+ ;;;;;
+
+ ;; "One-of-keyword pattern" instances
+
+ [Direction		#f		() #:prop may-be-generated #f]
+ [InputDirection	Direction	()]
+ [OutputDirection	Direction	()]
+ [InOutDirection	Direction	()]
+
+ [Net			#f		() #:prop may-be-generated #f]
+ [RegNet		Net		()]
+ [WireNet		Net		()]
+
+ [Signed		#f		() #:prop may-be-generated #f]
+ [UnsignedSigned	Signed		()]
+ [SignedSigned		Signed		()]
+
+ ;;;;;
 
  [Statement
   #f
@@ -104,24 +150,25 @@
   ([cond : Expression]
    [then : MaybeStatement]
    [else : MaybeStatement])]
- [MaybeStatement
-  #f
-  ()
-  #:prop may-be-generated #f]
- [JustStatement
-  MaybeStatement
-  ([stmt : Statement])]
- [NothingStatement
-  MaybeStatement
-  ()
-  ]
+
+ [MaybeStatement	#f		() #:prop may-be-generated #f]
+ [JustStatement		MaybeStatement  ([stmt : Statement])]
+ [NothingStatement 	MaybeStatement  ()]
 
  [Expression
   #f
   ()
   #:prop may-be-generated #f]
- [NumberLiteral
+ [NumberExpression
   Expression
+  ([v = (random 0 10)])]
+
+ [ConstExpression
+  #f
+  ()
+  #:prop may-be-generated #f]
+ [NumberConstExpression
+  ConstExpression
   ([v = (random 0 10)])]
  )
 
@@ -148,7 +195,14 @@
 (define kw-equal	(text "="))
 (define kw-if		(text "if"))
 (define kw-initial	(text "initial"))
+(define kw-inout	(text "inout"))
+(define kw-input	(text "input"))
 (define kw-module	(text "module"))
+(define kw-output	(text "output"))
+(define kw-reg		(text "reg"))
+(define kw-signed	(text "signed"))
+(define kw-unsigned	(text "unsigned"))
+(define kw-wire		(text "wire"))
 
 (add-prop
  verilog-core
@@ -175,6 +229,23 @@
  [AlwaysConstruct
   (λ (n)
     (h-append kw-always space (render-node (ast-child 'stmt n))))]
+ [Declaration
+  (λ (n)
+    (let* ([init-doc (render-node (ast-child 'init n))]
+           [eq-doc (if (eq? init-doc empty)
+                       empty
+                       kw-equal)])
+      (h-append
+       (hs-concat (filter
+                   (λ (d) (not (eq? d empty)))
+                   (list
+                    (render-node (ast-child 'dir n))
+                    (render-node (ast-child 'net n))
+                    (render-node (ast-child 'signed n))
+                    (text (ast-child 'name n))
+                    eq-doc
+                    init-doc)))
+       semi)))]
 
  [BlockStatement
   (λ (n)
@@ -213,9 +284,39 @@
   (λ (n)
     semi)]
 
- [NumberLiteral
+ [NumberExpression
   (λ (n)
     (text (number->string (ast-child 'v n))))]
+
+ [NumberConstExpression
+  (λ (n)
+    (text (number->string (ast-child 'v n))))]
+
+ ;; "Maybe pattern" instances
+
+ [JustDirection		(λ (n) (render-node (ast-child 'dir n)))]
+ [NothingDirection	(λ (n) empty)]
+
+ [JustNet		(λ (n) (render-node (ast-child 'net n)))]
+ [NothingNet		(λ (n) empty)]
+
+ [JustSigned		(λ (n) (render-node (ast-child 'signed n)))]
+ [NothingSigned		(λ (n) empty)]
+
+ [JustConstExpression		(λ (n) (render-node (ast-child 'cexpr n)))]
+ [NothingConstExpression	(λ (n) empty)]
+
+ ;; "One-of-keyword pattern" instances
+
+ [InputDirection	(λ (n) kw-input)]
+ [OutputDirection	(λ (n) kw-output)]
+ [InOutDirection	(λ (n) kw-inout)]
+
+ [RegNet		(λ (n) kw-reg)]
+ [WireNet		(λ (n) kw-wire)]
+
+ [UnsignedSigned	(λ (n) kw-unsigned)]
+ [SignedSigned		(λ (n) kw-signed)]
  )
 
 ;;
@@ -239,6 +340,9 @@
 
 (define (fresh-lhs)
   (fresh-var-name "v"))
+
+(define (fresh-id)
+  (fresh-var-name "id"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
