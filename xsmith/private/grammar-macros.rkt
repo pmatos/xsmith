@@ -1213,12 +1213,18 @@ Perform error checking:
                       (λ ()
                         ;; Identify the original child that we wish to copy to the new node.
                         (define original-child (ast-child field-to-be-copied original-node))
-                        ;; Replace the original child with a bud, orphaning the child.
-                        (rewrite-subtree original-child
-                                         (create-ast-bud))
-                        ;; Adopt the original child into the new node, replacing the temporary bud.
-                        (rewrite-subtree (ast-child field-to-be-copied new-node)
-                                         original-child))))
+                        ;; Determine whether the child is a node or a terminal value.
+                        (if (ast-node? original-child)
+                            ;; Nodes must be rewritten so their attributes will be updated.
+                            (begin
+                              ;; Replace the original child with a bud, orphaning the child.
+                              (rewrite-subtree original-child
+                                               (create-ast-bud))
+                              ;; Adopt the original child into the new node, replacing the temporary bud.
+                              (rewrite-subtree (ast-child field-to-be-copied new-node)
+                                               original-child))
+                            ;; Otherwise, it's a value and we can just duplicate the reference.
+                            (rewrite-terminal field-to-be-copied new-node original-child)))))
                    ;; Return the new node.)
                    new-node)
                  (define node-attr-length-hash
