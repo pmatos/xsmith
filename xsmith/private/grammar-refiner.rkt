@@ -247,7 +247,7 @@ actual definition of the refiner (the transformation function which will be
 applied to a node) is specified separately.
 |#
 (struct grammar-refiner
-  (name follows)
+  (name follows feature)
   #:property prop:procedure (λ (stx)
                               (raise-syntax-error
                                'grammar-refiner
@@ -257,7 +257,9 @@ applied to a node) is specified separately.
   [(define write-proc
      (make-constructor-style-printer
       (λ (gr) 'grammar-refiner)
-      (λ (gr) (list (grammar-refiner-name gr) (grammar-refiner-follows gr)))))])
+      (λ (gr) (list (grammar-refiner-name gr)
+                    (grammar-refiner-follows gr)
+                    (grammar-refiner-feature gr)))))])
 
 (define-syntax-class grammar-refiner-stx
   (pattern gr:id
