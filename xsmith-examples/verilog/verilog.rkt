@@ -42,19 +42,72 @@
  ; racket/class
  racket/port
  racket/string
+ ;;
+ math/distributions ; for probability distributions
  )
 
+(define min-modules
+  (make-parameter 1))
 (define max-modules
-  (make-parameter 5))
+  (make-parameter 10))
 
+(define min-module-items
+  (make-parameter 1))
 (define max-module-items
-  (make-parameter 5))
+  (make-parameter 10))
 
+(define min-block-statements
+  (make-parameter 1))
 (define max-block-statements
-  (make-parameter 5))
+  (make-parameter 10))
 
 (define indent-spaces
   (make-parameter 2))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;;
+;;
+
+(define random-module-count-dist
+  (binomial-dist (- (max-modules) (min-modules)) 0.5))
+
+(define (random-module-count)
+  (+ (min-modules)
+     (inexact->exact (floor (sample random-module-count-dist)))))
+
+;;
+;;
+;;
+
+(define random-module-item-count-dist
+  (binomial-dist (- (max-module-items) (min-module-items)) 0.5))
+
+(define (random-module-item-count)
+  (+ (min-module-items)
+     (inexact->exact (floor (sample random-module-item-count-dist)))))
+
+;;
+;;
+;;
+
+(define random-block-statement-count-dist
+  (binomial-dist (- (max-block-statements) (min-block-statements)) 0.5))
+
+(define (random-block-statement-count)
+  (+ (min-block-statements)
+     (inexact->exact (floor (sample random-block-statement-count-dist)))))
+
+;;
+;;
+;;
+
+(define random-small-const-int-dist (geometric-dist 0.05))
+
+(define (random-small-const-int min)
+  (+ min
+     (inexact->exact (floor (sample random-small-const-int-dist)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -67,11 +120,11 @@
  verilog-core
  [Source
   #f
-  ([modules : ModuleDecl * = (random 1 (max-modules))])]
+  ([modules : ModuleDecl * = (random-module-count)])]
  [ModuleDecl
   #f
   ([name = (fresh-module-name)]
-   [items : ModuleItem * = (random 1 (max-module-items))])]
+   [items : ModuleItem * = (random-module-item-count)])]
 
  [ModuleItem
   #f
@@ -136,7 +189,7 @@
   #:prop may-be-generated #f]
  [BlockStatement
   Statement
-  ([stmts : Statement * = (random 1 (max-block-statements))])]
+  ([stmts : Statement * = (random-block-statement-count)])]
  [ArrowStatement
   Statement
   ([lhs = (fresh-lhs)]
@@ -161,7 +214,7 @@
   #:prop may-be-generated #f]
  [NumberExpression
   Expression
-  ([v = (random 0 10)])]
+  ([v = (random-small-const-int 0)])]
 
  [ConstExpression
   #f
@@ -169,7 +222,7 @@
   #:prop may-be-generated #f]
  [NumberConstExpression
   ConstExpression
-  ([v = (random 0 10)])]
+  ([v = (random-small-const-int 0)])]
  )
 
 ;;
@@ -384,17 +437,29 @@
     ;;
     ;; Options that set code-size limits
     ;;
-    (list "--max-modules"
+    (list "--min-modules"
+          "The minimum number of Verilog modules in the generated program"
+          min-modules
+          string->number)
+    (list "--min-modules"
           "The maximum number of Verilog modules in the generated program"
           max-modules
+          string->number)
+    (list "--min-module-items"
+          "The minimum number of items in a Verilog module"
+          min-module-items
           string->number)
     (list "--max-module-items"
           "The maximum number of items in a Verilog module"
           max-module-items
           string->number)
+    (list "--min-block-statements"
+          "The minimum number of statements within a block statement"
+          min-block-statements
+          string->number)
     (list "--max-block-statements"
           "The maximum number of statements within a block statement"
-          max-modules
+          max-block-statements
           string->number)
     ;;
     ;; Options that control pretty-printing
