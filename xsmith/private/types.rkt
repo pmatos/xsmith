@@ -520,10 +520,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(? nominal-record-type?) (nominal-record-type #f (hash))]
     [(? nominal-record-definition-type?) (nominal-record-definition-type
                                           (nominal-record-type #f (hash)))]
-    [(structural-record-type f? known-field-dict cf lb ub)
-     (define new-fields (for/hash ([k (dict-keys known-field-dict)])
-                          (values k (fresh-type-variable))))
-     (fresh-structural-record-type new-fields)]
+    [(? structural-record-type?)
+     (fresh-structural-record-type)]
     [(? function-type?) (function-type (fresh-type-variable) (fresh-type-variable))]))
 
 (define (base-type-ranges->unified-versions sub super)
