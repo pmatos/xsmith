@@ -292,6 +292,24 @@
     (format-id n "XsmithAstHole~a" n))
 
 
+  (define (check-racr-grammar-name name-id)
+    (define (string-check s err-stx)
+      (when (or (string-contains? s "-")
+                (string-contains? s "_")
+                (string-contains? s ">")
+                (string-contains? s "<")
+                (string-contains? s ":")
+                (string-contains? s "*")
+                (string-contains? s "+"))
+        (raise-syntax-error 'add-to-grammar
+                            "Grammar names have to fit in RACR's DSL encoded as a symbol, and so can't have special characters -_<>:*+ in them."
+                            err-stx)))
+    (syntax-parse name-id
+      [x:id (string-check (symbol->string (syntax->datum #'x)) #'x)]
+      [x:str (string-check (syntax->datum #'x) #'x)]
+      [#f (void)])
+    name-id)
+
   ;;; Synthesize the symbols needed for RACR's `ast-rule` form.
   ;;; They are in the form 'NAME:PARENT->field<name-field*<name...
   ;;; identifier -> (grammar-clause -> identifier)
@@ -303,17 +321,20 @@
           (syntax->datum
            (if (attribute gc.type)
                (format-id #f "~a~a<~a"
-                          #'gc.type
+                          (check-racr-grammar-name #'gc.type)
                           (or (attribute gc.kleene-star) "")
-                          #'gc.name)
+                          (check-racr-grammar-name #'gc.name))
                (format-id #f "~a~a"
-                          #'gc.name
+                          (check-racr-grammar-name #'gc.name)
                           (or (attribute gc.kleene-star) "")))))]))
     (syntax-parse grammar-part-stx
       [gc:grammar-clause
        (define base-name
-         (format-id #f "~a:~a" #'gc.node-name (or (attribute gc.parent-name)
-                                                  (syntax->datum base-node-name-stx))))
+         (format-id #f "~a:~a"
+                    (check-racr-grammar-name #'gc.node-name)
+                    (or (check-racr-grammar-name (attribute gc.parent-name))
+                        (syntax->datum
+                         (check-racr-grammar-name base-node-name-stx)))))
        (define fields (map grammar-component->ast-rule-component-part
                            (syntax->list #'(gc.component ...))))
        (format-id #f "~a->~a"
