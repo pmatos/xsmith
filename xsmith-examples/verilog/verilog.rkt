@@ -38,7 +38,7 @@
  pprint
  ; racket/pretty
  ; racket/random
- ; racket/list
+ (except-in racket/list empty)
  ; racket/class
  racket/port
  racket/string
@@ -136,11 +136,15 @@
  [AlwaysConstruct
   ModuleItem
   ([stmt : Statement])]
- [Declaration
+ [RegDeclaration
   ModuleItem
-  ([dir : MaybeDirection]
-   [net : MaybeNet]
-   [signed : MaybeSigned]
+  (#;[signed : MaybeSigned]
+   [name = (fresh-id)]
+   [init : MaybeConstExpression])]
+ [WireDeclaration
+  ModuleItem
+  ([dir : Direction]
+   #;[signed : MaybeSigned]
    [name = (fresh-id)]
    [init : MaybeConstExpression])]
 
@@ -151,10 +155,6 @@
  [MaybeDirection	#f		() #:prop may-be-generated #f]
  [JustDirection		MaybeDirection	([dir : Direction])]
  [NothingDirection	MaybeDirection	()]
-
- [MaybeNet		#f		() #:prop may-be-generated #f]
- [JustNet		MaybeNet	([net : Net])]
- [NothingNet		MaybeNet	()]
 
  [MaybeSigned		#f		() #:prop may-be-generated #f]
  [JustSigned		MaybeSigned	([signed : Signed])]
@@ -172,10 +172,6 @@
  [InputDirection	Direction	()]
  [OutputDirection	Direction	()]
  [InOutDirection	Direction	()]
-
- [Net			#f		() #:prop may-be-generated #f]
- [RegNet		Net		()]
- [WireNet		Net		()]
 
  [Signed		#f		() #:prop may-be-generated #f]
  [UnsignedSigned	Signed		()]
@@ -257,6 +253,22 @@
 (define kw-unsigned	(text "unsigned"))
 (define kw-wire		(text "wire"))
 
+(add-att-rule
+ verilog-core
+ module-params
+ [ModuleDecl
+  (λ (n)
+    (append* (map (λ (child)
+                    (att-value 'module-params child))
+                  (ast-children (ast-child 'items n)))))]
+ [RegDeclaration
+  (λ (n) (list n))]
+ [WireDeclaration
+  (λ (n) (list n))]
+ [#f
+  (λ (n) (list))]
+ )
+
 (add-prop
  verilog-core
  render-node-info
@@ -269,7 +281,15 @@
  [ModuleDecl
   (λ (n)
     (v-append
-     (h-append kw-module space (text (ast-child 'name n)) semi)
+     (h-append kw-module space (text (ast-child 'name n))
+               lparen
+               (hs-concat
+                (apply-infix comma
+                             (map (λ (p)
+                                    (text (ast-child 'name p)))
+                                  (att-value 'module-params n))))
+               rparen
+               semi)
      (indent (indent-spaces)
              (v-concat
               (map render-node
@@ -282,7 +302,24 @@
  [AlwaysConstruct
   (λ (n)
     (h-append kw-always space (render-node (ast-child 'stmt n))))]
- [Declaration
+ [RegDeclaration
+  (λ (n)
+    (let* ([init-doc (render-node (ast-child 'init n))]
+           [eq-doc (if (eq? init-doc empty)
+                       empty
+                       kw-equal)])
+      (h-append
+       (hs-concat (filter
+                   (λ (d) (not (eq? d empty)))
+                   (list
+                    kw-output
+                    kw-reg
+                    #;(render-node (ast-child 'signed n))
+                    (text (ast-child 'name n))
+                    eq-doc
+                    init-doc)))
+       semi)))]
+ [WireDeclaration
   (λ (n)
     (let* ([init-doc (render-node (ast-child 'init n))]
            [eq-doc (if (eq? init-doc empty)
@@ -293,8 +330,8 @@
                    (λ (d) (not (eq? d empty)))
                    (list
                     (render-node (ast-child 'dir n))
-                    (render-node (ast-child 'net n))
-                    (render-node (ast-child 'signed n))
+                    kw-wire
+                    #;(render-node (ast-child 'signed n))
                     (text (ast-child 'name n))
                     eq-doc
                     init-doc)))
@@ -350,9 +387,6 @@
  [JustDirection		(λ (n) (render-node (ast-child 'dir n)))]
  [NothingDirection	(λ (n) empty)]
 
- [JustNet		(λ (n) (render-node (ast-child 'net n)))]
- [NothingNet		(λ (n) empty)]
-
  [JustSigned		(λ (n) (render-node (ast-child 'signed n)))]
  [NothingSigned		(λ (n) empty)]
 
@@ -364,9 +398,6 @@
  [InputDirection	(λ (n) kw-input)]
  [OutputDirection	(λ (n) kw-output)]
  [InOutDirection	(λ (n) kw-inout)]
-
- [RegNet		(λ (n) kw-reg)]
- [WireNet		(λ (n) kw-wire)]
 
  [UnsignedSigned	(λ (n) kw-unsigned)]
  [SignedSigned		(λ (n) kw-signed)]
