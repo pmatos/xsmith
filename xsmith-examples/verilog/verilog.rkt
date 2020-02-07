@@ -253,6 +253,9 @@
 (define kw-unsigned	(text "unsigned"))
 (define kw-wire		(text "wire"))
 
+;;
+;;
+;;
 (add-att-rule
  verilog-core
  module-params
@@ -269,6 +272,49 @@
   (λ (n) (list))]
  )
 
+;;
+;;
+;;
+(add-att-rule
+ verilog-core
+ used-regs
+ [InitialConstruct
+  (λ (n)
+    (att-value 'used-regs (ast-child 'stmt n)))]
+ [AlwaysConstruct
+  (λ (n)
+    (att-value 'used-regs (ast-child 'stmt n)))]
+ [BlockStatement
+  (λ (n)
+    (remove-duplicates
+     (append* (map (λ (child)
+                     (att-value 'used-regs child))
+                   (ast-children (ast-child 'stmts n))))))]
+ [ArrowStatement
+  (λ (n)
+    (remove-duplicates
+     (cons (ast-child 'lhs n)
+           (att-value 'used-regs (ast-child 'rhs n)))))]
+ [EqualStatement
+  (λ (n)
+    (remove-duplicates
+     (cons (ast-child 'lhs n)
+           (att-value 'used-regs (ast-child 'rhs n)))))]
+ [IfStatement
+  (λ (n)
+    (remove-duplicates
+     (append (att-value 'used-regs (ast-child 'then n))
+             (att-value 'used-regs (ast-child 'else n)))))]
+ [JustStatement
+  (λ (n)
+    (att-value 'used-regs (ast-child 'stmt n)))]
+ [#f
+  (λ (n) (list))]
+ )
+
+;;
+;;
+;;
 (add-prop
  verilog-core
  render-node-info
@@ -298,10 +344,28 @@
 
  [InitialConstruct
   (λ (n)
-    (h-append kw-initial space (render-node (ast-child 'stmt n))))]
+    (v-append
+     ;; Debugging: report what is being used.
+     (hs-append (text "// used:")
+                (hs-concat (map text (att-value 'used-regs n))))
+     ;; Declare the registers being used.
+     (v-concat (map (λ (r)
+                      (h-append kw-reg space (text r) semi))
+                    (att-value 'used-regs n)))
+     ;; Print the `always` construct itself.
+     (h-append kw-initial space (render-node (ast-child 'stmt n)))))]
  [AlwaysConstruct
   (λ (n)
-    (h-append kw-always space (render-node (ast-child 'stmt n))))]
+    (v-append
+     ;; Debugging: report what is being used.
+     (hs-append (text "// used:")
+                (hs-concat (map text (att-value 'used-regs n))))
+     ;; Declare the registers being used.
+     (v-concat (map (λ (r)
+                      (h-append kw-reg space (text r) semi))
+                    (att-value 'used-regs n)))
+     ;; Print the `always` construct itself.
+     (h-append kw-always space (render-node (ast-child 'stmt n)))))]
  [RegDeclaration
   (λ (n)
     (let* ([init-doc (render-node (ast-child 'init n))]
