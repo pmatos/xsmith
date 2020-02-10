@@ -220,13 +220,12 @@ to whatever is needed.
   (syntax-parse grammar-ref-name-stx
     [gr:grammar-refiner-stx
      (let* ([slv (syntax-local-value #'gr)]
-            [ref-name (syntax->datum (refiner-stx->att-rule-name slv))])
-       (define ret (hash-ref (hash-ref infos-hash 'refs-info)
-                             slv
-                             (hash)))
-       (define att-rules-hash (hash-ref infos-hash 'ag-info))
-       (define this-rules-hash
-         (hash-ref att-rules-hash ref-name (hash)))
+            [ref-name (syntax->datum (refiner-stx->att-rule-name slv))]
+            [ret (hash-ref (hash-ref infos-hash 'refs-info)
+                           slv
+                           (hash))]
+            [att-rules-hash (hash-ref infos-hash 'ag-info)]
+            [this-rules-hash (hash-ref att-rules-hash ref-name (hash))])
        (hash-set infos-hash 'ag-info
                  (hash-set att-rules-hash
                            ref-name
@@ -247,7 +246,7 @@ actual definition of the refiner (the transformation function which will be
 applied to a node) is specified separately.
 |#
 (struct grammar-refiner
-  (name follows)
+  (name follows pre-refine-func)
   #:property prop:procedure (λ (stx)
                               (raise-syntax-error
                                'grammar-refiner
@@ -257,7 +256,9 @@ applied to a node) is specified separately.
   [(define write-proc
      (make-constructor-style-printer
       (λ (gr) 'grammar-refiner)
-      (λ (gr) (list (grammar-refiner-name gr) (grammar-refiner-follows gr)))))])
+      (λ (gr) (list (grammar-refiner-name gr)
+                    (grammar-refiner-follows gr)
+                    (grammar-refiner-pre-refine-func gr)))))])
 
 (define-syntax-class grammar-refiner-stx
   (pattern gr:id

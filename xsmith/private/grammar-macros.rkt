@@ -493,11 +493,13 @@
   [(_ component:spec-component
       refiner-name:id
       (~optional (~seq #:follows follows:expr))
+      (~optional (~seq #:pre-refine-func pre-refine-func:expr))
       clause ...)
    #'(begin
        (define-syntax refiner-name
          (grammar-refiner 'refiner-name
-                          (~? 'follows '())))
+                          (~? 'follows '())
+                          (~? 'pre-refine-func #f)))
        (add-refiner
         component
         refiner-name
