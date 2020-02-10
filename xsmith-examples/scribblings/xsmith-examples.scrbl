@@ -1,7 +1,7 @@
 #lang scribble/manual
 @; -*- mode: Scribble -*-
 @;
-@; Copyright (c) 2019 The University of Utah
+@; Copyright (c) 2019-2020 The University of Utah
 @; All rights reserved.
 @;
 @; This file is part of Xsmith, a generator of highly effective fuzz testers.
@@ -91,6 +91,20 @@ The command-line options available in Schemely are:
 Schemely currently has no features for the @verb{--with-<feature>} flags.
 
 At the time of writing, Schemely really just supports Racket.  At some future point it should generate portable Scheme code.
+
+@section[#:tag "verilog"]{Verilog}
+
+The program generator for Verilog is called @verb{xsmith-verilog}.  It can be
+also run with the command @verb{racket -l xsmith/verilog --} (the final
+@verb{--} causes further flags to be parsed by the Verilog generator and not by
+Racket).
+
+The command-line options for the Verilog generator are:
+
+@(command-line-options-table)
+
+The Verilog generator currently has no features for the @verb{--with-<feature>}
+flags.
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

@@ -40,7 +40,7 @@
              `(let* (,@(map (λ (d)
                               `[,(string->symbol (ast-child 'name d))
                                 ,(render-node
-                                            (ast-child 'Expression d))])
+                                  (ast-child 'Expression d))])
                             (ast-children (ast-child 'definitions n))))
                 ,@(map (λ (c) (render-node c))
                        (ast-children (ast-child 'sideEs n)))

@@ -172,6 +172,18 @@
                 (list b handler param))]))
          extra-parameters))
 
+  ;; Check uniqueness of extra-param details.
+  (let ([extra-param-list (map third extra-parameters)]
+        [extra-param-names (map first extra-parameters)])
+    (when (not (equal? extra-param-list
+                       (remove-duplicates extra-param-list)))
+      (error 'xsmith-command-line
+             "extra parameters must be unique"))
+    (when (not (equal? extra-param-names
+                       (remove-duplicates extra-param-names)))
+      (error 'xsmith-command-line
+             "extra-parameter names must be unique")))
+
   (define extra-parameters-command-line-segment
     (if (null? extra-parameters)
         '()
