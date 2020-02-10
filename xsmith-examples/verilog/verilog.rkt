@@ -536,7 +536,7 @@
           "The minimum number of Verilog modules in the generated program"
           min-modules
           string->number)
-    (list "--min-modules"
+    (list "--max-modules"
           "The maximum number of Verilog modules in the generated program"
           max-modules
           string->number)
