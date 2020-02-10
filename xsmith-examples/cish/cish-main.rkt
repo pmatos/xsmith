@@ -58,53 +58,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(define ({ast-add-unsafe-math refinement-func} ast)
-  (define ops (att-value 'xsmith_find-descendants ast
-                         (λ (n) (member (ast-node-type n)
-                                        '(AdditionExpression
-                                          SubtractionExpression
-                                          MultiplicationExpression
-                                          DivisionExpression
-                                          ModulusExpression
-                                          )))))
-  (define (transformer n)
-    ;; Perform any rewrites and return #t if a rewrite was performed else #f
-    (if (member (node-type n)
-                '(AdditionExpression
-                  SubtractionExpression
-                  MultiplicationExpression
-                  DivisionExpression
-                  ModulusExpression
-                  ))
-        (let ([refined-type (refinement-func n)])
-          (and refined-type
-               (begin
-                 (rewrite-refine n refined-type)
-                 (printf "Removing a safe math op.\n")
-                 #t)))
-        #f))
-  (perform-rewrites ast 'bottom-up transformer)
-  ast)
-(define ast-add-unsafe-math/range
-  {ast-add-unsafe-math (λ (n) (att-value 'unsafe-op-if-possible/range n))})
-(define ast-add-unsafe-math/symbolic
-  {ast-add-unsafe-math (λ (n) (att-value 'unsafe-op-if-possible/symbolic n))})
-
 (define (cish-generate)
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
-    (let* ([ast (cish-generate-ast 'Program)]
-           [ast (if (xsmith-feature-enabled? 'unsafe-math/range)
-                    (begin
-                      (printf "Starting range analysis...\n")
-                      (ast-add-unsafe-math/range ast))
-                    ast)]
-           [ast (if #f #;(xsmith-feature-enabled? 'unsafe-math/symbolic)
-                    (begin
-                      (printf "Starting symbolic analysis...\n")
-                      (ast-add-unsafe-math/symbolic ast))
-                    ast)])
-      ast)))
+    (cish-generate-ast 'Program)))
 
 (define cish-features-list
   '([int #t]
@@ -126,10 +83,10 @@
     [structs #t]
     [volatile #t]
 
-    [unsafe-math/range
+    [unsafe-math/range  ;; TODO - this feature no longer correlates to anything
      #f ("Replace “safe math” operations with raw C operators"
          "where a range analysis proves they're safe.")]
-    #;[unsafe-math/symbolic
+    #;[unsafe-math/symbolic  ;; TODO - fix bugs in symbolic interpretation
      #f ("Replace “safe math” operations with raw C operators"
          "where a symbolic interpretation proves they're safe.")]
     ))

@@ -139,6 +139,15 @@
 
  )
 
+(add-att-rule cish-grammar
+              is-unsafe?
+              [#f (λ (n) #f)]
+              [UnsafeAdditionExpression (λ (n) #t)]
+              [UnsafeSubtractionExpression (λ (n) #t)]
+              [UnsafeMultiplicationExpression (λ (n) #t)]
+              [UnsafeDivisionExpression (λ (n) #t)]
+              [UnsafeModulusExpression (λ (n) #t)])
+
 (add-prop cish-grammar
           may-be-generated
           ;; abstract nodes

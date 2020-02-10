@@ -770,6 +770,89 @@
    'UnsafeModulusExpression
    division-safety-check/symbolic}])
 
+(define (safe-binary-op-swap?/range safety-pred n)
+  (define l (ast-child 'l n))
+  (define r (ast-child 'r n))
+  (define l-result (att-value 'abstract-interp/range l))
+  (define r-result (att-value 'abstract-interp/range r))
+  (if (member 'dead (list l-result r-result))
+      #f
+      (match-let ([(list (abstract-value/range l-l l-h) store-l returns-l) l-result]
+                  [(list (abstract-value/range r-l r-h) store-r returns-r) r-result])
+        (safety-pred l-l l-h r-l r-h))))
+
+(define-refiner
+  cish-rules
+  add-unsafe-math/range
+  [#f [(λ (n) #f)]]
+  [AdditionExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/range
+            {result-in-bounds/range addition-op/range INT_MIN INT_MAX}
+            n))
+    (λ (n) (make-replacement-node 'UnsafeAdditionExpression n))]]
+  [SubtractionExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/range
+            {result-in-bounds/range subtraction-op/range INT_MIN INT_MAX}
+            n))
+    (λ (n) (make-replacement-node 'UnsafeSubtractionExpression n))]]
+  [MultiplicationExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/range
+            {result-in-bounds/range multiplication-op/range INT_MIN INT_MAX}
+            n))
+    (λ (n) (make-replacement-node 'UnsafeMultiplicationExpression n))]]
+  [DivisionExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/range division-safety-check/range n))
+    (λ (n) (make-replacement-node 'UnsafeDivisionExpression n))]]
+  [ModulusExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/range division-safety-check/range n))
+    (λ (n) (make-replacement-node 'UnsafeModulusExpression n))]])
+
+(define (safe-binary-op-swap?/symbolic safety-pred n)
+  (define l (ast-child 'l n))
+  (define r (ast-child 'r n))
+  (match-define (list l-result l-asserts)
+    (att-value 'symbolic-interp l))
+  (match-define (list r-result r-asserts)
+    (att-value 'symbolic-interp r))
+  (and (member 'dead (list l-result r-result))
+       (safety-pred l-result r-result (set-union l-asserts r-asserts))))
+
+;; TODO - fix symbolic interpretation and then uncomment this refiner
+#;(define-refiner
+  cish-rules
+  add-unsafe-math/symbolic
+  [#f [(λ (n) #f)]]
+  [AdditionExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/symbolic
+            {result-in-bounds/symbolic rt:+ INT_MIN INT_MAX}
+            n))
+    (λ (n) (make-replacement-node 'UnsafeAdditionExpression n))]]
+  [SubtractionExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/symbolic
+            {result-in-bounds/symbolic rt:- INT_MIN INT_MAX}))
+    (λ (n) (make-replacement-node 'UnsafeSubtractionExpression n))]]
+  [MultiplicationExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/symbolic
+            {result-in-bounds/symbolic rt:* INT_MIN INT_MAX}))
+    (λ (n) (make-replacement-node 'UnsafeMultiplicationExpression n))]]
+  [DivisionExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/symbolic division-safety-check/symbolic n))
+    (λ (n) (make-replacement-node 'UnsafeDivisionExpression n))]]
+  [ModulusExpression
+   [(λ (n) (not (att-value 'is-unsafe? n)))
+    (λ (n) (safe-binary-op-swap?/symbolic division-safety-check/symbolic n))
+    (λ (n) (make-replacement-node 'UnsafeModulusExpression n))]])
+
+
 (define (symbolic-store-merge s1 pc1 s2 pc2)
   (define new-asserts '())
   (define new-store
