@@ -561,7 +561,7 @@
     ;;
     (list "--indent-spaces"
           "The number of spaces per level of indentation"
-          max-modules
+          indent-spaces
           string->number)
     )
    ))
