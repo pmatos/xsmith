@@ -1021,13 +1021,30 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [(list #t #f) (ripple-changes dones (list tvi-sub))]
        [(list #t #t) (ripple-changes dones (list tvi-sub tvi-sup))])]))
 
+(define (squash-helper/bounds sub super)
+  ;; Returns list of new-lowers, new-uppers, upper/lower intersection (IE the range of the squash)
+  (define sup-lowers (variable-lower-bounds super))
+  (define sub-uppers (variable-upper-bounds sub))
+
+  (define intersection
+    (set-union (list sub super)
+               (set-intersect sup-lowers sub-uppers)))
+
+  (define new-lowers
+    (set-subtract (apply set-union
+                         (map variable-lower-bounds
+                              intersection))
+                  intersection))
+  (define new-uppers
+    (set-subtract (apply set-union
+                         (map variable-upper-bounds
+                              intersection))
+                  intersection))
+  (list new-lowers new-uppers intersection))
 
 (define (squash-type-variable-innards! tvi-sub tvi-sup)
-  (define tvi-sup-lowers (variable-transitive-lower-bounds tvi-sup))
-  (define tvi-sub-uppers (variable-transitive-upper-bounds tvi-sub))
-  (define intersection
-    (set-union (list tvi-sup tvi-sub)
-               (set-intersect tvi-sup-lowers tvi-sub-uppers)))
+  (match-define (list new-lowers new-uppers intersection)
+    (squash-helper/bounds tvi-sub tvi-sup))
   (define new-handles (apply set-union
                              ;; The innard handle sets are mutable sets,
                              ;; and here I need immutable sets.
@@ -1040,16 +1057,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (define new-type
     (type-variable-innard-type tvi-sub))
 
-  (define new-lowers
-    (set-subtract (apply set-union
-                         (map type-variable-innard-lower-bounds
-                              intersection))
-                  intersection))
-  (define new-uppers
-    (set-subtract (apply set-union
-                         (map type-variable-innard-upper-bounds
-                              intersection))
-                  intersection))
   (define new-innard
     (type-variable-innard new-handles new-type #f new-lowers new-uppers))
   (for ([h new-handles])
@@ -1060,14 +1067,19 @@ TODO - when generating a record ref, I'll need to compare something like (record
     (ripple-subtype-unify-changes/type-variable '() (list new-innard))))
 
 (define (squash-structural-record-types! sub super)
-  (error 'squash-structural-record-types! "TODO - implement")
-
+  ;; `sub` must actually be a supertype of `super`, but I'm calling it `sub` because this function will only have one call site (inside `subtype-unify!`), and this keeps the same names.
+  ;; TODO - this will probably be almost identical to squash-type-variable-innards, except for the type variable handle stuff.  They can probably be combined once I get rid of the TV/TVI split.
   ;; create a new SRT with appropriate known fields, make sub, super, and their upper/lower intersect all forward to this new record
-  (match (list sub super)
-    [(list (structural-record-type fwd1 final?1 known-dict-1 lb1 ub1)
-           (structural-record-type fwd2 final?2 known-dict-2 lb2 ub2))
-     (error 'todo)])
-  )
+  (match-define (list new-lowers new-uppers intersection)
+    (squash-helper/bounds sub super))
+  (match-define (list lower-change upper-change)
+    (subtype-unify!/structural-record-type sub super))
+
+  (define new-known-field-dict (structural-record-type-known-field-dict sub))
+  (define new-final? (error 'squash-structural-record-types! "TODO - implement.  If any record in the intersection is final, the new one should be too.  But also I should check that all types in the intersection are compatible with the result.  In particular that any final records already matched the result."))
+  (define new-srt
+    (structural-record-type #f new-final? new-known-field-dict new-lowers new-uppers))
+  new-srt)
 
 (define (subtype-unify!/type-variable-innards sub super)
   #|
