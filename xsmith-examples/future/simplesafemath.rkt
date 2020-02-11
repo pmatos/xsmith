@@ -116,16 +116,22 @@
 (define-refiner
   sm
   make-math-unsafe
+  #:refiner-predicate (λ () (xsmith-feature-enabled? 'unsafe-math))
+  #:global-predicate (λ (n) (make-unsafe? n))
   [#f [(λ (n) #f)]]
-  [SafePlusOp [(λ (n) (make-unsafe? n))
-               (λ (n) (make-replacement-node 'UnsafePlusOp n))]]
-  [SafeMinusOp [(λ (n) (make-unsafe? n))
-                (λ (n) (make-replacement-node 'UnsafeMinusOp n))]]
-  [SafeTimesOp [(λ (n) (make-unsafe? n))
-                (λ (n) (make-replacement-node 'UnsafeTimesOp n))]]
-  [SafeDivideOp [(λ (n) (make-unsafe? n))
-                 (λ (n) (make-replacement-node 'UnsafeDivideOp n))]]
+  [SafePlusOp [(λ (n) (make-replacement-node 'UnsafePlusOp n))]]
+  [SafeMinusOp [(λ (n) (make-replacement-node 'UnsafeMinusOp n))]]
+  [SafeTimesOp [(λ (n) (make-replacement-node 'UnsafeTimesOp n))]]
+  [SafeDivideOp [(λ (n) (make-replacement-node 'UnsafeDivideOp n))]]
   )
+
+#;(define-refiner
+  sm
+  make-vals-even
+  #:refiner-predicate (λ () (xsmith-feature-enabled? 'even-math))
+  [#f [(λ (n) #f)]]
+  [Val [(λ (n) (odd? (ast-child 'v n)))
+        (λ (n) (make-replacement-node 'Val (hash 'v (+ 1 (ast-child 'v n)))))]])
 
 ;;;;;;;;
 
@@ -136,4 +142,6 @@
  #:fuzzer-name "safe-math-test-fuzzer"
  #:default-max-depth 5
  #:format-render (λ (s) (parameterize ([pretty-print-columns 0])
-                          (pretty-format s))))
+                          (pretty-format s)))
+ #:features '([unsafe-math #t]
+              #;[even-math #f]))
