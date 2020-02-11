@@ -518,7 +518,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 
 (struct structural-record-type
-  (canonical-forward finalized? known-field-dict conflicted-fields lower-bounds upper-bounds)
+  (canonical-forward finalized? known-field-dict lower-bounds upper-bounds)
   #:mutable
   #:transparent)
 (define (structural-record-type->canonical srt)
@@ -528,7 +528,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
       (structural-record-type->canonical fwd)
       srt))
 (define (fresh-structural-record-type [field-dict (hash)])
-  (structural-record-type #f #f field-dict '() '() '()))
+  (structural-record-type #f #f field-dict '() '()))
 
 
 ;; Generic types are given a name which is a symbol.  But it is just for printing.
@@ -901,8 +901,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
        ;; TODO -for now this is symmetric, but later should be subtypable.
        (rec inner1 inner2)]
       ;; Structural records
-      [(list (structural-record-type fwd1 f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-             (structural-record-type fwd2 f?2 known-fields-2 conflicts-2 lb-2 ub-2))
+      [(list (structural-record-type fwd1 f?1 known-fields-1 lb-1 ub-1)
+             (structural-record-type fwd2 f?2 known-fields-2 lb-2 ub-2))
        (subtype-unify!/two-type-variables/structural-record-type sub super)]
       ;; function type
       [(list (function-type arg-l ret-l)
@@ -1060,7 +1060,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
     (ripple-subtype-unify-changes/type-variable '() (list new-innard))))
 
 (define (squash-structural-record-types! sub super)
-  (error 'squash-structural-record-types! "TODO - implement"))
+  (error 'squash-structural-record-types! "TODO - implement")
+
+  ;; create a new SRT with appropriate known fields, make sub, super, and their upper/lower intersect all forward to this new record
+  (match (list sub super)
+    [(list (structural-record-type fwd1 final?1 known-dict-1 lb1 ub1)
+           (structural-record-type fwd2 final?2 known-dict-2 lb2 ub2))
+     (error 'todo)])
+  )
 
 (define (subtype-unify!/type-variable-innards sub super)
   #|
@@ -1242,8 +1249,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; TODO -for now this is symmetric, but later should be subtypable.
      (rec inner1 inner2)]
     ;; structural-record-type
-    [(list (structural-record-type fwd f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-           (structural-record-type fwd f?2 known-fields-2 conflicts-2 lb-2 ub-2))
+    [(list (structural-record-type fwd f?1 known-fields-1 lb-1 ub-1)
+           (structural-record-type fwd f?2 known-fields-2 lb-2 ub-2))
      (error 'can-subtype-unify/structural-record-type
             "TODO - implement.  Traverse bounds lattice to check that they're OK, and check that their known fields line up OK.")
      (for/and ([k (dict-keys known-fields-2)])
@@ -1406,8 +1413,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (nominal-record-definition-type inner2))
      (rec inner1 inner2)]
     ;; structural-record-type
-    [(list (structural-record-type fwd f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-           (structural-record-type fwd f?2 known-fields-2 conflicts-2 lb-2 ub-2))
+    [(list (structural-record-type fwd f?1 known-fields-1 lb-1 ub-1)
+           (structural-record-type fwd f?2 known-fields-2 lb-2 ub-2))
+     ;; All known fields that are in both must be compatible, and the union of known-fields must not conflict with any lower bounds.
+     ;; There are 2 kinds of conflicts:
+     ;; * Struct A has more fields than struct B, but struct B has a finalized lower bound that lacks the field.
+     ;; * Struct A has more fields than struct B, but struct B has a lower bound that has one of those fields as an incompatible type.
      (error 'can-unify?/structural-record-type
             "TODO - implement.  check that the known fields are compatible AND that conflicts aren't an issue.  Also check for finalized status in the case that either is missing fields.")
      (and (equal? (dict-keys known-fields-1) (dict-keys known-fields-2))
@@ -1521,14 +1532,17 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [(nominal-record-type name inners) t]
       [(nominal-record-definition-type inner)
        (nominal-record-definition-type (r inner))]
-      [(structural-record-type fwd finalized? known-fields conflicts lb ub)
+      [(structural-record-type #|forward|# #f finalized? known-fields lb ub)
        ;; TODO - if all immediate lower bounds have a conflicted name and an appropriate supertype for all of them can be found, it could be instantiated here.  For now, let's just ignore that.
-       (structural-record-type #t
+       (structural-record-type #f
+                               #t
                                (for/hash ([k (dict-keys known-fields)])
                                  (values k (r (dict-ref known-fields k))))
                                '()
                                '()
                                '())]
+      [(structural-record-type forward _ _ _ _)
+       (concretize-type (variable-canonicalize t))]
       [(function-type arg return) (function-type (r arg)
                                                  (r return))]
       [(generic-type name ctor inners vs)
@@ -1628,7 +1642,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; If a name is set then it's concrete.
      (->bool name)]
     [(nominal-record-definition-type inner) (concrete? inner)]
-    [(structural-record-type fwd finalized? fields conflicts lb ub)
+    [(structural-record-type fwd finalized? fields lb ub)
      (and finalized?
           (for/and ([k (dict-keys fields)])
             (concrete? (dict-ref fields k))))]
@@ -1743,14 +1757,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (nominal-record-definition-type inner2))
      (at-least-as-concrete inner1 inner2)]
     [(list (nominal-record-definition-type _) _) #t]
-    [(list (structural-record-type fwd1 f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-           (structural-record-type fwd2 f?2 known-fields-2 conflicts-2 lb-2 ub-2))
+    [(list (structural-record-type fwd1 f?1 known-fields-1 lb-1 ub-1)
+           (structural-record-type fwd2 f?2 known-fields-2 lb-2 ub-2))
      (error 'at-least-as-concrete/structural-record-type-case "TODO - implement.  check finalized status, fail quickly if both are finalized and fields are clearly incompatible (each record has a field that the other doesn't), recur through known-fields.")
      (for/and ([k (dict-keys known-fields-2)])
        (or (not (dict-has-key? known-fields-1 k))
            (at-least-as-concrete (dict-ref known-fields-1 k)
                                  (dict-ref known-fields-2 k))))]
-    [(list (structural-record-type _ _ _ _ _ _) _) #t]
+    [(list (structural-record-type _ _ _ _ _) _) #t]
     [(list (generic-type v-n v-ctor v-inners v-vars)
            (generic-type c-n c-ctor c-inners v-vars))
      (if (eq? v-ctor c-ctor)
@@ -1807,7 +1821,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (ormap rec inners)]
     [(or
       (type-variable _)
-      (structural-record-type _ _ _ _ _ _))
+      (structural-record-type _ _ _ _ _))
      (not (set-empty?
            (set-intersect (type->type-variable-list t)
                           vs)))]))
@@ -1850,7 +1864,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (work vars (append (dict-values inners) todos) dones)]
            [(nominal-record-definition-type inner)
             (work vars (cons inner todos) dones)]
-           [(structural-record-type cf f?1 known-fields-1 conflicts-1 lb-1 ub-1)
+           [(structural-record-type cf f?1 known-fields-1 lb-1 ub-1)
             (work (cons t vars) (append (dict-values known-fields-1) todos) dones)]
            [(generic-type name constructor inners variances)
             (work vars (append inners todos) dones)]
@@ -2106,6 +2120,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   ;; tests for structural records
   ;; TODO - rewrite these tests with a new, appropriate constructor
   (let ()
+    (eprintf "at start of structural record tests\n")
     (check-false (can-unify? (fresh-structural-record-type (hash 'x dog))
                              (fresh-structural-record-type (hash 'x dog 'y dog))))
     (check-false (can-subtype-unify? (fresh-structural-record-type (hash 'x dog))
