@@ -514,7 +514,7 @@
 ;; Implements the <spec-name>-generate-ast function.
 (define ((ast-generator-generator fresh-node-func
                                   refiner-names
-                                  refiner-predicate-func-stxs)
+                                  refiner-predicate-funcs)
          node-name)
   ;; Generate a fresh root based on the input node type.
   (define root (fresh-node-func node-name))
@@ -590,7 +590,7 @@
   ;; will be run. Note that each refiner will be applied to the tree repeatedly
   ;; until it returns #f for every node, at which point the next refiner will be
   ;; applied.
-  (for ([ref-pred (map eval refiner-predicate-func-stxs)]
+  (for ([ref-pred refiner-predicate-funcs]
         [ref-func refiner-funcs])
     (when (ref-pred)
       (perform-refiner-rewrites root ref-func)))
@@ -1412,12 +1412,12 @@ Perform error checking:
                  ;; Define an ast-generator with a hygiene-bending name
                  (define refiner-names
                    (map syntax->datum (syntax->list #'(ref-name ...))))
-                 (define refiner-predicate-func-stxs
-                   (syntax->list #'(ref-pred-func ...)))
+                 (define refiner-predicate-funcs
+                   (list ref-pred-func ...))
                  (define generate-ast-func (ast-generator-generator
                                             fresh-node-func
                                             refiner-names
-                                            refiner-predicate-func-stxs))
+                                            refiner-predicate-funcs))
                  ))])]))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
