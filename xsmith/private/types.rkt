@@ -203,22 +203,52 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
         (set-type-variable-tvi! tv (innard->forward-resolve tvi))])]
     [else (void)]))
 
-(define ((type-variable-innard-DIR-bounds! dir set-dir!) innard)
+
+(define (variable? t)
+  ;; TODO - I should have a predicate for whether something is one of these types and a separate predicate for whether they are still variable or are finalized.
+  (or (type-variable? v)
+      (type-variable-innard? v)
+      (structural-record-type? v)
+      (product-type? v)))
+
+(define ((variable-DIR-bounds! get-dir set-dir!) innard)
   ;; This version updates forwarded bounds.
-  (define ret1 (dir innard))
-  (define ret2 (map innard->forward-resolve ret1))
+  (define ret1 (get-dir innard))
+  (define ret2 (map variable-canonicalize ret1))
   (define ret3 (remove-duplicates ret2))
   (set-dir! innard ret3)
   ret3)
-(define type-variable-innard-lower-bounds!
-  (type-variable-innard-DIR-bounds! type-variable-innard-lower-bounds
-                                    set-type-variable-innard-lower-bounds!))
-(define type-variable-innard-upper-bounds!
-  (type-variable-innard-DIR-bounds! type-variable-innard-upper-bounds
-                                    set-type-variable-innard-upper-bounds!))
+(define (variable-lower-bounds! v)
+  (cond
+    [(type-variable? v) (variable-lower-bounds (type-variable-innard v))]
+    [(type-variable-innard? v)
+     ((variable-DIR-bounds! type-variable-innard-lower-bounds
+                            set-type-variable-innard-lower-bounds!)
+      v)]
+    [(product-type? v)
+     ;; TODO - product-type is currently not treated like the others
+     (product-type-lower-bounds v)]
+    [(structural-record-type? v)
+     ((variable-DIR-bounds! product-type-lower-bounds
+                            set-product-type-lower-bounds!)
+      v)]
+    [else (error 'variable-lower-bounds! "received non-variable value: ~v" v)]))
+(define (variable-upper-bounds! v)
+  (cond
+    [(type-variable? v) (variable-upper-bounds (type-variable-innard v))]
+    [(type-variable-innard? v)
+     ((variable-DIR-bounds! type-variable-innard-upper-bounds
+                            set-type-variable-innard-upper-bounds!)
+      v)]
+    ;; TODO - product-type is currently not treated like the others
+    [(product-type? v) (product-type-upper-bounds v)]
+    [(structural-record-type? v)
+     ((variable-DIR-bounds! product-type-upper-bounds
+                            set-product-type-upper-bounds!)
+      v)]
+    [else (error 'variable-upper-bounds! "received non-variable value: ~v" v)]))
 
-
-(define ((type-variable-innard->transitive-DIR-bounds dir) tvi)
+(define ((variable->transitive-DIR-bounds dir) tvi)
   (define immediates (dir tvi))
   (let loop ([transitive-members immediates]
              [work-list immediates])
@@ -230,11 +260,42 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
            (define new-work-list (append new-ones (cdr work-list)))
            (loop new-transitive-members
                  new-work-list)])))
-(define type-variable-innard->transitive-lower-bounds
-  (type-variable-innard->transitive-DIR-bounds type-variable-innard-lower-bounds))
-(define type-variable-innard->transitive-upper-bounds
-  (type-variable-innard->transitive-DIR-bounds type-variable-innard-upper-bounds))
 
+(define (variable-transitive-lower-bounds v)
+  (cond
+    [(type-variable? v) (variable-transitive-lower-bounds (type-variable-innard v))]
+    [(type-variable-innard? v)
+     ((variable->transitive-DIR-bounds type-variable-innard-lower-bounds) v)]
+    [(product-type? v)
+     ((variable->transitive-DIR-bounds product-type-lower-bounds) v)]
+    [(structural-record-type? v)
+     ((variable->transitive-DIR-bounds structural-record-type-lower-bounds) v)]
+    [else (error 'variable-transitive-lower-bounds
+                 "received non-variable value: ~v" v)]))
+(define (variable-transitive-upper-bounds v)
+  (cond
+    [(type-variable? v) (variable-transitive-upper-bounds (type-variable-innard v))]
+    [(type-variable-innard? v)
+     ((variable->transitive-DIR-bounds type-variable-innard-upper-bounds) v)]
+    [(product-type? v)
+     ((variable->transitive-DIR-bounds product-type-upper-bounds) v)]
+    [(structural-record-type? v)
+     ((variable->transitive-DIR-bounds structural-record-type-upper-bounds) v)]
+    [else (error 'variable-transitive-upper-bounds
+                 "received non-variable value: ~v" v)]))
+
+(define (variable-canonicalize v)
+  (cond
+    [(type-variable? v) (type-variable->canonical-type-variable v)]
+    [(type-variable-innard? v) (innard->forward-resolve v)]
+    [(structural-record-type? v) (structural-record-type->canonical v)]
+    [(product-type? v) v]
+    [else (error 'variable-canonicalize "received non-variable value: ~v" v)]))
+
+(define (canonicalize-if-variable t)
+  (if (variable? t)
+      (variable-canonicalize t)
+      t))
 
 (define type-variable-subtype-default
   (make-parameter #t))
@@ -446,6 +507,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (canonical-forward finalized? known-field-dict conflicted-fields lower-bounds upper-bounds)
   #:mutable
   #:transparent)
+(define (structural-record-type->canonical srt)
+  (define fwd
+    (structural-record-type-canonical-forward srt))
+  (if fwd
+      (structural-record-type->canonical fwd)
+      srt))
 (define (fresh-structural-record-type [field-dict (hash)])
   (structural-record-type #f field-dict '() '() '()))
 
@@ -606,77 +673,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
       ;; type variable x2
       [(list (type-variable tvi-sub)
              (type-variable tvi-sup))
-
-       ;; TODO - check that one is not recursively contained in the structure of the other.
-
-       ;; Type variables may have any number of base-type-ranges as possibilities.
-       ;; When subtype-unifying, each base-type-range pair is tried for unification.
-       ;; All successes then replace the old base-type-ranges.
-       ;; (Except the new ranges are tested against each other -- any range that fits entirely within another is eliminated.)
-
-       (define tvi-sub-uppers (type-variable-innard->transitive-upper-bounds tvi-sub))
-       (define tvi-sub-lowers (type-variable-innard->transitive-lower-bounds tvi-sub))
-       (define already-done?
-         (or (eq? tvi-sub tvi-sup)
-             (member tvi-sup tvi-sub-uppers)))
-       (define squash-case?
-         ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
-         (member tvi-sup tvi-sub-lowers))
-
-       (cond
-         [already-done? (void)]
-         [squash-case?
-          (define tvi-sup-lowers (type-variable-innard->transitive-lower-bounds tvi-sup))
-          (define intersection
-            (set-union (list tvi-sup tvi-sub)
-                       (set-intersect tvi-sup-lowers tvi-sub-uppers)))
-          (define new-handles (apply set-union
-                                     ;; The innard handle sets are mutable sets,
-                                     ;; and here I need immutable sets.
-                                     (map (λ (x) (set->list
-                                                  (type-variable-innard-handle-set x)))
-                                          intersection)))
-          (match-define (list lower-change upper-change)
-            (subtype-unify!/type-variable-innards tvi-sub tvi-sup))
-
-          (define new-type
-            (type-variable-innard-type tvi-sub))
-
-          (define new-lowers
-            (set-subtract (apply set-union
-                                 (map type-variable-innard-lower-bounds
-                                      intersection))
-                          intersection))
-          (define new-uppers
-            (set-subtract (apply set-union
-                                 (map type-variable-innard-upper-bounds
-                                      intersection))
-                          intersection))
-          (define new-innard
-            (type-variable-innard new-handles new-type #f new-lowers new-uppers))
-          (for ([h new-handles])
-            (set-type-variable-tvi! h new-innard))
-          (for ([i intersection])
-            (set-type-variable-innard-forward! i new-innard))
-          (when (or lower-change upper-change)
-            (ripple-subtype-unify-changes '() (list new-innard)))]
-         [else
-          (set-type-variable-innard-upper-bounds!
-           tvi-sub
-           (cons tvi-sup (type-variable-innard-upper-bounds tvi-sub)))
-          (set-type-variable-innard-lower-bounds!
-           tvi-sup
-           (cons tvi-sub (type-variable-innard-lower-bounds tvi-sup)))
-
-          (define dones (list (cons tvi-sub tvi-sup)))
-          (match (subtype-unify!/type-variable-innards tvi-sub tvi-sup)
-            [(list #f #f) (void)]
-            [(list #f #t) (ripple-subtype-unify-changes dones
-                                                        (list tvi-sup))]
-            [(list #t #f) (ripple-subtype-unify-changes dones
-                                                        (list tvi-sub))]
-            [(list #t #t) (ripple-subtype-unify-changes dones
-                                                        (list tvi-sub tvi-sup))])])]
+       (subtype-unify!/two-type-variables/type-variable-innard tvi-sub tvi-sup)]
       ;; type variable left
       [(list (type-variable tvi-sub)
              _)
@@ -730,7 +727,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 (rec (car (type-variable-innard-type tvi-sub)) super ul? #t)])])
 
        (when (not (equal? t (type-variable-innard-type tvi-sub)))
-         (ripple-subtype-unify-changes '() (list tvi-sub)))]
+         (ripple-subtype-unify-changes/type-variable '() (list tvi-sub)))]
 
       ;; type variable right -- this code is basically the same as the above... maybe it could be unified better...
       [(list _
@@ -786,7 +783,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 (rec sub (car (type-variable-innard-type tvi-sup)) ul? #t)])])
 
        (when (not (equal? t (type-variable-innard-type tvi-sup)))
-         (ripple-subtype-unify-changes '() (list tvi-sup)))]
+         (ripple-subtype-unify-changes/type-variable '() (list tvi-sup)))]
 
 
       ;; product type
@@ -892,8 +889,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
       ;; Structural records
       [(list (structural-record-type f?1 known-fields-1 conflicts-1 lb-1 ub-1)
              (structural-record-type f?2 known-fields-2 conflicts-2 lb-2 ub-2))
-       (TODO "add to each others bounds lists, traverse sub/super lattice propagating updates to known and conflicted fields")
-       ]
+       (subtype-unify!/two-type-variables/structural-record-type tvi-sub tvi-sup)]
       ;; function type
       [(list (function-type arg-l ret-l)
              (function-type arg-r ret-r))
@@ -927,7 +923,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                 sub super))]
       [else (error 'subtype-unify! "case analysis reached end: can't unify types: ~v and ~v" sub super)])))
 
-(define (ripple-subtype-unify-changes done-pair-list innard-work-list)
+(define (mk-ripple-subtype-unify-changes subtype-unify!-func)
   (define (done-pair-list-remove-with done-list target)
     ;; filter the done list to elements that don't include the target
     ;; TODO - this could be really slow since it will be done frequently.  If so, I should change the representation to be a pair of hash tables, maybe?
@@ -935,49 +931,145 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (λ (pair) (and (not (equal? (car pair) target))
                     (not (equal? (cdr pair) target))))
      done-list))
-  (if (null? innard-work-list)
-      (void)
-      (let ([innard (innard->forward-resolve (car innard-work-list))]
-            [innard-work-list (cdr innard-work-list)])
-        (define (fold-body dones work lower upper)
-          (cond
-            [(member (cons lower upper) dones) (values dones work)]
-            [else
-             (match-define (list subchange superchange)
-               (subtype-unify!/type-variable-innards lower upper))
-             (define new-dones1 (if subchange
-                                    (done-pair-list-remove-with dones lower)
-                                    dones))
-             (define new-dones2 (if superchange
-                                    (done-pair-list-remove-with new-dones1 upper)
-                                    new-dones1))
-             (define new-dones3 (cons (cons lower upper) new-dones2))
-             (define new-work1 (if subchange
-                                   (set-add work lower)
-                                   work))
-             (define new-work2 (if superchange
-                                   (set-add new-work1 upper)
-                                   new-work1))
-             (values new-dones3
-                     new-work2)]))
-        (define-values (dones1 work1)
-          (for/fold ([dones done-pair-list]
-                     [work innard-work-list])
-                    ([lower (type-variable-innard-lower-bounds! innard)])
-            (fold-body dones work lower innard)))
-        (define-values (dones2 work2)
-          (for/fold ([dones dones1]
-                     [work work1])
-                    ([upper (type-variable-innard-upper-bounds! innard)])
-            (fold-body dones work innard upper)))
-        (ripple-subtype-unify-changes dones2 work2))))
+  (define (ripple-subtype-unify-changes done-pair-list work-list)
+    (if (null? work-list)
+        (void)
+        (let ([innard (variable-canonicalize (car work-list))]
+              [work-list (cdr work-list)])
+          (define (fold-body dones work lower upper)
+            (cond
+              [(member (cons lower upper) dones) (values dones work)]
+              [else
+               (match-define (list subchange superchange)
+                 (subtype-unify!-func lower upper))
+               (define new-dones1 (if subchange
+                                      (done-pair-list-remove-with dones lower)
+                                      dones))
+               (define new-dones2 (if superchange
+                                      (done-pair-list-remove-with new-dones1 upper)
+                                      new-dones1))
+               (define new-dones3 (cons (cons lower upper) new-dones2))
+               (define new-work1 (if subchange
+                                     (set-add work lower)
+                                     work))
+               (define new-work2 (if superchange
+                                     (set-add new-work1 upper)
+                                     new-work1))
+               (values new-dones3
+                       new-work2)]))
+          (define-values (dones1 work1)
+            (for/fold ([dones done-pair-list]
+                       [work work-list])
+                      ([lower (variable-lower-bounds! innard)])
+              (fold-body dones work lower innard)))
+          (define-values (dones2 work2)
+            (for/fold ([dones dones1]
+                       [work work1])
+                      ([upper (variable-upper-bounds! innard)])
+              (fold-body dones work innard upper)))
+          (ripple-subtype-unify-changes dones2 work2)))))
+(define ripple-subtype-unify-changes/type-variable
+  (mk-ripple-subtype-unify-changes subtype-unify!/type-variable-innards))
+(define ripple-subtype-unify-changes/structural-record-type
+  (mk-ripple-subtype-unify-changes subtype-unify!/structural-record-types))
+
+(define ((mk-subtype-unify!/two-type-variables
+          set-lowers!
+          set-uppers!
+          squash!
+          subtype-unify!-func
+          ripple-changes)
+         sub super)
+   ;; TODO - check that one is not recursively contained in the structure of the other.
+   (define tvi-sub-uppers (variable-transitive-upper-bounds tvi-sub))
+   (define tvi-sub-lowers (variable-transitive-lower-bounds tvi-sub))
+   (define already-done?
+     (or (eq? tvi-sub tvi-sup)
+         (member tvi-sup tvi-sub-uppers)))
+   (define squash-case?
+     ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
+     (member tvi-sup tvi-sub-lowers))
+
+   (cond
+     [already-done? (void)]
+     [squash-case? (squash! tvi-sub tvi-sup)]
+     [else
+      (set-uppers!
+       tvi-sub
+       (cons tvi-sup (variable-upper-bounds! tvi-sub)))
+      (set-lowers!
+       tvi-sup
+       (cons tvi-sub (variable-lower-bounds! tvi-sup)))
+
+      (define dones (list (cons tvi-sub tvi-sup)))
+      (match (subtype-unify!-func tvi-sub tvi-sup)
+        [(list #f #f) (void)]
+        [(list #f #t) (ripple-changes dones (list tvi-sup))]
+        [(list #t #f) (ripple-changes dones (list tvi-sub))]
+        [(list #t #t) (ripple-changes dones (list tvi-sub tvi-sup))])]))
+
+(define subtype-unify!/two-type-variables/type-variable-innard
+  (mk-subtype-unify!/two-type-variables
+   set-type-variable-innard-lower-bounds!
+   set-type-variable-innard-upper-bounds!
+   ripple-subtype-unify-changes/type-variable))
+(define subtype-unify!/two-type-variables/structural-record-type
+  (mk-subtype-unify!/two-type-variables
+   set-structural-record-type-lower-bounds!
+   set-structural-record-type-upper-bounds!
+   ripple-subtype-unify-changes/structural-record-type))
+
+(define (squash-type-variable-innards! tvi-sub tvi-sup)
+  (define tvi-sup-lowers (type-variable-innard->transitive-lower-bounds tvi-sup))
+  (define tvi-sub-uppers (type-variable-innard->transitive-upper-bounds tvi-sub))
+  (define intersection
+    (set-union (list tvi-sup tvi-sub)
+               (set-intersect tvi-sup-lowers tvi-sub-uppers)))
+  (define new-handles (apply set-union
+                             ;; The innard handle sets are mutable sets,
+                             ;; and here I need immutable sets.
+                             (map (λ (x) (set->list
+                                          (type-variable-innard-handle-set x)))
+                                  intersection)))
+  (match-define (list lower-change upper-change)
+    (subtype-unify!/type-variable-innards tvi-sub tvi-sup))
+
+  (define new-type
+    (type-variable-innard-type tvi-sub))
+
+  (define new-lowers
+    (set-subtract (apply set-union
+                         (map type-variable-innard-lower-bounds
+                              intersection))
+                  intersection))
+  (define new-uppers
+    (set-subtract (apply set-union
+                         (map type-variable-innard-upper-bounds
+                              intersection))
+                  intersection))
+  (define new-innard
+    (type-variable-innard new-handles new-type #f new-lowers new-uppers))
+  (for ([h new-handles])
+    (set-type-variable-tvi! h new-innard))
+  (for ([i intersection])
+    (set-type-variable-innard-forward! i new-innard))
+  (when (or lower-change upper-change)
+    (ripple-subtype-unify-changes/type-variable '() (list new-innard))))
+
+(define (squash-structural-record-types! sub super)
+  (error 'squash-structural-record-types! "TODO - implement"))
 
 (define (subtype-unify!/type-variable-innards sub super)
   #|
   This is a helper function that takes only type-variable-innards, and only updates their type lists.  IE it does not add them to each others' upper/lower bounds lists.
   It returns a list of two bools.  The first one is true iff the sub list was modified, the second one is true iff the super list was modified.
   |#
-  ;; TODO - get rid of the list-or-single-type representation of type variable innards
+
+  ;; Type variables may have any number of base-type-ranges as possibilities.
+  ;; When subtype-unifying, each base-type-range pair is tried for unification.
+  ;; All successes then replace the old base-type-ranges.
+  ;; (Except the new ranges are tested against each other -- any range that fits entirely within another is eliminated.)
+
   (match (list (flatten (list (type-variable-innard-type sub)))
                (flatten (list (type-variable-innard-type super))))
     [(list (list #f) (list #f)) (list #f #f)]
@@ -1059,6 +1151,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (list (not (set=? subtypes all-sub))
            (not (set=? supertypes all-super)))]))
 
+(define (subtype-unify!/structural-record-types sub super)
+  #|
+  This helper function updates the actual type fields of structural records, NOT upper/lower bounds.
+  It returns a list of two bools.  The first one is true iff sub was modified, the second one is true iff super was modified.
+  |#
+  (error 'subtype-unify!/structural-record-types "TODO - implement"))
+
 (define (can-subtype-unify?
          sub super
          ;; These keyword arguments are to allow nominal-record-types to unify
@@ -1123,7 +1222,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; structural-record-type
     [(list (structural-record-type f?1 known-fields-1 conflicts-1 lb-1 ub-1)
            (structural-record-type f?2 known-fields-2 conflicts-2 lb-2 ub-2))
-     (TODO "Traverse bounds lattice to check that they're OK, and check that their known fields line up OK.")
+     (error 'can-subtype-unify/structural-record-type
+            "TODO - implement.  Traverse bounds lattice to check that they're OK, and check that their known fields line up OK.")
      (for/and ([k (dict-keys fields-super)])
        (and (dict-has-key? known-fields-1 k)
             (rec (dict-ref known-fields-1 k) (dict-ref known-fields-2 k))))]
@@ -1286,7 +1386,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; structural-record-type
     [(list (structural-record-type f?1 known-fields-1 conflicts-1 lb-1 ub-1)
            (structural-record-type f?2 known-fields-2 conflicts-2 lb-2 ub-2))
-     (TODO "check that the known fields are compatible AND that conflicts aren't an issue.  Also check for finalized status in the case that either is missing fields.")
+     (error 'can-unify?/structural-record-type
+            "TODO - implement.  check that the known fields are compatible AND that conflicts aren't an issue.  Also check for finalized status in the case that either is missing fields.")
      (and (equal? (dict-keys fields1) (dict-keys fields2))
           (for/and ([k (dict-keys fields1)])
             (rec (dict-ref fields1 k) (dict-ref fields2 k))))]
@@ -1679,13 +1780,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(nominal-record-type name inners)
      (ormap rec (dict-values inners))]
     [(nominal-record-definition-type inner) (rec inner)]
-    [(structural-record-type cf f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-     (TODO "use the canonical form, check if the type itself is in the list if it's not finalized, then recur through fields.")
-     (for/or ([k (dict-keys fields)])
-       (rec (dict-ref fields k)))]
     [(generic-type name constructor inners variances)
      (ormap rec inners)]
-    [(type-variable t-innard)
+    [(or
+      (type-variable t-innard)
+      (structural-record-type cf f? known-fields conflicts lb ub))
      (not (set-empty?
            (set-intersect (type->type-variable-list t)
                           vs)))]))
@@ -1693,8 +1792,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
 ;;; Returns a list of every type variable contained in a type or related as an upper/lower bound.
 (define (type->type-variable-list orig-type)
   (define orig-type-normalized
-    (if (type-variable? orig-type)
-        (type-variable->canonical-type-variable orig-type)
+    (if (variable? orig-type)
+        (variable-canonicalize orig-type)
         orig-type))
   (define (work vars init-todos init-dones)
     (cond
@@ -1702,10 +1801,15 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [(member (car init-todos) init-dones)
        (work vars (cdr init-todos) init-dones)]
       [else
-       (let ([t (type-variable->canonical-type-variable
-                 (car init-todos))]
-             [todos (cdr init-todos)]
-             [dones (cons (car init-todos) init-dones)])
+       (let* ([t (canonicalize-if-variable (car init-todos))]
+              [bounds (if (variable? t)
+                          (map variable-canonicalize
+                               (append (variable-lower-bounds! t)
+                                       (variable-upper-bounds! t)))
+                          (list))]
+              [dones (cons (car init-todos) init-dones)]
+              [todo-bounds (set-subtract bounds dones)]
+              [todos (append todo-bounds (cdr init-todos))])
          (match t
            [(base-type _ _) (work vars todos dones)]
            [(base-type-range _ _) (work vars todos dones)]
@@ -1724,16 +1828,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
            [(nominal-record-definition-type inner)
             (work vars (cons inner todos) dones)]
            [(structural-record-type cf f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-            (TODO "add itself (its canonical instance) if not finalized, and add field values to work list")
-            (work vars (append (dict-values fields)) dones)]
+            (work (cons t vars) (append (dict-values fields) todos) dones)]
            [(generic-type name constructor inners variances)
             (work vars (append inners todos) dones)]
            [(type-variable innard)
-            (define bounds
-              (map type-variable->canonical-type-variable
-                   (append (type-variable-innard-upper-bounds innard)
-                           (type-variable-innard-lower-bounds innard))))
-            (define not-done-vars (set-subtract bounds dones))
             (match innard
               [(type-variable-innard _ _ (and forwarded (? (λ(x)x))) _ _)
                (work vars (cons forwarded todos) dones)]
@@ -1742,16 +1840,16 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                            (list)
                                            (list single-it)))
                (work (cons t vars)
-                     (append not-done-inners not-done-vars todos)
+                     (append not-done-inners todos)
                      dones)]
               [(type-variable-innard _ (list its ...) _ _ _)
                (define not-done-inners (set-subtract its dones))
                (work (cons t vars)
-                     (append not-done-inners not-done-vars todos)
+                     (append not-done-inners todos)
                      dones)]
               [(type-variable-innard _ #f _ _ _)
                (work (cons t vars)
-                     (append not-done-vars todos)
+                     todos
                      dones)])]))]))
   (work '() (list orig-type-normalized) '()))
 
