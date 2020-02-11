@@ -512,7 +512,10 @@
 ;;; Functions implementing the RACR attributes that xsmith defines by default.
 
 ;; Implements the <spec-name>-generate-ast function.
-(define ((ast-generator-generator fresh-node-func refiner-names) node-name)
+(define ((ast-generator-generator fresh-node-func
+                                  refiner-names
+                                  refiner-predicate-func-stxs)
+         node-name)
   ;; Generate a fresh root based on the input node type.
   (define root (fresh-node-func node-name))
   ;; Starting at the root, replace holes with valid nodes. If an error is
@@ -582,11 +585,15 @@
            (rewrite-subtree old-n new-n)
            (cons new-n (loop)))]
         [#f (list)])))
-  ;; Apply the refiner rewrites in order. Note that each refiner will be applied
-  ;; to the tree repeatedly until it returns #f for every node, at which point
-  ;; the next refiner will be applied.
-  (for ([f refiner-funcs])
-    (perform-refiner-rewrites root f))
+  ;; Attempt to apply the refiner rewrites in order by first checking their
+  ;; refiner-predicates. If a predicate returns #t, its corresponding refiner
+  ;; will be run. Note that each refiner will be applied to the tree repeatedly
+  ;; until it returns #f for every node, at which point the next refiner will be
+  ;; applied.
+  (for ([ref-pred (map eval refiner-predicate-func-stxs)]
+        [ref-func refiner-funcs])
+    (when (ref-pred)
+      (perform-refiner-rewrites root ref-func)))
   ;; Return the root of the AST.
   root)
 
@@ -999,6 +1006,7 @@ Perform error checking:
        (grammar-refiner-transform (hash-ref r-canonical-ids r-struct r-struct)
                                   ih)))
    (define ref-att-rule-names (map refiner-stx->att-rule-name r-structs))
+   (define ref-pred-funcs (map refiner-stx->ref-pred-func r-structs))
 
    ;; TODO - Check duplicates again? Perform other checks?
 
@@ -1019,13 +1027,15 @@ Perform error checking:
                           (dict-ref infos-hash 'ag-info))]
       [(n-cm-clause ...) (rule-hash->clause-list
                           (dict-ref infos-hash 'cm-info))]
-      [(r-name ...) ref-att-rule-names])
+      [(r-name ...) ref-att-rule-names]
+      [(rp-func ...) ref-pred-funcs])
      #'(assemble_stage4
         spec
         (n-g-part ...)
         (n-ag-clause ...)
         (n-cm-clause ...)
-        (r-name ...)))])
+        (r-name ...)
+        (rp-func ...)))])
 
 (define-syntax-parser assemble_stage4
   ;; Sort the grammar clauses.
@@ -1036,7 +1046,8 @@ Perform error checking:
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
       (cm-clause:prop-clause ...)
-      (r-name ...))
+      (r-name ...)
+      (rp-func ...))
    (define all-g-part-hash (grammar-clauses-stx->clause-hash #'(g-part ...)))
    (define (grammar-part-n-parents gp)
      (length (grammar-clause->parent-chain gp all-g-part-hash)))
@@ -1050,7 +1061,8 @@ Perform error checking:
         (g-part-sorted ...)
         (ag-clause ...)
         (cm-clause ...)
-        (r-name ...)))])
+        (r-name ...)
+        (rp-func ...)))])
 
 (define-syntax-parser assemble_stage5
   ;; Assemble everything!
@@ -1060,7 +1072,8 @@ Perform error checking:
       (g-part:grammar-clause ...)
       (ag-clause:prop-clause ...)
       (cm-clause:prop-clause ...)
-      (ref-name ...))
+      (ref-name ...)
+      (ref-pred-func ...))
    (define (node->choice node-name-stx)
      (format-id #'here "~aChoice%" node-name-stx))
 
@@ -1399,7 +1412,12 @@ Perform error checking:
                  ;; Define an ast-generator with a hygiene-bending name
                  (define refiner-names
                    (map syntax->datum (syntax->list #'(ref-name ...))))
-                 (define generate-ast-func (ast-generator-generator fresh-node-func refiner-names))
+                 (define refiner-predicate-func-stxs
+                   (syntax->list #'(ref-pred-func ...)))
+                 (define generate-ast-func (ast-generator-generator
+                                            fresh-node-func
+                                            refiner-names
+                                            refiner-predicate-func-stxs))
                  ))])]))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
