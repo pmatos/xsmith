@@ -493,13 +493,15 @@
   [(_ component:spec-component
       refiner-name:id
       (~optional (~seq #:follows follows:expr))
-      (~optional (~seq #:pre-refine-func pre-refine-func:expr))
+      (~optional (~seq #:refiner-predicate ref-pred:expr))
+      (~optional (~seq #:global-predicate global-pred:expr))
       clause ...)
    #'(begin
        (define-syntax refiner-name
          (grammar-refiner 'refiner-name
-                          (~? 'follows '())
-                          (~? 'pre-refine-func #f)))
+                          (~? 'follows '())         ;; Refiners do not have a default follow order.
+                          (~? 'ref-pred (λ () #t))  ;; By default, refiners should run.
+                          (~? 'global-pred #f)))
        (add-refiner
         component
         refiner-name

@@ -47,6 +47,7 @@
  (struct-out grammar-refiner)
  sort-refiners
  refiner-stx->att-rule-name
+ refiner-stx->ref-pred-func
  grammar-refiner-transform)
 
 #|
@@ -191,11 +192,18 @@ correspond to this refiner. For a refiner named "my-refiner", this will produce:
 
 
 #|
+Provide a wrapper to get the refiner-predicate out of a refiner syntax object.
+|#
+(define (refiner-stx->ref-pred-func ref-stx)
+  (grammar-refiner-refiner-predicate ref-stx))
+
+
+#|
 Refiner values consist of a list of (optional) predicate functions followed by
 a single transformation function. This function will combine these into a single
 large function to be used with RACR's `perform-rewrites` function.
 |#
-(define (ref-funcs->refiner funcs-stx)
+(define (ref-funcs->refiner global-predicate funcs-stx)
   (define funcs (syntax->list funcs-stx))
   (match funcs
     ;; If there is only one function in the list, return it as-is.
@@ -221,6 +229,7 @@ to whatever is needed.
     [gr:grammar-refiner-stx
      (let* ([slv (syntax-local-value #'gr)]
             [ref-name (syntax->datum (refiner-stx->att-rule-name slv))]
+            [global-pred (grammar-refiner-global-predicate slv)]
             [ret (hash-ref (hash-ref infos-hash 'refs-info)
                            slv
                            (hash))]
@@ -236,7 +245,7 @@ to whatever is needed.
                                                    "duplicate rule"
                                                    #'ref-name))
                              (define refiner
-                               (ref-funcs->refiner (dict-ref ret k)))
+                               (ref-funcs->refiner global-pred (dict-ref ret k)))
                              (hash-set combined k refiner)))))]))
 
 #|
@@ -244,9 +253,15 @@ The grammar-refiner struct groups refiner names with a #:follows declaration
 that allows for specifying the sequence in which refiners should be applied. The
 actual definition of the refiner (the transformation function which will be
 applied to a node) is specified separately.
+
+Additionally, there are two predicates that can be optionally supplied:
+ - refiner-predicate is a predicate function that determines whether the refiner
+   itself will be run after AST generation
+ - global-predicate is a predicate function that will be composed in front of
+   all the other refiner functions
 |#
 (struct grammar-refiner
-  (name follows pre-refine-func)
+  (name follows refiner-predicate global-predicate)
   #:property prop:procedure (λ (stx)
                               (raise-syntax-error
                                'grammar-refiner
@@ -258,7 +273,8 @@ applied to a node) is specified separately.
       (λ (gr) 'grammar-refiner)
       (λ (gr) (list (grammar-refiner-name gr)
                     (grammar-refiner-follows gr)
-                    (grammar-refiner-pre-refine-func gr)))))])
+                    (grammar-refiner-refiner-predicate gr)
+                    (grammar-refiner-global-predicate gr)))))])
 
 (define-syntax-class grammar-refiner-stx
   (pattern gr:id
