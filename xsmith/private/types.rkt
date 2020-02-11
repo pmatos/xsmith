@@ -204,13 +204,27 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
     [else (void)]))
 
 
-(define (variable? t)
+(define (variable? v)
   ;; TODO - I should have a predicate for whether something is one of these types and a separate predicate for whether they are still variable or are finalized.
   (or (type-variable? v)
       (type-variable-innard? v)
       (structural-record-type? v)
       (product-type? v)))
 
+(define (variable-lower-bounds v)
+  (cond
+    [(type-variable? v) (variable-lower-bounds (type-variable-innard v))]
+    [(type-variable-innard? v) (type-variable-innard-lower-bounds v)]
+    [(product-type? v) (product-type-lower-bounds v)]
+    [(structural-record-type? v) (structural-record-type-lower-bounds v)]
+    [else (error 'variable-lower-bounds! "received non-variable value: ~v" v)]))
+(define (variable-upper-bounds v)
+  (cond
+    [(type-variable? v) (variable-upper-bounds (type-variable-innard v))]
+    [(type-variable-innard? v) (type-variable-innard-upper-bounds v)]
+    [(product-type? v) (product-type-upper-bounds v)]
+    [(structural-record-type? v) (structural-record-type-upper-bounds v)]
+    [else (error 'variable-upper-bounds! "received non-variable value: ~v" v)]))
 (define ((variable-DIR-bounds! get-dir set-dir!) innard)
   ;; This version updates forwarded bounds.
   (define ret1 (get-dir innard))
@@ -220,7 +234,7 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   ret3)
 (define (variable-lower-bounds! v)
   (cond
-    [(type-variable? v) (variable-lower-bounds (type-variable-innard v))]
+    [(type-variable? v) (variable-lower-bounds! (type-variable-innard v))]
     [(type-variable-innard? v)
      ((variable-DIR-bounds! type-variable-innard-lower-bounds
                             set-type-variable-innard-lower-bounds!)
@@ -229,13 +243,13 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
      ;; TODO - product-type is currently not treated like the others
      (product-type-lower-bounds v)]
     [(structural-record-type? v)
-     ((variable-DIR-bounds! product-type-lower-bounds
-                            set-product-type-lower-bounds!)
+     ((variable-DIR-bounds! structural-record-type-lower-bounds
+                            set-structural-record-type-lower-bounds!)
       v)]
     [else (error 'variable-lower-bounds! "received non-variable value: ~v" v)]))
 (define (variable-upper-bounds! v)
   (cond
-    [(type-variable? v) (variable-upper-bounds (type-variable-innard v))]
+    [(type-variable? v) (variable-upper-bounds! (type-variable-innard v))]
     [(type-variable-innard? v)
      ((variable-DIR-bounds! type-variable-innard-upper-bounds
                             set-type-variable-innard-upper-bounds!)
@@ -243,8 +257,8 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
     ;; TODO - product-type is currently not treated like the others
     [(product-type? v) (product-type-upper-bounds v)]
     [(structural-record-type? v)
-     ((variable-DIR-bounds! product-type-upper-bounds
-                            set-product-type-upper-bounds!)
+     ((variable-DIR-bounds! structural-record-type-upper-bounds
+                            set-structural-record-type-upper-bounds!)
       v)]
     [else (error 'variable-upper-bounds! "received non-variable value: ~v" v)]))
 
