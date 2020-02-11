@@ -80,7 +80,8 @@
     [loop-statement #t]
     [null-statement #t]
 
-    [structs #t]
+    ;; TODO - set this back to #t when I fix nominal record types again
+    [structs #f]
     [volatile #t]
 
     [unsafe-math/range  ;; TODO - this feature no longer correlates to anything
