@@ -213,14 +213,14 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
 
 (define (variable-lower-bounds v)
   (cond
-    [(type-variable? v) (variable-lower-bounds (type-variable-innard v))]
+    [(type-variable? v) (variable-lower-bounds (type-variable-tvi v))]
     [(type-variable-innard? v) (type-variable-innard-lower-bounds v)]
     [(product-type? v) (product-type-lower-bounds v)]
     [(structural-record-type? v) (structural-record-type-lower-bounds v)]
     [else (error 'variable-lower-bounds! "received non-variable value: ~v" v)]))
 (define (variable-upper-bounds v)
   (cond
-    [(type-variable? v) (variable-upper-bounds (type-variable-innard v))]
+    [(type-variable? v) (variable-upper-bounds (type-variable-tvi v))]
     [(type-variable-innard? v) (type-variable-innard-upper-bounds v)]
     [(product-type? v) (product-type-upper-bounds v)]
     [(structural-record-type? v) (structural-record-type-upper-bounds v)]
@@ -234,7 +234,7 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   ret3)
 (define (variable-lower-bounds! v)
   (cond
-    [(type-variable? v) (variable-lower-bounds! (type-variable-innard v))]
+    [(type-variable? v) (variable-lower-bounds! (type-variable-tvi v))]
     [(type-variable-innard? v)
      ((variable-DIR-bounds! type-variable-innard-lower-bounds
                             set-type-variable-innard-lower-bounds!)
@@ -249,7 +249,7 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
     [else (error 'variable-lower-bounds! "received non-variable value: ~v" v)]))
 (define (variable-upper-bounds! v)
   (cond
-    [(type-variable? v) (variable-upper-bounds! (type-variable-innard v))]
+    [(type-variable? v) (variable-upper-bounds! (type-variable-tvi v))]
     [(type-variable-innard? v)
      ((variable-DIR-bounds! type-variable-innard-upper-bounds
                             set-type-variable-innard-upper-bounds!)
@@ -528,7 +528,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
       (structural-record-type->canonical fwd)
       srt))
 (define (fresh-structural-record-type [field-dict (hash)])
-  (structural-record-type #f field-dict '() '() '()))
+  (structural-record-type #f #f field-dict '() '() '()))
 
 
 ;; Generic types are given a name which is a symbol.  But it is just for printing.
@@ -901,9 +901,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
        ;; TODO -for now this is symmetric, but later should be subtypable.
        (rec inner1 inner2)]
       ;; Structural records
-      [(list (structural-record-type f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-             (structural-record-type f?2 known-fields-2 conflicts-2 lb-2 ub-2))
-       (subtype-unify!/two-type-variables/structural-record-type tvi-sub tvi-sup)]
+      [(list (structural-record-type fwd1 f?1 known-fields-1 conflicts-1 lb-1 ub-1)
+             (structural-record-type fwd2 f?2 known-fields-2 conflicts-2 lb-2 ub-2))
+       (subtype-unify!/two-type-variables/structural-record-type sub super)]
       ;; function type
       [(list (function-type arg-l ret-l)
              (function-type arg-r ret-r))
@@ -981,11 +981,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
                        [work work1])
                       ([upper (variable-upper-bounds! innard)])
               (fold-body dones work innard upper)))
-          (ripple-subtype-unify-changes dones2 work2)))))
-(define ripple-subtype-unify-changes/type-variable
-  (mk-ripple-subtype-unify-changes subtype-unify!/type-variable-innards))
-(define ripple-subtype-unify-changes/structural-record-type
-  (mk-ripple-subtype-unify-changes subtype-unify!/structural-record-types))
+          (ripple-subtype-unify-changes dones2 work2))))
+  ripple-subtype-unify-changes)
 
 (define ((mk-subtype-unify!/two-type-variables
           set-lowers!
@@ -994,48 +991,40 @@ TODO - when generating a record ref, I'll need to compare something like (record
           subtype-unify!-func
           ripple-changes)
          sub super)
-   ;; TODO - check that one is not recursively contained in the structure of the other.
-   (define tvi-sub-uppers (variable-transitive-upper-bounds tvi-sub))
-   (define tvi-sub-lowers (variable-transitive-lower-bounds tvi-sub))
-   (define already-done?
-     (or (eq? tvi-sub tvi-sup)
-         (member tvi-sup tvi-sub-uppers)))
-   (define squash-case?
-     ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
-     (member tvi-sup tvi-sub-lowers))
+  ;; TODO - check that one is not recursively contained in the structure of the other.
+  (define tvi-sub sub)
+  (define tvi-sup super)
+  (define tvi-sub-uppers (variable-transitive-upper-bounds tvi-sub))
+  (define tvi-sub-lowers (variable-transitive-lower-bounds tvi-sub))
+  (define already-done?
+    (or (eq? tvi-sub tvi-sup)
+        (member tvi-sup tvi-sub-uppers)))
+  (define squash-case?
+    ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
+    (member tvi-sup tvi-sub-lowers))
 
-   (cond
-     [already-done? (void)]
-     [squash-case? (squash! tvi-sub tvi-sup)]
-     [else
-      (set-uppers!
-       tvi-sub
-       (cons tvi-sup (variable-upper-bounds! tvi-sub)))
-      (set-lowers!
-       tvi-sup
-       (cons tvi-sub (variable-lower-bounds! tvi-sup)))
+  (cond
+    [already-done? (void)]
+    [squash-case? (squash! tvi-sub tvi-sup)]
+    [else
+     (set-uppers!
+      tvi-sub
+      (cons tvi-sup (variable-upper-bounds! tvi-sub)))
+     (set-lowers!
+      tvi-sup
+      (cons tvi-sub (variable-lower-bounds! tvi-sup)))
 
-      (define dones (list (cons tvi-sub tvi-sup)))
-      (match (subtype-unify!-func tvi-sub tvi-sup)
-        [(list #f #f) (void)]
-        [(list #f #t) (ripple-changes dones (list tvi-sup))]
-        [(list #t #f) (ripple-changes dones (list tvi-sub))]
-        [(list #t #t) (ripple-changes dones (list tvi-sub tvi-sup))])]))
+     (define dones (list (cons tvi-sub tvi-sup)))
+     (match (subtype-unify!-func tvi-sub tvi-sup)
+       [(list #f #f) (void)]
+       [(list #f #t) (ripple-changes dones (list tvi-sup))]
+       [(list #t #f) (ripple-changes dones (list tvi-sub))]
+       [(list #t #t) (ripple-changes dones (list tvi-sub tvi-sup))])]))
 
-(define subtype-unify!/two-type-variables/type-variable-innard
-  (mk-subtype-unify!/two-type-variables
-   set-type-variable-innard-lower-bounds!
-   set-type-variable-innard-upper-bounds!
-   ripple-subtype-unify-changes/type-variable))
-(define subtype-unify!/two-type-variables/structural-record-type
-  (mk-subtype-unify!/two-type-variables
-   set-structural-record-type-lower-bounds!
-   set-structural-record-type-upper-bounds!
-   ripple-subtype-unify-changes/structural-record-type))
 
 (define (squash-type-variable-innards! tvi-sub tvi-sup)
-  (define tvi-sup-lowers (type-variable-innard->transitive-lower-bounds tvi-sup))
-  (define tvi-sub-uppers (type-variable-innard->transitive-upper-bounds tvi-sub))
+  (define tvi-sup-lowers (variable-transitive-lower-bounds tvi-sup))
+  (define tvi-sub-uppers (variable-transitive-upper-bounds tvi-sub))
   (define intersection
     (set-union (list tvi-sup tvi-sub)
                (set-intersect tvi-sup-lowers tvi-sub-uppers)))
@@ -1172,6 +1161,25 @@ TODO - when generating a record ref, I'll need to compare something like (record
   |#
   (error 'subtype-unify!/structural-record-types "TODO - implement"))
 
+(define ripple-subtype-unify-changes/type-variable
+  (mk-ripple-subtype-unify-changes subtype-unify!/type-variable-innards))
+(define ripple-subtype-unify-changes/structural-record-type
+  (mk-ripple-subtype-unify-changes subtype-unify!/structural-record-types))
+(define subtype-unify!/two-type-variables/type-variable-innard
+  (mk-subtype-unify!/two-type-variables
+   set-type-variable-innard-lower-bounds!
+   set-type-variable-innard-upper-bounds!
+   squash-type-variable-innards!
+   subtype-unify!/type-variable-innards
+   ripple-subtype-unify-changes/type-variable))
+(define subtype-unify!/two-type-variables/structural-record-type
+  (mk-subtype-unify!/two-type-variables
+   set-structural-record-type-lower-bounds!
+   set-structural-record-type-upper-bounds!
+   squash-structural-record-types!
+   subtype-unify!/structural-record-types
+   ripple-subtype-unify-changes/structural-record-type))
+
 (define (can-subtype-unify?
          sub super
          ;; These keyword arguments are to allow nominal-record-types to unify
@@ -1234,11 +1242,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; TODO -for now this is symmetric, but later should be subtypable.
      (rec inner1 inner2)]
     ;; structural-record-type
-    [(list (structural-record-type f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-           (structural-record-type f?2 known-fields-2 conflicts-2 lb-2 ub-2))
+    [(list (structural-record-type fwd f?1 known-fields-1 conflicts-1 lb-1 ub-1)
+           (structural-record-type fwd f?2 known-fields-2 conflicts-2 lb-2 ub-2))
      (error 'can-subtype-unify/structural-record-type
             "TODO - implement.  Traverse bounds lattice to check that they're OK, and check that their known fields line up OK.")
-     (for/and ([k (dict-keys fields-super)])
+     (for/and ([k (dict-keys known-fields-2)])
        (and (dict-has-key? known-fields-1 k)
             (rec (dict-ref known-fields-1 k) (dict-ref known-fields-2 k))))]
     ;; generic-type
@@ -1398,13 +1406,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (nominal-record-definition-type inner2))
      (rec inner1 inner2)]
     ;; structural-record-type
-    [(list (structural-record-type f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-           (structural-record-type f?2 known-fields-2 conflicts-2 lb-2 ub-2))
+    [(list (structural-record-type fwd f?1 known-fields-1 conflicts-1 lb-1 ub-1)
+           (structural-record-type fwd f?2 known-fields-2 conflicts-2 lb-2 ub-2))
      (error 'can-unify?/structural-record-type
             "TODO - implement.  check that the known fields are compatible AND that conflicts aren't an issue.  Also check for finalized status in the case that either is missing fields.")
-     (and (equal? (dict-keys fields1) (dict-keys fields2))
-          (for/and ([k (dict-keys fields1)])
-            (rec (dict-ref fields1 k) (dict-ref fields2 k))))]
+     (and (equal? (dict-keys known-fields-1) (dict-keys known-fields-2))
+          (for/and ([k (dict-keys known-fields-1)])
+            (rec (dict-ref known-fields-1 k) (dict-ref known-fields-2 k))))]
     ;; generic-type
     [(list (generic-type name1 constructor1 type-arguments1 variances1)
            (generic-type name2 constructor2 type-arguments2 variances2))
@@ -1513,11 +1521,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [(nominal-record-type name inners) t]
       [(nominal-record-definition-type inner)
        (nominal-record-definition-type (r inner))]
-      [(structural-record-type f?1 known-fields-1 conflicts-1 lb-1 ub-1)
+      [(structural-record-type fwd finalized? known-fields conflicts lb ub)
        ;; TODO - if all immediate lower bounds have a conflicted name and an appropriate supertype for all of them can be found, it could be instantiated here.  For now, let's just ignore that.
        (structural-record-type #t
-                               (for/hash ([k (dict-keys fields)])
-                                 (values k (r (dict-ref fields k))))
+                               (for/hash ([k (dict-keys known-fields)])
+                                 (values k (r (dict-ref known-fields k))))
                                '()
                                '()
                                '())]
@@ -1620,7 +1628,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; If a name is set then it's concrete.
      (->bool name)]
     [(nominal-record-definition-type inner) (concrete? inner)]
-    [(structural-record-type finalized? fields conflicts lb ub)
+    [(structural-record-type fwd finalized? fields conflicts lb ub)
      (and finalized?
           (for/and ([k (dict-keys fields)])
             (concrete? (dict-ref fields k))))]
@@ -1735,13 +1743,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (nominal-record-definition-type inner2))
      (at-least-as-concrete inner1 inner2)]
     [(list (nominal-record-definition-type _) _) #t]
-    [(list (structural-record-type f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-           (structural-record-type f?2 known-fields-2 conflicts-2 lb-2 ub-2))
-     (TODO "check finalized status, fail quickly if both are finalized and fields are clearly incompatible (each record has a field that the other doesn't), recur through known-fields.")
-     (for/and ([k (dict-keys fields2)])
-       (or (not (dict-has-key? fields1 k))
-           (at-least-as-concrete (dict-ref fields1 k) (dict-ref fields2 k))))]
-    [(list (structural-record-type _ _ _ _ _) _) #t]
+    [(list (structural-record-type fwd1 f?1 known-fields-1 conflicts-1 lb-1 ub-1)
+           (structural-record-type fwd2 f?2 known-fields-2 conflicts-2 lb-2 ub-2))
+     (error 'at-least-as-concrete/structural-record-type-case "TODO - implement.  check finalized status, fail quickly if both are finalized and fields are clearly incompatible (each record has a field that the other doesn't), recur through known-fields.")
+     (for/and ([k (dict-keys known-fields-2)])
+       (or (not (dict-has-key? known-fields-1 k))
+           (at-least-as-concrete (dict-ref known-fields-1 k)
+                                 (dict-ref known-fields-2 k))))]
+    [(list (structural-record-type _ _ _ _ _ _) _) #t]
     [(list (generic-type v-n v-ctor v-inners v-vars)
            (generic-type c-n c-ctor c-inners v-vars))
      (if (eq? v-ctor c-ctor)
@@ -1797,8 +1806,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(generic-type name constructor inners variances)
      (ormap rec inners)]
     [(or
-      (type-variable t-innard)
-      (structural-record-type cf f? known-fields conflicts lb ub))
+      (type-variable _)
+      (structural-record-type _ _ _ _ _ _))
      (not (set-empty?
            (set-intersect (type->type-variable-list t)
                           vs)))]))
@@ -1842,9 +1851,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
            [(nominal-record-definition-type inner)
             (work vars (cons inner todos) dones)]
            [(structural-record-type cf f?1 known-fields-1 conflicts-1 lb-1 ub-1)
-            (work (cons t vars) (append (dict-values fields) todos) dones)]
+            (work (cons t vars) (append (dict-values known-fields-1) todos) dones)]
            [(generic-type name constructor inners variances)
             (work vars (append inners todos) dones)]
+           [(type-variable-innard handle-set _ _ _ _)
+            ;; TODO - this function didn't previously take TVIs.  This may cause some confusion.  But ultimately I should get rid of the TV/TVI separation since subtyping has given TVIs a forward field.
+            (work vars (cons (set-first handle-set) todos) dones)]
            [(type-variable innard)
             (match innard
               [(type-variable-innard _ _ (and forwarded (? (λ(x)x))) _ _)
@@ -2094,27 +2106,27 @@ TODO - when generating a record ref, I'll need to compare something like (record
   ;; tests for structural records
   ;; TODO - rewrite these tests with a new, appropriate constructor
   (let ()
-    (check-false (can-unify? (structural-record-type (hash 'x dog))
-                             (structural-record-type (hash 'x dog 'y dog))))
-    (check-false (can-subtype-unify? (structural-record-type (hash 'x dog))
-                                     (structural-record-type (hash 'x dog 'y dog))))
-    (check-true (can-subtype-unify? (structural-record-type (hash 'x dog 'y dog))
-                                    (structural-record-type (hash 'x dog))))
-    (check-true (can-subtype-unify? (structural-record-type (hash 'x labradoodle
-                                                                  'y dog))
-                                    (structural-record-type (hash 'x dog))))
-    (check-true (can-subtype-unify? (structural-record-type (hash 'x labradoodle
-                                                                  'y dog))
+    (check-false (can-unify? (fresh-structural-record-type (hash 'x dog))
+                             (fresh-structural-record-type (hash 'x dog 'y dog))))
+    (check-false (can-subtype-unify? (fresh-structural-record-type (hash 'x dog))
+                                     (fresh-structural-record-type (hash 'x dog 'y dog))))
+    (check-true (can-subtype-unify? (fresh-structural-record-type (hash 'x dog 'y dog))
+                                    (fresh-structural-record-type (hash 'x dog))))
+    (check-true (can-subtype-unify? (fresh-structural-record-type (hash 'x labradoodle
+                                                                     'y dog))
+                                    (fresh-structural-record-type (hash 'x dog))))
+    (check-true (can-subtype-unify? (fresh-structural-record-type (hash 'x labradoodle
+                                                                     'y dog))
                                     (fresh-subtype-of
-                                     (structural-record-type (hash 'x dog)))))
-    (check-false (can-subtype-unify? (structural-record-type (hash 'x labradoodle
-                                                                   'y dog))
+                                     (fresh-structural-record-type (hash 'x dog)))))
+    (check-false (can-subtype-unify? (fresh-structural-record-type (hash 'x labradoodle
+                                                                      'y dog))
                                      (fresh-subtype-of
-                                      (structural-record-type (hash 'x dog 'z bird)))))
-    (check-true (can-unify? (structural-record-type (hash 'x labradoodle
-                                                          'y dog))
+                                      (fresh-structural-record-type (hash 'x dog 'z bird)))))
+    (check-true (can-unify? (fresh-structural-record-type (hash 'x labradoodle
+                                                             'y dog))
                             (fresh-subtype-of
-                             (structural-record-type (hash)))))
+                             (fresh-structural-record-type (hash)))))
 
     )
 
