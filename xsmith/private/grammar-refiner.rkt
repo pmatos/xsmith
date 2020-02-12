@@ -205,6 +205,8 @@ large function to be used with RACR's `perform-rewrites` function.
 |#
 (define (ref-funcs->refiner global-predicate funcs-stx)
   (define funcs (syntax->list funcs-stx))
+  (when global-predicate
+    (set! funcs (cons global-predicate funcs)))
   (match funcs
     ;; If there is only one function in the list, return it as-is.
     [(list func)
