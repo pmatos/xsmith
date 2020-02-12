@@ -279,23 +279,19 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
 (define (variable-transitive-lower-bounds v)
   (cond
     [(type-variable? v) (variable-transitive-lower-bounds (type-variable-innard v))]
-    [(type-variable-innard? v)
-     ((variable->transitive-DIR-bounds type-variable-innard-lower-bounds) v)]
-    [(product-type? v)
-     ((variable->transitive-DIR-bounds product-type-lower-bounds) v)]
-    [(structural-record-type? v)
-     ((variable->transitive-DIR-bounds structural-record-type-lower-bounds) v)]
+    [(or (type-variable-innard? v)
+         (product-type? v)
+         (structural-record-type? v))
+     ((variable->transitive-DIR-bounds variable-lower-bounds!) v)]
     [else (error 'variable-transitive-lower-bounds
                  "received non-variable value: ~v" v)]))
 (define (variable-transitive-upper-bounds v)
   (cond
     [(type-variable? v) (variable-transitive-upper-bounds (type-variable-innard v))]
-    [(type-variable-innard? v)
-     ((variable->transitive-DIR-bounds type-variable-innard-upper-bounds) v)]
-    [(product-type? v)
-     ((variable->transitive-DIR-bounds product-type-upper-bounds) v)]
-    [(structural-record-type? v)
-     ((variable->transitive-DIR-bounds structural-record-type-upper-bounds) v)]
+    [(or (type-variable-innard? v)
+         (product-type? v)
+         (structural-record-type? v))
+     ((variable->transitive-DIR-bounds variable-upper-bounds!) v)]
     [else (error 'variable-transitive-upper-bounds
                  "received non-variable value: ~v" v)]))
 
