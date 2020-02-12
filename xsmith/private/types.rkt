@@ -1077,7 +1077,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
   (define new-known-field-dict (structural-record-type-known-field-dict sub))
   (define new-final? (for/or ([srt intersection])
-                       (structural-record-type-final? srt)))
+                       (structural-record-type-finalized? srt)))
   (define new-srt
     (structural-record-type #f new-final? new-known-field-dict new-lowers new-uppers))
   (for ([srt intersection])
@@ -1086,7 +1086,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (when (or lower-change upper-change
             ;; For now, let's just be safe and always ripple
             #t)
-    (ripple-subtype-unify-changes/type-variable '() (list new-innard))))
+    (ripple-subtype-unify-changes/type-variable '() (list new-srt))))
 
 (define (subtype-unify!/type-variable-innards sub super)
   #|
@@ -1470,8 +1470,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; There are 2 kinds of conflicts:
      ;; * Struct A has more fields than struct B, but struct B has a finalized lower bound that lacks the field.
      ;; * Struct A has more fields than struct B, but struct B has a lower bound that has one of those fields as an incompatible type.
-     (tlb1 (variable-transitive-lower-bounds l))
-     (tlb2 (variable-transitive-lower-bounds r))
+     (define tlb1 (variable-transitive-lower-bounds l))
+     (define tlb2 (variable-transitive-lower-bounds r))
      (for/and ([k (set-union (dict-keys known-fields-1) (dict-keys known-fields-2))])
        (define f1 (dict-ref known-fields-1 k #f))
        (define f2 (dict-ref known-fields-2 k #f))
