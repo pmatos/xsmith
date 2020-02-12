@@ -527,8 +527,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (if fwd
       (structural-record-type->canonical fwd)
       srt))
-(define (fresh-structural-record-type [field-dict (hash)])
-  (structural-record-type #f #f field-dict '() '()))
+(define (fresh-structural-record-type [field-dict (hash)]
+                                      #:finalized? [finalized? #f])
+  (structural-record-type #f finalized? field-dict '() '()))
 
 
 ;; Generic types are given a name which is a symbol.  But it is just for printing.
@@ -1194,15 +1195,17 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                          (dict-keys known-fields-2))])
          (define fsub (dict-ref known-fields-1 field-name #f))
          (define fsup (dict-ref known-fields-2 field-name #f))
-         (cond [(and fsub fsup)
-                (subtype-unify! fsub fsup)
-                fsub]
-               [fsup
-                (define new-var (fresh-type-variable))
-                (subtype-unify! new-var fsup)
-                new-var]
-               [fsub fsub]
-               [else (error 'this-should-be-impossible-but-cond-unhelpfully-returns-void-on-fall-through-so-im-adding-this-just-in-case)])))
+         (values
+          field-name
+          (cond [(and fsub fsup)
+                 (subtype-unify! fsub fsup)
+                 fsub]
+                [fsup
+                 (define new-var (fresh-type-variable))
+                 (subtype-unify! new-var fsup)
+                 new-var]
+                [fsub fsub]
+                [else (error 'this-should-be-impossible-but-cond-unhelpfully-returns-void-on-fall-through-so-im-adding-this-just-in-case)]))))
 
      (set-structural-record-type-known-field-dict! sub new-kf-1)
      (list (equal? known-fields-1 new-kf-1) #f)]))
@@ -2177,28 +2180,36 @@ TODO - when generating a record ref, I'll need to compare something like (record
   ;; tests for structural records
   ;; TODO - rewrite these tests with a new, appropriate constructor
   (let ()
-    (eprintf "at start of structural record tests\n")
-    (check-false (can-unify? (fresh-structural-record-type (hash 'x dog))
-                             (fresh-structural-record-type (hash 'x dog 'y dog))))
-    (check-false (can-subtype-unify? (fresh-structural-record-type (hash 'x dog))
-                                     (fresh-structural-record-type (hash 'x dog 'y dog))))
-    (check-true (can-subtype-unify? (fresh-structural-record-type (hash 'x dog 'y dog))
-                                    (fresh-structural-record-type (hash 'x dog))))
-    (check-true (can-subtype-unify? (fresh-structural-record-type (hash 'x labradoodle
-                                                                     'y dog))
-                                    (fresh-structural-record-type (hash 'x dog))))
-    (check-true (can-subtype-unify? (fresh-structural-record-type (hash 'x labradoodle
-                                                                     'y dog))
-                                    (fresh-subtype-of
-                                     (fresh-structural-record-type (hash 'x dog)))))
-    (check-false (can-subtype-unify? (fresh-structural-record-type (hash 'x labradoodle
-                                                                      'y dog))
-                                     (fresh-subtype-of
-                                      (fresh-structural-record-type (hash 'x dog 'z bird)))))
-    (check-true (can-unify? (fresh-structural-record-type (hash 'x labradoodle
-                                                             'y dog))
-                            (fresh-subtype-of
-                             (fresh-structural-record-type (hash)))))
+    (check-false (can-unify?
+                  (fresh-structural-record-type #:finalized? #t
+                                                (hash 'x dog))
+                  (fresh-structural-record-type (hash 'x dog 'y dog))))
+    (check-false (can-subtype-unify?
+                  (fresh-structural-record-type #:finalized? #t
+                                                (hash 'x dog))
+                  (fresh-structural-record-type (hash 'x dog 'y dog))))
+    (check-true (can-subtype-unify?
+                 (fresh-structural-record-type (hash 'x dog 'y dog))
+                 (fresh-structural-record-type (hash 'x dog))))
+    (check-true (can-subtype-unify?
+                 (fresh-structural-record-type (hash 'x labradoodle
+                                                     'y dog))
+                 (fresh-structural-record-type (hash 'x dog))))
+    (check-true (can-subtype-unify?
+                 (fresh-structural-record-type (hash 'x labradoodle
+                                                     'y dog))
+                 (fresh-subtype-of
+                  (fresh-structural-record-type (hash 'x dog)))))
+    (check-false (can-subtype-unify?
+                  (fresh-structural-record-type (hash 'x labradoodle
+                                                      'y dog))
+                  (fresh-subtype-of
+                   (fresh-structural-record-type (hash 'x dog 'z bird)))))
+    (check-true (can-unify?
+                 (fresh-structural-record-type (hash 'x labradoodle
+                                                     'y dog))
+                 (fresh-subtype-of
+                  (fresh-structural-record-type (hash)))))
 
     )
 
