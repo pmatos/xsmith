@@ -1178,7 +1178,27 @@ TODO - when generating a record ref, I'll need to compare something like (record
   This helper function updates the actual type fields of structural records, NOT upper/lower bounds.
   It returns a list of two bools.  The first one is true iff sub was modified, the second one is true iff super was modified.
   |#
-  (error 'subtype-unify!/structural-record-types "TODO - implement"))
+  (match (list sub super)
+    [(list (structural-record-type fwd f?1 known-fields-1 lb-1 ub-1)
+           (structural-record-type fwd f?2 known-fields-2 lb-2 ub-2))
+     (define new-kf-1
+       ;; the subtype must have all the fields of the supertype, and may have more
+       (for/hash ([field-name (set-union (dict-keys known-fields-1)
+                                         (dict-keys known-fields-2))])
+         (define fsub (dict-ref known-fields-1 field-name #f))
+         (define fsup (dict-ref known-fields-2 field-name #f))
+         (cond [(and fsub fsup)
+                (subtype-unify! fsub fsup)
+                fsub]
+               [fsup
+                (define new-var (fresh-type-variable))
+                (subtype-unify! new-var fsup)
+                new-var]
+               [fsub fsub]
+               [else (error 'this-should-be-impossible-but-cond-unhelpfully-returns-void-on-fall-through-so-im-adding-this-just-in-case)])))
+
+     (set-structural-record-type-known-field-dict! sub new-kf-1)
+     (list (equal? known-fields-1 new-kf-1) #f)]))
 
 (define ripple-subtype-unify-changes/type-variable
   (mk-ripple-subtype-unify-changes subtype-unify!/type-variable-innards))
