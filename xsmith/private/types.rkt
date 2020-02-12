@@ -1076,10 +1076,17 @@ TODO - when generating a record ref, I'll need to compare something like (record
     (subtype-unify!/structural-record-types sub super))
 
   (define new-known-field-dict (structural-record-type-known-field-dict sub))
-  (define new-final? (error 'squash-structural-record-types! "TODO - implement.  If any record in the intersection is final, the new one should be too.  But also I should check that all types in the intersection are compatible with the result.  In particular that any final records already matched the result."))
+  (define new-final? (for/or ([srt intersection])
+                       (structural-record-type-final? srt)))
   (define new-srt
     (structural-record-type #f new-final? new-known-field-dict new-lowers new-uppers))
-  new-srt)
+  (for ([srt intersection])
+    (set-structural-record-type-canonical-forward! srt new-srt))
+  ;; TODO - should I do more sanity checking that everything is right here?  Eg. if something in the intersection was final, it should not have changed, so the final thing should be the same as the final one.
+  (when (or lower-change upper-change
+            ;; For now, let's just be safe and always ripple
+            #t)
+    (ripple-subtype-unify-changes/type-variable '() (list new-innard))))
 
 (define (subtype-unify!/type-variable-innards sub super)
   #|
