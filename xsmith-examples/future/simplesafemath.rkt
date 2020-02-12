@@ -117,9 +117,7 @@
   sm
   make-math-unsafe
   #:refiner-predicate (λ () (xsmith-feature-enabled? 'unsafe-math))
-  #:global-predicate (λ (n) (and (node-subtype? n 'SafeArithOp)
-                                 (make-unsafe? n)))
-  [#f [(λ (n) #f)]]
+  #:global-predicate (λ (n) (make-unsafe? n))
   [SafePlusOp [(λ (n) (make-replacement-node 'UnsafePlusOp n))]]
   [SafeMinusOp [(λ (n) (make-replacement-node 'UnsafeMinusOp n))]]
   [SafeTimesOp [(λ (n) (make-replacement-node 'UnsafeTimesOp n))]]
@@ -131,7 +129,6 @@
   make-vals-even
   #:follows make-math-unsafe
   #:refiner-predicate (λ () (xsmith-feature-enabled? 'even-math))
-  [#f [(λ (n) #f)]]
   [Val [(λ (n) (odd? (ast-child 'v n)))
         (λ (n) (make-replacement-node 'Val n (hash 'v (+ 1 (ast-child 'v n)))))]])
 
