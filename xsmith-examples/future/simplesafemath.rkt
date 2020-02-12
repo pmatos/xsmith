@@ -117,7 +117,8 @@
   sm
   make-math-unsafe
   #:refiner-predicate (λ () (xsmith-feature-enabled? 'unsafe-math))
-  #:global-predicate (λ (n) (make-unsafe? n))
+  #:global-predicate (λ (n) (and (node-subtype? n 'SafeArithOp)
+                                 (make-unsafe? n)))
   [#f [(λ (n) #f)]]
   [SafePlusOp [(λ (n) (make-replacement-node 'UnsafePlusOp n))]]
   [SafeMinusOp [(λ (n) (make-replacement-node 'UnsafeMinusOp n))]]
@@ -125,13 +126,14 @@
   [SafeDivideOp [(λ (n) (make-replacement-node 'UnsafeDivideOp n))]]
   )
 
-#;(define-refiner
+(define-refiner
   sm
   make-vals-even
+  #:follows make-math-unsafe
   #:refiner-predicate (λ () (xsmith-feature-enabled? 'even-math))
   [#f [(λ (n) #f)]]
   [Val [(λ (n) (odd? (ast-child 'v n)))
-        (λ (n) (make-replacement-node 'Val (hash 'v (+ 1 (ast-child 'v n)))))]])
+        (λ (n) (make-replacement-node 'Val n (hash 'v (+ 1 (ast-child 'v n)))))]])
 
 ;;;;;;;;
 
@@ -144,4 +146,4 @@
  #:format-render (λ (s) (parameterize ([pretty-print-columns 0])
                           (pretty-format s)))
  #:features '([unsafe-math #t]
-              #;[even-math #f]))
+              [even-math #f]))
