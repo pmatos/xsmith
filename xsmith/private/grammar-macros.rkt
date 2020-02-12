@@ -500,8 +500,8 @@
        (define-syntax refiner-name
          (grammar-refiner 'refiner-name
                           (~? 'follows '())         ;; Refiners do not have a default follow order.
-                          (~? 'ref-pred (λ () #t))  ;; By default, refiners should run.
-                          (~? 'global-pred #f)))
+                          (~? #'ref-pred #'(λ () #t))  ;; By default, refiners should run.
+                          (~? #'global-pred #'#f)))
        (add-refiner
         component
         refiner-name

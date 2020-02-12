@@ -784,6 +784,7 @@
 (define-refiner
   cish-rules
   add-unsafe-math/range
+  #:refiner-predicate (λ () (xsmith-feature-enabled? 'unsafe-math/range))
   [#f [(λ (n) #f)]]
   [AdditionExpression
    [(λ (n) (not (att-value 'is-unsafe? n)))
