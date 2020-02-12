@@ -71,7 +71,8 @@ WIP checklist:
  nominal-record-type-inners
 
  structural-record-type?
- structural-record-type
+ fresh-structural-record-type
+ structural-record-type-known-field-dict
 
  (rename-out [make-nominal-record-definition nominal-record-definition-type])
  nominal-record-definition-type?
@@ -107,7 +108,7 @@ WIP checklist:
  at-least-as-concrete
  contains-type-variables?
 
- type-variable->type
+ ;type-variable->type
  )
 
 (require
@@ -1599,13 +1600,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (nominal-record-definition-type (r inner))]
       [(structural-record-type #|forward|# #f finalized? known-fields lb ub)
        ;; TODO - if all immediate lower bounds have a conflicted name and an appropriate supertype for all of them can be found, it could be instantiated here.  For now, let's just ignore that.
-       (structural-record-type #f
-                               #t
-                               (for/hash ([k (dict-keys known-fields)])
-                                 (values k (r (dict-ref known-fields k))))
-                               '()
-                               '()
-                               '())]
+       (fresh-structural-record-type
+        #:finalized? #t
+        (for/hash ([k (dict-keys known-fields)])
+          (values k (r (dict-ref known-fields k)))))]
       [(structural-record-type forward _ _ _ _)
        (concretize-type (variable-canonicalize t))]
       [(function-type arg return) (function-type (r arg)
