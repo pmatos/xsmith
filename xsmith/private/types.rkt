@@ -1290,10 +1290,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (if (dict-has-key? known-fields-1 k)
            (rec (dict-ref known-fields-1 k) (dict-ref known-fields-2 k))
            (for/and ([lb transitive-lb-1])
-             (match lb
-               [(structural-record-type _ lb-f? lb-kf _ _)
-                (or (not (dict-has-key? lb-kf k))
-                    (rec (dict-ref lb-kf k) (dict-ref known-fields-2 k)))]))))]
+             (can-subtype-unify?/structural-record-type-lower-bound/field
+              lb k (dict-ref known-fields-2 k)))))]
     ;; generic-type
     [(list (generic-type name1 constructor1 type-arguments1 variances1)
            (generic-type name2 constructor2 type-arguments2 variances2))
@@ -1371,6 +1369,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
         (for/and ([li inner1]
                   [ri inner2])
           (inner-can-unify? li ri))])]))
+
+
+(define (can-subtype-unify?/structural-record-type-lower-bound/field
+         lower-bound-srt field-key super-field-value)
+  (match lower-bound-srt
+    [(structural-record-type _ lb-f? lb-kf _ _)
+     (or (and (not (dict-has-key? lb-kf field-key)) (not lb-f?))
+         (can-subtype-unify? (dict-ref lb-kf field-key) super-field-value))]))
 
 
 (define (unify! t1 t2)
@@ -1457,11 +1463,19 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; There are 2 kinds of conflicts:
      ;; * Struct A has more fields than struct B, but struct B has a finalized lower bound that lacks the field.
      ;; * Struct A has more fields than struct B, but struct B has a lower bound that has one of those fields as an incompatible type.
-     (error 'can-unify?/structural-record-type
-            "TODO - implement.  check that the known fields are compatible AND that conflicts aren't an issue.  Also check for finalized status in the case that either is missing fields.")
-     (and (equal? (dict-keys known-fields-1) (dict-keys known-fields-2))
-          (for/and ([k (dict-keys known-fields-1)])
-            (rec (dict-ref known-fields-1 k) (dict-ref known-fields-2 k))))]
+     (tlb1 (variable-transitive-lower-bounds l))
+     (tlb2 (variable-transitive-lower-bounds r))
+     (for/and ([k (set-union (dict-keys known-fields-1) (dict-keys known-fields-2))])
+       (define f1 (dict-ref known-fields-1 k #f))
+       (define f2 (dict-ref known-fields-2 k #f))
+       (cond [(and f1 f2) (rec f1 f2)]
+             [f1 (for/and ([lb tlb2])
+                   (can-subtype-unify?/structural-record-type-lower-bound/field
+                    lb k f1))]
+             [f2 (for/and ([lb tlb1])
+                   (can-subtype-unify?/structural-record-type-lower-bound/field
+                    lb k f2))]
+             [else (error 'this-should-be-impossible-but-cond-unhelpfully-returns-void-on-fall-through-so-im-adding-this-just-in-case/can-unify/srt)]))]
     ;; generic-type
     [(list (generic-type name1 constructor1 type-arguments1 variances1)
            (generic-type name2 constructor2 type-arguments2 variances2))
