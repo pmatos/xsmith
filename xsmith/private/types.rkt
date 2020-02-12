@@ -2206,6 +2206,22 @@ TODO - when generating a record ref, I'll need to compare something like (record
                             (fresh-subtype-of
                              (ffsrt (hash)))))
 
+    ;; non-finalized SRTs
+    (define x-dog-1 (fresh-structural-record-type (hash 'x dog)))
+    (check-true (can-unify? x-dog-1
+                            (ffsrt (hash 'x dog 'y dog))))
+    (check-true (can-subtype-unify? x-dog-1
+                                    (ffsrt (hash 'x dog 'y dog))))
+    (unify! x-dog-1 (ffsrt (hash 'x dog 'y dog)))
+    (check-false (can-unify? x-dog-1 (ffsrt (hash 'x dog))))
+
+    (define x-dog-2 (fresh-structural-record-type (hash 'x dog)))
+    (check-true (can-subtype-unify? x-dog-2
+                                    (ffsrt (hash 'x dog 'y dog))))
+    (subtype-unify! x-dog-2 (ffsrt (hash 'x dog 'y dog)))
+    (check-true (can-subtype-unify? x-dog-2
+                                    (ffsrt (hash 'x dog 'y labradoodle))))
+
     )
 
   )
