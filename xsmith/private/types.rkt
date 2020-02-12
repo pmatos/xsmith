@@ -1818,11 +1818,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (nominal-record-definition-type _) _) #t]
     [(list (structural-record-type fwd1 f?1 known-fields-1 lb-1 ub-1)
            (structural-record-type fwd2 f?2 known-fields-2 lb-2 ub-2))
-     (error 'at-least-as-concrete/structural-record-type-case "TODO - implement.  check finalized status, fail quickly if both are finalized and fields are clearly incompatible (each record has a field that the other doesn't), recur through known-fields.")
-     (for/and ([k (dict-keys known-fields-2)])
-       (or (not (dict-has-key? known-fields-1 k))
-           (at-least-as-concrete (dict-ref known-fields-1 k)
-                                 (dict-ref known-fields-2 k))))]
+     #;(error 'at-least-as-concrete/structural-record-type-case "TODO - implement.  check finalized status, fail quickly if both are finalized and fields are clearly incompatible (each record has a field that the other doesn't), recur through known-fields.")
+     ;; TODO - for now, let's just conservatively force maximal exploration.
+     #f]
     [(list (structural-record-type _ _ _ _ _) _) #t]
     [(list (generic-type v-n v-ctor v-inners v-vars)
            (generic-type c-n c-ctor c-inners v-vars))
