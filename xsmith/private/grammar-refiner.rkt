@@ -205,9 +205,10 @@ large function to be used with RACR's `perform-rewrites` function.
 |#
 (define (ref-funcs->refiner global-predicate funcs-stx)
   (define funcs (syntax->list funcs-stx))
-  ;; If the global-predicate syntax contains a non-#f value, it should be consed
-  ;; onto the front of the list of functions.
-  (when (syntax->datum global-predicate)
+  ;; If the global-predicate is not #f and is a syntax object that does not
+  ;; contain #f, it should be consed onto the front of the function list.
+  (when (and global-predicate
+             (syntax->datum global-predicate))
     (set! funcs (cons global-predicate funcs)))
   (match funcs
     ;; If there is only one function in the list, return it as-is.
