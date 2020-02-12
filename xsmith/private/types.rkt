@@ -1084,7 +1084,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (when (or lower-change upper-change
             ;; For now, let's just be safe and always ripple
             #t)
-    (ripple-subtype-unify-changes/type-variable '() (list new-srt))))
+    (ripple-subtype-unify-changes/structural-record-type '() (list new-srt))))
 
 (define (subtype-unify!/type-variable-innards sub super)
   #|
