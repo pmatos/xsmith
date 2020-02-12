@@ -1073,7 +1073,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (match-define (list new-lowers new-uppers intersection)
     (squash-helper/bounds sub super))
   (match-define (list lower-change upper-change)
-    (subtype-unify!/structural-record-type sub super))
+    (subtype-unify!/structural-record-types sub super))
 
   (define new-known-field-dict (structural-record-type-known-field-dict sub))
   (define new-final? (error 'squash-structural-record-types! "TODO - implement.  If any record in the intersection is final, the new one should be too.  But also I should check that all types in the intersection are compatible with the result.  In particular that any final records already matched the result."))
