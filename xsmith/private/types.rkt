@@ -517,7 +517,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (struct structural-record-type
   (canonical-forward finalized? known-field-dict lower-bounds upper-bounds)
   #:mutable
-  #:transparent)
+  #:methods gen:custom-write
+  [(define (write-proc v output-port output-mode)
+     (match v
+       [(structural-record-type fwd finalized? kfd lb ub)
+        (fprintf output-port
+                 "#<structural-record-type final?:~a, fields: ~s>"
+                 finalized?
+                 kfd)]))])
 (define (structural-record-type->canonical srt)
   (define fwd
     (structural-record-type-canonical-forward srt))
@@ -1184,8 +1191,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
   It returns a list of two bools.  The first one is true iff sub was modified, the second one is true iff super was modified.
   |#
   (match (list sub super)
-    [(list (structural-record-type fwd f?1 known-fields-1 lb-1 ub-1)
-           (structural-record-type fwd f?2 known-fields-2 lb-2 ub-2))
+    [(list (structural-record-type fwd-1 f?1 known-fields-1 lb-1 ub-1)
+           (structural-record-type fwd-2 f?2 known-fields-2 lb-2 ub-2))
      (define new-kf-1
        ;; the subtype must have all the fields of the supertype, and may have more
        (for/hash ([field-name (set-union (dict-keys known-fields-1)
@@ -1288,8 +1295,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
      ;; TODO -for now this is symmetric, but later should be subtypable.
      (rec inner1 inner2)]
     ;; structural-record-type
-    [(list (structural-record-type fwd f?1 known-fields-1 lb-1 ub-1)
-           (structural-record-type fwd f?2 known-fields-2 lb-2 ub-2))
+    [(list (structural-record-type fwd1 f?1 known-fields-1 lb-1 ub-1)
+           (structural-record-type fwd2 f?2 known-fields-2 lb-2 ub-2))
      ;; For each key in the supertype, the subtype either has the same key and it can subtype, or all transitive lower bounds either also don't have the key or their field can be a subtype.
      (define transitive-lb-1
        (variable-transitive-lower-bounds sub))
@@ -1465,8 +1472,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (nominal-record-definition-type inner2))
      (rec inner1 inner2)]
     ;; structural-record-type
-    [(list (structural-record-type fwd f?1 known-fields-1 lb-1 ub-1)
-           (structural-record-type fwd f?2 known-fields-2 lb-2 ub-2))
+    [(list (structural-record-type fwd1 f?1 known-fields-1 lb-1 ub-1)
+           (structural-record-type fwd2 f?2 known-fields-2 lb-2 ub-2))
      ;; All known fields that are in both must be compatible, and the union of known-fields must not conflict with any lower bounds.
      ;; There are 2 kinds of conflicts:
      ;; * Struct A has more fields than struct B, but struct B has a finalized lower bound that lacks the field.
