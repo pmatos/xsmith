@@ -1283,11 +1283,17 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; structural-record-type
     [(list (structural-record-type fwd f?1 known-fields-1 lb-1 ub-1)
            (structural-record-type fwd f?2 known-fields-2 lb-2 ub-2))
-     (error 'can-subtype-unify/structural-record-type
-            "TODO - implement.  Traverse bounds lattice to check that they're OK, and check that their known fields line up OK.")
+     ;; For each key in the supertype, the subtype either has the same key and it can subtype, or all transitive lower bounds either also don't have the key or their field can be a subtype.
+     (define transitive-lb-1
+       (variable-transitive-lower-bounds sub))
      (for/and ([k (dict-keys known-fields-2)])
-       (and (dict-has-key? known-fields-1 k)
-            (rec (dict-ref known-fields-1 k) (dict-ref known-fields-2 k))))]
+       (if (dict-has-key? known-fields-1 k)
+           (rec (dict-ref known-fields-1 k) (dict-ref known-fields-2 k))
+           (for/and ([lb transitive-lb-1])
+             (match lb
+               [(structural-record-type _ lb-f? lb-kf _ _)
+                (or (not (dict-has-key? lb-kf k))
+                    (rec (dict-ref lb-kf k) (dict-ref known-fields-2 k)))]))))]
     ;; generic-type
     [(list (generic-type name1 constructor1 type-arguments1 variances1)
            (generic-type name2 constructor2 type-arguments2 variances2))
