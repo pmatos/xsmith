@@ -1299,9 +1299,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (for/and ([k (dict-keys known-fields-2)])
        (if (dict-has-key? known-fields-1 k)
            (rec (dict-ref known-fields-1 k) (dict-ref known-fields-2 k))
-           (for/and ([lb transitive-lb-1])
-             (can-subtype-unify?/structural-record-type-lower-bound/field
-              lb k (dict-ref known-fields-2 k)))))]
+           (and (not (structural-record-type-finalized? sub))
+                (for/and ([lb transitive-lb-1])
+                  (can-subtype-unify?/structural-record-type-lower-bound/field
+                   lb k (dict-ref known-fields-2 k))))))]
     ;; generic-type
     [(list (generic-type name1 constructor1 type-arguments1 variances1)
            (generic-type name2 constructor2 type-arguments2 variances2))
@@ -1479,12 +1480,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (define f1 (dict-ref known-fields-1 k #f))
        (define f2 (dict-ref known-fields-2 k #f))
        (cond [(and f1 f2) (rec f1 f2)]
-             [f1 (for/and ([lb tlb2])
-                   (can-subtype-unify?/structural-record-type-lower-bound/field
-                    lb k f1))]
-             [f2 (for/and ([lb tlb1])
-                   (can-subtype-unify?/structural-record-type-lower-bound/field
-                    lb k f2))]
+             [f1 (and (not (structural-record-type-finalized? r))
+                      (for/and ([lb tlb2])
+                        (can-subtype-unify?/structural-record-type-lower-bound/field
+                         lb k f1)))]
+             [f2 (and (not (structural-record-type-finalized? l))
+                      (for/and ([lb tlb1])
+                        (can-subtype-unify?/structural-record-type-lower-bound/field
+                         lb k f2)))]
              [else (error 'this-should-be-impossible-but-cond-unhelpfully-returns-void-on-fall-through-so-im-adding-this-just-in-case/can-unify/srt)]))]
     ;; generic-type
     [(list (generic-type name1 constructor1 type-arguments1 variances1)
@@ -2178,38 +2181,30 @@ TODO - when generating a record ref, I'll need to compare something like (record
     )
 
   ;; tests for structural records
-  ;; TODO - rewrite these tests with a new, appropriate constructor
   (let ()
-    (check-false (can-unify?
-                  (fresh-structural-record-type #:finalized? #t
-                                                (hash 'x dog))
-                  (fresh-structural-record-type (hash 'x dog 'y dog))))
-    (check-false (can-subtype-unify?
-                  (fresh-structural-record-type #:finalized? #t
-                                                (hash 'x dog))
-                  (fresh-structural-record-type (hash 'x dog 'y dog))))
-    (check-true (can-subtype-unify?
-                 (fresh-structural-record-type (hash 'x dog 'y dog))
-                 (fresh-structural-record-type (hash 'x dog))))
-    (check-true (can-subtype-unify?
-                 (fresh-structural-record-type (hash 'x labradoodle
-                                                     'y dog))
-                 (fresh-structural-record-type (hash 'x dog))))
-    (check-true (can-subtype-unify?
-                 (fresh-structural-record-type (hash 'x labradoodle
-                                                     'y dog))
-                 (fresh-subtype-of
-                  (fresh-structural-record-type (hash 'x dog)))))
-    (check-false (can-subtype-unify?
-                  (fresh-structural-record-type (hash 'x labradoodle
-                                                      'y dog))
-                  (fresh-subtype-of
-                   (fresh-structural-record-type (hash 'x dog 'z bird)))))
-    (check-true (can-unify?
-                 (fresh-structural-record-type (hash 'x labradoodle
-                                                     'y dog))
-                 (fresh-subtype-of
-                  (fresh-structural-record-type (hash)))))
+    (define (ffsrt ht)
+      (fresh-structural-record-type #:finalized? #t ht))
+    (check-false (can-unify? (ffsrt (hash 'x dog))
+                             (ffsrt (hash 'x dog 'y dog))))
+    (check-false (can-subtype-unify? (ffsrt (hash 'x dog))
+                                     (ffsrt (hash 'x dog 'y dog))))
+    (check-true (can-subtype-unify? (ffsrt (hash 'x dog 'y dog))
+                                    (ffsrt (hash 'x dog))))
+    (check-true (can-subtype-unify? (ffsrt (hash 'x labradoodle
+                                                 'y dog))
+                                    (ffsrt (hash 'x dog))))
+    (check-true (can-subtype-unify? (ffsrt (hash 'x labradoodle
+                                                 'y dog))
+                                    (fresh-subtype-of
+                                     (ffsrt (hash 'x dog)))))
+    (check-false (can-subtype-unify? (ffsrt (hash 'x labradoodle
+                                                  'y dog))
+                                     (fresh-subtype-of
+                                      (ffsrt (hash 'x dog 'z bird)))))
+    (check-true (can-unify? (ffsrt (hash 'x labradoodle
+                                         'y dog))
+                            (fresh-subtype-of
+                             (ffsrt (hash)))))
 
     )
 
