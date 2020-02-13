@@ -752,6 +752,8 @@ Example:
  type-info
  [AdditionExpression [(fresh-subtype-of number)
                       (λ (n t) (hash 'l t 'r t))]]
+ [SubtractionExpression [(λ (n) (fresh-subtype-of number))
+                         (λ (n t) (hash 'l t 'r t))]]
  [EqualityExpression [bool
                       (λ (n t)
                         (define arg-type (fresh-type-variable))
@@ -773,6 +775,10 @@ Children nodes are allowed to be subtypes of the type specified by their parent,
 The first part is the type (or partially-constrained type variable) that the given node can inhabit.
 The expression given is evaluated fresh every time a node is type checked or considered for generation.
 When determining the type of a node, this value is @racket[unify!]-ed with this value.
+
+Additionally, the expression for a node's type constraint may be a function that takes the node and returns a type instead of a type directly.
+However, the function may be passed a hole node that does not yet have properly populated fields and that may be a supertype of the node type you are defining the constraint for.
+So if you use a function here, you need to check the node with @racket[(att-value 'xsmith_is-hole? node)]
 
 The second part is a function that takes a node, its type, and must return a dictionary mapping its children nodes to types.
 The dictionary keys may be the node objects of the node's children OR the symbol of the field name the child inhabits.
