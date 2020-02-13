@@ -499,9 +499,9 @@
    #'(begin
        (define-syntax refiner-name
          (grammar-refiner 'refiner-name
-                          (~? 'follows '())         ;; Refiners do not have a default follow order.
+                          (~? 'follows '())          ;; Refiners do not have a default follow order.
                           #'(~? ref-pred (λ () #t))  ;; By default, refiners should run.
-                          #'(~? global-pred #f)))
+                          #'(~? global-pred #f)))    ;; By default, there is no global predicate.
        (add-refiner
         component
         refiner-name

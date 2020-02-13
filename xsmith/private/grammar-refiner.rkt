@@ -205,6 +205,11 @@ large function to be used with RACR's `perform-rewrites` function.
 |#
 (define (ref-funcs->refiner global-predicate funcs-stx)
   (define funcs (syntax->list funcs-stx))
+  ;; If the global-predicate is not #f and is a syntax object that does not
+  ;; contain #f, it should be consed onto the front of the function list.
+  (when (and global-predicate
+             (syntax->datum global-predicate))
+    (set! funcs (cons global-predicate funcs)))
   (match funcs
     ;; If there is only one function in the list, return it as-is.
     [(list func)
@@ -227,25 +232,35 @@ to whatever is needed.
                                    infos-hash)
   (syntax-parse grammar-ref-name-stx
     [gr:grammar-refiner-stx
-     (let* ([slv (syntax-local-value #'gr)]
-            [ref-name (syntax->datum (refiner-stx->att-rule-name slv))]
-            [global-pred (grammar-refiner-global-predicate slv)]
-            [ret (hash-ref (hash-ref infos-hash 'refs-info)
-                           slv
-                           (hash))]
+     (let* ([ref-stx (syntax-local-value #'gr)]
+            [ref-name (syntax->datum (refiner-stx->att-rule-name ref-stx))]
+            [global-pred (grammar-refiner-global-predicate ref-stx)]
+            [ref-hash (hash-ref (hash-ref infos-hash 'refs-info)
+                                ref-stx
+                                (hash))]
             [att-rules-hash (hash-ref infos-hash 'ag-info)]
             [this-rules-hash (hash-ref att-rules-hash ref-name (hash))])
+       ;; Provide a default clause that has no effect.
+       ;; This is important because refiners are applied to all nodes in an AST,
+       ;; regardless of whether they have a clause defined. The implementation
+       ;; of the default clause can be specified by the user by using the key
+       ;; #f, but the refiner's global-predicate (if there is one) will not be
+       ;; applied to the #f clause in any case.
+       (when (not (dict-has-key? ref-hash #f))
+         (set! ref-hash (dict-set ref-hash #f #'[(λ (n) #f)])))
        (hash-set infos-hash 'ag-info
                  (hash-set att-rules-hash
                            ref-name
                            (for/fold ([combined this-rules-hash])
-                                     ([k (dict-keys ret)])
+                                     ([k (dict-keys ref-hash)])
                              (when (dict-ref combined k #f)
                                (raise-syntax-error 'grammar-refiner-transform
                                                    "duplicate rule"
                                                    #'ref-name))
                              (define refiner
-                               (ref-funcs->refiner global-pred (dict-ref ret k)))
+                               (ref-funcs->refiner
+                                (and k global-pred)  ;; Don't use the global-pred for a #f key.
+                                (dict-ref ref-hash k)))
                              (hash-set combined k refiner)))))]))
 
 #|

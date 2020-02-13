@@ -586,21 +586,47 @@ You might use a refiner to handle simplifications due to a post-generation analy
 @defform[(define-refiner spec-name
                          refiner-name
                          maybe-follows
+                         maybe-refiner-predicate
+                         maybe-global-predicate
                          refiner-clause ...)
 #:grammar [(maybe-follows (code:line)
-                          (code:line #:follows refiner-name ...))]]{
+                          (code:line #:follows refiner-name ...))
+           (maybe-refiner-predicate (code:line)
+                                    (code:line #:refiner-predicate pred))
+           (maybe-global-predicate (code:line)
+                                   (code:line #:global-predicate pred))]]{
 
 Each @racket[refiner-clause] is a list of functions that each take exactly one argument: a node.
 The final function in the list (the "refiner function") must return an AST node which will replace the node that was passed in to the function.
 Each preceding function is a predicate that determines whether the refiner function will be run.
 The list need only provide a refiner function; the predicate functions are optional.
 
+Refiners can have an order imposed on them if so desired.
+You can specify the @racket[#:follows] parameter, which accepts either a refiner name or a list of refiner names.
+All refiners will be sorted based on these @racket[#:follows] declarations, and executed in the order determined.
+
+If you want to predicate the execution of a refiner itself, you can use the @racket[#:refiner-predicate] parameter.
+This parameter accepts a single function that, if given, will be run prior to attempting to run the refiner at all.
+If it returns anything other than @racket[#f], the refiner will be run.
+The function should be a thunk (i.e., it should accept zero arguments).
+This is useful if you wish to have a refiner toggled on or off by a command-line argument.
+
+Additionally, you may wish to have some predicate shared among all clauses of a refiner.
+The @racket[#:global-predicate] parameter allows for this.
+Similar to @racket[refiner-predicate], @racket[#:global-predicate] accepts a single predicate function as argument.
+This function will be prepended to the list of functions for each clause.
+
+The @racket[refiner-clause]s are similar to those used by the @racket[add-prop] (and similar) functions.
+One key difference with refiners is that there is always a @racket[#f] clause given.
+(The default implementation of this clause if omitted by the user is @racket[[(λ (n) #f)]], which means the refiner has no effect for any node which does not have a matching clause defined.)
+The predicate defined by @racket[#:global-predicate] (if present) will not ever be applied to the @racket[#f] clause.
+This means that if you want its functionality to be applied to nodes which do not have matching clauses, you will need to use it in a custom @racket[#f] clause.
+
 @racketblock[
 (define-refiner
  my-spec-component
  make-even
  (code:comment "We provide a default case for all nodes so the function will not fail.")
- [#f [(λ (n) #f)]]
  (code:comment "Any Val node with an odd v field will be replaced with a new Val node")
  (code:comment "whose v field is twice the old value.")
  [Val [(λ (n) (odd? (ast-child 'v n)))
