@@ -1357,6 +1357,31 @@ Predicate for nominal record definition types constructed with @racket[nominal-r
 Getter for the @racket[nominal-record-type] inside a @racket[nominal-record-definition-type].
 }
 
+@defproc[(structural-record-type? [v any/c]) bool/c]{
+Predicate for structural record types.
+}
+@defproc[(fresh-structural-record-type
+          [field-dict (hash/c symbol? type?) (hash)]
+          [#:finalized? finalized? any/c #f])
+         type?]{
+Constructor for a structural record type.
+If @racket[finalized?] is @racket[#f], the result is variable and may have fields added during unification.
+}
+@defproc[(structural-record-type-known-field-dict [srt structural-record-type?]) (hash/c symbol? type?)]{
+Get the field/type mapping held by @racket[srt].
+
+Because this may be updated by unification, and type exploration is lazy where possible, you should use @racket[force-type-exploration-for-node!] before using this on the type of any particular node.
+}
+
+@defproc[(force-type-exploration-for-node! [n ast-node?]) void/c]{
+Type exploration is lazy, and is only done far enough for the built-in algorithm to check whether potential fresh nodes will have appropriate types for a given hole.
+
+If you need to manually inspect details of types inside @racket[type-info], you should use this function on the node whose type is in question to be sure the returned type reflects a maximally unified view.
+
+TODO - explain better when you need to use this.
+
+}
+
 @defproc[(concretize-type [t type?]) type?]{
 Returns a fully concrete (no type variables) type that @racket[can-unify?] with @racket[t].
 
