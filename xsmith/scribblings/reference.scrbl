@@ -847,6 +847,8 @@ Example:
  type-info
  [AdditionExpression [(fresh-subtype-of number)
                       (λ (n t) (hash 'l t 'r t))]]
+ [SubtractionExpression [(λ (n) (fresh-subtype-of number))
+                         (λ (n t) (hash 'l t 'r t))]]
  [EqualityExpression [bool
                       (λ (n t)
                         (define arg-type (fresh-type-variable))
@@ -868,6 +870,10 @@ Children nodes are allowed to be subtypes of the type specified by their parent,
 The first part is the type (or partially-constrained type variable) that the given node can inhabit.
 The expression given is evaluated fresh every time a node is type checked or considered for generation.
 When determining the type of a node, this value is @racket[unify!]-ed with this value.
+
+Additionally, the expression for a node's type constraint may be a function that takes the node and returns a type instead of a type directly.
+However, the function may be passed a hole node that does not yet have properly populated fields and that may be a supertype of the node type you are defining the constraint for.
+So if you use a function here, you need to check the node with @racket[(att-value 'xsmith_is-hole? node)]
 
 The second part is a function that takes a node, its type, and must return a dictionary mapping its children nodes to types.
 The dictionary keys may be the node objects of the node's children OR the symbol of the field name the child inhabits.
@@ -1418,6 +1424,31 @@ Predicate for nominal record definition types constructed with @racket[nominal-r
 }
 @defproc[(nominal-record-definition-type-type [t nominal-record-definition-type?]) nominal-record-type?]{
 Getter for the @racket[nominal-record-type] inside a @racket[nominal-record-definition-type].
+}
+
+@defproc[(structural-record-type? [v any/c]) bool/c]{
+Predicate for structural record types.
+}
+@defproc[(fresh-structural-record-type
+          [field-dict (hash/c symbol? type?) (hash)]
+          [#:finalized? finalized? any/c #f])
+         type?]{
+Constructor for a structural record type.
+If @racket[finalized?] is @racket[#f], the result is variable and may have fields added during unification.
+}
+@defproc[(structural-record-type-known-field-dict [srt structural-record-type?]) (hash/c symbol? type?)]{
+Get the field/type mapping held by @racket[srt].
+
+Because this may be updated by unification, and type exploration is lazy where possible, you should use @racket[force-type-exploration-for-node!] before using this on the type of any particular node.
+}
+
+@defproc[(force-type-exploration-for-node! [n ast-node?]) void/c]{
+Type exploration is lazy, and is only done far enough for the built-in algorithm to check whether potential fresh nodes will have appropriate types for a given hole.
+
+If you need to manually inspect details of types inside @racket[type-info], you should use this function on the node whose type is in question to be sure the returned type reflects a maximally unified view.
+
+TODO - explain better when you need to use this.
+
 }
 
 @defproc[(concretize-type [t type?]) type?]{
