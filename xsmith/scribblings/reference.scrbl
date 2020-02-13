@@ -622,15 +622,84 @@ One key difference with refiners is that there is always a @racket[#f] clause gi
 The predicate defined by @racket[#:global-predicate] (if present) will not ever be applied to the @racket[#f] clause.
 This means that if you want its functionality to be applied to nodes which do not have matching clauses, you will need to use it in a custom @racket[#f] clause.
 
+
 @racketblock[
+(define-spec-component arith)
+
+(add-to-grammar
+ arith
+ (code:comment "...")
+ [ArithOrVal #f ()]  (code:comment "This simplifies choices for generation.")
+ [Val ArithOrVal ([v = (random -100 100)])]  (code:comment "Integer values on the specified")
+                                             (code:comment "interval (-100, 100).")
+ [ArithOp ArithOrVal ([lhs : ArithOrVal]    (code:comment "Arithmetic operations have a")
+                      [rhs : ArithOrVal])]  (code:comment "left-hand side and a right-hand")
+                                            (code:comment "side, which can be either a value")
+                                            (code:comment "or another arithmetic operation.")
+ [AddOp ArithOp ()]  (code:comment "+")
+ [SubOp ArithOp ()]  (code:comment "-")
+ [MulOp ArithOp ()]  (code:comment "*")
+ [DivOp ArithOp ()]  (code:comment "/")
+ [ModOp ArithOp ()]  (code:comment "%")
+ (code:comment "...")
+ )
+
+(code:comment "... (more code here)")
+
 (define-refiner
- my-spec-component
- make-even
- (code:comment "We provide a default case for all nodes so the function will not fail.")
- (code:comment "Any Val node with an odd v field will be replaced with a new Val node")
- (code:comment "whose v field is twice the old value.")
- [Val [(λ (n) (odd? (ast-child 'v n)))
-       (λ (n) (make-fresh-node 'Val (hash 'v (* 2 (ast-child 'v n)))))]])
+  arith
+  make-even
+  (code:comment "This refiner makes all literal integer values into even values by")
+  (code:comment "incrementing them by 1. The `#:refiner-predicate` parameter says that it")
+  (code:comment "will only be run when the `make-even` feature is enabled. This does")
+  (code:comment "require the make-even feature to be defined in the `xsmith-command-line`")
+  (code:comment "function.")
+  #:refiner-predicate (λ () (xsmith-feature-enabled? 'make-even))
+  [Val [(λ (n) (odd? (ast-child 'v n)))
+        (λ (n) (make-replacement-node
+                 'Val
+                 n
+                 (hash 'v (+ 1 (ast-child 'v n)))))]])
+
+(define-refiner
+  arith
+  replace-rhs-val-with-zero
+  (code:comment "The `replace-rhs-val-with-zero` refiner looks at the right-hand side of")
+  (code:comment "every ArithOp to see if it's a Val. If it is, its internal value will")
+  (code:comment "be replaced with 0.")
+  #:global-predicate (λ (n) (node-subtype? (ast-child 'rhs n) 'Val))
+  [ArithOp [(make-replacement-node
+              (node-type n)
+              n
+              (hash 'rhs (make-fresh-node
+                           'Val
+                           (hash 'v 0))))]])
+
+(define-refiner
+  arith
+  prevent-divide-by-zero
+  (code:comment "To prevent divide-by-zero errors, this refiner looks for generated")
+  (code:comment "DivOps and checks whether their right-hand side is a 0. If it is, it")
+  (code:comment "is replaced with a 13.")
+  #:follows:replace-rhs-val-with-zero
+  #:refiner-predicate (λ () (xsmith-feature-enabled? 'prevent-divide-by-zero))
+  [DivOp [(λ (n) (node-subtype? (ast-child 'rhs n) 'Val))
+          (λ (n) (eq? 0 (ast-child 'v (ast-child 'rhs n))))
+          (λ (n) (make-replacement-node
+                   'DivOp
+                   n
+                   (hash 'rhs (make-fresh-node
+                                'Val
+                                (hash 'v 13)))))]])
+
+(code:comment "... (more code here)")
+
+(assemble-spec-components arith-fuzzer arith)
+
+(xsmith-command-line
+ (code:comment "... (other options specified here as needed)")
+ #:features '([make-even #f]
+              [prevent-divide-by-zero #t]))
 ]
 }
 
