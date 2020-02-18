@@ -43,10 +43,13 @@
  (prefix-in rand: racket/random))
 
 ;; TODO - `random`
-(define random rand:random)
+(define (random . args)
+  (apply rand:random args))
 
 ;; TODO - `random-seed`
-(define random-seed rand:random-seed)
+(define (random-seed . args)
+  (apply rand:random-seed args))
 
 ;; TODO - `random-ref`
-(define random-ref rand:random-ref)
+(define (random-ref . args)
+  (apply rand:random-ref args))
