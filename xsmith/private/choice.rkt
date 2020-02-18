@@ -41,7 +41,8 @@
  racket/list
  (for-syntax
   racket/base
-  ))
+  )
+ "random.rkt")
 
 #|
 Choices for AST growth should be some sort of object.
