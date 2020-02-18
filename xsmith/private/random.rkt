@@ -44,12 +44,15 @@
 
 ;; TODO - `random`
 (define (random . args)
+  (eprintf "(random . ~a)\n" args)
   (apply rand:random args))
 
 ;; TODO - `random-seed`
 (define (random-seed . args)
+  (eprintf "(random-seed . ~a)\n" args)
   (apply rand:random-seed args))
 
 ;; TODO - `random-ref`
 (define (random-ref . args)
+  (eprintf "(random-ref . ~a)\n" args)
   (apply rand:random-ref args))
