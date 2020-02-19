@@ -37,6 +37,13 @@
 (provide
  (except-out (all-from-out racket/base)
              random
-             random-seed))
+             random-seed
+             make-pseudo-random-generator
+             pseudo-random-generator?
+             current-pseudo-random-generator
+             pseudo-random-generator->vector
+             vector->pseudo-random-generator
+             vector->pseudo-random-generator!
+             pseudo-random-generator-vector?))
 
 (require racket/base)
