@@ -31,7 +31,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Require and provide the public interface components for the xsmith library.
-(require syntax/parse/define (for-syntax racket/base))
+(require syntax/parse/define (for-syntax "private/xsmith-base.rkt"))
 (define-syntax-parser reprovide
   [(_ arg ...+)
    #'(begin

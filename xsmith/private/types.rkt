@@ -112,16 +112,16 @@ WIP checklist:
 
 (require
  racket/match
- racket/random
  racket/dict
  racket/list
  racket/set
+ "random.rkt"
  "scope-graph.rkt"
  "xsmith-utils.rkt"
  racr
  (submod "xsmith-utils.rkt" for-private)
  (for-syntax
-  racket/base
+  "xsmith-base.rkt"
   syntax/parse
   racket/syntax
   ))

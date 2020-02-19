@@ -36,9 +36,9 @@
  )
 (require
  (for-syntax
-  racket/base
   syntax/parse
   racket/dict
+  "xsmith-base.rkt"
   "grammar-properties.rkt"
   ))
 

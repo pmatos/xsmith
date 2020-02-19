@@ -67,14 +67,14 @@
  "scope-graph.rkt"
  "types.rkt"
  "effects.rkt"
+ "random.rkt"
  racr
- racket/random
  racket/class
  racket/dict
  racket/list
  racket/match
  (for-syntax
-  racket/base
+  "xsmith-base.rkt"
   syntax/parse
   racket/dict
   racket/list

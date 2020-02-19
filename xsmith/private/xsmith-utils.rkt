@@ -82,7 +82,7 @@
  racket/list
  racr
  (for-syntax
-  racket/base
+  "xsmith-base.rkt"
   syntax/parse
   ))
 

@@ -43,7 +43,7 @@
  (submod "core-properties.rkt" for-private)
  syntax/parse/define
  (for-syntax
-  racket/base
+  "xsmith-base.rkt"
   ))
 
 (define-syntax-parser assemble-spec-components

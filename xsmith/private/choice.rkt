@@ -40,7 +40,7 @@
  racket/class
  racket/list
  (for-syntax
-  racket/base
+  "xsmith-base.rkt"
   )
  "random.rkt")
 

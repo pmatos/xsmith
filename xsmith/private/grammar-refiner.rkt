@@ -39,8 +39,8 @@
  racket/syntax
  syntax/parse
  (for-template
-  racr
-  racket/base)  ;; This is required for providing λ at runtime.
+  "xsmith-base.rkt"
+  racr)  ;; This is required for providing λ at runtime.
  )
 
 (provide

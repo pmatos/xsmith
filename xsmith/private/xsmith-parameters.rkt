@@ -33,7 +33,8 @@
 (provide (all-defined-out))
 
 (require
- racket/dict)
+ racket/dict
+ "random.rkt")
 
 (define random-seed-max (expt 2 31))
 
