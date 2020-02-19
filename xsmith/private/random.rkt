@@ -71,3 +71,46 @@
 (define (random-ref . args)
   (eprintf "(random-ref . ~a)\n" args)
   (apply rand:random-ref args))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Pseudo-Random Generator Generation
+;;
+;; Xsmith branches will produce a new pseudo-random generator, but the
+;; production of these generators must be deterministic from a single input
+;; seed value.
+;;
+;; RGV = Random Generator Vector, a six-element integer vector used for the
+;;       creation of new pseudo-random generators.
+;; PRG = Pseudo-Random-Generator.
+
+;; Produce an integer suitable for one of the first three elements of an RGV.
+(define (rgv-first [inc #f])
+  (random (if inc 1 0) 4294967087))
+
+;; Produce an integer suitable for on of the last three elements of an RGV.
+(define (rgv-second [inc #f])
+  (random (if inc 1 0) 4294944443))
+
+;; Produce a triad list of elements built according to `elem-func`. However, if
+;; the first two elements are 0, then the third element will be incremented to
+;; ensure the condition that at least one of the three is non-zero.
+(define (make-triad elem-func)
+  (let* ([e1 (elem-func)]
+         [e2 (elem-func)]
+         [e3 (if (and (eq? 0 e1) (eq? 0 e2))
+                 (elem-func #t)
+                 (elem-func))])
+    (list e1 e2 e3)))
+
+;; Produce an RGV.
+(define (make-rgv)
+  (define first-triad (make-triad rgv-first))
+  (define second-triad (make-triad rgv-second))
+  (list->vector (append first-triad
+                        second-triad)))
+
+;; Produce a PRG.
+(define (make-prg)
+  (vector->pseudo-random-generator (make-rgv)))
