@@ -36,11 +36,26 @@
  random-ref)
 
 (require
- (rename-in
-  racket/base
-    [random rand:random]
-    [random-seed rand:random-seed])
+ (prefix-in rand: (only-in racket/base
+                           random
+                           random-seed
+                           make-pseudo-random-generator
+                           pseudo-random-generator?
+                           current-pseudo-random-generator
+                           pseudo-random-generator->vector
+                           vector->pseudo-random-generator
+                           vector->pseudo-random-generator!
+                           pseudo-random-generator-vector?))
  (prefix-in rand: racket/random))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Substitute Functions
+;;
+;; These functions are intended to replace the same-named functions in the
+;; racket/base and racket/random libraries. This allows for greater control over
+;; the generation of random values in Xsmith.
 
 ;; TODO - `random`
 (define (random . args)
