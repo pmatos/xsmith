@@ -71,9 +71,10 @@
 ;;       [ ] Determine a representation for the sequence (bits/bytes/etc,
 ;;           list/vector/etc)
 ;;     [X] Default initialization
+;;     [ ] Connect randomness source to command-line arguments
 ;;   [ ] Consult correct source of randomness
 ;;   [ ] Provide functions for all common randomness use cases
-;;     [ ] random
+;;     [X] random
 ;;     [ ] random-seed
 ;;     [ ] random-ref
 ;;   [ ] Provide functions for custom use cases
@@ -156,10 +157,15 @@
 ;; racket/base and racket/random libraries. This allows for greater control over
 ;; the generation of random values in Xsmith.
 
-;; TODO - `random`
-(define (random . args)
-  (eprintf "(random . ~a)\n" args)
-  (apply rand:random args))
+;; Produce a random value on the corresponding interval:
+;; (random)         - [0, 1)     (floating-point number)
+;; (random k)       - [0, k)     (exact integer)
+;; (random min max) - [min, max) (exact integer)
+(define (random [min #f] [max #f])
+  (define args (append (if min (list min) '())
+                       (if max (list max) '())))
+  ;; FIXME - this only works if rnd-prg? is true!
+  (begin-rnd (apply rand:random args)))
 
 ;; TODO - `random-seed`
 (define (random-seed . args)
