@@ -130,6 +130,12 @@
   (rnd-chk!)
   (eq? rstype-prg (car random-source)))
 
+;; This macro allows for easily parameterizing the
+;; current-pseudo-random-generator with random-source.
+(define-syntax-rule (begin-rnd body ...+)
+  (parameterize ([current-pseudo-random-generator random-source])
+    (begin body ...+)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
