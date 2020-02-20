@@ -46,7 +46,10 @@
                            vector->pseudo-random-generator
                            vector->pseudo-random-generator!
                            pseudo-random-generator-vector?))
- (prefix-in rand: racket/random))
+ (prefix-in rand: racket/random)
+ (for-syntax racket/base
+             syntax/parse
+             syntax/parse/define))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
