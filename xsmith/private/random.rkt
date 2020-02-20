@@ -111,6 +111,10 @@
   (list->vector (append first-triad
                         second-triad)))
 
+;; Test if a value is an RGV.
+(define (rgv? v)
+  (rand:pseudo-random-generator-vector? v))
+
 ;; Produce a PRG.
 (define (make-prg)
   (vector->pseudo-random-generator (make-rgv)))
