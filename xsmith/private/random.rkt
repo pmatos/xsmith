@@ -51,6 +51,41 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+;; Acronyms
+;;
+;; PRG = Pseudo-Random-Generator
+;; RGV = Random Generator Vector, a six-element integer vector used for the
+;;       creation of new PRGs
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; TODO Items
+;;
+;; [ ] Coverage-Guided Generation
+;;   [ ] Initialize/store source of randomness (generator or bit sequence)
+;;     [X] Initialize from PRG
+;;     [ ] Initialize from sequence
+;;       [ ] Determine a representation for the sequence (bits/bytes/etc,
+;;           list/vector/etc)
+;;     [X] Default initialization
+;;   [ ] Consult correct source of randomness
+;;   [ ] Provide functions for all common randomness use cases
+;;     [ ] random
+;;     [ ] random-seed
+;;     [ ] random-ref
+;;   [ ] Provide functions for custom use cases
+;;   [ ] Consider specialized distribution functions
+;; [ ] Investigate More Specific Sequence Representations
+;;    -  Instead of just storing the random bits, consider storing the results
+;;       of computations along with their generation constraints. This would
+;;       allow for better tailoring of values during re-generation from a given
+;;       sequence.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 ;; Source of Randomness
 ;;
 ;; The source of randomness is a global singleton. If not set explicitly, the
@@ -114,10 +149,6 @@
 ;; Xsmith branches will produce a new pseudo-random generator, but the
 ;; production of these generators must be deterministic from a single input
 ;; seed value.
-;;
-;; RGV = Random Generator Vector, a six-element integer vector used for the
-;;       creation of new pseudo-random generators.
-;; PRG = Pseudo-Random-Generator.
 
 ;; Produce an integer suitable for one of the first three elements of an RGV.
 (define (rgv-first [inc #f])
