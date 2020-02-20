@@ -138,8 +138,10 @@
 (define-syntax (begin-rnd stx)
   (syntax-parse stx
     [(_ body ...+)
-     #'(parameterize ([current-pseudo-random-generator random-source])
-         (begin body ...))]))
+     #'(begin
+         (rnd-chk!)
+         (parameterize ([current-pseudo-random-generator random-source])
+           (begin body ...)))]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
