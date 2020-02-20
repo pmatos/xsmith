@@ -132,9 +132,11 @@
 
 ;; This macro allows for easily parameterizing the
 ;; current-pseudo-random-generator with random-source.
-(define-syntax-rule (begin-rnd body ...+)
-  (parameterize ([current-pseudo-random-generator random-source])
-    (begin body ...+)))
+(define-syntax (begin-rnd stx)
+  (syntax-parse stx
+    [(_ body ...+)
+     #'(parameterize ([current-pseudo-random-generator random-source])
+         (begin body ...))]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
