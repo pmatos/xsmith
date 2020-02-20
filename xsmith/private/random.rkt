@@ -104,8 +104,11 @@
 
 ;; Initialize the random-source with a pseudo-random generator.
 (define (use-prg-as-source [rgv #f])
-  (unless (rgv? rgv)
+  ;; If rgv has a value, check that it's valid.
+  (when (and rgv (not (rgv? rgv)))
     (raise-argument-error 'use-prg-as-source "rgv?" rgv))
+  ;; Set the random-source based on whether rgv has been given. If not, use a
+  ;; regular PRG.
   (set! random-source
         (cons rstype-prg
               (if rgv
