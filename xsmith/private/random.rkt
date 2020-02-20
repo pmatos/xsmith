@@ -95,27 +95,40 @@
 ;; This is the singleton that should be used everywhere.
 (define random-source #f)
 
+;; These distinguish the type of random-source being used.
+(define rstype-prg 'prg)
+(define rstype-seq 'seq)
+
 ;; Initialize the random-source with a pseudo-random generator.
 (define (use-prg-as-source [rgv #f])
   (unless (rgv? rgv)
     (raise-argument-error 'use-prg-as-source "rgv?" rgv))
   (set! random-source
-        (if rgv
-            (rand:vector->pseudo-random-generator rgv)
-            (rand:make-pseudo-random-generator))))
+        (cons rstype-prg
+              (if rgv
+                  (rand:vector->pseudo-random-generator rgv)
+                  (rand:make-pseudo-random-generator)))))
 
 ;; Initialize the random-source with a given sequence.
 ;; TODO - what is the representation of the sequence?
 (define (use-seq-as-source seq)
-  (set! random-source seq))
+  (set! random-source
+        (cons rstype-seq
+              seq)))
 
 ;; Check that the random-source has been initialized. If it has not, use a PRG
 ;; as the source.
 ;; This function has a short name because it will be used frequently and I
 ;; wanted to reduce syntactic overhead.
-(define (rnd-chk)
+(define (rnd-chk!)
   (when (eq? #f random-source)
     (use-prg-as-source)))
+
+;; Poll whether the random-source is a PRG or not.
+;; (A #f value implies that the random-source is a sequence.)
+(define (rnd-prg?)
+  (rnd-chk!)
+  (eq? rstype-prg (car random-source)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
