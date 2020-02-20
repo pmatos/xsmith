@@ -140,7 +140,8 @@
     [(_ body ...+)
      #'(begin
          (rnd-chk!)
-         (parameterize ([current-pseudo-random-generator random-source])
+         (parameterize ([rand:current-pseudo-random-generator
+                         (cdr random-source)])
            (begin body ...)))]))
 
 
