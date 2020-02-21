@@ -123,6 +123,15 @@
         (cons rstype-seq
               seq)))
 
+;; Set the current random seed in a PRG random-source.
+;; Raises an error if the random-source is not a PRG.
+(define (set-random-seed! k)
+  (unless (rnd-prg?)
+    (raise-user-error
+     'set-random-seed!
+     "Cannot set random seed for non-PRG source of randomness."))
+  (begin-rnd (rand:random-seed k)))
+
 ;; Check that the random-source has been initialized. If it has not, use a PRG
 ;; as the source.
 ;; This function has a short name because it will be used frequently and I
@@ -151,11 +160,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Substitute Functions
+;; Generation Functions
 ;;
-;; These functions are intended to replace the same-named functions in the
-;; racket/base and racket/random libraries. This allows for greater control over
-;; the generation of random values in Xsmith.
+;; These functions are used to get values from the random-source. It is
+;; intended that users implementing fuzzers will primarily be using the
+;; functions defined in this section.
 
 ;; Produce a random value on the corresponding interval:
 ;; (random)         - [0, 1)     (floating-point number)
@@ -166,20 +175,6 @@
                        (if max (list max) '())))
   ;; FIXME - this only works if rnd-prg? is true!
   (begin-rnd (apply rand:random args)))
-
-;; Set the current random seed in a PRG random-source.
-;; Raises an error if the random-source is not a PRG.
-(define (set-random-seed! k)
-  (unless (rnd-prg?)
-    (raise-user-error
-     'set-random-seed!
-     "Cannot set random seed for non-PRG source of randomness."))
-  (begin-rnd (rand:random-seed k)))
-
-;; TODO - `random-ref`
-(define (random-ref . args)
-  (eprintf "(random-ref . ~a)\n" args)
-  (apply rand:random-ref args))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
