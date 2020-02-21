@@ -114,11 +114,11 @@
      'set-random-source!
      (format "Must use an existing type for setting random source! Options are: ~a\n"
              valid-rstypes)))
-  (make-parameter (cons type value)))
+  (cons type value))
 
 ;; Set the random-source.
 (define (set-random-source! type value)
-  (set! random-source (make-random-source type value)))
+  (set! random-source (make-parameter (make-random-source type value))))
 
 ;; Get the random-source's type.
 (define (random-source-type)
