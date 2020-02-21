@@ -31,9 +31,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (provide
- random
- set-random-seed!
- random-ref)
+ use-prg-as-source
+ use-seq-as-source
+ set-prg-seed!
+ random)
 
 (require
  (prefix-in rand: (only-in racket/base
@@ -125,7 +126,7 @@
 
 ;; Set the current random seed in a PRG random-source.
 ;; Raises an error if the random-source is not a PRG.
-(define (set-random-seed! k)
+(define (set-prg-seed! k)
   (unless (rnd-prg?)
     (raise-user-error
      'set-random-seed!
