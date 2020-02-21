@@ -95,12 +95,30 @@
 ;;
 ;; Source of Randomness
 ;;
-;; The source of randomness is a global singleton. If not set explicitly, the
+;; The source of randomness is a singleton parameter. If not set explicitly, the
 ;; default action is to initialize a regular pseudo-random generator and use
 ;; that for the duration.
 
-;; This is the singleton that should be used everywhere.
-(define random-source #f)
+;; This is the parameter that should be used everywhere.
+(define random-source (make-parameter #f))
+
+;; Check if the random-source has been initialized.
+(define (random-source-initialized?)
+  (not (eq? #f (random-source))))
+
+;; Set the random-source.
+(define (set-random-source! type value)
+  (set! random-source (make-parameter (cons type value))))
+
+;; Get the random-source's type.
+(define (random-source-type)
+  (and (random-source)
+       (car (random-source))))
+
+;; Get the random-source's value.
+(define (random-source-value)
+  (and (random-source)
+       (cdr (random-source))))
 
 ;; These distinguish the type of random-source being used.
 (define rstype-prg 'prg)
@@ -113,18 +131,18 @@
     (raise-argument-error 'use-prg-as-source "rgv?" rgv))
   ;; Set the random-source based on whether rgv has been given. If not, use a
   ;; regular PRG.
-  (set! random-source
-        (cons rstype-prg
-              (if rgv
-                  (rand:vector->pseudo-random-generator rgv)
-                  (rand:make-pseudo-random-generator)))))
+  (set-random-source!
+   rstype-prg
+   (if rgv
+       (rand:vector->pseudo-random-generator rgv)
+       (rand:make-pseudo-random-generator))))
 
 ;; Initialize the random-source with a given sequence.
 ;; TODO - what is the representation of the sequence?
 (define (use-seq-as-source seq)
-  (set! random-source
-        (cons rstype-seq
-              seq)))
+  (set-random-source!
+   rstype-seq
+   seq))
 
 ;; Set the current random seed in a PRG random-source.
 ;; Raises an error if the random-source is not a PRG.
@@ -133,7 +151,7 @@
     (raise-user-error
      'set-random-seed!
      "Cannot set random seed for non-PRG source of randomness."))
-  (begin-racket-rnd
+  (begin-racket-rand
     (rand:random-seed k)))
 
 ;; Check that the random-source has been initialized. If it has not, use a PRG
@@ -141,14 +159,14 @@
 ;; This function has a short name because it will be used frequently and I
 ;; wanted to reduce syntactic overhead.
 (define (rnd-chk!)
-  (when (eq? #f random-source)
+  (unless (random-source-initialized?)
     (use-prg-as-source)))
 
 ;; Poll whether the random-source is a PRG or not.
 ;; (A #f value implies that the random-source is a sequence.)
 (define (rnd-prg?)
   (rnd-chk!)
-  (eq? rstype-prg (car random-source)))
+  (eq? rstype-prg (random-source-type)))
 
 ;; This macro allows for easily parameterizing the
 ;; current-pseudo-random-generator with random-source.
@@ -158,7 +176,7 @@
      #'(begin
          (rnd-chk!)
          (parameterize ([rand:current-pseudo-random-generator
-                         (cdr random-source)])
+                         (random-source-value)])
            (begin body ...)))]))
 
 
