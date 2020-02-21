@@ -52,7 +52,8 @@
  (prefix-in rand: racket/random)
  (for-syntax racket/base
              syntax/parse
-             syntax/parse/define))
+             syntax/parse/define)
+ racket/set)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -108,6 +109,11 @@
 
 ;; Set the random-source.
 (define (set-random-source! type value)
+  (unless (set-member? valid-rstypes type)
+    (raise-user-error
+     'set-random-source!
+     (format "Must use an existing type for setting random source! Options are: ~a\n"
+             valid-rstypes)))
   (set! random-source (make-parameter (cons type value))))
 
 ;; Get the random-source's type.
@@ -123,6 +129,10 @@
 ;; These distinguish the type of random-source being used.
 (define rstype-prg 'prg)
 (define rstype-seq 'seq)
+
+;; A set containing the recognized types of random-source.
+(define valid-rstypes
+  (seteqv rstype-prg rstype-seq))
 
 ;; Initialize the random-source with a pseudo-random generator.
 (define (use-prg-as-source [rgv #f])
