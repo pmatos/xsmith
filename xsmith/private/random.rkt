@@ -107,14 +107,18 @@
 (define (random-source-initialized?)
   (not (eq? #f (random-source))))
 
-;; Set the random-source.
-(define (set-random-source! type value)
+;; Create a new random-source parameter.
+(define (make-random-source type value)
   (unless (set-member? valid-rstypes type)
     (raise-user-error
      'set-random-source!
      (format "Must use an existing type for setting random source! Options are: ~a\n"
              valid-rstypes)))
-  (set! random-source (make-parameter (cons type value))))
+  (make-parameter (cons type value)))
+
+;; Set the random-source.
+(define (set-random-source! type value)
+  (set! random-source (make-random-source type value)))
 
 ;; Get the random-source's type.
 (define (random-source-type)
