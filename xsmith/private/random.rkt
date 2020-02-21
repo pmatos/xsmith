@@ -226,17 +226,30 @@
 ;;
 ;; Pseudo-Random Generator Generation
 ;;
-;; Xsmith branches will produce a new pseudo-random generator, but the
-;; production of these generators must be deterministic from a single input
-;; seed value.
+;; These generators are produced using crypto-random-bytes, meaning they are
+;; cryptographically secure and are entirely unimpacted by the existing
+;; random-source.
+;;
+;; To use these deterministically, invoke the `set-prg-seed!` function.
+
+;; Produce an RGV vector element.
+;; `max` represents the maximum value this element can have.
+;; `inc` determines whether the element must be non-zero.
+(define (rgv-element max [non-zero? #f])
+  (let* ([val (integer-bytes->integer (rand:crypto-random-bytes 8) #f)]
+         [val (modulo val max)]
+         [val (if (and non-zero? val)
+                  (add1 val)
+                  val)])
+    val))
 
 ;; Produce an integer suitable for one of the first three elements of an RGV.
-(define (rgv-first [inc #f])
-  (random (if inc 1 0) 4294967087))
+(define (rgv-first [non-zero? #f])
+  (rgv-element 4294967087 non-zero?))
 
 ;; Produce an integer suitable for on of the last three elements of an RGV.
-(define (rgv-second [inc #f])
-  (random (if inc 1 0) 4294944443))
+(define (rgv-second [non-zero? #f])
+  (rgv-element 4294944443 non-zero?))
 
 ;; Produce a triad list of elements built according to `elem-func`. However, if
 ;; the first two elements are 0, then the third element will be incremented to
