@@ -172,7 +172,7 @@
 (define (set-random-seed! k)
   (unless (rnd-prg?)
     (raise-user-error
-     'random-seed
+     'set-random-seed!
      "Cannot set random seed for non-PRG source of randomness."))
   (begin-rnd (rand:random-seed k)))
 
