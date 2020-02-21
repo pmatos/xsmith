@@ -32,7 +32,7 @@
 
 (provide
  random
- random-seed
+ set-random-seed!
  random-ref)
 
 (require
@@ -167,10 +167,14 @@
   ;; FIXME - this only works if rnd-prg? is true!
   (begin-rnd (apply rand:random args)))
 
-;; TODO - `random-seed`
-(define (random-seed . args)
-  (eprintf "(random-seed . ~a)\n" args)
-  (apply rand:random-seed args))
+;; Set the current random seed in a PRG random-source.
+;; Raises an error if the random-source is not a PRG.
+(define (set-random-seed! k)
+  (unless (rnd-prg?)
+    (raise-user-error
+     'random-seed
+     "Cannot set random seed for non-PRG source of randomness."))
+  (begin-rnd (rand:random-seed k)))
 
 ;; TODO - `random-ref`
 (define (random-ref . args)
