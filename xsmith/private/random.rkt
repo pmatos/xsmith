@@ -34,7 +34,9 @@
  use-prg-as-source
  use-seq-as-source
  set-prg-seed!
- random)
+ random
+ random-int
+ random-uint)
 
 (require
  (prefix-in rand: (only-in racket/base
@@ -176,6 +178,14 @@
                        (if max (list max) '())))
   ;; FIXME - this only works if rnd-prg? is true!
   (begin-rnd (apply rand:random args)))
+
+;; Produce an unsigned integer on the range [0, 2^32 - 209].
+(define (random-uint)
+  (random 0 4294967087))
+
+;; Produce a signed integer on the range [-(2^31 - 104), 2^31 - 105].
+(define (random-int)
+  (random -2147483544 2147483543))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
