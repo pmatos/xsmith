@@ -133,7 +133,8 @@
     (raise-user-error
      'set-random-seed!
      "Cannot set random seed for non-PRG source of randomness."))
-  (begin-rnd (rand:random-seed k)))
+  (begin-racket-rnd
+    (rand:random-seed k)))
 
 ;; Check that the random-source has been initialized. If it has not, use a PRG
 ;; as the source.
@@ -151,7 +152,7 @@
 
 ;; This macro allows for easily parameterizing the
 ;; current-pseudo-random-generator with random-source.
-(define-syntax (begin-rnd stx)
+(define-syntax (begin-racket-rand stx)
   (syntax-parse stx
     [(_ body ...+)
      #'(begin
@@ -177,7 +178,8 @@
   (define args (append (if min (list min) '())
                        (if max (list max) '())))
   ;; FIXME - this only works if rnd-prg? is true!
-  (begin-rnd (apply rand:random args)))
+  (begin-racket-rand
+    (apply rand:random args)))
 
 ;; Produce an unsigned integer on the range [0, 2^32 - 209].
 (define (random-uint)
