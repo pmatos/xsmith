@@ -113,7 +113,7 @@
     (raise-user-error
      'set-random-source!
      (format "Must use an existing type for setting random source! Options are: ~a\n"
-             valid-rstypes)))
+             (set->list valid-rstypes))))
   (cons type value))
 
 ;; Set the random-source.
