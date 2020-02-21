@@ -73,7 +73,7 @@
 ;;   [ ] Initialize/store source of randomness (generator or bit sequence)
 ;;     [X] Initialize from PRG
 ;;     [ ] Initialize from sequence
-;;       [ ] Determine a representation for the sequence (bits/bytes/etc,
+;;       [X] Determine a representation for the sequence (bits/bytes/etc,
 ;;           list/vector/etc)
 ;;     [X] Default initialization
 ;;     [ ] Connect randomness source to command-line arguments
@@ -152,13 +152,6 @@
        (rand:vector->pseudo-random-generator rgv)
        (rand:make-pseudo-random-generator))))
 
-;; Initialize the random-source with a given sequence.
-;; TODO - what is the representation of the sequence?
-(define (use-seq-as-source seq)
-  (set-random-source!
-   rstype-seq
-   seq))
-
 ;; Set the current random seed in a PRG random-source.
 ;; Raises an error if the random-source is not a PRG.
 (define (set-prg-seed! k)
@@ -169,6 +162,12 @@
   (begin-racket-rand
     (rand:random-seed k)))
 
+;; Poll whether the random-source is a PRG or not.
+;; (A #f value implies that the random-source is a sequence.)
+(define (rnd-prg?)
+  (rnd-chk!)
+  (eq? rstype-prg (random-source-type)))
+
 ;; Check that the random-source has been initialized. If it has not, use a PRG
 ;; as the source.
 ;; This function has a short name because it will be used frequently and I
@@ -177,11 +176,31 @@
   (unless (random-source-initialized?)
     (use-prg-as-source)))
 
-;; Poll whether the random-source is a PRG or not.
-;; (A #f value implies that the random-source is a sequence.)
-(define (rnd-prg?)
-  (rnd-chk!)
-  (eq? rstype-prg (random-source-type)))
+;; Initialize the random-source with a given sequence.
+;; The sequence value is actually a 3-element list consisting of:
+;;   1. A byte string.
+;;   2. An index into the string representing the current location.
+;;   3. A PRG seeded from the first byte in the byte string, which will be used
+;;      for extending the string as needed.
+(define (use-seq-as-source seq)
+  (unless (and (bytes? seq)
+               (< 0 (bytes-length seq)))
+    (raise-argument-error
+     'use-seq-as-source
+     "non-empty bytes?"
+     seq))
+  (set-random-source!
+   rstype-seq
+   (list seq
+         1
+         (let ([seq-prg (make-prg)])
+           (begin-with-prg seq-prg (set-prg-seed! 0))
+           seq-prg))))
+
+;; Poll whether the random-source is a sequence or not.
+;; (A #f value implies that the random-source is a PRG.)
+(define (rnd-seq?)
+  (not (rnd-prg?)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
