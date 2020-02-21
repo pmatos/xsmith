@@ -34,6 +34,7 @@
  use-prg-as-source
  use-seq-as-source
  set-prg-seed!
+ begin-with-random-seed
  random
  random-int
  random-uint)
@@ -192,6 +193,13 @@
          (parameterize ([rand:current-pseudo-random-generator
                          (random-source-value)])
            (begin body ...)))]))
+
+(define-syntax (begin-with-random-seed stx)
+  (syntax-parse stx
+    [(_ k:integer body ...+)
+     #'(parameterize ([random-source (make-random-source rstype-prg (make-prg))])
+         (set-prg-seed! k)
+         (begin body ...))]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
