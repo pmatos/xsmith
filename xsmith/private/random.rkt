@@ -217,8 +217,16 @@
 (define-syntax (begin-with-random-seed stx)
   (syntax-parse stx
     [(_ k:integer body ...+)
-     #'(parameterize ([random-source (make-random-source rstype-prg (make-prg))])
-         (set-prg-seed! k)
+     #'(begin-with-prg (make-prg)
+                       (set-prg-seed! k)
+                       body ...)]))
+
+;; Given a PRG, execute the body statements with that PRG installed as the
+;; random-source.
+(define-syntax (begin-with-prg stx)
+  (syntax-parse stx
+    [(_ prg:expr body ...+)
+     #'(parameterize ([random-source (make-random-source rstype-prg prg)])
          (begin body ...))]))
 
 
