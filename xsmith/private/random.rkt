@@ -375,5 +375,8 @@
   (rand:pseudo-random-generator-vector? v))
 
 ;; Produce a PRG.
-(define (make-prg)
-  (vector->pseudo-random-generator (make-rgv)))
+(define (make-prg [seed #f])
+  (define prg (vector->pseudo-random-generator (make-rgv)))
+  (when seed
+    (begin-with-prg prg (set-prg-seed! seed)))
+  prg)
