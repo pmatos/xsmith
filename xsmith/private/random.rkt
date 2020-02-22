@@ -267,7 +267,11 @@
       (integer-bytes->integer
        (subbytes (rnd-seq-bytes) (rnd-seq-index) (+ seq-chunk-size (rnd-seq-index)))
        #f)
-    (rnd-seq-advance-index!)))
+    (rnd-seq-advance-index!)
+    ;; If the index has gone out of bounds of the existing sequence, set it to
+    ;; #f as a sentinel so the sequence will no longer be consulted.
+    (when (>= (rnd-seq-index) (bytes-length (rnd-seq-bytes)))
+      (set-seq-val-idx! (random-source-value) #f))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
