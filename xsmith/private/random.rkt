@@ -177,7 +177,7 @@
   (unless (random-source-initialized?)
     (use-prg-as-source)))
 
-(define rnd-seq-size 4)
+(define seq-chunk-size 4)
 
 ;; Initialize the random-source with a given sequence.
 ;; The sequence value is actually a 3-element list consisting of:
@@ -187,7 +187,22 @@
 ;;      for extending the string as needed.
 (define (use-seq-as-source seq)
   (unless (and (bytes? seq)
-               (<= rnd-seq-size (bytes-length seq)))
+               (<= seq-chunk-size (bytes-length seq)))
+    (raise-argument-error
+     'use-seq-as-source
+     "bytes? of at least length 8"
+     seq))
+  (set-random-source!
+   rstype-seq
+   (seq-val seq
+            seq-chunk-size
+            (let* ([seed-bytes (subbytes seq 0 seq-chunk-size)]
+                   [seed-int (integer-bytes->integer seed-bytes #f)]
+                   [seed-val (modulo seed-int (sub1 (expt 2 31)))])
+              (make-prg seed-val)))))
+#;(define (use-seq-as-source seq)
+  (unless (and (bytes? seq)
+               (<= seq-chunk-size (bytes-length seq)))
     (raise-argument-error
      'use-seq-as-source
      "bytes? of at least length 8"
@@ -195,13 +210,18 @@
   (set-random-source!
    rstype-seq
    (list seq
-         rnd-seq-size
+         seq-chunk-size
          (let ([seq-prg (make-prg)]
-               [seed-bytes (subbytes seq 0 rnd-seq-size)]
+               [seed-bytes (subbytes seq 0 seq-chunk-size)]
                [seed-int (integer-bytes->integer seed-bytes #f)]
                [seed-val (modulo seed-int (sub1 (expt 2 31)))])
            (begin-with-prg seq-prg (set-prg-seed! seed-val))
            seq-prg))))
+
+(struct seq-val
+  ([seq #:mutable]
+   [idx #:mutable]
+   [prg]))
 
 ;; Poll whether the random-source is a sequence or not.
 ;; (A #f value implies that the random-source is a PRG.)
@@ -214,7 +234,7 @@
     (raise-user-error
      'rnd-seq-bytes
      "Source of randomness is not a sequence!"))
-  (car (random-source-value)))
+  (seq-val-seq (random-source-value)))
 
 ;; Get the current index from the random-source sequence.
 (define (rnd-seq-index)
@@ -222,15 +242,15 @@
     (raise-user-error
      'rnd-seq-index
      "Source of randomness is not a sequence!"))
-  (car (cdr (random-source-value))))
+  (seq-val-idx (random-source-value)))
 
-;; TODO - re-implement the list of seq values as boxes so they can be set individually
-#;(define (rnd-seq-advance-index)
+;; Move the sequence's index forward by `seq-chunk-size`.
+(define (rnd-seq-advance-index!)
   (unless (rnd-seq?)
     (raise-user-error
      'rnd-seq-index
      "Source of randomness is not a sequence!"))
-  (set! ))
+  (set-seq-val-idx! (random-source-value) (+ seq-chunk-size (rnd-seq-index))))
 
 ;; Get the PRG from the random-source sequence.
 (define (rnd-seq-prg)
@@ -238,15 +258,16 @@
     (raise-user-error
      'rnd-seq-prg
      "Source of randomness is not a sequence!"))
-  (car (cdr (cdr (random-source-value)))))
+  (seq-val-prg (random-source-value)))
 
-;; Get the next `rnd-seq-size` bytes from the sequence and convert them into an
+;; Get the next `seq-chunk-size` bytes from the sequence and convert them into an
 ;; unsigned integer value.
 (define (consume-int-from-seq!)
-  (define result (integer-bytes->integer
-                  (subbytes (rnd-seq-bytes) (rnd-seq-index) (+ rnd-seq-size (rnd-seq-index)))
-                  #f))
-  ())
+  (begin0
+      (integer-bytes->integer
+       (subbytes (rnd-seq-bytes) (rnd-seq-index) (+ seq-chunk-size (rnd-seq-index)))
+       #f)
+    (rnd-seq-advance-index!)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
