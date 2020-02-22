@@ -200,7 +200,7 @@
                [seed-bytes (subbytes seq 0 rnd-seq-size)]
                [seed-int (integer-bytes->integer seed-bytes #f)]
                [seed-val (modulo seed-int (sub1 (expt 2 31)))])
-           (begin-with-prg seq-prg (set-prg-seed! seed-val)
+           (begin-with-prg seq-prg (set-prg-seed! seed-val))
            seq-prg))))
 
 ;; Poll whether the random-source is a sequence or not.
