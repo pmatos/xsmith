@@ -246,6 +246,10 @@
 ;; Get the next `seq-chunk-size` bytes from the sequence and convert them into an
 ;; unsigned integer value.
 (define (consume-int-from-seq!)
+  (when (eq? #f (rnd-seq-index))
+    (raise-user-error
+     'consume-int-from-seq!
+     "Cannot consume values from an already-consumed sequence!"))
   (begin0
       (integer-bytes->integer
        (subbytes (rnd-seq-bytes) (rnd-seq-index) (+ seq-chunk-size (rnd-seq-index)))
