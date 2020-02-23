@@ -200,23 +200,6 @@
                    [seed-int (integer-bytes->integer seed-bytes #f)]
                    [seed-val (modulo seed-int (sub1 (expt 2 31)))])
               (make-prg seed-val)))))
-#;(define (use-seq-as-source seq)
-  (unless (and (bytes? seq)
-               (<= seq-chunk-size (bytes-length seq)))
-    (raise-argument-error
-     'use-seq-as-source
-     "bytes? of at least length 8"
-     seq))
-  (set-random-source!
-   rstype-seq
-   (list seq
-         seq-chunk-size
-         (let ([seq-prg (make-prg)]
-               [seed-bytes (subbytes seq 0 seq-chunk-size)]
-               [seed-int (integer-bytes->integer seed-bytes #f)]
-               [seed-val (modulo seed-int (sub1 (expt 2 31)))])
-           (begin-with-prg seq-prg (set-prg-seed! seed-val))
-           seq-prg))))
 
 (struct seq-val
   ([seq #:mutable]
