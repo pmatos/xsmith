@@ -360,11 +360,23 @@
 ;; (random k)       - [0, k)     (exact integer)
 ;; (random min max) - [min, max) (exact integer)
 (define (random [min #f] [max #f])
-  (define args (append (if min (list min) '())
-                       (if max (list max) '())))
-  ;; FIXME - this only works if rnd-prg? is true!
-  (begin-racket-rand
-    (apply rand:random args)))
+  (define thunk (lambda ()
+                  (apply rand:random
+                         (append (if min (list min) '())
+                                 (if max (list max) '())))))
+  (cond
+    [(rnd-prg?)
+     (begin-with-racket-prg
+       (random-source-value)
+       (thunk))]
+    [(rnd-seq?)
+     (begin-with-random-seed
+       (next-uint-from-seq)
+       (thunk))]
+    [else
+     (raise-user-error
+      'random
+      "Invalid random-source state detected.")]))
 
 ;; Produce an unsigned integer on the range [0, 2^32 - 209].
 (define (random-uint)
