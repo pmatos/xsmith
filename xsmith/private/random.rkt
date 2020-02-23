@@ -198,6 +198,7 @@
             seq-chunk-size
             (let* ([seed-bytes (subbytes seq 0 seq-chunk-size)]
                    [seed-int (integer-bytes->integer seed-bytes #f)]
+                   ;; The bounds on this value are documented by random-seed.
                    [seed-val (modulo seed-int (sub1 (expt 2 31)))])
               (make-prg seed-val)))))
 
