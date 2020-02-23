@@ -280,6 +280,27 @@
                     (bytes-append (rnd-seq-bytes)
                                   new-bytes-seq)))
 
+;; Get an integer from the seq-val's PRG. It will be modified by modulo to
+;; ensure it fits within a chunk of the byte sequence.
+(define (generate-int-from-seq-val)
+  (modulo
+   (begin-with-prg (rnd-seq-prg)
+                   (random-uint))
+   (sub1 (expt 2 (* 8 seq-chunk-size)))))
+
+;; Produce an integer for a sequenced random-source.
+(define (next-int-from-seq)
+  ;; If the byte sequence hasn't been fully consumed, take the next integer
+  ;; from there.
+  (unless (eq? #f (rnd-seq-index))
+    (consume-int-from-seq!))
+  ;; Otherwise, produce a new integer using the seq-val's PRG, extend the byte
+  ;; sequence to include this new integer, and then return the integer.
+  (let* ([next-int (generate-int-from-seq-val)]
+         [new-bytes (integer->integer-bytes next-int seq-chunk-size #f)])
+    (extend-seq! new-bytes)
+    next-int))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
