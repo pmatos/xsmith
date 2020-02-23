@@ -159,7 +159,8 @@
     (raise-user-error
      'set-random-seed!
      "Cannot set random seed for non-PRG source of randomness."))
-  (begin-racket-rand
+  (begin-with-racket-prg
+    (random-source-value)
     (rand:random-seed k)))
 
 ;; Poll whether the random-source is a PRG or not.
@@ -309,17 +310,21 @@
 ;; These macros allow for easier use of the given system, automatically
 ;; parameterizing the necessary values as needed.
 
-;; Install the random-source as the Racket-wide PRG so that calls to Racket's
-;; randomness functions will work with our random-source, then execute the body
-;; expressions like `begin`.
-(define-syntax (begin-racket-rand stx)
+;; Given a PRG, execute the body statements with that PRG installed as the
+;; Racket-wide pseudo-random-generator.
+(define-syntax (begin-with-racket-prg stx)
   (syntax-parse stx
-    [(_ body ...+)
-     #'(begin
-         (rnd-chk!)
-         (parameterize ([rand:current-pseudo-random-generator
-                         (random-source-value)])
-           (begin body ...)))]))
+    [(_ prg body ...+)
+     #'(parameterize ([rand:current-pseudo-random-generator prg])
+         (begin body ...))]))
+
+;; Given a PRG, execute the body statements with that PRG installed as the
+;; random-source.
+(define-syntax (begin-with-prg stx)
+  (syntax-parse stx
+    [(_ prg body ...+)
+     #'(parameterize ([random-source (make-random-source rstype-prg prg)])
+         (begin body ...))]))
 
 ;; Create a new PRG and seed it with the given value to allow for computing
 ;; random values without affecting the main random-source.
@@ -334,18 +339,12 @@
 ;; library randomness functions in a deterministic way.
 (define-syntax (begin-with-random-seed stx)
   (syntax-parse stx
-    [(_ k:integer body ...+)
-     #'(begin-with-prg (make-prg)
-                       (set-prg-seed! k)
-                       body ...)]))
-
-;; Given a PRG, execute the body statements with that PRG installed as the
-;; random-source.
-(define-syntax (begin-with-prg stx)
-  (syntax-parse stx
-    [(_ prg:expr body ...+)
-     #'(parameterize ([random-source (make-random-source rstype-prg prg)])
-         (begin body ...))]))
+    [(_ k body ...+)
+     #'(begin
+         (define seed k)  ;; TODO - this seems to be necessary due to staging, but is there a way around it?
+         (begin-with-prg (make-prg)
+                         (set-prg-seed! seed)
+                         body ...))]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
