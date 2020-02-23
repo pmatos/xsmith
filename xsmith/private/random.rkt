@@ -34,7 +34,6 @@
  use-prg-as-source
  set-prg-seed!
  use-seq-as-source
- consume-int-from-seq!
  begin-with-random-seed
  random
  random-int
@@ -244,9 +243,9 @@
      "Source of randomness is not a sequence!"))
   (seq-val-prg (random-source-value)))
 
-;; Get the next `seq-chunk-size` bytes from the sequence and convert them into an
-;; unsigned integer value.
-(define (consume-int-from-seq!)
+;; Get the next `seq-chunk-size` bytes from the sequence and convert them into
+;; an unsigned integer value.
+(define (consume-uint-from-seq!)
   (when (eq? #f (rnd-seq-index))
     (raise-user-error
      'consume-int-from-seq!
@@ -281,25 +280,26 @@
                                   new-bytes-seq)))
 
 ;; Get an integer from the seq-val's PRG. It will be modified by modulo to
-;; ensure it fits within a chunk of the byte sequence.
-(define (generate-int-from-seq-val)
+;; ensure it fits within a chunk of the byte sequence and can also be used as a
+;; random-seed value.
+(define (generate-uint-from-seq-val)
   (modulo
    (begin-with-prg (rnd-seq-prg)
-                   (random-uint))
-   (sub1 (expt 2 (* 8 seq-chunk-size)))))
+                   (random-int))
+   (sub1 (expt 2 31))))
 
-;; Produce an integer for a sequenced random-source.
-(define (next-int-from-seq)
+;; Produce an unsigned integer for a sequenced random-source.
+(define (next-uint-from-seq)
   ;; If the byte sequence hasn't been fully consumed, take the next integer
   ;; from there.
   (unless (eq? #f (rnd-seq-index))
-    (consume-int-from-seq!))
+    (consume-uint-from-seq!))
   ;; Otherwise, produce a new integer using the seq-val's PRG, extend the byte
   ;; sequence to include this new integer, and then return the integer.
-  (let* ([next-int (generate-int-from-seq-val)]
-         [new-bytes (integer->integer-bytes next-int seq-chunk-size #f)])
+  (let* ([next-uint (generate-uint-from-seq-val)]
+         [new-bytes (integer->integer-bytes next-uint seq-chunk-size #f)])
     (extend-seq! new-bytes)
-    next-int))
+    next-uint))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
