@@ -339,12 +339,11 @@
 ;; library randomness functions in a deterministic way.
 (define-syntax (begin-with-random-seed stx)
   (syntax-parse stx
-    [(_ k body ...+)
-     #'(begin
-         (define seed k)  ;; TODO - this seems to be necessary due to staging, but is there a way around it?
-         (begin-with-prg (make-prg)
-                         (set-prg-seed! seed)
-                         body ...))]))
+    [(_ seed body ...+)
+       #'(begin
+           (define prg (make-prg seed))
+           (begin-with-prg prg
+                           body ...))]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
