@@ -359,19 +359,22 @@
 ;; (random k)       - [0, k)     (exact integer)
 ;; (random min max) - [min, max) (exact integer)
 (define (random [min #f] [max #f])
-  (define thunk (lambda ()
-                  (apply rand:random
-                         (append (if min (list min) '())
-                                 (if max (list max) '())))))
+  (define args (append (if min (list min) '())
+                       (if max (list max) '())))
   (cond
     [(rnd-prg?)
+     ;; If we have a PRG, use it as the Racket-wide PRG and call Racket's
+     ;; built-in random function.
      (begin-with-racket-prg
        (random-source-value)
-       (thunk))]
+       (apply rand:random args))]
     [(rnd-seq?)
+     ;; If we have a byte sequence, install a new PRG using the next integer
+     ;; from the sequence as the seed and then call this random function
+     ;; recursively (to use the previous case's handling).
      (begin-with-random-seed
        (next-uint-from-seq)
-       (thunk))]
+       (apply random args))]
     [else
      (raise-user-error
       'random
