@@ -119,7 +119,7 @@
 
 ;; Set the random-source.
 (define (set-random-source! type value)
-  (set! random-source (make-parameter (make-random-source type value))))
+  (random-source (make-random-source type value)))
 
 ;; Get the random-source's type.
 (define (random-source-type)
