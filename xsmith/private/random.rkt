@@ -445,5 +445,5 @@
 (define (make-prg [seed #f])
   (define prg (vector->pseudo-random-generator (make-rgv)))
   (when seed
-    (begin-with-prg prg (set-prg-seed! seed)))
+    (begin-with-racket-prg prg (rand:random-seed seed)))
   prg)
