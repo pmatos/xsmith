@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -37,12 +37,12 @@
  )
 
 (require
+ "random.rkt"
  racket/class
  racket/list
  (for-syntax
-  "xsmith-base.rkt"
-  )
- "random.rkt")
+  xsmith/private/base
+  ))
 
 #|
 Choices for AST growth should be some sort of object.

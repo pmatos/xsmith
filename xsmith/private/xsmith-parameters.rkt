@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -33,8 +33,8 @@
 (provide (all-defined-out))
 
 (require
- racket/dict
- "random.rkt")
+ "random.rkt"
+ racket/dict)
 
 (define random-seed-max (expt 2 31))
 

@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah
@@ -30,7 +30,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require xsmith racr racket/pretty racket/string racket/port racket/random)
+(require
+ xsmith
+ racr
+ racket/pretty
+ racket/string
+ racket/port)
 
 (type-variable-subtype-default #t)
 

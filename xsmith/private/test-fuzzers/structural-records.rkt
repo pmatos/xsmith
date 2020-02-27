@@ -1,5 +1,12 @@
-#lang racket/base
-(require xsmith racr racket/pretty racket/string racket/port racket/dict racket/random racket/list)
+#lang xsmith/private/base
+(require
+ xsmith
+ racr
+ racket/pretty
+ racket/string
+ racket/port
+ racket/dict
+ racket/list)
 
 (define-spec-component arith)
 

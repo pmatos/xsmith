@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2020 The University of Utah
@@ -74,7 +74,7 @@
  racket/list
  racket/match
  (for-syntax
-  "xsmith-base.rkt"
+  xsmith/private/base
   syntax/parse
   racket/dict
   racket/list

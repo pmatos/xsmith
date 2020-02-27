@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah
@@ -31,7 +31,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Require and provide the public interface components for the xsmith library.
-(require syntax/parse/define (for-syntax "private/xsmith-base.rkt"))
+(require syntax/parse/define
+         (for-syntax xsmith/private/base))
 (define-syntax-parser reprovide
   [(_ arg ...+)
    #'(begin
@@ -40,6 +41,7 @@
 
 (reprovide
  "private/core-macros-and-properties.rkt"
+ "private/random.rkt"
  "private/scope-graph.rkt"
  "private/xsmith-command-line.rkt"
  "private/xsmith-parameters.rkt"

@@ -47,3 +47,7 @@
              pseudo-random-generator-vector?))
 
 (require racket/base)
+
+;; Turn this module into a #lang to avoid usages of #lang racket/base.
+(module reader syntax/module-reader
+  xsmith/private/base)

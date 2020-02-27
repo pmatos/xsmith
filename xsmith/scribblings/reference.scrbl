@@ -33,7 +33,7 @@
 @(require
 "util.rkt"
 (for-label
-(except-in racket/base
+(except-in xsmith/private/base
            module)
 xsmith
 xsmith/racr-convenience

@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2020 The University of Utah
@@ -31,6 +31,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (require
+ "random.rkt"
  racket/contract
  racket/contract/base
  (only-in racr ast-node?)
@@ -286,7 +287,7 @@
                    [xsmith-state (make-generator-state)])
       (let ([seed (xsmith-option 'random-seed)])
         (let/ec abort
-          (random-seed seed)
+          (set-prg-seed! seed)
           (define option-lines
             (append
              (if fuzzer-name

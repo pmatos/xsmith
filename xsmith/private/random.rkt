@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -60,17 +60,17 @@
  random-ascii-sentence)
 
 (require
- (prefix-in rand: (only-in racket/base
-                           random
-                           random-seed
-                           make-pseudo-random-generator
-                           pseudo-random-generator?
-                           current-pseudo-random-generator
-                           pseudo-random-generator->vector
-                           vector->pseudo-random-generator
-                           vector->pseudo-random-generator!
-                           pseudo-random-generator-vector?))
- (prefix-in rand: racket/random)
+ (prefix-in racket: (only-in racket/base
+                             random
+                             random-seed
+                             make-pseudo-random-generator
+                             pseudo-random-generator?
+                             current-pseudo-random-generator
+                             pseudo-random-generator->vector
+                             vector->pseudo-random-generator
+                             vector->pseudo-random-generator!
+                             pseudo-random-generator-vector?))
+ (prefix-in racket: racket/random)
  (for-syntax racket/base
              syntax/parse
              syntax/parse/define)
@@ -99,12 +99,15 @@
 ;;           list/vector/etc)
 ;;     [X] Default initialization
 ;;     [ ] Connect randomness source to command-line arguments
-;;   [ ] Consult correct source of randomness
-;;   [ ] Provide functions for all common randomness use cases
+;;   [X] Consult correct source of randomness
+;;   [X] Provide functions for all common randomness use cases
 ;;     [X] random
 ;;     [X] random-seed
-;;     [ ] random-ref
-;;   [ ] Provide functions for custom use cases
+;;     [X] random-ref
+;;     [X] random-int
+;;     [X] random-char
+;;     [X] random-string
+;;   [X] Provide functions for custom use cases
 ;;   [ ] Consider specialized distribution functions
 ;; [ ] Investigate More Specific Sequence Representations
 ;;    -  Instead of just storing the random bits, consider storing the results
@@ -171,8 +174,8 @@
   (set-random-source!
    rstype-prg
    (if rgv
-       (rand:vector->pseudo-random-generator rgv)
-       (rand:make-pseudo-random-generator))))
+       (racket:vector->pseudo-random-generator rgv)
+       (racket:make-pseudo-random-generator))))
 
 ;; Set the current random seed in a PRG random-source.
 ;; Raises an error if the random-source is not a PRG.
@@ -183,7 +186,7 @@
      "Cannot set random seed for non-PRG source of randomness."))
   (begin-with-racket-prg
     (random-source-value)
-    (rand:random-seed k)))
+    (racket:random-seed k)))
 
 ;; Poll whether the random-source is a PRG or not.
 ;; (A #f value implies that the random-source is a sequence.)
@@ -337,7 +340,7 @@
 (define-syntax (begin-with-racket-prg stx)
   (syntax-parse stx
     [(_ prg body ...+)
-     #'(parameterize ([rand:current-pseudo-random-generator prg])
+     #'(parameterize ([racket:current-pseudo-random-generator prg])
          (begin body ...))]))
 
 ;; Given a PRG, execute the body statements with that PRG installed as the
@@ -389,7 +392,7 @@
      ;; built-in random function.
      (begin-with-racket-prg
        (random-source-value)
-       (apply rand:random args))]
+       (apply racket:random args))]
     [(rnd-seq?)
      ;; If we have a byte sequence, install a new PRG using the next integer
      ;; from the sequence as the seed and then call this random function
@@ -534,7 +537,7 @@
 ;; `max` represents the maximum value this element can have.
 ;; `inc` determines whether the element must be non-zero.
 (define (rgv-element max [non-zero? #f])
-  (let* ([val (integer-bytes->integer (rand:crypto-random-bytes 8) #f)]
+  (let* ([val (integer-bytes->integer (racket:crypto-random-bytes 8) #f)]
          [val (modulo val max)]
          [val (if (and non-zero? val)
                   (add1 val)
@@ -569,11 +572,11 @@
 
 ;; Test if a value is an RGV.
 (define (rgv? v)
-  (rand:pseudo-random-generator-vector? v))
+  (racket:pseudo-random-generator-vector? v))
 
 ;; Produce a PRG.
 (define (make-prg [seed #f])
-  (define prg (vector->pseudo-random-generator (make-rgv)))
+  (define prg (racket:vector->pseudo-random-generator (make-rgv)))
   (when seed
-    (begin-with-racket-prg prg (rand:random-seed seed)))
+    (begin-with-racket-prg prg (racket:random-seed seed)))
   prg)
