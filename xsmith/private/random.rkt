@@ -32,9 +32,8 @@
 
 (provide
  ;; Source selection/initialization.
- use-prg-as-source
- set-prg-seed!
- use-seq-as-source
+ random-source
+ make-random-source
  ;; Macros.
  begin-with-random-seed
  ;; Random generation functions.
@@ -74,6 +73,7 @@
  (for-syntax racket/base
              syntax/parse
              syntax/parse/define)
+ racket/contract/base
  racket/list
  racket/set
  racket/string)
@@ -116,6 +116,22 @@
 ;;       sequence.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Intended Method of Use
+;;
+;; This library is intended to replace any other randomness functions used in
+;; Xsmith. The goal is to provide a source of manipulable randomness to ensure
+;; deterministic execution when it is need while not requiring significant
+;; programmer overhead to incorporate.
+;;
+;; The implementation is inspired by Zest [1]. To use this system, you need only
+;; parameterize the `random-source` with a source made from `make-random-source`
+;; (implemented below). Within this parameterization, all of the provided
+;; randomness primitive functions will work deterministically.
+;;
+;; [1] "Semantic Fuzzing with Zest". Padhye et al, 2019.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -129,12 +145,8 @@
 ;; This is the parameter that should be used everywhere.
 (define random-source (make-parameter #f))
 
-;; Check if the random-source has been initialized.
-(define (random-source-initialized?)
-  (not (eq? #f (random-source))))
-
 ;; Create a new random-source parameter.
-(define (make-random-source type value)
+(define (assemble-random-source type value)
   (unless (set-member? valid-rstypes type)
     (raise-user-error
      'set-random-source!
@@ -142,9 +154,30 @@
              (set->list valid-rstypes))))
   (cons type value))
 
+;; Create a new random-source. This is generally meant to be used during
+;; parameterization of the random-source value.
+;;
+;; In all cases, this will create a sequence-based random-source, but the mode
+;; of creation depends on the value passed in as argument.
+(define (make-random-source [val #f])
+  (make-byte-sequence-random-source
+   (if (bytes? val)
+       val
+       (let ([prg (make-pseudo-random-generator val)])
+         (integer->integer-bytes
+          (begin-with-racket-prg
+            prg
+            (random 0 (sub1 (expt 2 31))))
+          seq-chunk-size
+          #f)))))
+
+;; Check if the random-source has been initialized.
+(define (random-source-initialized?)
+  (not (eq? #f (random-source))))
+
 ;; Set the random-source.
 (define (set-random-source! type value)
-  (random-source (make-random-source type value)))
+  (random-source (assemble-random-source type value)))
 
 ;; Get the random-source's type.
 (define (random-source-type)
@@ -164,6 +197,33 @@
 (define valid-rstypes
   (seteqv rstype-prg rstype-seq))
 
+;;;;;;;;
+;; PRG-as-a-source
+
+;; Create a new pseudo-random-generator-based source.
+(define (make-pseudo-random-generator-random-source [val #f])
+  (assemble-random-source
+   rstype-prg
+   (make-pseudo-random-generator val)))
+
+;; Create a pseudo-random generator.
+(define (make-pseudo-random-generator [val #f])
+  (cond
+    ;; If there's no value, generate a random PRG.
+    [(not val)
+     (make-prg)]
+    ;; If the value is an RGV, use it to initialize a new PRG.
+    [(racket:pseudo-random-generator-vector? val)
+     (racket:vector->pseudo-random-generator val)]
+    ;; If the value is a seed, make a PRG with that seed.
+    [(integer-in 0 (sub1 (expt 2 31)))
+     (make-prg val)]
+    ;; Otherwise, the value is invalid.
+    [else
+     (raise-user-error
+      'make-pseudo-random-generator
+      "Received invalid value for random generator input. See documentation.")]))
+
 ;; Initialize the random-source with a pseudo-random generator.
 (define (use-prg-as-source [rgv #f])
   ;; If rgv has a value, check that it's valid.
@@ -176,17 +236,6 @@
    (if rgv
        (racket:vector->pseudo-random-generator rgv)
        (racket:make-pseudo-random-generator))))
-
-;; Set the current random seed in a PRG random-source.
-;; Raises an error if the random-source is not a PRG.
-(define (set-prg-seed! k)
-  (unless (rnd-prg?)
-    (raise-user-error
-     'set-random-seed!
-     "Cannot set random seed for non-PRG source of randomness."))
-  (begin-with-racket-prg
-    (random-source-value)
-    (racket:random-seed k)))
 
 ;; Poll whether the random-source is a PRG or not.
 ;; (A #f value implies that the random-source is a sequence.)
@@ -202,30 +251,41 @@
   (unless (random-source-initialized?)
     (use-prg-as-source)))
 
+;;;;;;;;
+;; Sequence-as-a-source
+
+;; The number of bytes to use per chunk.
 (define seq-chunk-size 4)
 
-;; Initialize the random-source with a given sequence.
+;; Create a random source initialized from a byte sequence.
+(define (make-byte-sequence-random-source seq)
+  (assemble-random-source
+   rstype-seq
+   (make-byte-sequence-value seq)))
+
+;; Create a sequence-based random-source with a given sequence.
 ;; The sequence value is actually a 3-element list consisting of:
 ;;   1. A byte string with at least 4 bytes.
 ;;   2. An index into the string representing the current location.
 ;;   3. A PRG seeded from the first byte in the byte string, which will be used
 ;;      for extending the string as needed.
-(define (use-seq-as-source seq)
+(define (make-byte-sequence-value seq)
   (unless (and (bytes? seq)
                (<= seq-chunk-size (bytes-length seq)))
     (raise-argument-error
-     'use-seq-as-source
+     'make-byte-sequence-value
      "bytes? of at least length 8"
      seq))
-  (set-random-source!
-   rstype-seq
-   (seq-val seq
-            seq-chunk-size
-            (let* ([seed-bytes (subbytes seq 0 seq-chunk-size)]
-                   [seed-int (integer-bytes->integer seed-bytes #f)]
-                   ;; The bounds on this value are documented by random-seed.
-                   [seed-val (modulo seed-int (sub1 (expt 2 31)))])
-              (make-prg seed-val)))))
+  (seq-val seq
+           (let ([bytes-remaining (- (bytes-length seq) seq-chunk-size)])
+             (if (eq? 0 bytes-remaining)
+                 #f
+                 bytes-remaining))
+           (let* ([seed-bytes (subbytes seq 0 seq-chunk-size)]
+                  [seed-int (integer-bytes->integer seed-bytes #f)]
+                  ;; The bounds on this value are documented by random-seed.
+                  [seed-val (modulo seed-int (sub1 (expt 2 31)))])
+             (make-prg seed-val))))
 
 (struct seq-val
   ([seq #:mutable]
@@ -348,7 +408,7 @@
 (define-syntax (begin-with-prg stx)
   (syntax-parse stx
     [(_ prg body ...+)
-     #'(parameterize ([random-source (make-random-source rstype-prg prg)])
+     #'(parameterize ([random-source (assemble-random-source rstype-prg prg)])
          (begin body ...))]))
 
 ;; Create a new PRG and seed it with the given value to allow for computing
@@ -530,8 +590,6 @@
 ;; These generators are produced using crypto-random-bytes, meaning they are
 ;; cryptographically secure and are entirely unimpacted by the existing
 ;; random-source.
-;;
-;; To use these deterministically, invoke the `set-prg-seed!` function.
 
 ;; Produce an RGV vector element.
 ;; `max` represents the maximum value this element can have.
