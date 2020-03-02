@@ -1561,6 +1561,159 @@ Returns the maximum tree generation depth as set by the user via @racket[xsmith-
 
 
 
+@section{Randomness Functions}
+
+These functions allow for handling randomness in a deterministic (and thus repeatable) way.
+Please use these functions instead of any of the randomness functions in other Racket modules.
+
+@subsection{Determining the Source of Randomness}
+
+Xsmith's randomness functions depend on a single source of randomness.
+Because Xsmith's execution sometimes needs to be deterministic, the source can be manipulated to ensure consistency.
+You may either use a @racket[pseudo-random-generator?] to generate values, or you may use a sequence of @racket[bytes?].
+If no randomness source is set explicitly, a @racket[pseudo-random-generator?] will be created from a cryptographically-secure source.
+
+@defproc[(use-prg-as-source [rgv boolean?]) void?]{
+Uses a @racket[pseudo-random-generator?] as the source of randomness.
+Can optionally be initialized with a @racket[pseudo-random-generator-vector?].
+}
+
+@defproc[(set-prg-seed! [seed (integer-in 0 (sub1 (expt 2 31)))]) void?]{
+If a PRG is being used, set its seed statefully.
+}
+
+@defproc[(use-seq-as-source [seq bytes?]) void?]{
+Uses an existing sequence of bytes as the source of randomness.
+The sequence must contain at least 4 bytes.
+The first 4 bytes will be used to generate a @racket[pseudo-random-generator?] that will be used for extending the sequence as needed.
+Subsequent bytes are used whenever a random number is requested until the sequence is entirely consumed.
+}
+
+@subsection{Macros for Ease of Use}
+
+Sometimes, you just want to use a particular randomness source in a certain region of code.
+These macros help with that.
+
+@defform[(begin-with-random-seed [seed any/c] expr ...+)]{
+A @racket[begin] form wherein randomness functions will use a @racket[pseudo-random-generator?] seeded with the @racket[seed] value.
+This is useful for beginning deterministically-random segments of code.
+}
+
+@subsection{Randomness Primitives}
+
+These functions provide very straightforward ways to get certain kinds of random values.
+All of these rely on Xsmith's own source of randomness (discussed above).
+Use these functions in place of functions from external libraries that might use Racket's own default randomness source.
+
+@defproc*[([(random) exact-nonnegative-integer?]
+           [(random [k (integer-in 1 4294967087)]) exact-nonnegative-integer?]
+           [(random [min exact-integer?] [max (integer-in (+ 1 min) (+ 4294967087 min))]) exact-nonnegative-integer?])]{
+Identical to Racket's @racket[random] function, but uses Xsmith's randomness source.
+}
+
+@defproc[(random-uint) exact-nonnegative-integer?]{
+Generates a random, unsigned integer.
+}
+
+@defproc[(random-int) (integer-in -2147483544 2147483543)]{
+Generates a random, signed integer.
+}
+
+@defproc[(random-bool) boolean?]{
+Generates a random boolean.
+}
+
+@defproc[(random-ref [lst list?]) any/c]{
+Randomly selects an element from the list @racket[lst].
+}
+
+@subsubsection{Characters}
+
+These functions all create random characters from a particular range of values.
+
+@defproc[(random-char) char?]{
+Generates a random Unicode character.
+The bytecode ranges are 0-55295 and 57344-1114111.
+}
+
+@defproc[(random-ascii-lower-char) char?]{
+Generates a random ASCII lowercase character (bytecode 97-122; regex [a-z]).
+}
+
+@defproc[(random-ascii-upper-char) char?]{
+Generates a random ASCII uppercase character (bytecode 65-90; regex [A-Z]).
+}
+
+@defproc[(random-ascii-alpha-char) char?]{
+Generates a random ASCII alphabetical character (bytecode 97-122 or 65-90; regex [a-zA-Z]).
+This range contains @racket[random-ascii-lower-char] and @racket[random-ascii-upper-char].
+}
+
+@defproc[(random-ascii-numeral-char) char?]{
+Generates a random ASCII numerical character (bytecode 48-57; regex [0-9]).
+}
+
+@defproc[(random-ascii-alphanumeric-char) char?]{
+Generates a random ASCII alphanumerical character (bytecode 97-122, 65-90, or 48-57; regex [a-zA-Z0-9]).
+This range contains @racket[random-ascii-alpha-char] and @racket[random-ascii-numeral-char].
+}
+
+@defproc[(random-ascii-word-char) char?]{
+Generates a random ASCII word character (bytecode 97-122, 65-90, 48-57, or 95; regex [a-zA-Z0-9_]).
+This range contains @racket[random-ascii-alphanumeric-char] as well as the underscore, @racket[#\_].
+}
+
+@subsubsection{Strings}
+
+These functions all create random strings from a particular range of values.
+
+@defproc[(random-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-lower-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-lower-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-upper-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-upper-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-alpha-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-alpha-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-numeral-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-numeral-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-alphanumeric-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-alphanumeric-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-word-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-word-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+This function has the property that the first character will always be alphabetical, not a numeral or an underscore.
+This ensures that this function can be used wherever a word-matching regex is expected (such as for identifiers in most programming languages).
+}
+
+@defproc[(random-ascii-sentence [word-bound exact-nonnegative-integer?] [word-length-bound exact-nonnegative-integer?]) string?]{
+Generates a random string consisting of @racket[(random 1 word-bound)] words.
+Each word is generated with @racket[(random-ascii-word-string word-length-bound)].
+The words are then concatenated with a single space.
+There is no punctuation, nor is there a guarantee of any capitalization in the first character.
+}
+
+
+
+
 
 @section{RACR Convenience Functions}
 @defmodule[xsmith/racr-convenience]
