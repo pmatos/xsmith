@@ -901,8 +901,14 @@ few of these methods.
           [else (loop (add1 count)
                       (build-type-thunk))])))
 
-(define (_xsmith_reference-options!-func self hole node-r/w-type)
-  (define type-needed (att-value 'xsmith_type hole))
+(define (_xsmith_reference-options!-func self
+                                         hole
+                                         node-r/w-type
+                                         reference-unify-target)
+  (define unify-reference-to-hole? (eq? #t reference-unify-target))
+  (define type-needed (if unify-reference-to-hole?
+                          (att-value 'xsmith_type hole)
+                          (fresh-type-variable)))
   (let ([ref-choices-filtered
          (hash-ref ref-choices-filtered-hash self #f)])
     (if ref-choices-filtered
@@ -974,17 +980,19 @@ few of these methods.
                      (error 'xsmith
                             "can't find a matching definition for nominal record type: ~v\n"
                             type-needed)]))
-                (type-satisfaction-loop
-                 hole
-                 (λ () (concretize-type type-needed
-                                        #:at-node hole))
-                 (λ(x)x)
-                 (λ() #f)
-                 ;; TODO
-                 ;; Right now we give up after some number of loops.
-                 ;; Generally, this should just be an error.
-                 ;; But for now there are cases (nominal-record-types) where there can be a valid reference but that we can't create a valid lift-type.
-                 100)))
+                (if unify-reference-to-hole?
+                    (type-satisfaction-loop
+                     hole
+                     (λ () (concretize-type type-needed
+                                            #:at-node hole))
+                     (λ(x)x)
+                     (λ() #f)
+                     ;; TODO
+                     ;; Right now we give up after some number of loops.
+                     ;; Generally, this should just be an error.
+                     ;; But for now there are cases (nominal-record-types) where there can be a valid reference but that we can't create a valid lift-type.
+                     100)
+                    (concretize-type type-needed #:at-node hole))))
           ;; TODO - I should check if the type contains a function, not merely IS a function.  And for higher order effects I should check this before concretizing.
           (define function? (function-type? lift-type))
 
@@ -1379,7 +1387,8 @@ The second arm is a function that takes the type that the node has been assigned
          (values n #`(λ () (_xsmith_reference-options!-func
                             this
                             (current-hole)
-                            #,(dict-ref node-r/w-type n)))))
+                            #,(dict-ref node-r/w-type n)
+                            #,(dict-ref node-reference-unify-target n)))))
        #f #'(λ () (error '_xsmith_reference-options!
                          "Only defined for nodes with reference-info property"))))
     (define xsmith_get-reference!-info
