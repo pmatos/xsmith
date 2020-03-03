@@ -38,8 +38,8 @@
         #:prop strict-child-order? #t]
  [ExpressionStatement Statement (Expression)
                       #:prop wont-over-deepen #t]
- #;[AssignmentStatement Statement (name Expression)
-                      #:prop reference-info (write name)]
+ [AssignmentStatement Statement (name Expression)
+                      #:prop reference-info (write name #:unifies Expression)]
  [IfElseStatement Statement ([test : Expression] [then : Block] [else : Block])]
  ;; TODO - these languages all have some kind of loop.  What kind of loop should I model here?  Maybe just “loop over an array”?
 
@@ -48,7 +48,7 @@
 
  [Expression #f ()
              #:prop may-be-generated #f]
- #;[VariableReference Expression (name)
+ [VariableReference Expression (name)
                     #:prop reference-info (read name)]
  #;[FunctionApplicationExpression Expression ([function : VariableReference]
                                             [args : Expression *])]
@@ -143,18 +143,6 @@
   (λ (n t)
     (hash 'l t 'r t)))
 
-#;(add-prop
- statement-dynlangs-core
- fresh
- [VariableReference (begin
-                      (eprintf "In variable reference with parent node: ~v\n"
-                               (ast-node-type (ast-parent current-hole)))
-                      (eprintf "  node has type: ~v\n" (att-value 'xsmith_type current-hole))
-                      (eprintf "~a\n"
-                               (pretty-format
-                                    (render-node (top-ancestor-node current-hole))
-                                    120))
-                      (hash))])
 
 (add-prop
  statement-dynlangs-core
@@ -185,7 +173,7 @@
              (dict-set dict d (fresh-type-variable))))]]
  [ExpressionStatement [(fresh-no-return)
                        (λ (n t) (hash 'Expression (fresh-type-variable)))]]
- #;[AssignmentStatement [(fresh-no-return)
+ [AssignmentStatement [(fresh-no-return)
                        (λ (n t) (hash 'Expression (fresh-type-variable)))]]
  [IfElseStatement [(fresh-maybe-return)
                    (λ (n t) (hash 'test bool
@@ -194,7 +182,7 @@
 
  ;;; Expressions
  [Expression [(error 'typing-expression) no-child-types]]
- #;[VariableReference [(fresh-type-variable) (λ (n t) no-child-types)]]
+ [VariableReference [(fresh-type-variable) (λ (n t) no-child-types)]]
 
  [LiteralBool [bool no-child-types]]
  [Not [bool (λ (n t) (hash 'Expression bool))]]

@@ -69,7 +69,7 @@
 
  [ExpressionStatement (λ (n) (h-append (render-node (ast-child 'Expression n))))]
 
- #;[AssignmentStatement
+ [AssignmentStatement
   (λ (n)
     (hs-append (text (format "~a" (ast-child 'name n)))
                equals
@@ -106,7 +106,7 @@
 
 
 
- #;[VariableReference (λ (n) (text (format "~a" (ast-child 'name n))))]
+ [VariableReference (λ (n) (text (format "~a" (ast-child 'name n))))]
  [LiteralBool (λ (n) (text (if (ast-child 'v n) "true" "false")))]
  [Not (λ (n) (h-append (text "not") lparen
                        (render-node (ast-child 'Expression n))
