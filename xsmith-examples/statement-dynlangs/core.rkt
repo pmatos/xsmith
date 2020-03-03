@@ -9,7 +9,6 @@
  ;; TODO - replace with xsmith/private/random
  racket/random
  racket/port
- 
  )
 
 (provide
@@ -51,14 +50,11 @@
              #:prop may-be-generated #f]
  [VariableReference Expression (name)
                     #:prop reference-info (read name)]
- #;[FunctionApplicationExpression Expression ([function : VariableReference]
-                                            [args : Expression *])]
-
-
- #;[LambdaWithExpression Expression ([params : FormalParam * = (arg-length)]
-                                   ;;[body : DefinitionContext]
-                                   [body : Expression]
-                                   )
+ [ProcedureApplication Expression
+                       ([procedure : Expression]
+                        [arguments : Expression * = (arg-length)])]
+ [LambdaWithExpression Expression ([parameters : FormalParameter * = (arg-length)]
+                                   [body : Expression])
                        #:prop wont-over-deepen #t]
 
 
@@ -128,6 +124,9 @@
   '(a b c d e f g))
 (define (random-field-name)
   (random-ref fieldname-options))
+(define (arg-length)
+  (random 6))
+
 
 (add-prop
  statement-dynlangs-core
@@ -146,7 +145,35 @@
          [all-fields (remove-duplicates
                       (append necessary-fields new-fields))])
     (hash 'fieldnames all-fields
-          'expressions (length all-fields)))])
+          'expressions (length all-fields)))]
+ [LambdaWithExpression
+  (let* ([type (att-value 'xsmith_type current-hole)]
+         [ftype (function-type
+                 (product-type #f)
+                 (fresh-type-variable))]
+         [unification-dumb-return-value (unify! ftype type)]
+         [force-exploration-return (force-type-exploration-for-node! current-hole)]
+         [parameters
+          (map (λ (t)
+                 #;(xd-printf "making fresh FormalParameter with type: ~v\n" t)
+                 (make-fresh-node 'FormalParameter
+                                  (hash 'type t)))
+               (or (product-type-inner-type-list
+                    (function-type-arg-type ftype))
+                   (map (λ (x) (fresh-type-variable))
+                        (make-list (arg-length) #f))))])
+    #;(xd-printf "lambda type: ~v, FormalParameters types: ~v\n"
+                 type
+                 (map (λ (x) (ast-child 'type x))
+                      parameters))
+    (unify! (product-type (map (λ (x) (ast-child 'type x))
+                               parameters))
+            (function-type-arg-type ftype))
+    (hash
+     'type type
+     'parameters parameters))]
+
+ )
 
 ;;;;;; Types
 
@@ -225,6 +252,39 @@
  ;;; Expressions
  [Expression [(error 'typing-expression) no-child-types]]
  [VariableReference [(fresh-type-variable) (λ (n t) no-child-types)]]
+
+ [LambdaWithExpression
+  [(function-type (product-type #f) (fresh-type-variable))
+   (λ (n t)
+     (define args-type (product-type
+                        (map (λ(x)(fresh-type-variable))
+                             (ast-children (ast-child 'parameters n)))))
+     (define return-type (fresh-type-variable))
+     (unify! (function-type args-type return-type)
+             t)
+     (define args-list (product-type-inner-type-list args-type))
+     (hash-set
+      (for/hash ([c (ast-children (ast-child 'parameters n))]
+                 [at args-list])
+        (values c at))
+      (ast-child 'body n)
+      return-type))]]
+
+ [ProcedureApplication
+  [(fresh-type-variable)
+   (λ (n t)
+     (define proc (ast-child 'procedure n))
+     (define args (ast-children (ast-child 'arguments n)))
+     (define args-type (product-type
+                        (map (λ(x)(fresh-type-variable))
+                             args)))
+     (define args-type-list (product-type-inner-type-list args-type))
+     (hash-set
+      (for/hash ([arg args]
+                 [arg-type args-type-list])
+        (values arg arg-type))
+      'procedure
+      (function-type args-type t)))]]
 
  [LiteralBool [bool no-child-types]]
  [Not [bool (λ (n t) (hash 'Expression bool))]]

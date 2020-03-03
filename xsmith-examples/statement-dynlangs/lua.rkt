@@ -21,6 +21,11 @@
  render-hole-info
  [#f (λ (h) (text "«HOLE»"))])
 
+(define (comma-list doc-list)
+  (apply h-append
+         (apply-infix (h-append comma space)
+                      doc-list)))
+
 (add-prop
  lua-comp
  render-node-info
@@ -107,6 +112,26 @@
 
 
  [VariableReference (λ (n) (text (format "~a" (ast-child 'name n))))]
+
+ [ProcedureApplication
+  (λ (n) (h-append (render-node (ast-child 'procedure n))
+                   lparen
+                   (comma-list (map render-node
+                                    (ast-children (ast-child 'arguments n))))
+                   rparen))]
+ [FormalParameter (λ (n) (text (format "~a" (ast-child 'name n))))]
+ [LambdaWithExpression
+  (λ (n) (h-append (text "function") lparen
+                   (comma-list (map render-node
+                                    (ast-children (ast-child 'parameters n))))
+                   rparen
+                   space
+                   (text "return")
+                   space
+                   (render-node (ast-child 'body n))
+                   space
+                   (text "end")))]
+
  [LiteralBool (λ (n) (text (if (ast-child 'v n) "true" "false")))]
  [Not (λ (n) (h-append (text "not") lparen
                        (render-node (ast-child 'Expression n))
@@ -136,11 +161,8 @@
 
  [LiteralArray
   (λ (n) (h-append lbrace
-                   (apply
-                    h-append
-                    (apply-infix (h-append comma space)
-                                 (map render-node
-                                      (ast-children (ast-child 'expressions n)))))
+                   (comma-list (map render-node
+                                    (ast-children (ast-child 'expressions n))))
                    rbrace))]
  [ArrayReference
   ;; Lua's array index should start at 1.  And we should define a modulus function, one of the many... frustrating parts of lua is that there wasn't a built-in modulus operator until recently.  So to fuzz older versions we need to define a function for it.
@@ -164,16 +186,12 @@
  [LiteralStructuralRecord
   (λ (n)
     (h-append lbrace
-              (apply
-               h-append
-               (apply-infix
-                (h-append comma space)
-                (map (λ (fieldname expression-node)
-                       (h-append (text (format "~a" fieldname))
-                                 equals
-                                 (render-node expression-node)))
-                     (ast-child 'fieldnames n)
-                     (ast-children (ast-child 'expressions n)))))
+              (comma-list (map (λ (fieldname expression-node)
+                                 (h-append (text (format "~a" fieldname))
+                                           equals
+                                           (render-node expression-node)))
+                               (ast-child 'fieldnames n)
+                               (ast-children (ast-child 'expressions n))))
               rbrace))]
  [StructuralRecordReference
   (λ (n) (h-append (render-node (ast-child 'record n))
