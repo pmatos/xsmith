@@ -146,7 +146,7 @@
   ;; Lua's array index should start at 1.  And we should define a modulus function, one of the many... frustrating parts of lua is that there wasn't a built-in modulus operator until recently.  So to fuzz older versions we need to define a function for it.
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
-    (h-append lparen array-rendered rparen
+    (h-append array-rendered
               lbracket (text "modulo") lparen
               (render-node (ast-child 'index n))
               comma space (text "#") array-rendered
@@ -154,12 +154,39 @@
  [ArrayAssignmentStatement
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
-    (h-append lparen array-rendered rparen
+    (h-append array-rendered
               lbracket (text "modulo") lparen
               (render-node (ast-child 'index n))
               comma space (text "#") array-rendered
               rparen (text " + 1") rbracket
               space equals space (render-node (ast-child 'newvalue n))))]
+
+ [LiteralStructuralRecord
+  (λ (n)
+    (h-append lbrace
+              (apply
+               h-append
+               (apply-infix
+                (h-append comma space)
+                (map (λ (fieldname expression-node)
+                       (h-append (text (format "~a" fieldname))
+                                 equals
+                                 (render-node expression-node)))
+                     (ast-child 'fieldnames n)
+                     (ast-children (ast-child 'expressions n)))))
+              rbrace))]
+ [StructuralRecordReference
+  (λ (n) (h-append (render-node (ast-child 'record n))
+                   lbracket dquote
+                   (text (format "~a" (ast-child 'fieldname n)))
+                   dquote rbracket))]
+ [StructuralRecordAssignmentStatement
+  (λ (n) (h-append (render-node (ast-child 'record n))
+                   lbracket dquote
+                   (text (format "~a" (ast-child 'fieldname n)))
+                   dquote rbracket
+                   space equals space
+                   (render-node (ast-child 'newvalue n))))]
  )
 
 

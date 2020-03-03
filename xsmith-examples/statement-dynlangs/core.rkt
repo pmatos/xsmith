@@ -5,10 +5,11 @@
  racr
  xsmith/racr-convenience
  racket/dict
+ racket/list
  ;; TODO - replace with xsmith/private/random
  racket/random
  racket/port
- pprint
+ 
  )
 
 (provide
@@ -89,6 +90,16 @@
  [ArrayAssignmentStatement Statement ([array : VariableReference]
                                       [index : Expression]
                                       [newvalue : Expression])]
+
+ [LiteralStructuralRecord Expression (fieldnames [expressions : Expression *])
+                          #:prop wont-over-deepen #t]
+ [StructuralRecordReference Expression ([fieldname = (random-field-name)]
+                                        [record : VariableReference])]
+ [StructuralRecordAssignmentStatement Statement ([fieldname = (random-field-name)]
+                                                 [record : VariableReference]
+                                                 [newvalue : Expression])]
+
+
  ;; TODO - equality
 
  ;; TODO - array
@@ -112,6 +123,30 @@
 
  )
 
+
+(define fieldname-options
+  '(a b c d e f g))
+(define (random-field-name)
+  (random-ref fieldname-options))
+
+(add-prop
+ statement-dynlangs-core
+ fresh
+ [LiteralStructuralRecord
+  (let* ([t (begin (force-type-exploration-for-node!
+                    (current-hole))
+                   (att-value 'xsmith_type (current-hole)))]
+         [srt (fresh-structural-record-type)]
+         [_side-effect (unify! t srt)]
+         [fd (structural-record-type-known-field-dict srt)]
+         [necessary-fields (dict-keys fd)]
+         ;; Let's inject extra fields.
+         [new-fields (map (λ(_) (random-field-name))
+                          (make-list (add1 (random 2)) #f))]
+         [all-fields (remove-duplicates
+                      (append necessary-fields new-fields))])
+    (hash 'fieldnames all-fields
+          'expressions (length all-fields)))])
 
 ;;;;;; Types
 
@@ -225,10 +260,39 @@
                               (hash 'array (array-type inner)
                                     'index int
                                     'newvalue inner))]]
+
+
+ [LiteralStructuralRecord
+  [(λ (n)
+     (if (att-value 'xsmith_is-hole? n)
+         (fresh-subtype-of (fresh-structural-record-type (hash)))
+         (fresh-structural-record-type
+          #:finalized? #t
+          (for/hash ([k (ast-child 'fieldnames n)])
+            (values k (fresh-type-variable))))))
+   (λ (n t)
+     (define fsrt (fresh-structural-record-type))
+     (unify! fsrt t)
+     (define td (structural-record-type-known-field-dict fsrt))
+     (for/hash ([c (ast-children (ast-child 'expressions n))]
+                [f (ast-child 'fieldnames n)])
+       (values c
+               (dict-ref td f))))]]
+
+ [StructuralRecordReference
+  [(fresh-type-variable)
+   (λ (n t) (hash 'record
+                  (fresh-structural-record-type
+                   (hash (ast-child 'fieldname n) t))))]]
+ [StructuralRecordAssignmentStatement
+  [(fresh-no-return)
+   (λ (n t)
+     (define newtype (fresh-type-variable))
+     (hash 'record (fresh-structural-record-type
+                    (hash (ast-child 'fieldname n) newtype))
+           'newvalue newtype))]]
+
  )
-
-
-;; TODO - fresh prop
 
 
 
