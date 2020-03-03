@@ -38,7 +38,7 @@
              ;; This modulo definition is from the Lua reference manual:
              ;; http://www.lua.org/manual/5.2/manual.html#3.4.1
              (text "modulo = function(a, b) return a - math.floor(a/b)*b end")
-             (text "safe_divide = function(a, b) return (a == 0) and a or (a / b) end")
+             (text "safe_divide = function(a, b) return (b == 0) and a or (a / b) end")
              (text "expression_statement_dummy_var = 0;")
              (vb-concat
               (list*
