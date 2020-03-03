@@ -163,13 +163,12 @@
   (make-byte-sequence-random-source
    (if (bytes? val)
        val
-       (let ([prg (make-pseudo-random-generator val)])
-         (integer->integer-bytes
-          (begin-with-racket-prg
-            prg
-            (random 0 (sub1 (expt 2 31))))
-          seq-chunk-size
-          #f)))))
+       (integer->integer-bytes
+        (begin-with-racket-prg
+          (make-pseudo-random-generator val)
+          (racket:random 0 (sub1 (expt 2 31))))
+        seq-chunk-size
+        #f))))
 
 ;; Check if the random-source has been initialized.
 (define (random-source-initialized?)
