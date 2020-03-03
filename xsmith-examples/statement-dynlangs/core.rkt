@@ -15,6 +15,10 @@
  (all-defined-out)
  )
 
+#|
+TODO - instead of defining a spec component, define macros that add elements to a language.  Start with something like (add-basic-expression-language spec-name) and (add-lambda-with-expression-body spec-name) to expand to calls to add-to-grammar, add fresh and type-info properties, etc.  Later I want to add a way to omit or override productions in the macros that add many (eg. add-basic-expression/statement-language).
+|#
+
 (define-spec-component statement-dynlangs-core)
 
 (add-to-grammar

@@ -6,6 +6,7 @@
  xsmith/racr-convenience
  "core.rkt"
  pprint
+ racket/string
  )
 
 (define-spec-component lua-comp)
@@ -33,6 +34,12 @@
  [Program (λ (n)
             (define definitions (ast-children (ast-child 'definitions n)))
             (v-append
+             ;; TODO - this definition maybe needs to change based on lua version.  Is there a way to do conditional evaluation based on which lua implementation I'm in?
+             ;; This modulo definition is from the Lua reference manual:
+             ;; http://www.lua.org/manual/5.2/manual.html#3.4.1
+             (text "modulo = function(a, b) return a - math.floor(a/b)*b end")
+             (text "safe_divide = function(a, b) return (a == 0) and a or (a / b) end")
+             (text "expression_statement_dummy_var = 0;")
              (vb-concat
               (list*
                (text "")
@@ -72,7 +79,10 @@
      line
      (text "end")))]
 
- [ExpressionStatement (λ (n) (h-append (render-node (ast-child 'Expression n))))]
+ ;; Lua doesn't actually allow expression statements.  Let's hack around that with an assignment to a dummy variable that is never read.
+ [ExpressionStatement (λ (n) (h-append (text "expression_statement_dummy_var = ")
+                                       (render-node (ast-child 'Expression n))
+                                       semi))]
 
  [AssignmentStatement
   (λ (n)
@@ -121,7 +131,8 @@
                    rparen))]
  [FormalParameter (λ (n) (text (format "~a" (ast-child 'name n))))]
  [LambdaWithExpression
-  (λ (n) (h-append (text "function") lparen
+  (λ (n) (h-append lparen
+                   (text "function") lparen
                    (comma-list (map render-node
                                     (ast-children (ast-child 'parameters n))))
                    rparen
@@ -130,7 +141,8 @@
                    space
                    (render-node (ast-child 'body n))
                    space
-                   (text "end")))]
+                   (text "end")
+                   rparen))]
 
  [LiteralBool (λ (n) (text (if (ast-child 'v n) "true" "false")))]
  [Not (λ (n) (h-append (text "not") lparen
@@ -227,4 +239,6 @@
   (xsmith-command-line
    lua-generate
    #:format-render lua-format-render
+   #:comment-wrap (λ (lines) (string-join (map (λ (l) (format "-- ~a" l)) lines)
+                                          "\n"))
    ))
