@@ -224,32 +224,11 @@
       'make-pseudo-random-generator
       "Received invalid value for random generator input. See documentation.")]))
 
-;; Initialize the random-source with a pseudo-random generator.
-(define (use-prg-as-source [rgv #f])
-  ;; If rgv has a value, check that it's valid.
-  (when (and rgv (not (rgv? rgv)))
-    (raise-argument-error 'use-prg-as-source "rgv?" rgv))
-  ;; Set the random-source based on whether rgv has been given. If not, use a
-  ;; regular PRG.
-  (set-random-source!
-   rstype-prg
-   (if rgv
-       (racket:vector->pseudo-random-generator rgv)
-       (racket:make-pseudo-random-generator))))
-
 ;; Poll whether the random-source is a PRG or not.
 ;; (A #f value implies that the random-source is a sequence.)
 (define (rnd-prg?)
-  (rnd-chk!)
   (eq? rstype-prg (random-source-type)))
 
-;; Check that the random-source has been initialized. If it has not, use a PRG
-;; as the source.
-;; This function has a short name because it will be used frequently and I
-;; wanted to reduce syntactic overhead.
-(define (rnd-chk!)
-  (unless (random-source-initialized?)
-    (use-prg-as-source)))
 
 ;;;;;;;;
 ;; Sequence-as-a-source
@@ -295,7 +274,7 @@
 ;; Poll whether the random-source is a sequence or not.
 ;; (A #f value implies that the random-source is a PRG.)
 (define (rnd-seq?)
-  (not (rnd-prg?)))
+  (eq? rstype-seq (random-source-type)))
 
 ;; Get the bytes from the random-source sequence.
 (define (rnd-seq-bytes)
