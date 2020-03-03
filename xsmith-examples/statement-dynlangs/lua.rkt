@@ -133,6 +133,33 @@
                                 lparen
                                 (render-node (ast-child 'Expression n))
                                 rparen))]
+
+ [LiteralArray
+  (λ (n) (h-append lbrace
+                   (apply
+                    h-append
+                    (apply-infix (h-append comma space)
+                                 (map render-node
+                                      (ast-children (ast-child 'expressions n)))))
+                   rbrace))]
+ [ArrayReference
+  ;; Lua's array index should start at 1.  And we should define a modulus function, one of the many... frustrating parts of lua is that there wasn't a built-in modulus operator until recently.  So to fuzz older versions we need to define a function for it.
+  (λ (n)
+    (define array-rendered (render-node (ast-child 'array n)))
+    (h-append lparen array-rendered rparen
+              lbracket (text "modulo") lparen
+              (render-node (ast-child 'index n))
+              comma space (text "#") array-rendered
+              rparen (text " + 1") rbracket))]
+ [ArrayAssignmentStatement
+  (λ (n)
+    (define array-rendered (render-node (ast-child 'array n)))
+    (h-append lparen array-rendered rparen
+              lbracket (text "modulo") lparen
+              (render-node (ast-child 'index n))
+              comma space (text "#") array-rendered
+              rparen (text " + 1") rbracket
+              space equals space (render-node (ast-child 'newvalue n))))]
  )
 
 

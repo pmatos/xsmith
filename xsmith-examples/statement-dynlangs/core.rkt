@@ -82,6 +82,13 @@
  [StringAppend Expression ([l : Expression] [r : Expression])]
  [StringLength Expression (Expression)]
 
+ ;; Be sure arrays are never empty.
+ [LiteralArray Expression ([expressions : Expression * = (add1 (random 10))])
+               #:prop wont-over-deepen #t]
+ [ArrayReference Expression ([array : VariableReference] [index : Expression])]
+ [ArrayAssignmentStatement Statement ([array : VariableReference]
+                                      [index : Expression]
+                                      [newvalue : Expression])]
  ;; TODO - equality
 
  ;; TODO - array
@@ -202,6 +209,22 @@
  [StringAppend [string (λ (n t) (hash 'l string 'r string))]]
  [StringLength [int (λ (n t) (hash 'Expression string))]]
 
+ [LiteralArray [(fresh-array-type)
+                (λ (n t)
+                  (define et (fresh-type-variable))
+                  (define at (array-type et))
+                  (subtype-unify! at t)
+                  (hash 'expressions et))]]
+ [ArrayReference [(fresh-type-variable)
+                  (λ (n t) (hash 'index int
+                                 'array (array-type t)))]]
+
+ [ArrayAssignmentStatement [(fresh-no-return)
+                            (λ (n t)
+                              (define inner (fresh-type-variable))
+                              (hash 'array (array-type inner)
+                                    'index int
+                                    'newvalue inner))]]
  )
 
 
