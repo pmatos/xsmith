@@ -124,6 +124,7 @@
   (define given-seed #f)
   (define server? #f)
   (define tree-on-error? #f)
+  (define seq-to-file #f)
   (define max-depth default-max-depth)
   (define options (xsmith-options-defaults))
 
@@ -251,6 +252,11 @@
          "error is encountered."
          "Defaults to false."]
         "show-tree-on-error?")]
+      [("--seq-to-file")
+       ,(λ (flag filename) (set! seq-to-file filename))
+       (["Output the generated randomness sequence to a file at the given path."
+         "If not given, no file will be saved."]
+        "seq-to-file")]
       )
      (help-labels "")
      (help-labels "[[LANGUAGE-GENERATION OPTIONS]]")
@@ -432,6 +438,9 @@
             (display "\n"))
 
           (display "\n"))
+        ;; If the flag was set, output the random-source's byte sequence to file.
+        (when seq-to-file
+          (write-bytes (get-random-source-byte-sequence) (open-output-file seq-to-file #:exists 'replace)))
         ;; Update the seed. (This is used in server mode.)
         (dict-set! (xsmith-options)
                    'random-seed
