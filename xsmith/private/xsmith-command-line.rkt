@@ -31,7 +31,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (require
- "random.rkt"
  racket/contract
  racket/contract/base
  (only-in racr ast-node?)
@@ -74,6 +73,7 @@
  racket/pretty
  racket/list
  raco/command-name
+ "random.rkt"
  "xsmith-parameters.rkt"
  "xsmith-utils.rkt"
  (submod "xsmith-utils.rkt" for-private)
