@@ -219,7 +219,8 @@
     [(racket:pseudo-random-generator-vector? val)
      (racket:vector->pseudo-random-generator val)]
     ;; If the value is a seed, make a PRG with that seed.
-    [(integer-in 0 (sub1 (expt 2 31)))
+    [(and (integer? val)
+          (<= 0 val (sub1 (expt 2 31))))
      (make-prg val)]
     ;; Otherwise, the value is invalid.
     [else
