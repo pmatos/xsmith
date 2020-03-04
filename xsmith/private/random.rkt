@@ -257,7 +257,7 @@
                (<= seq-chunk-size (bytes-length seq)))
     (raise-argument-error
      'make-byte-sequence-value
-     "bytes? of at least length 8"
+     (format "bytes? of at least length ~a" seq-chunk-size)
      seq))
   (seq-val seq
            (let ([bytes-remaining (- (bytes-length seq) seq-chunk-size)])
