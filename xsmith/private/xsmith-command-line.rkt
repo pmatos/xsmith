@@ -280,14 +280,17 @@
    ;; unknown-proc
    )
 
+  (define (get-seed)
+    (xsmith-option 'random-seed))
+
   (define (generate-and-print!/xsmith-parameterized)
-    (parameterize ([current-xsmith-max-depth max-depth]
-                   [current-xsmith-features features]
-                   [xsmith-options options]
-                   [xsmith-state (make-generator-state)])
-      (let ([seed (xsmith-option 'random-seed)])
+    (parameterize* ([current-xsmith-max-depth max-depth]
+                    [current-xsmith-features features]
+                    [xsmith-options options]
+                    [xsmith-state (make-generator-state)]
+                    [random-source (make-random-source (get-seed))])
+      (let ([seed (get-seed)])
         (let/ec abort
-          (set-prg-seed! seed)
           (define option-lines
             (append
              (if fuzzer-name
