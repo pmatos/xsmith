@@ -34,6 +34,7 @@
  ;; Source selection/initialization.
  random-source
  make-random-source
+ get-random-source-byte-sequence
  ;; Macros.
  begin-with-random-seed
  ;; Random generation functions.
@@ -169,6 +170,9 @@
           (racket:random 0 (sub1 (expt 2 31))))
         seq-chunk-size
         #f))))
+
+(define (get-random-source-byte-sequence)
+  (rnd-seq-bytes))
 
 ;; Check if the random-source has been initialized.
 (define (random-source-initialized?)
