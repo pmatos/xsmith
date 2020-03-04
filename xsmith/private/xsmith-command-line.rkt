@@ -125,6 +125,7 @@
   (define server? #f)
   (define tree-on-error? #f)
   (define seq-to-file #f)
+  (define seq-from-file #f)
   (define max-depth default-max-depth)
   (define options (xsmith-options-defaults))
 
@@ -257,6 +258,11 @@
        (["Output the generated randomness sequence to a file at the given path."
          "If not given, no file will be saved."]
         "seq-to-file")]
+      [("--seq-from-file")
+       ,(λ (flag filename) (set! seq-from-file filename))
+       (["Use the bytes in the given file as the source of randomness."
+         "Supersedes any other options that define the random source."]
+        "seq-from-file")]
       )
      (help-labels "")
      (help-labels "[[LANGUAGE-GENERATION OPTIONS]]")
@@ -286,166 +292,167 @@
    ;; unknown-proc
    )
 
-  (define (get-seed)
-    (xsmith-option 'random-seed))
-
   (define (generate-and-print!/xsmith-parameterized)
-    (parameterize* ([current-xsmith-max-depth max-depth]
-                    [current-xsmith-features features]
-                    [xsmith-options options]
-                    [xsmith-state (make-generator-state)]
-                    [random-source (make-random-source (get-seed))])
-      (let ([seed (get-seed)])
-        (let/ec abort
-          (define option-lines
-            (append
-             (if fuzzer-name
-                 (list (format "Fuzzer: ~a" fuzzer-name))
-                 (list))
-             (list (format "Version: ~a" version-info)
-                   (format "Options: ~a" (string-join
-                                          (vector->list
-                                           (xsmith-option 'command-line))))
-                   (format "Seed: ~a" seed))))
-          (define captured-output "")
-          (define (output-error err msg [partial-prog #f])
-            (let* ([output
-                    (format
-                     (string-join
-                      '("!!! Xsmith Error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-                        "~a"  ;; Error message.
-                        ""
-                        "Options:"
-                        "~a"  ;; Option lines.
-                        "Debug Log:"
-                        "~a"  ;; Debug log.
-                        ""
-                        "Exception:"
-                        "~a"  ;; Exception.
-                        )
-                      "\n")
-                     msg
-                     (string-join
-                      option-lines
-                      "\n")
-                     (get-xsmith-debug-log!)
-                     (exn->string err))]
-                   [output (if (not (eq? captured-output ""))
-                               (string-append
-                                output
-                                (format "\nProgram output captured:\n~a\n"
-                                        captured-output))
-                               output)]
-                   [output (if partial-prog
-                               (string-append
-                                output
-                                (format "\nPartially generated program:\n~a\n"
-                                        partial-prog))
-                               output)])
-              (display output)))
-          ;; Compute the result of a procedure, capturing all output to
-          ;; `captured-output` and returning the procedure's result.
-          (define (capture-output! proc)
-            (let* ([result #f]
-                   [out (with-output-to-string
-                          (λ () (set! result (proc))))])
-              #;(set! captured-output out)
-              (when (not (eq? out ""))
-                (set! captured-output (string-append captured-output out)))
-              result))
-          ;;;;;;;;;;;;;;;;
-          ;; Actual generation and printing starts here.
-          ;;;;
-          ;; Convert an AST to a string.
-          (define (ast->string root)
-            (let ([ppr (render-node root)])
-              (if format-render-func
-                  (format-render-func ppr)
-                  (format "~a\n" ppr))))
-          ;; Attempt to generate the AST.
-          (define error? #f)
-          (define error-root #f)
-          (define ast
-            (capture-output!
-             (λ () (with-handlers
-                     ([(match-lambda [(list 'ast-gen-error e root) #t]
-                                     [_ #f])
-                       (λ (l)
-                         (set! error? (second l))
-                         (set! error-root (third l)))]
-                      [(λ (e) #t)
-                       (λ (e) (set! error? e))])
-                     (generate-func)))))
-          (when error?
-            ;; If the user asked for it (and if any AST was salvaged from the
-            ;; generation stage), attempt to convert the partially completed AST
-            ;; to pre-print representation (PPR).
-            (if (and tree-on-error?
-                     error-root)
-                (let* ([ppr-error? #f]
-                       [original-captured-output captured-output]
-                       [partial-prog (capture-output!
-                                      (λ () (with-handlers ([(λ (e) #t)
-                                                             (λ (e) (set! ppr-error? e))])
-                                              (ast->string error-root))))])
-                  (if ppr-error?
-                      (begin
-                        ;; Something went wrong during printing.
-                        (output-error
-                         ppr-error?
-                         "Error 001: Error encountered in printing while intercepting another error in AST generation.")
-                        (display "Original error reproduced below:\n\n")
-                        (set! captured-output original-captured-output)
-                        (output-error
-                         error?
-                         "Error 002: Error generating program!"))
-                      (begin
-                        ;; Printing was successful, so we can show the partial program.
-                        (set! captured-output original-captured-output)
-                        (output-error
-                         error?
-                         "Error 003: Error encountered while generating program!"
-                         partial-prog))))
-                (begin
-                  ;; Just print the base error message and quit.
-                  (output-error
-                   error?
-                   "Error 004: Error encountered while generating program!")))
-            ;; Quit further execution.
-            (abort))
-          ;; Convert the AST to PPR.
-          (define program
-            (capture-output!
-             (λ () (with-handlers ([(λ (e) #t)
-                                    (λ (e) (set! error? e))])
-                     (ast->string ast)))))
-          (when error?
-            ;; Something went wrong during printing.
-            (output-error
-             error?
-             "Error 005: Error encountered while printing program.")
-            (abort))
-          ;; Everything was successful!
-          (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
-                                       option-lines)))
-          (display (format "\n\n~a\n" program))
-          (when (non-empty-string? captured-output)
-            (display "\n")
-            (display (comment-func (flatten
-                                    (list "!!! The following output was captured during execution:"
-                                          ""
-                                          (string-split captured-output "\n")))))
-            (display "\n"))
+    (parameterize ([current-xsmith-max-depth max-depth]
+                   [current-xsmith-features features]
+                   [xsmith-options options]
+                   [xsmith-state (make-generator-state)])
+      (let* ([seed (xsmith-option 'random-seed)]
+             [random-source-val (if seq-from-file
+                                    (port->bytes (open-input-file seq-from-file))
+                                    seed)])
+        (parameterize ([random-source (make-random-source random-source-val)])
 
-          (display "\n"))
-        ;; If the flag was set, output the random-source's byte sequence to file.
-        (when seq-to-file
-          (write-bytes (get-random-source-byte-sequence) (open-output-file seq-to-file #:exists 'replace)))
-        ;; Update the seed. (This is used in server mode.)
-        (dict-set! (xsmith-options)
-                   'random-seed
-                   (modulo (add1 seed)
-                           random-seed-max)))))
+          (let/ec abort
+              (define option-lines
+                (append
+                 (if fuzzer-name
+                     (list (format "Fuzzer: ~a" fuzzer-name))
+                     (list))
+                 (list (format "Version: ~a" version-info)
+                       (format "Options: ~a" (string-join
+                                              (vector->list
+                                               (xsmith-option 'command-line))))
+                       (format "Seed: ~a" seed))))
+              (define captured-output "")
+              (define (output-error err msg [partial-prog #f])
+                (let* ([output
+                        (format
+                         (string-join
+                          '("!!! Xsmith Error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                            "~a"  ;; Error message.
+                            ""
+                            "Options:"
+                            "~a"  ;; Option lines.
+                            "Debug Log:"
+                            "~a"  ;; Debug log.
+                            ""
+                            "Exception:"
+                            "~a"  ;; Exception.
+                            )
+                          "\n")
+                         msg
+                         (string-join
+                          option-lines
+                          "\n")
+                         (get-xsmith-debug-log!)
+                         (exn->string err))]
+                       [output (if (not (eq? captured-output ""))
+                                   (string-append
+                                    output
+                                    (format "\nProgram output captured:\n~a\n"
+                                            captured-output))
+                                   output)]
+                       [output (if partial-prog
+                                   (string-append
+                                    output
+                                    (format "\nPartially generated program:\n~a\n"
+                                            partial-prog))
+                                   output)])
+                  (display output)))
+              ;; Compute the result of a procedure, capturing all output to
+              ;; `captured-output` and returning the procedure's result.
+              (define (capture-output! proc)
+                (let* ([result #f]
+                       [out (with-output-to-string
+                              (λ () (set! result (proc))))])
+                  #;(set! captured-output out)
+                  (when (not (eq? out ""))
+                    (set! captured-output (string-append captured-output out)))
+                  result))
+              ;;;;;;;;;;;;;;;;
+              ;; Actual generation and printing starts here.
+              ;;;;
+              ;; Convert an AST to a string.
+              (define (ast->string root)
+                (let ([ppr (render-node root)])
+                  (if format-render-func
+                      (format-render-func ppr)
+                      (format "~a\n" ppr))))
+              ;; Attempt to generate the AST.
+              (define error? #f)
+              (define error-root #f)
+              (define ast
+                (capture-output!
+                 (λ () (with-handlers
+                         ([(match-lambda [(list 'ast-gen-error e root) #t]
+                                         [_ #f])
+                           (λ (l)
+                             (set! error? (second l))
+                             (set! error-root (third l)))]
+                          [(λ (e) #t)
+                           (λ (e) (set! error? e))])
+                         (generate-func)))))
+              (when error?
+                ;; If the user asked for it (and if any AST was salvaged from the
+                ;; generation stage), attempt to convert the partially completed AST
+                ;; to pre-print representation (PPR).
+                (if (and tree-on-error?
+                         error-root)
+                    (let* ([ppr-error? #f]
+                           [original-captured-output captured-output]
+                           [partial-prog (capture-output!
+                                          (λ () (with-handlers ([(λ (e) #t)
+                                                                 (λ (e) (set! ppr-error? e))])
+                                                  (ast->string error-root))))])
+                      (if ppr-error?
+                          (begin
+                            ;; Something went wrong during printing.
+                            (output-error
+                             ppr-error?
+                             "Error 001: Error encountered in printing while intercepting another error in AST generation.")
+                            (display "Original error reproduced below:\n\n")
+                            (set! captured-output original-captured-output)
+                            (output-error
+                             error?
+                             "Error 002: Error generating program!"))
+                          (begin
+                            ;; Printing was successful, so we can show the partial program.
+                            (set! captured-output original-captured-output)
+                            (output-error
+                             error?
+                             "Error 003: Error encountered while generating program!"
+                             partial-prog))))
+                    (begin
+                      ;; Just print the base error message and quit.
+                      (output-error
+                       error?
+                       "Error 004: Error encountered while generating program!")))
+                ;; Quit further execution.
+                (abort))
+              ;; Convert the AST to PPR.
+              (define program
+                (capture-output!
+                 (λ () (with-handlers ([(λ (e) #t)
+                                        (λ (e) (set! error? e))])
+                         (ast->string ast)))))
+              (when error?
+                ;; Something went wrong during printing.
+                (output-error
+                 error?
+                 "Error 005: Error encountered while printing program.")
+                (abort))
+              ;; Everything was successful!
+              (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
+                                           option-lines)))
+              (display (format "\n\n~a\n" program))
+              (when (non-empty-string? captured-output)
+                (display "\n")
+                (display (comment-func (flatten
+                                        (list "!!! The following output was captured during execution:"
+                                              ""
+                                              (string-split captured-output "\n")))))
+                (display "\n"))
+
+              (display "\n"))
+            ;; If the flag was set, output the random-source's byte sequence to file.
+            (when seq-to-file
+              (write-bytes (get-random-source-byte-sequence) (open-output-file seq-to-file #:exists 'replace)))
+            ;; Update the seed. (This is used in server mode.)
+            (dict-set! (xsmith-options)
+                       'random-seed
+                       (modulo (add1 seed)
+                               random-seed-max))))))
 
   (define (generate-and-print!)
     (define (do-parameterized param-pairs thunk)
