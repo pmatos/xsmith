@@ -163,14 +163,23 @@
 (define (make-random-source [val #f])
   (make-byte-sequence-random-source
    (if (bytes? val)
+       ;; If we have a byte sequence, just use that.
        val
+       ;; Otherwise, we need to build a new byte sequence.
        (integer->integer-bytes
-        (begin-with-racket-prg
-          (make-pseudo-random-generator val)
-          (racket:random 0 (sub1 (expt 2 31))))
+        (if (and (integer? val)
+                 (<= 0 val (sub1 (expt 2 31))))
+            ;; If the value is an integer that can be used as a seed, just
+            ;; convert it directly to a byte sequence.
+            val
+            ;; Otherwise, we need to get a seed value from a PRG.
+            (begin-with-racket-prg
+              (make-pseudo-random-generator val)
+              (racket:random 0 (expt 2 31))))
         seq-chunk-size
         #f))))
 
+;; Return the sequence of bytes that has been generated so far.
 (define (get-random-source-byte-sequence)
   (rnd-seq-bytes))
 
