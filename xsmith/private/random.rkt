@@ -93,13 +93,13 @@
 ;; TODO Items
 ;;
 ;; [ ] Coverage-Guided Generation
-;;   [ ] Initialize/store source of randomness (generator or bit sequence)
+;;   [X] Initialize/store source of randomness (generator or bit sequence)
 ;;     [X] Initialize from PRG
 ;;     [X] Initialize from sequence
 ;;       [X] Determine a representation for the sequence (bits/bytes/etc,
 ;;           list/vector/etc)
 ;;     [X] Default initialization
-;;     [ ] Connect randomness source to command-line arguments
+;;     [X] Connect randomness source to command-line arguments
 ;;   [X] Consult correct source of randomness
 ;;   [X] Provide functions for all common randomness use cases
 ;;     [X] random
