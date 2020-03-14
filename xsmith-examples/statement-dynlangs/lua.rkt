@@ -11,6 +11,16 @@
 
 (define-spec-component lua-comp)
 
+(add-basic-expressions lua-comp
+                       #:LambdaWithExpression #t
+                       #:Booleans #t
+                       #:Strings #t
+                       #:MutableArray #t
+                       #:MutableStructuralRecord #t)
+(add-basic-statements lua-comp
+                      #:AssignmentStatement #t
+                      #:MutableArraySetStatement #t
+                      #:MutableStructuralRecordSetStatement #t)
 
 (define nest-step 4)
 (define (binary-op-renderer op-rendered)
@@ -144,14 +154,14 @@
                    (text "end")
                    rparen))]
 
- [LiteralBool (λ (n) (text (if (ast-child 'v n) "true" "false")))]
+ [BoolLiteral (λ (n) (text (if (ast-child 'v n) "true" "false")))]
  [Not (λ (n) (h-append (text "not") lparen
                        (render-node (ast-child 'Expression n))
                        rparen))]
  [And (binary-op-renderer (text "and"))]
  [Or (binary-op-renderer (text "or"))]
 
- [LiteralInt (λ (n) (text (format "~a" (ast-child 'v n))))]
+ [IntLiteral (λ (n) (text (format "~a" (ast-child 'v n))))]
  [Plus (binary-op-renderer (text "+"))]
  [Minus (binary-op-renderer (text "-"))]
  [Times (binary-op-renderer (text "*"))]
@@ -164,19 +174,19 @@
                               (render-node (ast-child 'r n))
                               rparen))]
 
- [LiteralString (λ (n) (text (format "\"~a\"" (ast-child 'v n))))]
+ [StringLiteral (λ (n) (text (format "\"~a\"" (ast-child 'v n))))]
  [StringAppend (binary-op-renderer (text ".."))]
  [StringLength (λ (n) (h-append (text "string.len")
                                 lparen
                                 (render-node (ast-child 'Expression n))
                                 rparen))]
 
- [LiteralArray
+ [MutableArrayLiteral
   (λ (n) (h-append lbrace
                    (comma-list (map render-node
                                     (ast-children (ast-child 'expressions n))))
                    rbrace))]
- [ArrayReference
+ [MutableArrayReference
   ;; Lua's array index should start at 1.  And we should define a modulus function, one of the many... frustrating parts of lua is that there wasn't a built-in modulus operator until recently.  So to fuzz older versions we need to define a function for it.
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
@@ -185,7 +195,7 @@
               (render-node (ast-child 'index n))
               comma space (text "#") array-rendered
               rparen (text " + 1") rbracket))]
- [ArrayAssignmentStatement
+ [MutableArrayAssignmentStatement
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
     (h-append array-rendered
@@ -195,7 +205,7 @@
               rparen (text " + 1") rbracket
               space equals space (render-node (ast-child 'newvalue n))))]
 
- [LiteralStructuralRecord
+ [MutableStructuralRecordLiteral
   (λ (n)
     (h-append lbrace
               (comma-list (map (λ (fieldname expression-node)
@@ -205,12 +215,12 @@
                                (ast-child 'fieldnames n)
                                (ast-children (ast-child 'expressions n))))
               rbrace))]
- [StructuralRecordReference
+ [MutableStructuralRecordReference
   (λ (n) (h-append (render-node (ast-child 'record n))
                    lbracket dquote
                    (text (format "~a" (ast-child 'fieldname n)))
                    dquote rbracket))]
- [StructuralRecordAssignmentStatement
+ [MutableStructuralRecordAssignmentStatement
   (λ (n) (h-append (render-node (ast-child 'record n))
                    lbracket dquote
                    (text (format "~a" (ast-child 'fieldname n)))
@@ -223,7 +233,6 @@
 
 (assemble-spec-components
  lua
- statement-dynlangs-core
  lua-comp)
 
 

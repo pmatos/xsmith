@@ -11,6 +11,17 @@
 
 (define-spec-component javascript-comp)
 
+(add-basic-expressions javascript-comp
+                       #:LambdaWithExpression #t
+                       #:Booleans #t
+                       #:Strings #t
+                       #:MutableArray #t
+                       #:MutableStructuralRecord #t)
+(add-basic-statements javascript-comp
+                      #:AssignmentStatement #t
+                      #:MutableArraySetStatement #t
+                      #:MutableStructuralRecordSetStatement #t)
+
 
 (define nest-step 4)
 (define (binary-op-renderer op-rendered)
@@ -120,14 +131,14 @@
                    rbrace
                    rparen))]
 
- [LiteralBool (λ (n) (text (if (ast-child 'v n) "true" "false")))]
+ [BoolLiteral (λ (n) (text (if (ast-child 'v n) "true" "false")))]
  [Not (λ (n) (h-append (text "!") lparen
                        (render-node (ast-child 'Expression n))
                        rparen))]
  [And (binary-op-renderer (text "&&"))]
  [Or (binary-op-renderer (text "||"))]
 
- [LiteralInt (λ (n) (text (format "~a" (ast-child 'v n))))]
+ [IntLiteral (λ (n) (text (format "~a" (ast-child 'v n))))]
  [Plus (binary-op-renderer (text "+"))]
  [Minus (binary-op-renderer (text "-"))]
  [Times (binary-op-renderer (text "*"))]
@@ -140,19 +151,19 @@
                               (render-node (ast-child 'r n))
                               rparen))]
 
- [LiteralString (λ (n) (text (format "\"~a\"" (ast-child 'v n))))]
+ [StringLiteral (λ (n) (text (format "\"~a\"" (ast-child 'v n))))]
  [StringAppend (binary-op-renderer (text "+"))]
  [StringLength (λ (n) (h-append lparen
                                 (render-node (ast-child 'Expression n))
                                 rparen
                                 (text ".length")))]
 
- [LiteralArray
+ [MutableArrayLiteral
   (λ (n) (h-append lbracket
                    (comma-list (map render-node
                                     (ast-children (ast-child 'expressions n))))
                    rbracket))]
- [ArrayReference
+ [MutableArrayReference
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
     (h-append array-rendered
@@ -161,7 +172,7 @@
               space (text "%") space
               array-rendered (text ".length")
               rbracket))]
- [ArrayAssignmentStatement
+ [MutableArrayAssignmentStatement
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
     (h-append array-rendered
@@ -173,7 +184,7 @@
               space equals space (render-node (ast-child 'newvalue n))
               semi))]
 
- [LiteralStructuralRecord
+ [MutableStructuralRecordLiteral
   (λ (n)
     ;; We need to wrap it in parentheses in statement contexts.
     (h-append lparen lbrace
@@ -185,11 +196,11 @@
                                (ast-child 'fieldnames n)
                                (ast-children (ast-child 'expressions n))))
               rbrace rparen))]
- [StructuralRecordReference
+ [MutableStructuralRecordReference
   (λ (n) (h-append (render-node (ast-child 'record n))
                    (text ".")
                    (text (format "~a" (ast-child 'fieldname n)))))]
- [StructuralRecordAssignmentStatement
+ [MutableStructuralRecordAssignmentStatement
   (λ (n) (h-append (render-node (ast-child 'record n))
                    (text ".")
                    (text (format "~a" (ast-child 'fieldname n)))
@@ -201,7 +212,6 @@
 
 (assemble-spec-components
  javascript
- statement-dynlangs-core
  javascript-comp)
 
 
