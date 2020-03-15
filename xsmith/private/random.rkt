@@ -36,6 +36,7 @@
  make-random-source
  get-random-source-byte-sequence
  ;; Macros.
+ begin-external-random
  begin-with-random-seed
  ;; Random generation functions.
  random
@@ -395,6 +396,17 @@
      #'(parameterize ([racket:current-pseudo-random-generator prg])
          (begin body ...))]))
 
+;; Generate a PRG from the random-source and install it as the Racket-wide
+;; pseudo-random generator.
+(define-syntax (begin-external-random stx)
+  (syntax-parse stx
+    [(_ body ...+)
+     #'(begin
+         (define prg (make-prg (random-uint)))
+         (begin-with-racket-prg
+           prg
+           body ...))]))
+
 ;; Given a PRG, execute the body statements with that PRG installed as the
 ;; random-source.
 (define-syntax (begin-with-prg stx)
@@ -409,8 +421,9 @@
 ;; The idea is that this can be used for deterministic sub-computations of
 ;; randomness, e.g.:
 ;;
-;;   (begin-with-random-seed (random-uint)
-;;      ...)
+;;   (begin-with-random-seed
+;;     (random-uint)
+;;     ...)
 ;;
 ;; This can be helpful for wrapping operations that use built-in standard
 ;; library randomness functions in a deterministic way.
