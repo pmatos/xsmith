@@ -597,18 +597,23 @@
 (module* stateful #f
   (provide (all-defined-out))
 
+  ;; Update the parameter to take the new value without directly exposing the
+  ;; parameter externally.
   (define (set-random-source! value)
     (random-source value))
 
+  ;; Statefully create a new random-source with a randomly-generated seed.
   (define (initialize-random-source)
     (begin-with-racket-prg
       (make-prg)
       (define seed (racket:random 0 (expt 2 31)))
       (initialize-random-source-from-seed seed)))
 
+  ;; Given a seed, statefully create a new random-source from it.
   (define (initialize-random-source-from-seed seed)
     (set-random-source! (make-pseudo-random-generator-random-source seed)))
 
+  ;; Given a sequence, statefully create a new random-source from it.
   (define (initialize-random-source-from-sequence seq)
     (set-random-source! (make-byte-sequence-random-source seq))))
 
