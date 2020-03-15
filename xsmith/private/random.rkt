@@ -398,7 +398,8 @@
   (syntax-parse stx
     [(_ body ...+)
      #'(begin
-         (define prg (make-prg (random 0 (expt 2 31))))
+         (define seed (random 0 (expt 2 31)))
+         (define prg (make-prg seed))
          (begin-with-racket-prg
            prg
            body ...))]))
