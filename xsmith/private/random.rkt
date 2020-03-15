@@ -621,6 +621,32 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+;; Distribution Functions
+;;
+;; These functions allow for using the functions defined in math/distributions.
+;; In essence, these are all just wrappers that use `begin-external-random` to
+;; ensure that all randomness is deterministic.
+;;
+;; Function header comments are left out, since none of these are original
+;; implementations. Instead, refer to the math/distributions documentation.
+
+(module* distributions #f
+  (provide (all-defined-out))
+  (require (prefix-in dist: math/distributions))
+
+  (define (sample d [n #f])
+    (begin-external-random
+      (if n
+          (dist:sample d n)
+          (dist:sample d))))
+
+  (define (binomial-dist count prob)
+    (begin-external-random
+      (dist:binomial-dist count prob))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 ;; Pseudo-Random Generator Generation
 ;;
 ;; These generators are produced using crypto-random-bytes, meaning they are
