@@ -138,35 +138,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Stateful Random-Source Manipulation Functions
-;;
-;; Sometimes it is useful to be able to manipulate the random-source directly,
-;; instead of using parameterization. For example, in the case of using this
-;; module from the Racket REPL it can be desirable to instantiate the
-;; random-source without wrapping every call in a `parameterize` call. This
-;; sub-module allows for this to be done easily.
-
-(module* stateful #f
-  (provide (all-defined-out))
-
-  (define (set-random-source! value)
-    (random-source value))
-
-  (define (initialize-random-source)
-    (begin-with-racket-prg
-      (make-prg)
-      (define seed (racket:random 0 (expt 2 31)))
-      (initialize-random-source-from-seed seed)))
-
-  (define (initialize-random-source-from-seed seed)
-    (set-random-source! (make-pseudo-random-generator-random-source seed)))
-
-  (define (initialize-random-source-from-sequence seq)
-    (set-random-source! (make-byte-sequence-random-source seq))))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
 ;; Source of Randomness
 ;;
 ;; The source of randomness is a singleton parameter. If not set explicitly, the
@@ -611,6 +582,35 @@
   (string-join
    (for/list ([i (in-range (random 1 word-bound))])
      (random-ascii-word-string (random 1 word-length-bound)))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Stateful Random-Source Manipulation Functions
+;;
+;; Sometimes it is useful to be able to manipulate the random-source directly,
+;; instead of using parameterization. For example, in the case of using this
+;; module from the Racket REPL it can be desirable to instantiate the
+;; random-source without wrapping every call in a `parameterize` call. This
+;; sub-module allows for this to be done easily.
+
+(module* stateful #f
+  (provide (all-defined-out))
+
+  (define (set-random-source! value)
+    (random-source value))
+
+  (define (initialize-random-source)
+    (begin-with-racket-prg
+      (make-prg)
+      (define seed (racket:random 0 (expt 2 31)))
+      (initialize-random-source-from-seed seed)))
+
+  (define (initialize-random-source-from-seed seed)
+    (set-random-source! (make-pseudo-random-generator-random-source seed)))
+
+  (define (initialize-random-source-from-sequence seq)
+    (set-random-source! (make-byte-sequence-random-source seq))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
