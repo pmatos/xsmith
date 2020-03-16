@@ -145,6 +145,23 @@
 ;; The maximum value for a PRG's seed is (2^31 - 1).
 (define max-seed-value (sub1 (expt 2 31)))
 
+;; These are character class definitions for generating individual characters.
+(define ascii-lower-range (range 97 123))   ;; [a-z]
+(define ascii-upper-range (range 65 91))    ;; [A-Z]
+(define ascii-alpha-range                   ;; [a-zA-Z]
+  (append ascii-lower-range
+          ascii-upper-range))
+(define ascii-numeral-range (range 48 58))  ;; [0-9]
+(define ascii-alphanumeric-range            ;; [a-zA-Z0-9]
+  (append ascii-alpha-range
+          ascii-numeral-range))
+(define ascii-word-range                    ;; [a-zA-Z0-9_]
+  (append ascii-alphanumeric-range
+          (list 95)))
+
+;; The default bound for string generation.
+(define default-string-bound 128)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
