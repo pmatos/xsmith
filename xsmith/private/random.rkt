@@ -555,11 +555,11 @@
         (random 1 bound)))
   (string-append
    (string (pre-func))
-   (apply string (for/list ([_ (in-range (- len
-                                            (if post-func
-                                                2
-                                                1)))])
-                   (func)))
+   (apply string
+          (for/list ([_ (in-range (- len (if post-func
+                                             2
+                                             1)))])
+            (func)))
    (if (and (>= bound 2) post-func)
        (string (post-func))
        "")))
@@ -707,5 +707,7 @@
 (define (make-prg [seed #f])
   (define prg (racket:vector->pseudo-random-generator (make-rgv)))
   (when seed
-    (begin-with-racket-prg prg (racket:random-seed seed)))
+    (begin-with-racket-prg
+      prg
+      (racket:random-seed seed)))
   prg)
