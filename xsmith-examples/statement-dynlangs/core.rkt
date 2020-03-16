@@ -297,7 +297,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                        (current-hole))
                                       (att-value 'xsmith_type (current-hole)))]
                             [srt (fresh-structural-record-type)]
-                            [_side-effect (unify! t srt)]
+                            [msrt (mutable srt)]
+                            [_side-effect (unify! t msrt)]
                             [fd (structural-record-type-known-field-dict srt)]
                             [necessary-fields (dict-keys fd)]
                             ;; Let's inject extra fields.
@@ -315,7 +316,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      [(λ (n)
                         (if (att-value 'xsmith_is-hole? n)
                             (mutable
-                             (fresh-subtype-of (fresh-structural-record-type (hash))))
+                             (fresh-structural-record-type (hash)))
                             (mutable
                              (fresh-structural-record-type
                               #:finalized? #t
