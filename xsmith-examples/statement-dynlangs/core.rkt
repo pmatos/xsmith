@@ -125,6 +125,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
           component
           type-info
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
+          [FormalParameter [(fresh-type-variable) no-child-types]]
 
           [Expression [(error 'typing-expression) no-child-types]]
           [VariableReference [(fresh-type-variable) (λ (n t) no-child-types)]]
@@ -262,7 +263,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                    (add-prop
                     component
                     type-info
-                    [MutableArralLiteral [(mutable (fresh-array-type))
+                    [MutableArrayLiteral [(mutable (fresh-array-type))
                                           (λ (n t)
                                             (define et (fresh-type-variable))
                                             (define at (mutable (array-type et)))
