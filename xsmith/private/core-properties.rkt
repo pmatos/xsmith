@@ -1258,10 +1258,11 @@ The second arm is a function that takes the type that the node has been assigned
       (for/hash ([n (dict-keys node-type-constraints)])
         (values
          n
-         #`(λ (node)
+         #`(λ (node att-or-choice)
              (let ([do-error (λ (bad-type)
                                (error 'type-info
-                                      "Type constraint returned for node of AST type ~a was not a type: ~a\n"
+                                      "Type constraint returned in ~a-rule for node of AST type ~a was not a type: ~a\n"
+                                      att-or-choice
                                       (quote #,n)
                                       bad-type))]
                    [t #,(dict-ref node-type-constraints n)])
@@ -1277,12 +1278,12 @@ The second arm is a function that takes the type that the node has been assigned
           (hash #f #'(λ () default-base-type))
           (for/hash ([n (dict-keys get-constraints-checked)])
             (values n #`(λ (node)
-                          (#,(dict-ref get-constraints-checked n) node))))))
+                          (#,(dict-ref get-constraints-checked n) node 'att))))))
     (define _xsmith_my-type-constraint-info/choice-rule
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ () default-base-type))
           (for/hash ([n (dict-keys get-constraints-checked)])
-            (values n #`(λ () (#,(dict-ref get-constraints-checked n) current-hole))))))
+            (values n #`(λ () (#,(dict-ref get-constraints-checked n) current-hole 'choice))))))
 
     (define node-child-dict-funcs
       (hash-set
