@@ -518,20 +518,6 @@
        (random 0 55295)
        (random 57344 1114111))))
 
-;; These are character class definitions for generating individual characters.
-(define ascii-lower-range (range 97 123))   ;; [a-z]
-(define ascii-upper-range (range 65 91))    ;; [A-Z]
-(define ascii-alpha-range                   ;; [a-zA-Z]
-  (append ascii-lower-range
-          ascii-upper-range))
-(define ascii-numeral-range (range 48 58))  ;; [0-9]
-(define ascii-alphanumeric-range            ;; [a-zA-Z0-9]
-  (append ascii-alpha-range
-          ascii-numeral-range))
-(define ascii-word-range                    ;; [a-zA-Z0-9_]
-  (append ascii-alphanumeric-range
-          (list 95)))
-
 ;; Randomly select an integer from the indicated range and convert it to a char.
 (define (rnd-char-in-range range)
   (integer->char (random-ref range)))
@@ -549,9 +535,6 @@
   (rnd-char-in-range ascii-alphanumeric-range))
 (define (random-ascii-word-char)
   (rnd-char-in-range ascii-word-range))
-
-;; The default bound for string generation.
-(define default-string-bound 128)
 
 ;; Generate a string given a character-generation function.
 ;; If given a bound, the string's length  will be less than or equal to that
