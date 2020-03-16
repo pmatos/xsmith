@@ -138,6 +138,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+;; Constants
+;;
+;; These are constants that are useful.
+
+;; The maximum value for a PRG's seed is (2^31 - 1).
+(define max-seed-value (sub1 (expt 2 31)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 ;; Source of Randomness
 ;;
 ;; The source of randomness is a singleton parameter. If not set explicitly, the
@@ -169,14 +179,14 @@
        ;; Otherwise, we need to build a new byte sequence.
        (integer->integer-bytes
         (if (and (integer? val)
-                 (<= 0 val (sub1 (expt 2 31))))
+                 (<= 0 val max-seed-value))
             ;; If the value is an integer that can be used as a seed, just
             ;; convert it directly to a byte sequence.
             val
             ;; Otherwise, we need to get a seed value from a PRG.
             (begin-with-racket-prg
               (make-pseudo-random-generator val)
-              (racket:random 0 (expt 2 31))))
+              (racket:random 0 (add1 max-seed-value))))
         seq-chunk-size
         #f))))
 
@@ -226,7 +236,7 @@
      (racket:vector->pseudo-random-generator val)]
     ;; If the value is a seed, make a PRG with that seed.
     [(and (integer? val)
-          (<= 0 val (sub1 (expt 2 31))))
+          (<= 0 val max-seed-value))
      (make-prg val)]
     ;; Otherwise, the value is invalid.
     [else
@@ -272,8 +282,7 @@
                  bytes-remaining))
            (let* ([seed-bytes (subbytes seq 0 seq-chunk-size)]
                   [seed-int (integer-bytes->integer seed-bytes #f)]
-                  ;; The bounds on this value are documented by random-seed.
-                  [seed-val (modulo seed-int (sub1 (expt 2 31)))])
+                  [seed-val (modulo seed-int (add1 max-seed-value))])
              (make-prg seed-val))))
 
 (struct seq-val
@@ -358,10 +367,10 @@
 ;; ensure it fits within a chunk of the byte sequence and can also be used as a
 ;; random-seed value.
 (define (generate-uint-from-seq-val)
-  (modulo
-   (begin-with-prg (rnd-seq-prg)
-                   (random-int))
-   (sub1 (expt 2 31))))
+  (modulo (begin-with-prg
+            (rnd-seq-prg)
+            (random-int))
+          (add1 max-seed-value)))
 
 ;; Produce an unsigned integer for a sequenced random-source.
 (define (next-uint-from-seq)
@@ -398,7 +407,7 @@
   (syntax-parse stx
     [(_ body ...+)
      #'(begin
-         (define seed (random 0 (expt 2 31)))
+         (define seed (random 0 (add1 max-seed-value)))
          (define prg (make-prg seed))
          (begin-with-racket-prg
            prg
@@ -607,7 +616,7 @@
   (define (initialize-random-source)
     (begin-with-racket-prg
       (make-prg)
-      (define seed (racket:random 0 (expt 2 31)))
+      (define seed (racket:random 0 (add1 max-seed-value)))
       (initialize-random-source-from-seed seed)))
 
   ;; Given a seed, statefully create a new random-source from it.
