@@ -353,6 +353,10 @@ For example, to generate a fresh @verb{AdditionExpression} node, specifying valu
 @racketblock[(make-fresh-node 'AdditionExpression
                                (hash 'left (make-fresh-node 'LiteralInt
                                                             (hash 'v 5))))]
+
+Note that the fresh node is initially created unattached to the rest of the program tree.
+This means that any nodes whose @racket[fresh] implementation needs to inspect the tree may fail.
+In particular, reference nodes can only lift bindings when attached to the tree, and will probably fail if created with @racket[make-fresh-node].
 }
 
 @section{Custom Properties}
