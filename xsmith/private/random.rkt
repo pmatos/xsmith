@@ -632,26 +632,31 @@
 ;;
 ;; Distribution Functions
 ;;
-;; These functions allow for using the functions defined in math/distributions.
-;; In essence, these are all just wrappers that use `begin-external-random` to
-;; ensure that all randomness is deterministic.
-;;
-;; Function header comments are left out, since none of these are original
-;; implementations. Instead, refer to the math/distributions documentation.
+;; To provide the math/distributions functions with deterministic randomness,
+;; this submodule is provided. It exports a new #%app implementation that checks
+;; if an application is using a function from math/distributions and, if it is,
+;; wraps that application in a use of `begin-external-random` to use the
+;; deterministic random-source.
 
 (module* distributions #f
-  (provide (all-defined-out))
-  (require (prefix-in dist: math/distributions))
+  (provide (rename-out [rand-app #%app])
+           (all-from-out math/distributions))
+  (require syntax/parse
+           syntax/parse/define
+           math/distributions)
 
-  (define (sample d [n #f])
-    (begin-external-random
-      (if n
-          (dist:sample d n)
-          (dist:sample d))))
+  (define-for-syntax math-names
+    (let-values ([(vars stxs) (module->exports 'math/distributions)])
+      (map car (cdar stxs))))
 
-  (define (binomial-dist count prob)
-    (begin-external-random
-      (dist:binomial-dist count prob))))
+  (define-syntax-parser rand-app
+    [(_ f:id a ...)
+     #:when (begin
+              (eprintf "f: ~a\n" (syntax->datum #'f))
+              (member (syntax->datum #'f) math-names))
+     #'(begin-external-random
+         (f a ...))]
+    [(_ f:expr a ...) #'(#%app f a ...)]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
