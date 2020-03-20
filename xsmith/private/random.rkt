@@ -645,9 +645,16 @@
            syntax/parse/define
            math/distributions)
 
+  (define (extract-names l)
+    (if (null? l)
+        l
+        (map car (cdar l))))
+
   (define-for-syntax math-names
     (let-values ([(vars stxs) (module->exports 'math/distributions)])
-      (map car (cdar stxs))))
+      (append
+       (extract-names vars)
+       (extract-names stxs))))
 
   (define-syntax-parser rand-app
     [(_ f:id a ...)
