@@ -34,6 +34,7 @@
 "util.rkt"
 racket/runtime-path
 racket/file
+(for-label xsmith)
 )
 
 @(define-runtime-path minimal-example-path "minimal-example.rkt")
