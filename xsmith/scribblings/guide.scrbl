@@ -31,11 +31,13 @@
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 @(require
-"util.rkt"
-racket/runtime-path
-racket/file
-(for-label xsmith)
-)
+  "util.rkt"
+  racket/runtime-path
+  racket/file
+  (for-label
+   xsmith
+   (except-in racket/base module)
+   ))
 
 @(define-runtime-path minimal-example-path "minimal-example.rkt")
 @(define-runtime-path minimal-example-with-variables-path
@@ -175,11 +177,17 @@ Remember:  Attributes and choice rules are functions used (and usable) within sp
 
 @section{Minimal Example}
 
-@(verbatim (file->string minimal-example-path))
+@(typeset-code
+  #:keep-lang-line? #t
+  #:context #'here
+  (file->string minimal-example-path))
 
 @section{Another Small Example With Variables}
 
-@(verbatim (file->string minimal-example-with-variables-path))
+@(typeset-code
+  #:keep-lang-line? #t
+  #:context #'here
+  (file->string minimal-example-with-variables-path))
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
