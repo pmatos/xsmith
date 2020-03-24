@@ -1159,6 +1159,9 @@ Example:
  [#f (λ (node) (symbol->string (ast-node-type node)))])
 ]
 }
+@defproc[(render-node [n ast-node?]) any/c]{
+Calls the @rule[_xsmith_render-node] attribute defined by @racket[render-node-info].
+}
 
 
 @defform[#:kind "spec-property" #:id render-hole-info render-hole-info]{
