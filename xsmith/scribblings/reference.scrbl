@@ -147,7 +147,7 @@ Example:
 (code:comment "This will return the name of a variable in scope")
 (code:comment "that has type int or type bool.")
 (code:comment "It may make a new definition node to do that.")
-(define name (send (current-hole) xsmith_get-reference!))
+(define name (send this xsmith_get-reference!))
 ]
 
 Note that the reference is @emph{choosing} one of the possible types (via @racket[concretize-type]).
@@ -156,6 +156,26 @@ So you will want to put that name in the node.
 
 Generally you don't need to do this manually, however.
 Nodes with the @racket[reference-info] property marked will automatically have their name fields initialized, and nodes with the @racket[binder-info] property marked will automatically have their name and type fields initialized.
+}
+
+@item{@racket['xsmith_get-reference-for-child!]
+This is a choice method that can be used when creating reference nodes for children during the @racket[fresh] rule.
+It takes two additional parameters:
+@itemlist[
+@item{@italic{type}: @racket[concrete-type?] - the type you want the reference to be.  Note that it must be a concrete type.  If you want this type to be based somehow on the type of the node in question, use @racket[force-type-exploration-for-node!] so the node's type will be maximally concretely computed before you concretize it.}
+@item{@italic{write-reference?}: @racket[boolean?] - whether the reference will be used as a write reference.}
+]
+It returns a @racket[string?] of the reference name.
+
+Example:
+@racketblock[
+(code:comment "This will return the name of a variable in scope")
+(code:comment "with type int for a write reference")
+(define name (send this xsmith_get-reference! int #t))
+]
+
+Like @rule[xsmith_get-reference!], it may cause a new definition to be lifted.
+Only use the result for children of the @racket[current-hole].
 }
 ]
 
