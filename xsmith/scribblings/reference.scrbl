@@ -1566,37 +1566,30 @@ Returns the maximum tree generation depth as set by the user via @racket[xsmith-
 These functions allow for handling randomness in a deterministic (and thus repeatable) way.
 Please use these functions instead of any of the randomness functions in other Racket modules.
 
-@subsection{Determining the Source of Randomness}
+By default, Xsmith handles the creation of a randomness region automatically for you via the @racket[xsmith-command-line] function.
+However, we leave out all randomness functions by default.
+To use the randomness functions described here, you must @racket[(require xsmith/private/random)].
 
-Xsmith's randomness functions depend on a single source of randomness.
-Because Xsmith's execution sometimes needs to be deterministic, the source can be manipulated to ensure consistency.
-You may either use a @racket[pseudo-random-generator?] to generate values, or you may use a sequence of @racket[bytes?].
-If no randomness source is set explicitly, a @racket[pseudo-random-generator?] will be created from a cryptographically-secure source.
+@subsection{Constants}
 
-@defproc[(use-prg-as-source [rgv boolean?]) void?]{
-Uses a @racket[pseudo-random-generator?] as the source of randomness.
-Can optionally be initialized with a @racket[pseudo-random-generator-vector?].
+@defthing[max-seed-value integer? #:value (sub1 (expt 2 31))]{
+The maximum value of a Racket @racket[pseudo-random-generator] seed value.
 }
 
-@defproc[(set-prg-seed! [seed (integer-in 0 (sub1 (expt 2 31)))]) void?]{
-If a PRG is being used, set its seed statefully.
-}
-
-@defproc[(use-seq-as-source [seq bytes?]) void?]{
-Uses an existing sequence of bytes as the source of randomness.
-The sequence must contain at least 4 bytes.
-The first 4 bytes will be used to generate a @racket[pseudo-random-generator?] that will be used for extending the sequence as needed.
-Subsequent bytes are used whenever a random number is requested until the sequence is entirely consumed.
-}
 
 @subsection{Macros for Ease of Use}
 
-Sometimes, you just want to use a particular randomness source in a certain region of code.
-These macros help with that.
+There are two macros that we expose publicly for custom use of the source of randomness.
+
+@defform[(begin-external-random expr ...+)]{
+A @racket[begin] form wherein Racket's @racket[current-pseudo-random-generator] is seeded by Xsmith's randomness source.
+This allows use to make calls to functions not defined within Xsmith that may use Racket's default randomness functions.
+}
 
 @defform[(begin-with-random-seed [seed any/c] expr ...+)]{
 A @racket[begin] form wherein randomness functions will use a @racket[pseudo-random-generator?] seeded with the @racket[seed] value.
 This is useful for beginning deterministically-random segments of code.
+For example, you might pass @racket[(random (add1 max-seed-value))] as the seed, which will use Xsmith's deterministic randomness source to generate a new seed.
 }
 
 @subsection{Randomness Primitives}
@@ -1709,6 +1702,44 @@ Generates a random string consisting of @racket[(random 1 word-bound)] words.
 Each word is generated with @racket[(random-ascii-word-string word-length-bound)].
 The words are then concatenated with a single space.
 There is no punctuation, nor is there a guarantee of any capitalization in the first character.
+}
+
+@subsection{Controlling the Source of Randomness}
+
+The details in this section do not apply to regular usage of Xsmith and can be safely skipped by most users.
+What is explained here is how the randomness library works behind-the-scenes in the event that somebody needs to implement a custom usage.
+
+By default, the @racket[xsmith/private/random] module requires the source of randomness (called @racket[random-source]) to be parameterized for use.
+This means that a regular usage looks like:
+
+@racketblock[
+(require xsmith/private/random)
+
+(code:comment "Let's seed the random-source with the value 42.")
+(parameterize ([random-source (make-random-source 42)])
+  ...)
+]
+
+However, sometimes you may want to more easily test the functions in the REPL on the command-line.
+For this, we provide the @racket[stateful] submodule, which supplies imperative bindings for manipulating the @racket[random-source].
+To use the submodule, you should @racket[(require (submod xsmith/private/random stateful))].
+
+The forms defined in the submodule are:
+
+@defproc[(set-random-source! [value random-source?]) void]{
+Statefully sets the @racket[random-source] parameter to be @racket[value].
+}
+
+@defproc[(initialize-random-source) void]{
+Initializes the @racket[random-source] with a random value so the randomness functions can be used for testing.
+}
+
+@defproc[(initialize-random-source-from-seed [seed (integer-in 0 (sub1 (expt 2 31)))]) void]{
+Initialize the @racket[random-source] with the indicated seed.
+}
+
+@defproc[(initialize-random-source-from-sequence [seq bytes?]) void]{
+Initialize the @racket[random-source] with the indicated byte sequence.
 }
 
 
