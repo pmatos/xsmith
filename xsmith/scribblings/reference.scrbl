@@ -929,7 +929,7 @@ Example:
  [AdditionExpression (hash 'left (make-fresh-node LiteralInt (hash 'v 7)))])
 ]
 
-This is useful for fields that must be determined together.  For examlpe, a function call needs the function name and the number of arguments to be chosen together rather than independently.
+This is useful for fields that must be determined together.  For example, a function call needs the function name and the number of arguments to be chosen together rather than independently.
 
 As with all choice-rules, @racket[this] and @racket[current-hole] are available for use in expressions, which you may want to do for eg. accessing available bindings or mutable information connected to the choice object.
 
