@@ -1264,15 +1264,15 @@ Puts two types into a subtype relationship.
 This mutates type variables so that they are constrained in a lattice relationship with other type variables.
 
 Note that
-@racketblock{
+@racketblock[
 (begin
   (subtype-unify! sub super)
   (subtype-unify! super sub))
-}
+]
 is equivalent to:
-@racketblock{
+@racketblock[
 (unify! sub super)
-}
+]
 
 If unification fails an exception is raised.
 A failure in unification is basically catastrophic, so no code generation should be attempted after a unification failure.
