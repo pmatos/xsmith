@@ -425,7 +425,7 @@
 (define-syntax (begin-external-random stx)
   (syntax-parse stx
     [(_ body ...+)
-     #'(begin
+     #'(let ()
          (define seed (random 0 (add1 max-seed-value)))
          (eprintf "begin-external-random!\n")
          (define prg (make-prg seed))
@@ -642,13 +642,15 @@
 ;; deterministic random-source.
 
 (module* distributions #f
-  (provide (rename-out [rand-app #%app])
-           (all-from-out math/distributions)
+  (provide #;(rename-out [rand-app #%app])
+           #;(all-from-out math/distributions)
            #;(all-defined-out))
-  (require syntax/parse
-           syntax/parse/define
+  (require #;syntax/parse/define
            math/distributions
-           typed/racket/base)
+           #;typed/racket/base
+           (for-syntax racket/base
+                       syntax/parse
+                       ))
 
   (define-for-syntax (module-names mod)
     (define (extract-names l)
@@ -671,23 +673,33 @@
   ;; This function was an attempt to automatically provide wrapped forms of all
   ;; bindings in math/distributions. It did not work due to macro problems,
   ;; seemingly arising from math/distribution's use of Typed Racket.
-  #;(define-syntax (wrap+provide-math/distributions stx)
+  (define-syntax (wrap+provide-math/distributions stx)
     #`(begin
         #,@(for/list
                ([x-sym math-names]
                 [x-wrapped (generate-temporaries math-names)])
              (with-syntax ([x (datum->syntax #'here x-sym)]
                            [x-name x-wrapped])
-               #'(if (procedure? x)
+               #'(begin
+                   (define-syntax (x-name x-stx)
+                     (syntax-parse x-stx
+                       [(_ arg (... ...))
+                        (eprintf "using wrapped version of: ~a\n" 'x)
+                        #'(begin-external-random (x arg (... ...)))]
+                       [not-parenthesized:id
+                        (eprintf "using wrapped version of: ~a that may fail depending on how it handles being used as a value.  I don't really know the distributions library.\n" 'x)
+                        #'(λ args (begin-external-random (apply x args)))]))
+                   (provide (rename-out [x-name x])))
+               #;#'(if (procedure? x)
                      (eprintf "x is a procedure! ~a\n" x)
                      (eprintf "not a procedure]n"))
                #;#'(begin (define (x-name . args)
                           (begin-external-random (apply x args)))
                         (provide (rename-out [x-wrapped x])))))))
 
-  #;(wrap+provide-math/distributions)
+  (wrap+provide-math/distributions)
 
-  (define-syntax-parser rand-app
+  #;(define-syntax-parser rand-app
     [(_ f:id a ...)
      #:when (begin
               (eprintf "f: ~a: " (syntax->datum #'f))
