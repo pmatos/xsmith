@@ -67,12 +67,17 @@ WIP checklist:
  nominal-record-type-with
  any-nominal-record-type
  nominal-record-type?
- nominal-record-type-name
- nominal-record-type-inners
+ (rename-out
+  [nominal-record-type-name/canonical nominal-record-type-name]
+  [nominal-record-type-super-record/canonical nominal-record-type-super-record]
+  [nominal-record-type-known-field-dict/canonical
+   nominal-record-type-known-field-dict])
 
  structural-record-type?
  fresh-structural-record-type
- structural-record-type-known-field-dict
+ (rename-out
+  [structural-record-type-known-field-dict/canonical
+   structural-record-type-known-field-dict])
 
  (rename-out [make-nominal-record-definition nominal-record-definition-type])
  nominal-record-definition-type?
@@ -190,24 +195,19 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
                  "not a type variable resolved to a single type: ~v"
                  tv)]))
 (define (c-type-variable-type tv)
-  (core-type-variable-type (canonicalize-core-type-variable tv)))
+  (core-type-variable-type (variable-canonicalize tv)))
 (define (c-type-variable-lower-bounds tv)
-  (core-type-variable-lower-bounds (canonicalize-core-type-variable tv)))
+  (core-type-variable-lower-bounds (variable-canonicalize tv)))
 (define (c-type-variable-upper-bounds tv)
-  (core-type-variable-upper-bounds (canonicalize-core-type-variable tv)))
+  (core-type-variable-upper-bounds (variable-canonicalize tv)))
 
-(define (canonicalize-core-type-variable tv)
-  (match tv
-    [(core-type-variable fwd type lb ub)
-     (if fwd
-         (canonicalize-core-type-variable fwd)
-         tv)]))
 
 
 (define (variable? v)
   ;; TODO - I should have a predicate for whether something is one of these types and a separate predicate for whether they are still variable or are finalized.
   (or (core-type-variable? v)
       (structural-record-type? v)
+      (nominal-record-type? v)
       (product-type? v)))
 
 (define (variable-lower-bounds v)
@@ -215,12 +215,14 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
     [(core-type-variable? v) (core-type-variable-lower-bounds v)]
     [(product-type? v) (product-type-lower-bounds v)]
     [(structural-record-type? v) (structural-record-type-lower-bounds v)]
+    [(nominal-record-type? v) (nominal-record-type-lower-bounds v)]
     [else (error 'variable-lower-bounds! "received non-variable value: ~v" v)]))
 (define (variable-upper-bounds v)
   (cond
     [(core-type-variable? v) (core-type-variable-upper-bounds v)]
     [(product-type? v) (product-type-upper-bounds v)]
     [(structural-record-type? v) (structural-record-type-upper-bounds v)]
+    [(nominal-record-type? v) (nominal-record-type-upper-bounds v)]
     [else (error 'variable-upper-bounds! "received non-variable value: ~v" v)]))
 (define ((variable-DIR-bounds! get-dir set-dir!) innard)
   ;; This version updates forwarded bounds.
@@ -242,6 +244,10 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
      ((variable-DIR-bounds! structural-record-type-lower-bounds
                             set-structural-record-type-lower-bounds!)
       v)]
+    [(nominal-record-type? v)
+     ((variable-DIR-bounds! nominal-record-type-lower-bounds
+                            set-nominal-record-type-lower-bounds!)
+      v)]
     [else (error 'variable-lower-bounds! "received non-variable value: ~v" v)]))
 (define (variable-upper-bounds! v)
   (cond
@@ -254,6 +260,10 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
     [(structural-record-type? v)
      ((variable-DIR-bounds! structural-record-type-upper-bounds
                             set-structural-record-type-upper-bounds!)
+      v)]
+    [(nominal-record-type? v)
+     ((variable-DIR-bounds! nominal-record-type-upper-bounds
+                            set-nominal-record-type-upper-bounds!)
       v)]
     [else (error 'variable-upper-bounds! "received non-variable value: ~v" v)]))
 
@@ -274,7 +284,8 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (cond
     [(or (core-type-variable? v)
          (product-type? v)
-         (structural-record-type? v))
+         (structural-record-type? v)
+         (nominal-record-type? v))
      ((variable->transitive-DIR-bounds variable-lower-bounds!) v)]
     [else (error 'variable-transitive-lower-bounds
                  "received non-variable value: ~v" v)]))
@@ -282,15 +293,24 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (cond
     [(or (core-type-variable? v)
          (product-type? v)
-         (structural-record-type? v))
+         (structural-record-type? v)
+         (nominal-record-type? v))
      ((variable->transitive-DIR-bounds variable-upper-bounds!) v)]
     [else (error 'variable-transitive-upper-bounds
                  "received non-variable value: ~v" v)]))
 
 (define (variable-canonicalize v)
+  (define (canonicalize accessor thing)
+    (define fwd (accessor thing))
+    (if fwd
+        (canonicalize accessor fwd)
+        thing))
   (cond
-    [(core-type-variable? v) (canonicalize-core-type-variable v)]
-    [(structural-record-type? v) (structural-record-type->canonical v)]
+    [(core-type-variable? v) (canonicalize core-type-variable-forward v)]
+    [(structural-record-type? v)
+     (canonicalize structural-record-type-canonical-forward v)]
+    [(nominal-record-type? v)
+     (canonicalize nominal-record-type-canonical-forward v)]
     [(product-type? v) v]
     [else (error 'variable-canonicalize "received non-variable value: ~v" v)]))
 
@@ -471,17 +491,47 @@ TODO - when generating a record ref, I'll need to compare something like (record
                            '())))
 
 (struct nominal-record-type
-  ;; If name is not #f, inners is an ordered dict of name to type.
-  ;; If name is #f, then the type is variable and inners is still an ordered dict, but names may be #f to just specify that an int needs to be available.
+  ;; If name is not #f, known-field-dict is an ordered dict of name to type.
+  ;; If name is #f, then the type is variable and known-field-dict is still an ordered dict, but names may be #f to just specify that an int needs to be available.
   ;; By ordered dict, I specifically mean an alist.
-  (name inners)
+  ;; TODO - right now *actually* ordered dict just means a dictionary with no actual order.  At some point I intended there to be an order.  But clearly I never did that.  Maybe I will?
+  (canonical-forward name super-record known-field-dict lower-bounds upper-bounds)
   #:mutable
-  #:transparent)
+  #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc v output-port output-mode)
+     (match v
+       [(c-nominal-record-type name super kfd lb ub)
+        (fprintf output-port
+                 "#<nominal-record-type name/final?:~a, fields: ~s>"
+                 name
+                 kfd)]))])
 
 (define (nominal-record-type-with field type)
-  (nominal-record-type #f (hash field type)))
+  (nominal-record-type #f #f #f (hash field type) '() '()))
 (define (any-nominal-record-type)
-  (nominal-record-type #f (hash)))
+  (nominal-record-type #f #f #f (hash) '() '()))
+
+(define (nominal-record-type-known-field-dict/canonical x)
+  (nominal-record-type-known-field-dict (variable-canonicalize x)))
+(define (nominal-record-type-name/canonical x)
+  (nominal-record-type-name (variable-canonicalize x)))
+(define (nominal-record-type-super-record/canonical x)
+  (nominal-record-type-super-record (variable-canonicalize x)))
+
+(define-match-expander c-nominal-record-type
+  (syntax-parser
+    [(_ name/final? super-record known-field-dict lowers uppers)
+     #'(and (? nominal-record-type?)
+            (app (λ (nrt)
+                   (let ([cnrt (variable-canonicalize nrt)])
+                     (values
+                      (nominal-record-type-name cnrt)
+                      (nominal-record-type-super-record cnrt)
+                      (nominal-record-type-known-field-dict cnrt)
+                      (nominal-record-type-lower-bounds cnrt)
+                      (nominal-record-type-upper-bounds cnrt))))
+                 name/final? super-record known-field-dict lowers uppers))]))
 
 (struct nominal-record-definition-type
   ;; This is a wrapper to be the type for the definition site of a nominal-record-type.
@@ -498,7 +548,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (and (nominal-record-type? nrt)
        (not (nominal-record-type-name nrt))
        (not (null? (filter (λ(x)x)
-                           (dict-keys (nominal-record-type-inners nrt)))))))
+                           (dict-keys (nominal-record-type-known-field-dict nrt)))))))
 
 
 (struct structural-record-type
@@ -507,17 +557,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
   #:methods gen:custom-write
   [(define (write-proc v output-port output-mode)
      (match v
-       [(structural-record-type fwd finalized? kfd lb ub)
+       [(c-structural-record-type finalized? kfd lb ub)
         (fprintf output-port
                  "#<structural-record-type final?:~a, fields: ~s>"
                  finalized?
                  kfd)]))])
-(define (structural-record-type->canonical srt)
-  (define fwd
-    (structural-record-type-canonical-forward srt))
-  (if fwd
-      (structural-record-type->canonical fwd)
-      srt))
+
 (define (fresh-structural-record-type [field-dict (hash)]
                                       #:finalized? [finalized? #f])
   (structural-record-type #f finalized? field-dict '() '()))
@@ -534,6 +579,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
                       (structural-record-type-lower-bounds csrt)
                       (structural-record-type-upper-bounds csrt))))
                  final? known-field-dict lowers uppers))]))
+
+(define (structural-record-type-known-field-dict/canonical x)
+  (structural-record-type-known-field-dict (variable-canonicalize x)))
 
 ;; Generic types are given a name which is a symbol.  But it is just for printing.
 ;; They are compared with `eq?` on their constructor, which is bound to the name
@@ -602,9 +650,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (apply constructor (map (λ(x) (fresh-type-variable))
                              inners))]
     [(? product-type?) (mk-product-type #f)]
-    [(? nominal-record-type?) (nominal-record-type #f (hash))]
+    [(? nominal-record-type?) (any-nominal-record-type)]
     [(? nominal-record-definition-type?) (nominal-record-definition-type
-                                          (nominal-record-type #f (hash)))]
+                                          (any-nominal-record-type))]
     [(? structural-record-type?)
      (fresh-structural-record-type)]
     [(? function-type?) (function-type (fresh-type-variable) (fresh-type-variable))]))
@@ -875,19 +923,20 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 
       ;; nominal record type
-      [(list (nominal-record-type name1 innards1)
-             (nominal-record-type name2 innards2))
+      [(list (nominal-record-type c-forward1 name1 super1 kfd1 lb1 ub1)
+             (nominal-record-type c-forward2 name2 super2 kfd2 lb2 ub2))
+       (subtype-unify!/two-type-variables/nominal-record-type sub super)
        ;; TODO - nominal record types for the first pass should not be subtypable.  It should be easy to later add a supertype field -- subtyping with nominal records should be easy compared to various other things.
        ;;(todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")
        ;; TODO - the below is the implementation of non-subtype `unify!`.  For now, let's assume nominal records don't subtype unify, only normal unify.
-       (define (fail)
+       #;(define (fail)
          (error 'subtype-unify!
                 "can't unify types: ~v and ~v"
                 sub super))
-       (define t1 sub)
-       (define t2 super)
+       #;(define t1 sub)
+       #;(define t2 super)
 
-       (match (list sub super)
+       #;(match (list sub super)
          [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
           ;; TODO - do a sanity check that the inners match up and error if they don't.
           (set-nominal-record-type-name! t1 name2)
@@ -902,7 +951,6 @@ TODO - when generating a record ref, I'll need to compare something like (record
       ;; nominal record definition type
       [(list (nominal-record-definition-type inner1)
              (nominal-record-definition-type inner2))
-       ;; TODO -for now this is symmetric, but later should be subtypable.
        (rec inner1 inner2)]
       ;; Structural records
       [(list (c-structural-record-type f?1 known-fields-1 lb-1 ub-1)
@@ -1086,6 +1134,31 @@ TODO - when generating a record ref, I'll need to compare something like (record
             #t)
     (ripple-subtype-unify-changes/structural-record-type '() (list new-srt))))
 
+(define (squash-nominal-record-types! sub super)
+  ;; `sub` must actually be a supertype of `super`, but I'm calling it `sub` because this function will only have one call site (inside `subtype-unify!`), and this keeps the same names.
+  ;; TODO - this will probably be almost identical to squash-type-variable-innards, except for the type variable handle stuff.  They can probably be combined once I get rid of the TV/TVI split.
+  ;; create a new NRT with appropriate known fields, make sub, super, and their upper/lower intersect all forward to this new record
+  (match-define (list new-lowers new-uppers intersection)
+    (squash-helper/bounds sub super))
+  (match-define (list lower-change upper-change)
+    (subtype-unify!/nominal-record-types sub super))
+
+  (define new-known-field-dict (nominal-record-type-known-field-dict sub))
+  (define new-name/final? (for/or ([nrt intersection])
+                            (nominal-record-type-name nrt)))
+  (define new-super (for/or ([nrt intersection])
+                      (nominal-record-type-super-record nrt)))
+  (define new-nrt
+    (nominal-record-type #f new-name/final? new-super new-known-field-dict new-lowers new-uppers))
+  (for ([nrt intersection])
+    (set-nominal-record-type-canonical-forward! nrt new-nrt))
+  ;; TODO - should I do more sanity checking that everything is right here?  Eg. if something in the intersection was final, it should not have changed, so the final thing should be the same as the final one.
+  (when (or lower-change upper-change
+            ;; For now, let's just be safe and always ripple
+            #t)
+    (ripple-subtype-unify-changes/nominal-record-type '() (list new-nrt))))
+
+
 (define (subtype-unify!/type-variables sub* super*)
   #|
   This is a helper function that takes only type-variables, and only updates their type lists.  IE it does not add them to each others' upper/lower bounds lists.
@@ -1209,10 +1282,46 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (set-structural-record-type-known-field-dict! sub new-kf-1)
      (list subtype-changed? #f)]))
 
+(define (subtype-unify!/nominal-record-types sub* super*)
+  #|
+  This helper function updates the actual type fields of nominal records, NOT upper/lower bounds.
+  It returns a list of two bools.  The first one is true iff sub was modified, the second one is true iff super was modified.
+  |#
+  (define sub (variable-canonicalize sub*))
+  (define super (variable-canonicalize super*))
+  (match (list sub super)
+    [(list (nominal-record-type fwd1 name1 super1 known-fields-1 lb-1 ub-1)
+           (nominal-record-type fwd2 name2 super2 known-fields-2 lb-2 ub-2))
+     (define subtype-changed? #f)
+     (define new-kf-1
+       ;; The subtype must have all the fields of the supertype, and may have more.
+       ;; HOWEVER, shared fields of the subtype and supertype must be the same, NOT subtypes -- a subtype can only add more fields, not change (even subtyping) the other fields.
+       (for/hash ([field-name (set-union (dict-keys known-fields-1)
+                                         (dict-keys known-fields-2))])
+         (define fsub (dict-ref known-fields-1 field-name #f))
+         (define fsup (dict-ref known-fields-2 field-name #f))
+         (values
+          field-name
+          (cond [(and fsub fsup)
+                 (unify! fsub fsup)
+                 fsub]
+                [fsup
+                 (define new-var (fresh-type-variable))
+                 (unify! new-var fsup)
+                 (set! subtype-changed? #t)
+                 new-var]
+                [fsub fsub]
+                [else (error 'this-should-be-impossible-but-cond-unhelpfully-returns-void-on-fall-through-so-im-adding-this-just-in-case)]))))
+
+     (set-nominal-record-type-known-field-dict! sub new-kf-1)
+     (list subtype-changed? #f)]))
+
 (define ripple-subtype-unify-changes/type-variable
   (mk-ripple-subtype-unify-changes subtype-unify!/type-variables))
 (define ripple-subtype-unify-changes/structural-record-type
   (mk-ripple-subtype-unify-changes subtype-unify!/structural-record-types))
+(define ripple-subtype-unify-changes/nominal-record-type
+  (mk-ripple-subtype-unify-changes subtype-unify!/nominal-record-types))
 (define subtype-unify!/two-type-variables/type-variable-innard
   (mk-subtype-unify!/two-type-variables
    set-core-type-variable-lower-bounds!
@@ -1227,6 +1336,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
    squash-structural-record-types!
    subtype-unify!/structural-record-types
    ripple-subtype-unify-changes/structural-record-type))
+(define subtype-unify!/two-type-variables/nominal-record-type
+  (mk-subtype-unify!/two-type-variables
+   set-nominal-record-type-lower-bounds!
+   set-nominal-record-type-upper-bounds!
+   squash-nominal-record-types!
+   subtype-unify!/nominal-record-types
+   ripple-subtype-unify-changes/nominal-record-type))
 
 (define (can-subtype-unify?
          sub* super*
@@ -1409,7 +1525,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
          ;; when under type variables but not otherwise.  They are not exported
          ;; in the contract-out.
          #:under-type-variable-left? [ul? #t]
-         #:under-type-variable-right? [ur? #t])
+         #:under-type-variable-right? [ur? #t]
+         )
   (define l (canonicalize-if-variable l*))
   (define r (canonicalize-if-variable r*))
   (define (rec l r [under-l? ul?] [under-r? ur?])
@@ -1447,15 +1564,16 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; nominal-record-type
     [(list (? nominal-record-type?) (? nominal-record-type?))
      (match (list l r)
-       [(list (nominal-record-type #f inners1) (nominal-record-type #f inners2))
-        (->bool (and (or ul? ur?)
-                     (for/and ([k (dict-keys inners1)])
+       [(list (c-nominal-record-type #f #f inners1 lb1 ub1)
+              (c-nominal-record-type #f #f inners2 lb2 ub2))
+        (->bool (and (for/and ([k (dict-keys inners1)])
                        (or (not (dict-has-key? inners2 k))
                            (rec (dict-ref inners1 k) (dict-ref inners2 k))))
                      (for/and ([k (dict-keys inners2)])
                        (or (not (dict-has-key? inners1 k))
                            (rec (dict-ref inners1 k) (dict-ref inners2 k))))))]
-       [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
+       [(list (c-nominal-record-type #f #f inners1 lb1 ub1)
+              (c-nominal-record-type name2 super2 inners2 lb2 ub2))
         (define inner-vals (dict-values inners2))
         (for/and ([k (dict-keys inners1)])
           (cond [(not k) (let ([needed-type (dict-ref inners1 k)])
@@ -1463,11 +1581,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                           inner-vals)))]
                 [else (and (dict-has-key? inners2 k)
                            (rec (dict-ref inners1 k) (dict-ref inners2 k)))]))]
-       [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
+       [(list (c-nominal-record-type name1 super1 kfd1 lb1 ub1)
+              (c-nominal-record-type #f #f kfd2 lb2 ub2))
         (rec r l ur? ul?)]
-       [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
+       [(list (c-nominal-record-type name1 super1 kfd1 lb1 ub1)
+              (c-nominal-record-type name2 super2 kfd2 lb2 ub2))
         ;; TODO - verify that names are unique?
-        (equal? name1 name2)])]
+        (equal? name1 name2)]
+       )]
     ;; nominal-record-definition-type
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
@@ -1575,31 +1696,43 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (mk-product-type (map r inner-types))
            (mk-product-type (map (λ (x) (r (fresh-type-variable)))
                                  (make-list (random 6) #f))))]
-      [(nominal-record-type #f inner-needed)
-       (if (nominal-record-type?/with-field t)
-           (if node
-               (let* ([d (nominal-record-definition-type t)]
-                      [references
-                       (filter (λ (b) (and b
-                                           (nominal-record-definition-type?
-                                            (binding-type b))
-                                           (can-unify? d (binding-type b))))
-                               (att-value '_xsmith_visible-bindings node))])
-                 (match references
-                   [(list b) (nominal-record-definition-type-type (binding-type b))]
-                   [else (error 'concretize-type "can't find suitable definition for nominal-record-type: ~v\n" t)]))
-               (error 'concretize-type "can't concretize nominal-record-type with a named field but no record name unless a #:node argument is given: ~v\n" t))
-           (let* ([needed (dict-ref inner-needed #f (λ () (fresh-type-variable)))]
-                  [n-random-fields (random record-type-max-fields)]
-                  [field-list (cons needed
-                                    (map (λ (x) (fresh-type-variable))
-                                         (make-list n-random-fields #f)))])
-             (concretize-type
-              (nominal-record-type (fresh-var-name "record_")
-                                   (for/list ([f field-list])
-                                     (cons (fresh-var-name "field_")
-                                           (r f)))))))]
-      [(nominal-record-type name inners) t]
+      [(and (? nominal-record-type?) (? concrete?)) t]
+      [(c-nominal-record-type name super known-fields lb ub)
+       (when name
+         (eprintf "nominal-record-type with name not concrete! ~v\n" name))
+       (cond
+         [(and node (nominal-record-type?/with-field t))
+          (let* ([d (nominal-record-definition-type t)]
+                 [references
+                  (filter (λ (b) (and b
+                                      (nominal-record-definition-type?
+                                       (binding-type b))
+                                      (can-unify? d (binding-type b))))
+                          (att-value '_xsmith_visible-bindings node))])
+            (if (null? references)
+                (error 'concretize-type
+                       "can't find suitable definition for nominal-record-type: ~v\n"
+                       t)
+                (nominal-record-definition-type-type
+                 (binding-type (random-ref references)))))]
+         [(nominal-record-type?/with-field t)
+          (error 'concretize-type
+                 "can't concretize nominal-record-type with a named field but no record name unless a #:node argument is given: ~v\n"
+                 t)]
+         [else
+          (let* ([needed (dict-ref known-fields #f (λ () (fresh-type-variable)))]
+                 [n-random-fields (random record-type-max-fields)]
+                 [field-list (cons needed
+                                   (map (λ (x) (fresh-type-variable))
+                                        (make-list n-random-fields #f)))])
+            (concretize-type
+             (nominal-record-type #f
+                                  (fresh-var-name "record_")
+                                  #f
+                                  (for/list ([f field-list])
+                                    (cons (fresh-var-name "field_")
+                                          (r f)))
+                                  '() '())))])]
       [(nominal-record-definition-type inner)
        (nominal-record-definition-type (r inner))]
       [(c-structural-record-type finalized? known-fields lb ub)
@@ -1704,7 +1837,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(base-type-range l r) (equal? l r)]
     [(function-type a r)
      (and (concrete? a) (concrete? r))]
-    [(nominal-record-type name inners)
+    [(c-nominal-record-type name super fields lb ub)
      ;; If a name is set then it's concrete.
      (->bool name)]
     [(nominal-record-definition-type inner) (concrete? inner)]
@@ -1814,11 +1947,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
                    (andmap at-least-as-concrete ts cs)
                    #t)]))]
     [(list (product-type _ _ _) _) #t]
-    [(list (nominal-record-type v-name v-inners)
-           (nominal-record-type c-name c-inners))
+    [(list (c-nominal-record-type v-name v-super v-inners v-lb v-ub)
+           (c-nominal-record-type c-name c-super c-inners c-lb c-ub))
      ;; For now be conservative.
      (->bool v-name)]
-    [(list (nominal-record-type _ _) _) #t]
+    [(list (c-nominal-record-type _ _ _ _ _) _) #t]
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
      (at-least-as-concrete inner1 inner2)]
@@ -1878,14 +2011,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
        [#f (->bool (memq t vs))]
        [(list ts ...) (ormap rec ts)])]
     ;[(sum-type)]
-    [(nominal-record-type name inners)
-     (ormap rec (dict-values inners))]
     [(nominal-record-definition-type inner) (rec inner)]
     [(generic-type name constructor inners variances)
      (ormap rec inners)]
     [(or
       (c-type-variable _ _ _)
-      (c-structural-record-type _ _ _ _))
+      (c-structural-record-type _ _ _ _)
+      (c-nominal-record-type _ _ _ _ _))
      (not (set-empty?
            (set-intersect (type->type-variable-list t)
                           vs)))]))
@@ -1921,8 +2053,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
                         todos
                         (append all-bounds init-dones))))]
            ;[(sum-type)]
-           [(nominal-record-type name inners)
-            (work vars (append (dict-values inners) todos) dones)]
+           [(c-nominal-record-type name super known-fields lb ub)
+            (work (cons t vars) (append (dict-values known-fields) todos) dones)]
            [(nominal-record-definition-type inner)
             (work vars (cons inner todos) dones)]
            [(c-structural-record-type f?1 known-fields-1 lb-1 ub-1)

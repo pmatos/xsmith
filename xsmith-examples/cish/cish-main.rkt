@@ -80,8 +80,7 @@
     [loop-statement #t]
     [null-statement #t]
 
-    ;; TODO - set this back to #t when I fix nominal record types again
-    [structs #f]
+    [structs #t]
     [volatile #t]
 
     [unsafe-math/range  ;; TODO - this feature no longer correlates to anything
@@ -101,7 +100,7 @@
    #:comment-wrap (λ (lines) (format "/*\n~a\n*/"
                                      (string-join lines "\n")))
    #:features cish-features-list
-   #:default-max-depth 10
+   #:default-max-depth 9
    #:format-render (λ (d) (pretty-format d 120))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

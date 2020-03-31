@@ -1437,7 +1437,7 @@ It will unify with any fully constrained @racket[nominal-record-type?].
 @defproc[(nominal-record-type-name [t nominal-record-type?]) any/c]{
 Getter for the name of a @racket[nominal-record-type?].
 }
-@defproc[(nominal-record-type-inners [t nominal-record-type?]) dict?]{
+@defproc[(nominal-record-type-known-field-dict [t nominal-record-type?]) dict?]{
 Getter for the inner type dictionary.
 If you use this on a partially-specified @racket[nominal-record-type?], you will get an incomplete dictionary.
 }

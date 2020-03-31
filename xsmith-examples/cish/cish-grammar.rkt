@@ -240,7 +240,7 @@
                        (enqueue-inter-choice-transform
                         (λ ()
                           (define inner-names
-                            (nominal-record-type-inners
+                            (nominal-record-type-known-field-dict
                              (nominal-record-definition-type-type
                               (binding-type choice))))
                           (define parent-type (att-value 'xsmith_type parent))
@@ -264,7 +264,7 @@
                           (define vals-children
                             (create-ast-list
                              (map (λ (x) (make-hole 'Expression))
-                                  (dict-keys (nominal-record-type-inners
+                                  (dict-keys (nominal-record-type-known-field-dict
                                               (nominal-record-definition-type-type
                                                (binding-type choice)))))))
                           (rewrite-subtree
@@ -523,7 +523,7 @@ Type definitions are in cish-utils.rkt
          (let* ([vals (ast-children (ast-child 'vals n))]
                 [struct-ref (ast-child 'structdefref n)]
                 [struct-name-bind (att-value 'xsmith_binding struct-ref)]
-                [inners (nominal-record-type-inners
+                [inners (nominal-record-type-known-field-dict
                          (nominal-record-definition-type-type
                           (binding-type struct-name-bind)))])
            (hash-set
