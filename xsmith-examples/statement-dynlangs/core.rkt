@@ -181,7 +181,9 @@ TODO - instead of defining a spec component, define macros that add elements to 
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [FormalParameter [(fresh-type-variable) no-child-types]]
 
-          [Expression [(error 'typing-expression) no-child-types]]
+          ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
+          [Expression [(error 'type-info "Trying to type check as an expression without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Expression.")
+                       no-child-types]]
           [VariableReference [(fresh-type-variable) (λ (n t) no-child-types)]]
 
           [ProcedureApplication
@@ -372,7 +374,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                         (λ (n t)
                                           (define inner-t (fresh-type-variable))
                                           (unify! (immutable
-                                                   (fresh-array-type inner-t))
+                                                   (array-type inner-t))
                                                   t)
                                           (hash 'index int
                                                 'array t
@@ -385,7 +387,13 @@ TODO - instead of defining a spec component, define macros that add elements to 
                     [ImmutableListLiteral
                      Expression
                      ([expressions : Expression * = (random array-max-length)])
-                     #:prop wont-over-deepen #t]
+                     #:prop wont-over-deepen #t
+                     #:prop type-info
+                     [(immutable (list-type (fresh-type-variable)))
+                      (λ (n t)
+                        (define inner-t (fresh-type-variable))
+                        (unify! t (immutable (list-type inner-t)))
+                        (hash 'expressions inner-t))]]
                     [ImmutableListSafeCar Expression ([list : Expression]
                                                       [fallback : Expression])
                                           #:prop type-info
@@ -419,22 +427,22 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      Expression
                      ;; Be sure arrays are never empty.
                      ([expressions : Expression * = (add1 (random array-max-length))])
-                     #:prop wont-over-deepen #t]
-                    [MutableArrayReference Expression ([array : VariableReference]
-                                                       [index : Expression])])
-                   (add-prop
-                    component
-                    type-info
-                    [MutableArrayLiteral [(mutable (fresh-array-type))
-                                          (λ (n t)
-                                            (define et (fresh-type-variable))
-                                            (define at (mutable (array-type et)))
-                                            (subtype-unify! at t)
-                                            (hash 'expressions et))]]
-                    [MutableArrayReference [(fresh-type-variable)
-                                            (λ (n t) (hash 'index int
-                                                           'array (mutable
-                                                                   (array-type t))))]]))
+                     #:prop wont-over-deepen #t
+                     #:prop type-info
+                     [(mutable (fresh-array-type))
+                      (λ (n t)
+                        (define et (fresh-type-variable))
+                        (define at (mutable (array-type et)))
+                        (subtype-unify! at t)
+                        (hash 'expressions et))]]
+                    [MutableArrayReference
+                     Expression ([array : VariableReference]
+                                 [index : Expression])
+                     #:prop type-info
+                     [(fresh-type-variable)
+                      (λ (n t) (hash 'index int
+                                     'array (mutable
+                                             (array-type t))))]]))
                 #'())
          #,@(if (use? use-mutable-array-assignment-expression)
                 #'((add-to-grammar
@@ -516,16 +524,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
                     [MutableStructuralRecordLiteral
                      Expression
                      (fieldnames [expressions : Expression *])
-                     #:prop wont-over-deepen #t]
-                    [MutableStructuralRecordReference
-                     Expression
-                     ([fieldname = (random-field-name)]
-                      [record : VariableReference])])
-
-                   (add-prop
-                    component
-                    fresh
-                    [MutableStructuralRecordLiteral
+                     #:prop wont-over-deepen #t
+                     #:prop fresh
                      (let* ([t (begin (force-type-exploration-for-node!
                                        (current-hole))
                                       (att-value 'xsmith_type (current-hole)))]
@@ -540,12 +540,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
                             [all-fields (remove-duplicates
                                          (append necessary-fields new-fields))])
                        (hash 'fieldnames all-fields
-                             'expressions (length all-fields)))])
-
-                   (add-prop
-                    component
-                    type-info
-                    [MutableStructuralRecordLiteral
+                             'expressions (length all-fields)))
+                     #:prop type-info
                      [(λ (n)
                         (if (att-value 'xsmith_is-hole? n)
                             (mutable
@@ -564,14 +560,16 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                    [f (ast-child 'fieldnames n)])
                           (values c
                                   (dict-ref td f))))]]
-
                     [MutableStructuralRecordReference
+                     Expression
+                     ([fieldname = (random-field-name)]
+                      [record : VariableReference])
+                     #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t) (hash 'record
                                      (mutable
                                       (fresh-structural-record-type
-                                       (hash (ast-child 'fieldname n) t)))))]])
-                   )
+                                       (hash (ast-child 'fieldname n) t)))))]]))
                 #'())
          #,@(if (use? use-mutable-structural-record-assignment-expression)
                 #'((add-to-grammar
@@ -631,7 +629,10 @@ TODO - instead of defining a spec component, define macros that add elements to 
 
 
           ;;; Statements
-          [Statement [(error 'typing-statement) no-child-types]]
+
+          ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
+          [Statement [(error 'type-info "Trying to type check as a statement without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Statement.")
+                      no-child-types]]
           [Block [(fresh-maybe-return-type)
                   (λ (n t)
                     (define statements (ast-children (ast-child 'statements n)))
