@@ -1743,6 +1743,14 @@ Initialize the @racket[random-source] with the indicated byte sequence.
 }
 
 
+@subsection{Distribution Functions}
+
+Racket provides the @racket[math/distributions] module to provide easy mechanisms for sampling from different kinds of random distributions.
+However, since these make internal use of Racket's own @racket[pseudo-random-generator], they cannot be used with @racket[xsmith/private/random].
+Please use the @racket[distributions] submodule by requiring @racket[(require (submod xsmith/private/random distributions))].
+This submodule provides all of the bindings in @racket[math/distributions], so please look there for documentation.
+
+
 
 
 
