@@ -878,11 +878,17 @@ few of these methods.
 (define ref-choices-filtered-hash (make-weak-hasheq))
 
 (define (xsmith_get-reference!-func self lift-probability)
-  (let* ([options/all (send self _xsmith_reference-options!)]
-         [options/lift (if (<= (random) lift-probability)
-                           options/all
-                           (filter (λ (x) (not (procedure? x))) options/all))]
-         [options (if (null? options/lift) options/all options/lift)]
+  (get-reference-core (send self _xsmith_reference-options!)
+                      lift-probability))
+(define (xsmith_get-reference-for-child!-func node type write? lift-probability)
+  (get-reference-core
+   (xsmith_reference-options-for-child-func node type write?)
+   lift-probability))
+(define (get-reference-core all-options lift-probability)
+  (let* ([options/lift (if (<= (random) lift-probability)
+                           all-options
+                           (filter (λ (x) (not (procedure? x))) all-options))]
+         [options (if (null? options/lift) all-options options/lift)]
          ;; TODO - add some tunable heuristics to make good choices here.
          [choice/proc (random-ref options)]
          [choice (if (procedure? choice/proc) (choice/proc) choice/proc)])
@@ -901,21 +907,101 @@ few of these methods.
           [else (loop (add1 count)
                       (build-type-thunk))])))
 
-(define (_xsmith_reference-options!-func self hole node-r/w-type)
-  (define type-needed (att-value 'xsmith_type hole))
+(define (reference-options-filter node reference-options concrete-type write-reference?)
+  ;; TODO - I should check if the type contains a function, not merely IS a function.  And for higher order effects I should check this before concretizing.
+  (define function? (function-type? concrete-type))
+  (when (and write-reference? function?)
+    ;; Assigning to functions destroys language-agnostic effect tracking.
+    (error 'xsmith "Got a function type as a type to assign to.  Xsmith's effect tracking requires that assignment can never have a function type."))
+
+  (define effects-to-avoid
+    (filter (if write-reference?
+                (λ (x) (not (effect-io? x)))
+                effect-write-variable?)
+            (att-value '_xsmith_effect-constraints node)))
+  (define effect-variable-names
+    (map effect-variable effects-to-avoid))
+
+  (define options/no-func-for-write
+    (if (not write-reference?)
+        reference-options
+        (filter
+         (λ (b)
+           (and (not (can-unify? (binding-type b)
+                                 (function-type
+                                  (fresh-type-variable)
+                                  (fresh-type-variable))))
+                (not (can-unify? (binding-type b)
+                                 (nominal-record-definition-type
+                                  (fresh-type-variable))))))
+         reference-options)))
+
+  (define options/effect-filtered
+    (filter
+     (λ (x) (not (member (binding-name x) effect-variable-names)))
+     options/no-func-for-write))
+
+  ;; Higher order functions could have any effect!
+  (define options/higher-order-effect-filtered
+    (if (and function?
+             (not (null? effects-to-avoid)))
+        (filter
+         ;; Filter out function parameters
+         (λ (x) (eq? (binding-def-or-param x) 'definition))
+         options/effect-filtered)
+        options/effect-filtered))
+
+  options/higher-order-effect-filtered)
+
+(define (reference-options-add-lift node reference-options lift-type)
+  ;; lift-type must be concrete
+  (cond
+    [(and (or (not lift-type)
+              (nominal-record-definition-type? lift-type))
+          (not (null? reference-options)))
+     reference-options]
+    [lift-type (cons (make-lift-reference-choice-proc
+                      node
+                      lift-type)
+                     reference-options)]
+    [else
+     (error
+      'xsmith
+      "When trying to generate a reference, there were no legal choices and xsmith couldn't generate a lifted reference for type: ~v\n (visibles: ~v\n)"
+      lift-type
+      (att-value '_xsmith_visible-bindings node))]))
+
+(define (xsmith_reference-options-for-child-func node
+                                                 type
+                                                 write-reference?)
+  (define visibles
+    (att-value '_xsmith_visible-bindings node))
+  (define visibles-with-type
+    (filter (λ (b) (and b
+                        (concrete-type? (binding-type b))
+                        (can-unify? (binding-type b)
+                                    type)))
+            visibles))
+  (define visibles/generic-filters
+    (reference-options-filter node visibles-with-type type write-reference?))
+  (define legal+lift
+    (reference-options-add-lift node visibles/generic-filters type))
+  legal+lift)
+
+(define (_xsmith_reference-options!-func self
+                                         hole
+                                         node-r/w-type
+                                         reference-unify-target)
+  (define unify-reference-to-hole? (eq? #t reference-unify-target))
+  (define type-needed (if unify-reference-to-hole?
+                          (att-value 'xsmith_type hole)
+                          (fresh-type-variable)))
   (let ([ref-choices-filtered
          (hash-ref ref-choices-filtered-hash self #f)])
     (if ref-choices-filtered
         ref-choices-filtered
         (let ()
           (define write? (equal? 'write node-r/w-type))
-          (define effects-to-avoid
-            (filter (if write?
-                        (λ (x) (not (effect-io? x)))
-                        effect-write-variable?)
-                    (att-value '_xsmith_effect-constraints hole)))
-          (define effect-variable-names
-            (map effect-variable effects-to-avoid))
 
           (define visibles
             (att-value '_xsmith_visible-bindings hole))
@@ -933,24 +1019,6 @@ few of these methods.
                                  hole
                                  (binding-type b))))
                     visibles))
-          (define visibles/no-func-for-write
-            (if (not write?)
-                visibles-with-type
-                (filter
-                 (λ (b)
-                   (and (not (can-unify? (binding-type b)
-                                         (function-type
-                                          (fresh-type-variable)
-                                          (fresh-type-variable))))
-                        (not (can-unify? (binding-type b)
-                                         (nominal-record-definition-type
-                                          (fresh-type-variable))))))
-                 visibles-with-type)))
-
-          (define effect-filtered
-            (filter
-             (λ (x) (not (member (binding-name x) effect-variable-names)))
-             visibles/no-func-for-write))
 
           (define lift-type
             (if (and (nominal-record-type? type-needed)
@@ -974,47 +1042,25 @@ few of these methods.
                      (error 'xsmith
                             "can't find a matching definition for nominal record type: ~v\n"
                             type-needed)]))
-                (type-satisfaction-loop
-                 hole
-                 (λ () (concretize-type type-needed
-                                        #:at-node hole))
-                 (λ(x)x)
-                 (λ() #f)
-                 ;; TODO
-                 ;; Right now we give up after some number of loops.
-                 ;; Generally, this should just be an error.
-                 ;; But for now there are cases (nominal-record-types) where there can be a valid reference but that we can't create a valid lift-type.
-                 100)))
-          ;; TODO - I should check if the type contains a function, not merely IS a function.  And for higher order effects I should check this before concretizing.
-          (define function? (function-type? lift-type))
+                (if unify-reference-to-hole?
+                    (type-satisfaction-loop
+                     hole
+                     (λ () (concretize-type type-needed
+                                            #:at-node hole))
+                     (λ(x)x)
+                     (λ() #f)
+                     ;; TODO
+                     ;; Right now we give up after some number of loops.
+                     ;; Generally, this should just be an error.
+                     ;; But for now there are cases (nominal-record-types) where there can be a valid reference but that we can't create a valid lift-type.
+                     100)
+                    (concretize-type type-needed #:at-node hole))))
 
-          ;; Higher order functions could have any effect!
-          (define higher-order-effect-filtered
-            (if (and function?
-                     (not (null? effects-to-avoid)))
-                (filter
-                 ;; Filter out function parameters
-                 (λ (x) (eq? (binding-def-or-param x) 'definition))
-                 effect-filtered)
-                effect-filtered))
-
-          ;; TODO - for functions there was a filter here to not get main
-          (when (and write? function?)
-            ;; Assigning to functions destroys language-agnostic effect tracking.
-            (error 'xsmith "Got a function type as a type to assign to.  Xsmith's effect tracking requires that assignment can never have a function type."))
+          (define visibles/generic-filters
+            (reference-options-filter hole visibles-with-type lift-type write?))
           (define legal+lift
-            ;; TODO - lift effect constraints...
-            (cond [(and (or (not lift-type)
-                            (nominal-record-definition-type? lift-type))
-                        (not (null? higher-order-effect-filtered)))
-                   higher-order-effect-filtered]
-                  [lift-type (cons (make-lift-reference-choice-proc
-                                    hole
-                                    lift-type)
-                                   higher-order-effect-filtered)]
-                  [else (error 'xsmith "When trying to generate a reference, there were no legal choices and xsmith couldn't generate a lifted reference for type: ~v\n (visibles: ~v\n)"
-                               type-needed
-                               visibles)]))
+            (reference-options-add-lift hole visibles/generic-filters lift-type))
+
           (hash-set! ref-choices-filtered-hash self legal+lift)
           legal+lift))))
 
@@ -1233,6 +1279,8 @@ The second arm is a function that takes the type that the node has been assigned
   ;_xsmith_reference-options! -- returns a list of options for a variable to reference that are type compatible.  BUT - it unifies the type of the reference with a fully concrete version.  One of the list members is a thunk that can be applied to get a lifted binding.
   (choice-rule xsmith_get-reference!)
   ;xsmith_get-reference! -- like xsmith_reference-options! but it just returns one (pre-called in the case of lifts).
+  (choice-rule xsmith_get-reference-for-child!)
+  ;xsmith_get-reference-for-child! -- returns a reference name like xsmith_reference-options! but it must be called with a (concrete) type and a boolean for whether or not the reference will be a write reference.  Can be used to build multiple references at once.
   #:transformer
   (λ (this-prop-info grammar-info reference-info-info binder-info-info)
     (define nodes (cons #f (dict-keys grammar-info)))
@@ -1250,10 +1298,11 @@ The second arm is a function that takes the type that the node has been assigned
       (for/hash ([n (dict-keys node-type-constraints)])
         (values
          n
-         #`(λ (node)
+         #`(λ (node att-or-choice)
              (let ([do-error (λ (bad-type)
                                (error 'type-info
-                                      "Type constraint returned for node of AST type ~a was not a type: ~a\n"
+                                      "Type constraint returned in ~a-rule for node of AST type ~a was not a type: ~a\n"
+                                      att-or-choice
                                       (quote #,n)
                                       bad-type))]
                    [t #,(dict-ref node-type-constraints n)])
@@ -1269,12 +1318,12 @@ The second arm is a function that takes the type that the node has been assigned
           (hash #f #'(λ () default-base-type))
           (for/hash ([n (dict-keys get-constraints-checked)])
             (values n #`(λ (node)
-                          (#,(dict-ref get-constraints-checked n) node))))))
+                          (#,(dict-ref get-constraints-checked n) node 'att))))))
     (define _xsmith_my-type-constraint-info/choice-rule
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ () default-base-type))
           (for/hash ([n (dict-keys get-constraints-checked)])
-            (values n #`(λ () (#,(dict-ref get-constraints-checked n) current-hole))))))
+            (values n #`(λ () (#,(dict-ref get-constraints-checked n) current-hole 'choice))))))
 
     (define node-child-dict-funcs
       (hash-set
@@ -1379,13 +1428,20 @@ The second arm is a function that takes the type that the node has been assigned
          (values n #`(λ () (_xsmith_reference-options!-func
                             this
                             (current-hole)
-                            #,(dict-ref node-r/w-type n)))))
+                            #,(dict-ref node-r/w-type n)
+                            #,(dict-ref node-reference-unify-target n)))))
        #f #'(λ () (error '_xsmith_reference-options!
                          "Only defined for nodes with reference-info property"))))
     (define xsmith_get-reference!-info
-      (for/hash ([n nodes])
-        (values n #`(λ (#:lift-probability [lift-probability 0])
-                      (xsmith_get-reference!-func this lift-probability)))))
+      (hash #f #`(λ (#:lift-probability [lift-probability 0])
+                   (xsmith_get-reference!-func this lift-probability))))
+    (define xsmith_get-reference-for-child!-info
+      (hash #f #'(λ (type write? #:lift-probability [lift-probability 0])
+                   (xsmith_get-reference-for-child!-func
+                    current-hole
+                    type
+                    write?
+                    lift-probability))))
 
     (list
      _xsmith_my-type-constraint-info/att-rule
@@ -1396,6 +1452,7 @@ The second arm is a function that takes the type that the node has been assigned
      _xsmith_satisfies-type-constraint?-info
      _xsmith_reference-options!-info
      xsmith_get-reference!-info
+     xsmith_get-reference-for-child!-info
      )))
 
 (define (can-unify-node-type-with-type?! node-in-question type-constraint

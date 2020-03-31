@@ -147,7 +147,7 @@ Example:
 (code:comment "This will return the name of a variable in scope")
 (code:comment "that has type int or type bool.")
 (code:comment "It may make a new definition node to do that.")
-(define name (send (current-hole) xsmith_get-reference!))
+(define name (send this xsmith_get-reference!))
 ]
 
 Note that the reference is @emph{choosing} one of the possible types (via @racket[concretize-type]).
@@ -156,6 +156,26 @@ So you will want to put that name in the node.
 
 Generally you don't need to do this manually, however.
 Nodes with the @racket[reference-info] property marked will automatically have their name fields initialized, and nodes with the @racket[binder-info] property marked will automatically have their name and type fields initialized.
+}
+
+@item{@racket['xsmith_get-reference-for-child!]
+This is a choice method that can be used when creating reference nodes for children during the @racket[fresh] rule.
+It takes two additional parameters:
+@itemlist[
+@item{@italic{type}: @racket[concrete-type?] - the type you want the reference to be.  Note that it must be a concrete type.  If you want this type to be based somehow on the type of the node in question, use @racket[force-type-exploration-for-node!] so the node's type will be maximally concretely computed before you concretize it.}
+@item{@italic{write-reference?}: @racket[boolean?] - whether the reference will be used as a write reference.}
+]
+It returns a @racket[string?] of the reference name.
+
+Example:
+@racketblock[
+(code:comment "This will return the name of a variable in scope")
+(code:comment "with type int for a write reference")
+(define name (send this xsmith_get-reference! int #t))
+]
+
+Like @rule[xsmith_get-reference!], it may cause a new definition to be lifted.
+Only use the result for children of the @racket[current-hole].
 }
 ]
 
@@ -353,6 +373,10 @@ For example, to generate a fresh @verb{AdditionExpression} node, specifying valu
 @racketblock[(make-fresh-node 'AdditionExpression
                                (hash 'left (make-fresh-node 'LiteralInt
                                                             (hash 'v 5))))]
+
+Note that the fresh node is initially created unattached to the rest of the program tree.
+This means that any nodes whose @racket[fresh] implementation needs to inspect the tree may fail.
+In particular, reference nodes can only lift bindings when attached to the tree, and will probably fail if created with @racket[make-fresh-node].
 }
 
 @section{Custom Properties}
@@ -905,7 +929,7 @@ Example:
  [AdditionExpression (hash 'left (make-fresh-node LiteralInt (hash 'v 7)))])
 ]
 
-This is useful for fields that must be determined together.  For examlpe, a function call needs the function name and the number of arguments to be chosen together rather than independently.
+This is useful for fields that must be determined together.  For example, a function call needs the function name and the number of arguments to be chosen together rather than independently.
 
 As with all choice-rules, @racket[this] and @racket[current-hole] are available for use in expressions, which you may want to do for eg. accessing available bindings or mutable information connected to the choice object.
 
@@ -1155,6 +1179,9 @@ Example:
  [#f (λ (node) (symbol->string (ast-node-type node)))])
 ]
 }
+@defproc[(render-node [n ast-node?]) any/c]{
+Calls the @rule[_xsmith_render-node] attribute defined by @racket[render-node-info].
+}
 
 
 @defform[#:kind "spec-property" #:id render-hole-info render-hole-info]{
@@ -1237,15 +1264,15 @@ Puts two types into a subtype relationship.
 This mutates type variables so that they are constrained in a lattice relationship with other type variables.
 
 Note that
-@racketblock{
+@racketblock[
 (begin
   (subtype-unify! sub super)
   (subtype-unify! super sub))
-}
+]
 is equivalent to:
-@racketblock{
+@racketblock[
 (unify! sub super)
-}
+]
 
 If unification fails an exception is raised.
 A failure in unification is basically catastrophic, so no code generation should be attempted after a unification failure.

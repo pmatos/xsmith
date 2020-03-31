@@ -31,10 +31,13 @@
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 @(require
-"util.rkt"
-racket/runtime-path
-racket/file
-)
+  "util.rkt"
+  racket/runtime-path
+  racket/file
+  (for-label
+   xsmith
+   (except-in racket/base module)
+   ))
 
 @(define-runtime-path minimal-example-path "minimal-example.rkt")
 @(define-runtime-path minimal-example-with-variables-path
@@ -127,13 +130,64 @@ Xsmith uses the language-independent resolution algorithm of scope graphs.
 The theory of scope graphs is described in the paper “A Theory of Name Resolution with Extended Coverage and Proofs”, (available at @url{https://researchr.org/publication/NeronTVW15}).
 
 
+@section{Attributes, Choices, and Properties, Oh My!}
+
+When creating fuzzers with Xsmith, you will deal with attributes (eg. via @racket[add-att-rule]), choice rules (via @racket[add-choice-rule]), and properties (via @racket[add-prop]).
+Exactly what these are and how they relate can be confusing.
+
+@itemlist[
+@item{
+@bold{Attributes}, written with @racket[add-att-rule], are RACR attributes.
+They are evaluated dynamically by traversing the generated tree.
+RACR caches the results of attribute evaluation, flushing the cache when there are changes to parts of the tree that were previously used in computing an attribute.
+For a full understanding of attributes, you must also read @hyperlink["https://github.com/christoff-buerger/racr/blob/master/racr/documentation/contents.md"]{the RACR documentation.}
+
+You can get the values of attributes with code such as: @racket[(att-value 'xsmith_type node-in-question)].
+Some attributes are defined automatically by properties.
+You may or may not need to write custom attributes while creating a fuzzer.
+Attributes generally can not directly access choice rules or properties.
+}
+@item{
+@bold{Choice Rules}, written with @racket[add-choice-rule], are methods on choice objects.
+When Xsmith fills in a hole node, it creates a choice object for each grammar production that could fit in the given hole.
+Choice rules are used to filter and choose which of those productions to generate and guide generation.
+
+You can call choice rules with code such as: @racket[(send xsmith_choice-weight some-choice-object)].
+Choice rules are just Racket class methods.
+You may or may not need to write custom choice rules while creating a fuzzer, but custom choice rules are probably less likely to be needed than custom attributes.
+During evaluation of a choice rule, the hole in question is available as @racket[current-hole], so attributes may still be queried in the context of choice rules, but choice rules can not directly access properties.
+}
+@item{
+@bold{Properties} are basically macros that generate attributes and choice rules.
+The values of properties are written with @racket[add-prop].
+Properties have associated transformers that desugar the values they get from @racket[add-prop], essentially turning them into @racket[add-att-rule] and @racket[add-choice-rule] invocations, but transforming their bodies on the way.
+Properties are evaluated statically, but define attributes and choice rules that are evaluated dynamically.
+The values that you write as the right-hand-side of an @racket[add-prop] form often include code that will be included verbatim inside one or more attributes or choice rules, but they are also often values read statically to generate completely different code.
+Each property can behave differently, so you must read the documentation for each property to know what kind of right-hand-side to write, whether it can access a node to evaluate attributes on, or whether it can access a @racket[current-hole]!
+
+Generally, core attributes and choice rules used in Xsmith are defined by properties, such as the @racket[fresh] property and the @racket[type-info] property.
+While you certainly need to write property values with @racket[add-prop] for various built-in properties to create an Xsmith fuzzer, you probably don't need to define a custom property with @racket[define-property] unless you want to use it in multiple fuzzers, since writing the attributes and choice rules directly is simpler than defining a new property with an associated transformer.
+However, if you are writing multiple fuzzers, properties may help you create useful abstractions for use in multiple fuzzers.
+Property transformers can read the static values of other properties, and generate any number of attributes and choice rules.
+Property transformers can not statically access attribute or choice rule values, but they may generate code that uses them dynamically.
+}
+]
+
+Remember:  Attributes and choice rules are functions used (and usable) within specific contexts within Xsmith fuzzers.  Properties are compile-time macros for generating attributes and choice rules.
+
 @section{Minimal Example}
 
-@(verbatim (file->string minimal-example-path))
+@(typeset-code
+  #:keep-lang-line? #t
+  #:context #'here
+  (file->string minimal-example-path))
 
 @section{Another Small Example With Variables}
 
-@(verbatim (file->string minimal-example-with-variables-path))
+@(typeset-code
+  #:keep-lang-line? #t
+  #:context #'here
+  (file->string minimal-example-with-variables-path))
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
