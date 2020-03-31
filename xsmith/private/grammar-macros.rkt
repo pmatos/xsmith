@@ -1229,7 +1229,7 @@ Perform error checking:
                  (define fresh-node-func #f)
                  ;; This function is used for enabling whole-node replacement
                  ;; in refiners.
-                 (define (replacement-node-func type original-node fields)
+                 (define (replacement-node-func type original-node [fields (hash)])
                    ;; Identify which fields are being copied and which will be replaced entirely.
                    ;; Any field not named in `fields` is assumed to be copied from `original-node`.
                    ;; TODO - this should instead look at the fields expected by 'Type nodes instead of assuming identical children
@@ -1319,14 +1319,18 @@ Perform error checking:
                                            #`(fresh-node-func
                                               node-sym
                                               #,(or (attribute dict-expr)
-                                                    #'(hash)))])]
+                                                    #'(hash)))]
+                                          [just-symbol:id
+                                           #'fresh-node-func])]
                           [make-replacement-node
                            (syntax-parser [(_ node-sym:expr orig-node:expr (~optional dict-expr:expr))
                                            #`(replacement-node-func
                                               node-sym
                                               orig-node
                                               #,(or (attribute dict-expr)
-                                                    #'(hash)))])])
+                                                    #'(hash)))]
+                                          [just-symbol:id
+                                           #'replacement-node-func])])
                        (ag-rule att-rule-name
                                 [att-rule-node.node-name att-rule-node.prop-val]
                                 ...)

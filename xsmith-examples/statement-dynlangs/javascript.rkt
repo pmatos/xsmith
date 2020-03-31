@@ -19,8 +19,8 @@
                        #:MutableStructuralRecord #t)
 (add-basic-statements javascript-comp
                       #:AssignmentStatement #t
-                      #:MutableArraySetStatement #t
-                      #:MutableStructuralRecordSetStatement #t)
+                      #:MutableArrayAssignmentStatement #t
+                      #:MutableStructuralRecordAssignmentStatement #t)
 
 
 (define nest-step 4)
