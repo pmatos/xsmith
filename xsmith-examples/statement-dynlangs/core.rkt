@@ -98,6 +98,17 @@ TODO - instead of defining a spec component, define macros that add elements to 
      (finalize-return-type-function return-type))))
 
 
+(begin-for-syntax
+  (define-syntax (use? stx)
+    (syntax-parse stx
+      [(_ name (~optional default:boolean))
+       #'(let ([att (attribute name)])
+           (if att
+               (syntax-parse att
+                 [#t #t]
+                 [#f #t])
+               (~? default #f)))])))
+
 (define-syntax (add-basic-expressions stx)
   (syntax-parse stx
     ;; TODO - options
@@ -105,6 +116,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
         (~or
          (~optional (~seq #:LambdaWithExpression use-LWE:boolean))
          (~optional (~seq #:LambdaWithBlock use-LWB:boolean))
+         (~optional (~seq #:LetSequential use-let-sequential:boolean))
+         (~optional (~seq #:ExpressionSequence use-expression-sequence:boolean))
          (~optional (~seq #:Booleans use-booleans:boolean))
          (~optional (~seq #:Strings use-strings:boolean))
          (~optional (~seq #:MutableArray use-mutable-array:boolean))
@@ -121,24 +134,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
          )
         ...
         )
-     (define use-LWE? (attribute use-LWE))
-     (define use-LWB? (attribute use-LWB))
-     (define use-booleans? (attribute use-booleans))
-     (define use-strings? (attribute use-strings))
-     (define use-mutable-array? (attribute use-mutable-array))
-     (define use-mutable-array-assignment-expression?
-       (attribute use-mutable-array-assignment-expression))
-     (define use-immutable-array? (attribute use-immutable-array))
-     (define use-immutable-list? (attribute use-immutable-list))
-     (define use-mutable-structural-record?
-       (attribute use-mutable-structural-record))
-     (define use-mutable-structural-record-assignment-expression?
-       (attribute use-mutable-structural-record-assignment-expression))
-     (define use-immutable-structural-record?
-       (attribute use-immutable-structural-record))
-
      #`(begin
-
          ;; Core grammar
 
          (add-to-grammar
@@ -213,7 +209,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
          ;;; Optional components
 
 
-         #,@(if use-booleans?
+         #,@(if (use? use-booleans)
                 #'((add-to-grammar
                     component
                     [BoolLiteral Expression ([v = (even? (random 2))])]
@@ -230,7 +226,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                 #'())
 
 
-         #,@(if use-strings?
+         #,@(if (use? use-strings)
                 #'((add-to-grammar
                     component
                     [StringLiteral
@@ -248,7 +244,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                 #'())
 
 
-         #,@(if use-LWE?
+         #,@(if (use? use-LWE)
                 #'((add-to-grammar
                     component
                     [LambdaWithExpression
@@ -261,7 +257,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      [(function-type (product-type #f) (fresh-type-variable))
                       (make-lambda-type-rhs (λ (rt) rt))]]))
                 #'())
-         #,@(if use-LWB?
+         #,@(if (use? use-LWB)
                 #'((add-to-grammar
                     component
                     [LambdaWithBlock
@@ -275,7 +271,38 @@ TODO - instead of defining a spec component, define macros that add elements to 
                       (make-lambda-type-rhs (λ (rt) (fresh-return-type rt)))]]))
                 #'())
 
-         #,@(if use-immutable-array?
+         #,@(if (use? use-let-sequential)
+                #'((add-to-grammar
+                    component
+                    [LetSequential
+                     Expression ([definitions : Definition *]
+                                 [body : Expression])
+                     #:prop strict-child-order #t
+                     #:prop type-info
+                     [(fresh-type-variable)
+                      (λ (n t)
+                        (hash 'definitions (λ (c) (fresh-type-variable))
+                              'body t))]]))
+                #'())
+
+         #,@(if (use? use-expression-sequence)
+                #'((add-to-grammar
+                    component
+                    [ExpressionSequence
+                     Expression
+                     ([effectexpressions : Expression *
+                                         = (add1 (random max-effect-expressions))]
+                      [finalexpression : Expression])
+                     #:prop strict-child-order #t
+                     #:prop type-info
+                     [(fresh-type-variable)
+                      (λ (n t)
+                        ;; TODO - the effect type could be any, but using void-type will force it to use a side-effectful expression
+                        (hash 'effectexpressions (λ (c) void-type)
+                              'finalexpression t))]]))
+                #'())
+
+         #,@(if (use? use-immutable-array)
                 #'((add-to-grammar
                     component
                     [ImmutableArrayLiteral
@@ -312,7 +339,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                                 'newvalue inner-t))]]))
                 #'())
 
-         #,@(if use-immutable-list?
+         #,@(if (use? use-immutable-list)
                 #'((add-to-grammar
                     component
                     [ImmutableListLiteral
@@ -345,7 +372,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                                 'newvalue inner-t))]]))
                 #'())
 
-         #,@(if use-mutable-array?
+         #,@(if (use? use-mutable-array)
                 #'((add-to-grammar
                     component
                     [MutableArrayLiteral
@@ -369,7 +396,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                                            'array (mutable
                                                                    (array-type t))))]]))
                 #'())
-         #,@(if use-mutable-array-assignment-expression?
+         #,@(if (use? use-mutable-array-assignment-expression)
                 #'((add-to-grammar
                     component
                     [MutableArrayAssignmentExpression
@@ -382,7 +409,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                 #'())
 
 
-         #,@(if use-immutable-structural-record?
+         #,@(if (use? use-immutable-structural-record)
                 #'((add-to-grammar
                     component
                     [ImmutableStructuralRecordLiteral
@@ -443,7 +470,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                               'newvalue inner-t))]]))
                 #'())
 
-         #,@(if use-mutable-structural-record?
+         #,@(if (use? use-mutable-structural-record)
                 #'((add-to-grammar
                     component
                     [MutableStructuralRecordLiteral
@@ -506,7 +533,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                        (hash (ast-child 'fieldname n) t)))))]])
                    )
                 #'())
-         #,@(if use-mutable-structural-record-assignment-expression?
+         #,@(if (use? use-mutable-structural-record-assignment-expression)
                 #'((add-to-grammar
                     component
                     [MutableStructuralRecordAssignmentExpression
@@ -535,11 +562,6 @@ TODO - instead of defining a spec component, define macros that add elements to 
          )
         ...
         )
-     (define use-assignment-statement? (attribute use-assignment-statement))
-     (define use-mutable-array-assignment-statement?
-       (attribute use-mutable-array-assignment-statement))
-     (define use-mutable-structural-record-assignment-statement?
-       (attribute use-mutable-structural-record-assignment-statement))
      #`(begin
          (add-to-grammar
           component
@@ -591,7 +613,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                            'else t))]])
 
 
-         #,@(if use-assignment-statement?
+         #,@(if (use? use-assignment-statement)
                 #'((add-to-grammar
                     component
                     [AssignmentStatement
@@ -601,7 +623,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      [(fresh-no-return-type)
                       (λ (n t) (hash 'Expression (fresh-type-variable)))]]))
                 #'())
-         #,@(if use-mutable-array-assignment-statement?
+         #,@(if (use? use-mutable-array-assignment-statement)
                 #'((add-to-grammar
                     component
                     [MutableArrayAssignmentStatement
@@ -617,7 +639,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                               'index int
                               'newvalue inner))]]))
                 #'())
-         #,@(if use-mutable-structural-record-assignment-statement?
+         #,@(if (use? use-mutable-structural-record-assignment-statement)
                 #'((add-to-grammar
                     component
                     [MutableStructuralRecordAssignmentStatement
