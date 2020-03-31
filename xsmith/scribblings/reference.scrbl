@@ -1478,6 +1478,12 @@ TODO - explain better when you need to use this.
 
 }
 
+@defproc[(concrete-type? [t type?]) bool?]{
+A concrete type is a type with no variableness.
+In other words, all type variables contained in this type (including @racket[product-type]s, @racket[nominal-record-type]s, and @racket[structural-record-type]s) have been unified such that they only have one option, which is itself concrete.
+If you have a variable that is not concrete and you need a concrete one, you can use @racket[concretize-type] to get a concrete version (that you may want to unify to the type you used as its input).
+}
+
 @defproc[(concretize-type [t type?]) type?]{
 Returns a fully concrete (no type variables) type that @racket[can-unify?] with @racket[t].
 
