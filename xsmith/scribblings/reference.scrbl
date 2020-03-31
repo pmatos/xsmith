@@ -1736,6 +1736,8 @@ There is no punctuation, nor is there a guarantee of any capitalization in the f
 The details in this section do not apply to regular usage of Xsmith and can be safely skipped by most users.
 What is explained here is how the randomness library works behind-the-scenes in the event that somebody needs to implement a custom usage.
 
+@subsubsection{By Parameterization}
+
 By default, the @racket[xsmith/private/random] module requires the source of randomness (called @racket[random-source]) to be parameterized for use.
 This means that a regular usage looks like:
 
@@ -1746,6 +1748,24 @@ This means that a regular usage looks like:
 (parameterize ([random-source (make-random-source 42)])
   ...)
 ]
+
+@defparam[random-source random-source random-source?]{
+A parameter for defining the current source of deterministic randomness.
+}
+
+@defproc[(make-random-source [value any/c]) random-source?]{
+Creates a properly-formatted @racket[random-source].
+The result of this function should be used to parameterize @racket[random-source].
+The @racket[value] can be any of:
+
+@itemlist[
+  @item{@racket[#f] -- creates a truly random @racket[random-source]}
+  @item{@racket[bytes?] -- initializes the @racket[random-source] from a byte sequence, which is used for guiding the randomness until all recorded bytes are exhausted}
+  @item{@racket[(integer-in 0 (sub1 (expt 2 31)))] -- initialize the @racket[random-source] with @racket[value] as the seed}
+]
+}
+
+@subsubsection{Statefully}
 
 However, sometimes you may want to more easily test the functions in the REPL on the command-line.
 For this, we provide the @racket[stateful] submodule, which supplies imperative bindings for manipulating the @racket[random-source].
