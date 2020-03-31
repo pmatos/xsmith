@@ -1023,7 +1023,8 @@ few of these methods.
           (define lift-type
             (if (and (nominal-record-type? type-needed)
                      (not (nominal-record-type-name type-needed))
-                     (let ([keys (dict-keys (nominal-record-type-inners type-needed))])
+                     (let ([keys (dict-keys (nominal-record-type-known-field-dict
+                                             type-needed))])
                        (and (not (null? keys)) (->bool (car keys)))))
                 ;; In this case we have a defined nominal-record-type that we need to look up, rather than concretizing.
                 ;; TODO - it would be nice if concretizing did this, but then I would have to change concretize-type to know about the hole and tree and whatnot.
@@ -1034,14 +1035,12 @@ few of these methods.
                                               (binding-type b))
                                              (can-unify? d (binding-type b))))
                                  visibles)])
-                  (match def-filtered
-                    [(list def)
-                     (nominal-record-definition-type-type
-                                 (binding-type def))]
-                    [else
-                     (error 'xsmith
-                            "can't find a matching definition for nominal record type: ~v\n"
-                            type-needed)]))
+                  (if (null? def-filtered)
+                      (error 'xsmith
+                             "can't find a matching definition for nominal record type: ~v\n"
+                             type-needed)
+                      (nominal-record-definition-type-type
+                       (binding-type (random-ref def-filtered)))))
                 (if unify-reference-to-hole?
                     (type-satisfaction-loop
                      hole
