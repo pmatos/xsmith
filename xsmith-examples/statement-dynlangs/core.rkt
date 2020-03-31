@@ -6,8 +6,6 @@
  xsmith/racr-convenience
  racket/dict
  racket/list
- ;; TODO - replace with xsmith/private/random
- racket/random
  racket/port
  (for-syntax
   racket/base

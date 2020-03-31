@@ -40,7 +40,6 @@
  xsmith/racr-convenience
  racr
  pprint
- racket/random
  racket/dict
  racket/match
  racket/math

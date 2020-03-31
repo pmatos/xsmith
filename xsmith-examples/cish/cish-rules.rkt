@@ -45,7 +45,6 @@
  racket/set
  racket/match
  racket/class
- racket/random
  (prefix-in rt: rosette)
  (except-in racket/list empty)
  syntax/parse/define

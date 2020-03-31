@@ -39,7 +39,6 @@
  racket/class
  racket/dict
  (except-in racket/list empty)
- racket/random
  racket/string
  )
 

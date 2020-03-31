@@ -36,7 +36,7 @@
   racket/file
   (for-label
    xsmith
-   (except-in racket/base module)
+   (except-in racket/base module random)
    ))
 
 @(define-runtime-path minimal-example-path "minimal-example.rkt")

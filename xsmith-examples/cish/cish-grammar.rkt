@@ -37,7 +37,6 @@
  xsmith
  (only-in pprint [empty empty-doc])
  racr
- racket/random
  racket/class
  racket/dict
 
