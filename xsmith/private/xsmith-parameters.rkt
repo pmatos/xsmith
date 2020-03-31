@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -33,6 +33,7 @@
 (provide (all-defined-out))
 
 (require
+ "random.rkt"
  racket/dict)
 
 (define random-seed-max (expt 2 31))
@@ -41,7 +42,8 @@
   (make-parameter #f))
 (define (xsmith-options-defaults)
   (make-hasheq
-   (list (cons 'random-seed (random random-seed-max)))))
+   (list (cons 'random-seed (parameterize ([random-source (make-random-source)])
+                              (random random-seed-max))))))
 (define (xsmith-option
          key
          [default (λ () (error 'xsmith-option "key not found: ~a" key))])

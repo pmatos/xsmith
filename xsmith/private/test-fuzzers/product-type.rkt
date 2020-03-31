@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah

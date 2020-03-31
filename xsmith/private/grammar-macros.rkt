@@ -1,4 +1,4 @@
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2020 The University of Utah
@@ -90,7 +90,7 @@
  ;; for re-provide
  "types.rkt"
  (for-syntax
-  racket/base
+  xsmith/private/base
   racket/syntax
   syntax/parse
   racket/list
@@ -300,9 +300,10 @@
                 (string-contains? s "<")
                 (string-contains? s ":")
                 (string-contains? s "*")
-                (string-contains? s "+"))
+                (string-contains? s "+")
+                (regexp-match #px"\\d" s))
         (raise-syntax-error 'add-to-grammar
-                            "Grammar names have to fit in RACR's DSL encoded as a symbol, and so can't have special characters -_<>:*+ in them."
+                            "Grammar names have to fit in RACR's DSL encoded as a symbol, and so can't have special characters -_<>:*+ or numbers in them."
                             err-stx)))
     (syntax-parse name-id
       [x:id (string-check (symbol->string (syntax->datum #'x)) #'x)]
@@ -797,6 +798,7 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
                  [(spec-ref ...) (map (λ (x) (spec-component-struct-ref-ref
                                               (syntax-local-value x)))
                                       (syntax->list #'(component ...)))])
+     (check-racr-grammar-name #'spec)
      ;; The spec-ref names we got out of the component names are
      ;; phase 1 names that we have at phase 1 in template form, so
      ;; we need to output a template that defines a macro that references them

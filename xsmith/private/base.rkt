@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -30,56 +30,24 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; This module re-provides all of racket/base, except for randomness functions.
+;; All randomness in Xsmith should be handled with the custom random.rkt
+;; definitions.
+
 (provide
- assemble-spec-components
- (all-from-out "core-properties.rkt")
- (except-out (all-from-out "grammar-macros.rkt")
-             assemble-spec-components/core)
- )
+ (except-out (all-from-out racket/base)
+             random
+             random-seed
+             make-pseudo-random-generator
+             pseudo-random-generator?
+             current-pseudo-random-generator
+             pseudo-random-generator->vector
+             vector->pseudo-random-generator
+             vector->pseudo-random-generator!
+             pseudo-random-generator-vector?))
 
-(require
- "grammar-macros.rkt"
- "core-properties.rkt"
- (submod "core-properties.rkt" for-private)
- syntax/parse/define
- (for-syntax
-  xsmith/private/base
-  ))
+(require racket/base)
 
-(define-syntax-parser assemble-spec-components
-  [(_ spec:id
-      (~optional (~seq #:properties (prop-name:id ...)))
-      component ...)
-   (with-syntax ([(prop-name ...) (or (attribute prop-name)
-                                      '())])
-     #'(assemble-spec-components/core
-        spec
-        (
-         ;; Default properties
-         depth-increase
-         fresh
-         choice-filters-to-apply
-         may-be-generated
-         choice-weight
-         child-node-name-dict
-         wont-over-deepen
-         introduces-scope
-         binder-info
-         reference-info
-         binder-info
-         lift-predicate
-         lift-type->ast-binder-type
-         binding-structure
-         io
-         strict-child-order?
-         render-node-info
-         render-hole-info
-         type-info
-         ;; user-added props
-         prop-name ...
-         )
-        component ...))])
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; End of file.
+;; Turn this module into a #lang to avoid usages of #lang racket/base.
+(module reader syntax/module-reader
+  xsmith/private/base)

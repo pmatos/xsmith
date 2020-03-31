@@ -33,7 +33,7 @@
 @(require
 "util.rkt"
 (for-label
-(except-in racket/base
+(except-in xsmith/private/base
            module)
 xsmith
 xsmith/racr-convenience
@@ -147,7 +147,7 @@ Example:
 (code:comment "This will return the name of a variable in scope")
 (code:comment "that has type int or type bool.")
 (code:comment "It may make a new definition node to do that.")
-(define name (send (current-hole) xsmith_get-reference!))
+(define name (send this xsmith_get-reference!))
 ]
 
 Note that the reference is @emph{choosing} one of the possible types (via @racket[concretize-type]).
@@ -156,6 +156,26 @@ So you will want to put that name in the node.
 
 Generally you don't need to do this manually, however.
 Nodes with the @racket[reference-info] property marked will automatically have their name fields initialized, and nodes with the @racket[binder-info] property marked will automatically have their name and type fields initialized.
+}
+
+@item{@racket['xsmith_get-reference-for-child!]
+This is a choice method that can be used when creating reference nodes for children during the @racket[fresh] rule.
+It takes two additional parameters:
+@itemlist[
+@item{@italic{type}: @racket[concrete-type?] - the type you want the reference to be.  Note that it must be a concrete type.  If you want this type to be based somehow on the type of the node in question, use @racket[force-type-exploration-for-node!] so the node's type will be maximally concretely computed before you concretize it.}
+@item{@italic{write-reference?}: @racket[boolean?] - whether the reference will be used as a write reference.}
+]
+It returns a @racket[string?] of the reference name.
+
+Example:
+@racketblock[
+(code:comment "This will return the name of a variable in scope")
+(code:comment "with type int for a write reference")
+(define name (send this xsmith_get-reference! int #t))
+]
+
+Like @rule[xsmith_get-reference!], it may cause a new definition to be lifted.
+Only use the result for children of the @racket[current-hole].
 }
 ]
 
@@ -353,6 +373,10 @@ For example, to generate a fresh @verb{AdditionExpression} node, specifying valu
 @racketblock[(make-fresh-node 'AdditionExpression
                                (hash 'left (make-fresh-node 'LiteralInt
                                                             (hash 'v 5))))]
+
+Note that the fresh node is initially created unattached to the rest of the program tree.
+This means that any nodes whose @racket[fresh] implementation needs to inspect the tree may fail.
+In particular, reference nodes can only lift bindings when attached to the tree, and will probably fail if created with @racket[make-fresh-node].
 }
 
 @section{Custom Properties}
@@ -905,7 +929,7 @@ Example:
  [AdditionExpression (hash 'left (make-fresh-node LiteralInt (hash 'v 7)))])
 ]
 
-This is useful for fields that must be determined together.  For examlpe, a function call needs the function name and the number of arguments to be chosen together rather than independently.
+This is useful for fields that must be determined together.  For example, a function call needs the function name and the number of arguments to be chosen together rather than independently.
 
 As with all choice-rules, @racket[this] and @racket[current-hole] are available for use in expressions, which you may want to do for eg. accessing available bindings or mutable information connected to the choice object.
 
@@ -1155,6 +1179,9 @@ Example:
  [#f (λ (node) (symbol->string (ast-node-type node)))])
 ]
 }
+@defproc[(render-node [n ast-node?]) any/c]{
+Calls the @rule[_xsmith_render-node] attribute defined by @racket[render-node-info].
+}
 
 
 @defform[#:kind "spec-property" #:id render-hole-info render-hole-info]{
@@ -1237,15 +1264,15 @@ Puts two types into a subtype relationship.
 This mutates type variables so that they are constrained in a lattice relationship with other type variables.
 
 Note that
-@racketblock{
+@racketblock[
 (begin
   (subtype-unify! sub super)
   (subtype-unify! super sub))
-}
+]
 is equivalent to:
-@racketblock{
+@racketblock[
 (unify! sub super)
-}
+]
 
 If unification fails an exception is raised.
 A failure in unification is basically catastrophic, so no code generation should be attempted after a unification failure.
@@ -1557,6 +1584,198 @@ The feature name must have been supplied to the #:features argument of @racket[x
 Returns the maximum tree generation depth as set by the user via @racket[xsmith-command-line].
 }
 
+
+
+
+
+@section{Randomness Functions}
+
+These functions allow for handling randomness in a deterministic (and thus repeatable) way.
+Please use these functions instead of any of the randomness functions in other Racket modules.
+
+By default, Xsmith handles the creation of a randomness region automatically for you via the @racket[xsmith-command-line] function.
+However, we leave out all randomness functions by default.
+To use the randomness functions described here, you must @racket[(require xsmith/private/random)].
+
+@subsection{Constants}
+
+@defthing[max-seed-value integer? #:value (sub1 (expt 2 31))]{
+The maximum value of a Racket @racket[pseudo-random-generator] seed value.
+}
+
+
+@subsection{Macros for Ease of Use}
+
+There are two macros that we expose publicly for custom use of the source of randomness.
+
+@defform[(begin-external-random expr ...+)]{
+A @racket[begin] form wherein Racket's @racket[current-pseudo-random-generator] is seeded by Xsmith's randomness source.
+This allows use to make calls to functions not defined within Xsmith that may use Racket's default randomness functions.
+}
+
+@defform[(begin-with-random-seed [seed any/c] expr ...+)]{
+A @racket[begin] form wherein randomness functions will use a @racket[pseudo-random-generator?] seeded with the @racket[seed] value.
+This is useful for beginning deterministically-random segments of code.
+For example, you might pass @racket[(random (add1 max-seed-value))] as the seed, which will use Xsmith's deterministic randomness source to generate a new seed.
+}
+
+@subsection{Randomness Primitives}
+
+These functions provide very straightforward ways to get certain kinds of random values.
+All of these rely on Xsmith's own source of randomness (discussed above).
+Use these functions in place of functions from external libraries that might use Racket's own default randomness source.
+
+@defproc*[([(random) exact-nonnegative-integer?]
+           [(random [k (integer-in 1 4294967087)]) exact-nonnegative-integer?]
+           [(random [min exact-integer?] [max (integer-in (+ 1 min) (+ 4294967087 min))]) exact-nonnegative-integer?])]{
+Identical to Racket's @racket[random] function, but uses Xsmith's randomness source.
+}
+
+@defproc[(random-uint) exact-nonnegative-integer?]{
+Generates a random, unsigned integer.
+}
+
+@defproc[(random-int) (integer-in -2147483544 2147483543)]{
+Generates a random, signed integer.
+}
+
+@defproc[(random-bool) boolean?]{
+Generates a random boolean.
+}
+
+@defproc[(random-ref [lst list?]) any/c]{
+Randomly selects an element from the list @racket[lst].
+}
+
+@subsubsection{Characters}
+
+These functions all create random characters from a particular range of values.
+
+@defproc[(random-char) char?]{
+Generates a random Unicode character.
+The bytecode ranges are 0-55295 and 57344-1114111.
+}
+
+@defproc[(random-ascii-lower-char) char?]{
+Generates a random ASCII lowercase character (bytecode 97-122; regex [a-z]).
+}
+
+@defproc[(random-ascii-upper-char) char?]{
+Generates a random ASCII uppercase character (bytecode 65-90; regex [A-Z]).
+}
+
+@defproc[(random-ascii-alpha-char) char?]{
+Generates a random ASCII alphabetical character (bytecode 97-122 or 65-90; regex [a-zA-Z]).
+This range contains @racket[random-ascii-lower-char] and @racket[random-ascii-upper-char].
+}
+
+@defproc[(random-ascii-numeral-char) char?]{
+Generates a random ASCII numerical character (bytecode 48-57; regex [0-9]).
+}
+
+@defproc[(random-ascii-alphanumeric-char) char?]{
+Generates a random ASCII alphanumerical character (bytecode 97-122, 65-90, or 48-57; regex [a-zA-Z0-9]).
+This range contains @racket[random-ascii-alpha-char] and @racket[random-ascii-numeral-char].
+}
+
+@defproc[(random-ascii-word-char) char?]{
+Generates a random ASCII word character (bytecode 97-122, 65-90, 48-57, or 95; regex [a-zA-Z0-9_]).
+This range contains @racket[random-ascii-alphanumeric-char] as well as the underscore, @racket[#\_].
+}
+
+@subsubsection{Strings}
+
+These functions all create random strings from a particular range of values.
+
+@defproc[(random-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-lower-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-lower-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-upper-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-upper-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-alpha-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-alpha-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-numeral-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-numeral-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-alphanumeric-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-alphanumeric-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+}
+
+@defproc[(random-ascii-word-string [bound exact-nonnegative-integer?]) string?]{
+Generates a random string built from @racket[random-ascii-word-char].
+The @racket[bound] parameter is an upper limit on the length of the generated string.
+This function has the property that the first character will always be alphabetical, not a numeral or an underscore.
+This ensures that this function can be used wherever a word-matching regex is expected (such as for identifiers in most programming languages).
+}
+
+@defproc[(random-ascii-sentence [word-bound exact-nonnegative-integer?] [word-length-bound exact-nonnegative-integer?]) string?]{
+Generates a random string consisting of @racket[(random 1 word-bound)] words.
+Each word is generated with @racket[(random-ascii-word-string word-length-bound)].
+The words are then concatenated with a single space.
+There is no punctuation, nor is there a guarantee of any capitalization in the first character.
+}
+
+@subsection{Controlling the Source of Randomness}
+
+The details in this section do not apply to regular usage of Xsmith and can be safely skipped by most users.
+What is explained here is how the randomness library works behind-the-scenes in the event that somebody needs to implement a custom usage.
+
+By default, the @racket[xsmith/private/random] module requires the source of randomness (called @racket[random-source]) to be parameterized for use.
+This means that a regular usage looks like:
+
+@racketblock[
+(require xsmith/private/random)
+
+(code:comment "Let's seed the random-source with the value 42.")
+(parameterize ([random-source (make-random-source 42)])
+  ...)
+]
+
+However, sometimes you may want to more easily test the functions in the REPL on the command-line.
+For this, we provide the @racket[stateful] submodule, which supplies imperative bindings for manipulating the @racket[random-source].
+To use the submodule, you should @racket[(require (submod xsmith/private/random stateful))].
+
+The forms defined in the submodule are:
+
+@defproc[(set-random-source! [value random-source?]) void]{
+Statefully sets the @racket[random-source] parameter to be @racket[value].
+}
+
+@defproc[(initialize-random-source) void]{
+Initializes the @racket[random-source] with a random value so the randomness functions can be used for testing.
+}
+
+@defproc[(initialize-random-source-from-seed [seed (integer-in 0 (sub1 (expt 2 31)))]) void]{
+Initialize the @racket[random-source] with the indicated seed.
+}
+
+@defproc[(initialize-random-source-from-sequence [seq bytes?]) void]{
+Initialize the @racket[random-source] with the indicated byte sequence.
+}
+
+
+@subsection{Distribution Functions}
+
+Racket provides the @racket[math/distributions] module to provide easy mechanisms for sampling from different kinds of random distributions.
+However, since these make internal use of Racket's own @racket[pseudo-random-generator], they cannot be used with @racket[xsmith/private/random].
+Please use the @racket[distributions] submodule by requiring @racket[(require (submod xsmith/private/random distributions))].
+This submodule provides all of the bindings in @racket[math/distributions], so please look there for documentation.
 
 
 
