@@ -112,7 +112,8 @@ The other three keys map to hashes of rule-name -> node-name -> val-stx
 This function is only used in one place, so its interface is tightly bound with that use.  Maybe it ought to be improved.
 |#
 (define (grammar-property-transform grammar-prop-name-stx
-                                    infos-hash)
+                                    infos-hash
+                                    spell-check-grammar-name)
 
   ;; Helper for getting the appropriate part out of the infos hash based on what
   ;; kind of arguments the property transformer needs.
@@ -205,11 +206,15 @@ This function is only used in one place, so its interface is tightly bound with 
           (define appends (syntax->list (grammar-property-appends slv)))
           (define (i->s pa)
             (infos->section infos-hash pa))
+          (define dicts-to-send (append (list (i->s #'(property gp)))
+                                        (map i->s rewrites)
+                                        (map i->s reads)))
+          (for ([d dicts-to-send])
+            (for ([k (dict-keys d)])
+              (spell-check-grammar-name k (dict-ref d k))))
           ;; TODO - do double local-intro+custom-intro for hygiene
           ;;        OR use the new local-apply-transformer procedure (in Racket v7).
-          (define ret-list (apply transform (append (list (i->s #'(property gp)))
-                                                    (map i->s rewrites)
-                                                    (map i->s reads))))
+          (define ret-list (apply transform dicts-to-send))
           (when (not (equal? (length ret-list)
                              (length (append rewrites appends))))
             (raise-syntax-error

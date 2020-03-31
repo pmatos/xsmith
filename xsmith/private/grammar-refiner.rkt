@@ -229,7 +229,8 @@ The infos hash is a hash containing (at least) two keys ('refs-info and
 to whatever is needed.
 |#
 (define (grammar-refiner-transform grammar-ref-name-stx
-                                   infos-hash)
+                                   infos-hash
+                                   spell-check-grammar-name)
   (syntax-parse grammar-ref-name-stx
     [gr:grammar-refiner-stx
      (let* ([ref-stx (syntax-local-value #'gr)]
@@ -240,6 +241,8 @@ to whatever is needed.
                                 (hash))]
             [att-rules-hash (hash-ref infos-hash 'ag-info)]
             [this-rules-hash (hash-ref att-rules-hash ref-name (hash))])
+       (for ([k (dict-keys ref-hash)])
+         (spell-check-grammar-name k (dict-ref ref-hash k)))
        ;; Provide a default clause that has no effect.
        ;; This is important because refiners are applied to all nodes in an AST,
        ;; regardless of whether they have a clause defined. The implementation

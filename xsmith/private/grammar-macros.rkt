@@ -981,6 +981,14 @@ Perform error checking:
      (for/hash ([g g-parts])
        (syntax-parse g
          [gc:grammar-clause (values (syntax->datum #'gc.node-name) g)])))
+   (define grammar-node-names (dict-keys g-hash))
+   (define (spell-check-grammar-name name blame-stx)
+     (when (not (or (eq? name #f)
+                    (memq name grammar-node-names)))
+       (raise-syntax-error
+        'xsmith
+        (format "Node name for rule or property not in grammar spec: ~a" name)
+        blame-stx)))
    (define ag-hash (ag/cm-list->hash (syntax->list #'(ag-clause ...))))
    (define cm-hash (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
    (define-values
@@ -1001,12 +1009,14 @@ Perform error checking:
      (for/fold ([ih pre-transform-infos-hash])
                ([p-struct p-structs])
        (grammar-property-transform (hash-ref p-canonical-ids p-struct p-struct)
-                                   ih)))
+                                   ih
+                                   spell-check-grammar-name)))
    (define infos-hash
      (for/fold ([ih pre-refs-infos-hash])
                ([r-struct r-structs])
        (grammar-refiner-transform (hash-ref r-canonical-ids r-struct r-struct)
-                                  ih)))
+                                  ih
+                                  spell-check-grammar-name)))
    (define ref-att-rule-names (map refiner-stx->att-rule-name r-structs))
    (define ref-pred-funcs (map refiner-stx->ref-pred-func r-structs))
 
