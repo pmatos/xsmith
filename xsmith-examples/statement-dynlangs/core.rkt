@@ -34,6 +34,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
 
 
 (define array-max-length 10)
+(define max-effect-expressions 3)
 (define immutable-structural-record-type-constraint
   (λ (n)
     (if (att-value 'xsmith_is-hole? n)
@@ -114,6 +115,9 @@ TODO - instead of defining a spec component, define macros that add elements to 
     ;; TODO - options
     [(_ component
         (~or
+         (~optional (~seq #:Program use-program:boolean))
+         (~optional (~seq #:AssignmentExpression use-assignment-expression:boolean))
+         (~optional (~seq #:IfExpression use-if-expression:boolean))
          (~optional (~seq #:LambdaWithExpression use-LWE:boolean))
          (~optional (~seq #:LambdaWithBlock use-LWB:boolean))
          (~optional (~seq #:LetSequential use-let-sequential:boolean))
@@ -208,6 +212,42 @@ TODO - instead of defining a spec component, define macros that add elements to 
 
          ;;; Optional components
 
+         #,@(if (use? use-program)
+                #'((add-to-grammar
+                    component
+                    [Program #f ([definitions : Definition *]
+                                 [Expression])
+                             #:prop type-info
+                             [(fresh-type-variable)
+                              (λ (n t)
+                                (hash 'definitions (λ (c) (fresh-type-variable))
+                                      'Expression t))]]))
+                #'())
+
+         #,@(if (use? use-assignment-expression)
+                #'((add-to-grammar
+                    component
+                    [AssignmentExpression
+                     Expression (name Expression)
+                     #:prop reference-info (write name #:unifies Expression)
+                     #:prop type-info
+                     [void-type
+                      (λ (n t) (hash 'Expression (fresh-type-variable)))]]))
+                #'())
+
+         #,@(if (use? use-if-expression)
+                #'((add-to-grammar
+                    component
+                    [IfExpression
+                     Expression ([test : Expression]
+                                 [then : Expression]
+                                 [else : Expression])
+                     #:prop type-info
+                     [(fresh-type-variable)
+                      (λ (n t) (hash 'test bool
+                                     'then t
+                                     'else t))]]))
+                #'())
 
          #,@(if (use? use-booleans)
                 #'((add-to-grammar
@@ -277,7 +317,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                     [LetSequential
                      Expression ([definitions : Definition *]
                                  [body : Expression])
-                     #:prop strict-child-order #t
+                     #:prop strict-child-order? #t
                      #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t)
@@ -293,7 +333,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      ([effectexpressions : Expression *
                                          = (add1 (random max-effect-expressions))]
                       [finalexpression : Expression])
-                     #:prop strict-child-order #t
+                     #:prop strict-child-order? #t
                      #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t)
@@ -344,7 +384,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                     component
                     [ImmutableListLiteral
                      Expression
-                     ([expressions : Expression * = (random array-may-length)])
+                     ([expressions : Expression * = (random array-max-length)])
                      #:prop wont-over-deepen #t]
                     [ImmutableListSafeCar Expression ([list : Expression]
                                                       [fallback : Expression])
@@ -400,7 +440,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                 #'((add-to-grammar
                     component
                     [MutableArrayAssignmentExpression
-                     Statement
+                     Expression
                      ([array : VariableReference]
                       [index : Expression]
                       [newvalue : Expression])
@@ -693,6 +733,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
 
 (define-generic-type array-type ([type covariant]))
 (define (fresh-array-type) (array-type (fresh-type-variable)))
+(define-generic-type list-type ([type covariant]))
+(define (fresh-list-type) (list-type (fresh-type-variable)))
 
 (define no-child-types (λ (n t) (hash)))
 
