@@ -116,7 +116,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
     ;; TODO - options
     [(_ component
         (~or
-         (~optional (~seq #:Program use-program:boolean))
+         (~optional (~seq #:ProgramWithSequence use-program-with-sequence:boolean))
+         (~optional (~seq #:VoidExpression use-void-expression:boolean))
          (~optional (~seq #:AssignmentExpression use-assignment-expression:boolean))
          (~optional (~seq #:IfExpression use-if-expression:boolean))
          (~optional (~seq #:LambdaWithExpression use-LWE:boolean))
@@ -174,7 +175,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
           [Times Expression ([l : Expression] [r : Expression])]
           [SafeDivide Expression ([l : Expression] [r : Expression])]
           [LessThan Expression ([l : Expression] [r : Expression])]
-          [GreaterThan Expression ([l : Expression] [r : Expression])])
+          [GreaterThan Expression ([l : Expression] [r : Expression])]
+          )
 
          (add-prop
           component
@@ -185,7 +187,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
           ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
           [Expression [(error 'type-info "Trying to type check as an expression without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Expression.")
                        no-child-types]]
-          [VariableReference [(fresh-type-variable) (λ (n t) no-child-types)]]
+          [VariableReference [(fresh-type-variable) no-child-types]]
 
           [ProcedureApplication
            [(fresh-type-variable)
@@ -215,27 +217,35 @@ TODO - instead of defining a spec component, define macros that add elements to 
 
          ;;; Optional components
 
-         #,@(if (use? use-program)
+         #,@(if (use? use-void-expression)
                 #'((add-to-grammar
                     component
-                    [Program #f ([definitions : Definition *]
-                                 [Expression])
-                             #:prop type-info
-                             [(fresh-type-variable)
-                              (λ (n t)
-                                (hash 'definitions (λ (c) (fresh-type-variable))
-                                      'Expression t))]]))
+                    [VoidExpression Expression ()
+                                    #:prop type-info [void-type no-child-types]]))
+                #'())
+
+         #,@(if (use? use-program-with-sequence)
+                #'((add-to-grammar
+                    component
+                    [ProgramWithSequence
+                     #f ([definitions : Definition *]
+                         [ExpressionSequence])
+                     #:prop type-info
+                     [(fresh-type-variable)
+                      (λ (n t)
+                        (hash 'definitions (λ (c) (fresh-type-variable))
+                              'ExpressionSequence t))]]))
                 #'())
 
          #,@(if (use? use-assignment-expression)
                 #'((add-to-grammar
                     component
                     [AssignmentExpression
-                     Expression (name Expression)
-                     #:prop reference-info (write name #:unifies Expression)
+                     Expression (name [newvalue : Expression])
+                     #:prop reference-info (write name #:unifies newvalue)
                      #:prop type-info
                      [void-type
-                      (λ (n t) (hash 'Expression (fresh-type-variable)))]]))
+                      (λ (n t) (hash 'newvalue (fresh-type-variable)))]]))
                 #'())
 
          #,@(if (use? use-if-expression)
@@ -311,7 +321,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      (lambda-fresh-implementation current-hole make-fresh-node)
                      #:prop type-info
                      [(function-type (product-type #f) (fresh-type-variable))
-                      (make-lambda-type-rhs (λ (rt) (fresh-return-type rt)))]]))
+                      (make-lambda-type-rhs (λ (rt) (return-type rt)))]]))
                 #'())
 
          #,@(if (use? use-let-sequential)
@@ -593,7 +603,9 @@ TODO - instead of defining a spec component, define macros that add elements to 
   (syntax-parse stx
     [(_ component
         (~or
+         (~optional (~seq #:ProgramWithBlock use-program-with-block:boolean))
          (~optional (~seq #:AssignmentStatement use-assignment-statement:boolean))
+         (~optional (~seq #:ExpressionStatement use-expression-statement:boolean))
          (~optional (~seq #:MutableArrayAssignmentStatement
                           use-mutable-array-assignment-statement:boolean))
          (~optional (~seq #:MutableStructuralRecordAssignmentStatement
@@ -604,36 +616,29 @@ TODO - instead of defining a spec component, define macros that add elements to 
      #`(begin
          (add-to-grammar
           component
-
-          [Program #f ([definitions : Definition *]
-                       ;; TODO - what do I want the structure of these programs to be?  Just definitions?  Definitions then some statements?
-                       ;; TODO - probably I should have `program` be defined by the user, not by this macro.
-                       [Block])]
-
           [Statement #f ()
                      #:prop may-be-generated #f]
+          [ReturnStatement Statement (Expression)
+                           #:prop wont-over-deepen #t]
           [Block Statement ([definitions : Definition *]
                             [statements : Statement * = (add1 (random 5))])
                  #:prop strict-child-order? #t]
-          [ExpressionStatement Statement (Expression)
-                               #:prop wont-over-deepen #t]
           ;; TODO - these languages all have some kind of loop.  What kind of loop should I model here?  Maybe just “loop over an array”?
           [IfElseStatement Statement
                            ([test : Expression] [then : Block] [else : Block])])
          (add-prop
           component
           type-info
-          [Program [(fresh-type-variable)
-                    (λ (n t)
-                      (hash 'definitions (λ (c) (fresh-type-variable))
-                            'Block (λ (c) (fresh-type-variable))))]]
-
-
           ;;; Statements
 
           ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
           [Statement [(error 'type-info "Trying to type check as a statement without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Statement.")
                       no-child-types]]
+          [ReturnStatement [(return-type (fresh-type-variable))
+                            (λ (n t)
+                              (define inner (fresh-type-variable))
+                              (unify! (return-type inner) t)
+                              (hash 'Expression inner))]]
           [Block [(fresh-maybe-return-type)
                   (λ (n t)
                     (define statements (ast-children (ast-child 'statements n)))
@@ -643,17 +648,38 @@ TODO - instead of defining a spec component, define macros that add elements to 
                         (values s
                                 (if (eq? s last-statement)
                                     t
-                                    (fresh-no-return-type)))))
+                                    no-return-type))))
                     (for/fold ([dict statement-dict])
                               ([d (ast-children (ast-child 'definitions n))])
                       (dict-set dict d (fresh-type-variable))))]]
-          [ExpressionStatement [(fresh-no-return-type)
-                                (λ (n t) (hash 'Expression (fresh-type-variable)))]]
           [IfElseStatement [(fresh-maybe-return-type)
                             (λ (n t) (hash 'test bool
                                            'then t
                                            'else t))]])
 
+         #,@(if (use? use-program-with-block)
+                #'((add-to-grammar
+                    component
+                    [ProgramWithBlock
+                     #f ([definitions : Definition *]
+                         [Block])
+                     #:prop type-info
+                     [(fresh-type-variable)
+                      (λ (n t)
+                        (hash 'definitions (λ (c) (fresh-type-variable))
+                              'Block (λ (c) no-return-type)))]]))
+                #'())
+
+         #,@(if (use? use-expression-statement)
+                #'((add-to-grammar
+                    component
+                    [ExpressionStatement
+                     Statement (Expression)
+                     #:prop wont-over-deepen #t
+                     #:prop type-info
+                     [no-return-type
+                      (λ (n t) (hash 'Expression (fresh-type-variable)))]]))
+                #'())
 
          #,@(if (use? use-assignment-statement)
                 #'((add-to-grammar
@@ -661,8 +687,9 @@ TODO - instead of defining a spec component, define macros that add elements to 
                     [AssignmentStatement
                      Statement (name Expression)
                      #:prop reference-info (write name #:unifies Expression)
+                     #:prop wont-over-deepen #t
                      #:prop type-info
-                     [(fresh-no-return-type)
+                     [no-return-type
                       (λ (n t) (hash 'Expression (fresh-type-variable)))]]))
                 #'())
          #,@(if (use? use-mutable-array-assignment-statement)
@@ -674,7 +701,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                       [index : Expression]
                       [newvalue : Expression])
                      #:prop type-info
-                     [(fresh-no-return-type)
+                     [no-return-type
                       (λ (n t)
                         (define inner (fresh-type-variable))
                         (hash 'array (mutable (array-type inner))
@@ -690,7 +717,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                       [record : VariableReference]
                       [newvalue : Expression])
                      #:prop type-info
-                     [(fresh-no-return-type)
+                     [no-return-type
                       mutable-structural-record-assignment-type-rhs]]))
                 #'())
 
@@ -711,12 +738,11 @@ TODO - instead of defining a spec component, define macros that add elements to 
 
 ;; Statement types
 (define-generic-type return-type (type))
-(define-generic-type no-return-type (type))
+(define no-return-type (base-type 'no-return-type))
 
 (define (fresh-maybe-return-type)
   (fresh-type-variable (return-type (fresh-type-variable))
-                       (no-return-type (fresh-type-variable))))
-(define (fresh-no-return-type) (no-return-type (fresh-type-variable)))
+                       no-return-type))
 
 ;; Expression types
 (type-variable-subtype-default #t)

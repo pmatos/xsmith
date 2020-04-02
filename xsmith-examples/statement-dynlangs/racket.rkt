@@ -13,7 +13,8 @@
 (define-spec-component racket-comp)
 
 (add-basic-expressions racket-comp
-                       #:Program #t
+                       #:ProgramWithSequence #t
+                       #:VoidExpression #t
                        #:AssignmentExpression #t
                        #:IfExpression #t
                        #:ExpressionSequence #t
@@ -49,27 +50,34 @@
  racket-comp
  render-node-info
 
- [Program (λ (n)
-            `((define (safe-divide numerator divisor)
-                (if (equal? 0 divisor)
-                    0
-                    (/ numerator divisor)))
-              (define (safe-car list fallback)
-                (if (null? list)
-                    fallback
-                    (car list)))
-              (define (safe-cdr list fallback)
-                (if (null? list)
-                    fallback
-                    (cdr list)))
-              ,@(render-children 'definitions n)
-              ,(render-child 'Expression n)))]
+ [ProgramWithSequence
+  (λ (n)
+    `((define (safe-divide numerator divisor)
+        (if (equal? 0 divisor)
+            0
+            (/ numerator divisor)))
+      (define (safe-car list fallback)
+        (if (null? list)
+            fallback
+            (car list)))
+      (define (safe-cdr list fallback)
+        (if (null? list)
+            fallback
+            (cdr list)))
+      ,@(render-children 'definitions n)
+      ,(render-child 'ExpressionSequence n)
+      #;(begin
+        ,@(for/list ([c (ast-children (ast-child 'definitions n))])
+            `(printf "Variable ~a value: ~v\n"
+                     ',(att-value 'name c)
+                     ,(att-value 'name c))))))]
 
  [Definition (λ (n)
-               `(define ,(ast-child 'name n)
+               `(define ,(string->symbol (ast-child 'name n))
                   ,(render-child 'Expression n)))]
  [AssignmentExpression
-  (λ (n) `(set! ,(ast-child 'name n) ,(render-child 'newvalue n)))]
+  (λ (n) `(set! ,(string->symbol (ast-child 'name n))
+                ,(render-child 'newvalue n)))]
  [ExpressionSequence
   (λ (n)
     `(begin
@@ -77,10 +85,10 @@
        ,(render-child 'finalexpression n)))]
  [LetSequential
   (λ (n)
-    `(let* (,@(map (λ (dn) `[,(ast-child 'name dn)
+    `(let* (,@(map (λ (dn) `[,(string->symbol (ast-child 'name dn))
                              ,(render-child 'Expression dn)])
                    (ast-children (ast-child 'definitions n))))
-       ,(render-child 'Expression n)))]
+       ,(render-child 'body n)))]
 
  [IfExpression
   (λ (n)
@@ -88,13 +96,13 @@
          ,(render-child 'then n)
          ,(render-child 'else n)))]
 
- [VariableReference (λ (n) (ast-child 'name n))]
+ [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
 
  [ProcedureApplication
   (λ (n)
     `(#%app ,(render-child 'procedure n)
             ,@(render-children 'arguments n)))]
- [FormalParameter (λ (n) (ast-child 'name n))]
+ [FormalParameter (λ (n) (string->symbol (ast-child 'name n)))]
  [LambdaWithExpression
   (λ (n)
     `(lambda (,@(render-children 'parameters n))
@@ -170,11 +178,12 @@
                        (ast-children (ast-child 'expressions n)))))]
  [ImmutableStructuralRecordLiteral
   (λ (n)
-    `(hash ,@(flatten (map (λ (name val)
-                             `(',name
-                               ,(render-node val)))
-                           (ast-child 'fieldnames n)
-                           (ast-children (ast-child 'expressions n))))))]
+    `(hash ,@(apply append
+                    (map (λ (name val)
+                           `(',name
+                             ,(render-node val)))
+                         (ast-child 'fieldnames n)
+                         (ast-children (ast-child 'expressions n))))))]
  [MutableStructuralRecordReference
   (λ (n)
     `(hash-ref ,(render-child 'record n)
@@ -193,6 +202,7 @@
     `(hash-set ,(render-child 'record n)
                ',(ast-child 'fieldname n)
                ,(render-child 'newvalue n)))]
+ [VoidExpression (λ (n) '(void))]
  )
 
 
@@ -205,7 +215,7 @@
 (define (racket-generate)
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
-    (racket-generate-ast 'Program)))
+    (racket-generate-ast 'ProgramWithSequence)))
 
 (define (racket-format-render s-exps)
   (define out (open-output-string))

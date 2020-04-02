@@ -16,11 +16,14 @@
                        #:Booleans #t
                        #:Strings #t
                        #:MutableArray #t
-                       #:MutableStructuralRecord #t)
+                       #:MutableStructuralRecord #t
+                       )
 (add-basic-statements lua-comp
+                      #:ProgramWithBlock #t
                       #:AssignmentStatement #t
                       #:MutableArrayAssignmentStatement #t
-                      #:MutableStructuralRecordAssignmentStatement #t)
+                      #:MutableStructuralRecordAssignmentStatement #t
+                      )
 
 (define nest-step 4)
 (define (binary-op-renderer op-rendered)
@@ -41,30 +44,31 @@
  lua-comp
  render-node-info
 
- [Program (λ (n)
-            (define definitions (ast-children (ast-child 'definitions n)))
-            (v-append
-             ;; TODO - this definition maybe needs to change based on lua version.  Is there a way to do conditional evaluation based on which lua implementation I'm in?
-             ;; This modulo definition is from the Lua reference manual:
-             ;; http://www.lua.org/manual/5.2/manual.html#3.4.1
-             (text "modulo = function(a, b) return a - math.floor(a/b)*b end")
-             (text "safe_divide = function(a, b) return (b == 0) and a or (a / b) end")
-             (text "expression_statement_dummy_var = 0;")
-             (vb-concat
-              (list*
-               (text "")
-               (text "")
-               (map (λ (cn) (render-node cn))
-                    (append definitions
-                            (list (ast-child 'Block n))))))
-             (text "")
-             (apply v-append
-                    (map (λ (v) (text (format "print(~a)\n"
-                                              (ast-child 'name v))))
-                         (filter (λ (x) (base-type? (ast-child 'type x)))
-                                 definitions)))
-             ;; Hack to get a newline...
-             (text "")))]
+ [ProgramWithBlock
+  (λ (n)
+    (define definitions (ast-children (ast-child 'definitions n)))
+    (v-append
+     ;; TODO - this definition maybe needs to change based on lua version.  Is there a way to do conditional evaluation based on which lua implementation I'm in?
+     ;; This modulo definition is from the Lua reference manual:
+     ;; http://www.lua.org/manual/5.2/manual.html#3.4.1
+     (text "modulo = function(a, b) return a - math.floor(a/b)*b end")
+     (text "safe_divide = function(a, b) return (b == 0) and a or (a / b) end")
+     (text "expression_statement_dummy_var = 0;")
+     (vb-concat
+      (list*
+       (text "")
+       (text "")
+       (map (λ (cn) (render-node cn))
+            (append definitions
+                    (list (ast-child 'Block n))))))
+     (text "")
+     (apply v-append
+            (map (λ (v) (text (format "print(~a)\n"
+                                      (ast-child 'name v))))
+                 (filter (λ (x) (base-type? (ast-child 'type x)))
+                         definitions)))
+     ;; Hack to get a newline...
+     (text "")))]
 
  [Definition (λ (n)
                (h-append (text (ast-child 'name n))
@@ -90,9 +94,12 @@
      (text "end")))]
 
  ;; Lua doesn't actually allow expression statements.  Let's hack around that with an assignment to a dummy variable that is never read.
- [ExpressionStatement (λ (n) (h-append (text "expression_statement_dummy_var = ")
+ #;[ExpressionStatement (λ (n) (h-append (text "expression_statement_dummy_var = ")
                                        (render-node (ast-child 'Expression n))
                                        semi))]
+
+ [ReturnStatement (λ (n) (h-append (text "return ")
+                                   (render-node (ast-child 'Expression n))))]
 
  [AssignmentStatement
   (λ (n)
@@ -239,7 +246,7 @@
 (define (lua-generate)
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
-    (lua-generate-ast 'Program)))
+    (lua-generate-ast 'ProgramWithBlock)))
 
 (define (lua-format-render doc)
   (pretty-format doc 120))
