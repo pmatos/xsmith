@@ -12,7 +12,7 @@
 (define-spec-component lua-comp)
 
 (add-basic-expressions lua-comp
-                       #:LambdaWithExpression #t
+                       #:LambdaWithBlock #t
                        #:Booleans #t
                        #:Strings #t
                        #:MutableArray #t
@@ -147,14 +147,12 @@
                                     (ast-children (ast-child 'arguments n))))
                    rparen))]
  [FormalParameter (λ (n) (text (format "~a" (ast-child 'name n))))]
- [LambdaWithExpression
+ [LambdaWithBlock
   (λ (n) (h-append lparen
                    (text "function") lparen
                    (comma-list (map render-node
                                     (ast-children (ast-child 'parameters n))))
                    rparen
-                   space
-                   (text "return")
                    space
                    (render-node (ast-child 'body n))
                    space
