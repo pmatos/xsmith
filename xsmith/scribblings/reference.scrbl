@@ -107,7 +107,7 @@ Example:
 ]
 
 The main use of this is to do analyses where you need to look up the declaration node that a reference refers to.
-The @racket[binding] object returned by this function contains a reference to the binder node.
+The @racket[binding?] object returned by this function contains a reference to the binder node.
 When resolving references, the @seclink["scope-graph"]{scope graph model} is used.
 }
 
@@ -138,7 +138,7 @@ Note that the type of the node may be a not-yet-concretized type variable.
 @item{@racket['xsmith_get-reference!]
 This is a choice method that can be used when creating a reference node.
 If no binding of the appropriate type for the current node is in scope, this method will cause a fresh appropriate definition to be lifted into a node that can hold definitions.
-It returns a @racket[string?] of the reference name.
+It returns a @racket[binding?] of the reference, which you can use @racket[binding-name] on.
 
 Example:
 @racketblock[
@@ -147,7 +147,7 @@ Example:
 (code:comment "This will return the name of a variable in scope")
 (code:comment "that has type int or type bool.")
 (code:comment "It may make a new definition node to do that.")
-(define name (send this xsmith_get-reference!))
+(define name (binding-name (send this xsmith_get-reference!)))
 ]
 
 Note that the reference is @emph{choosing} one of the possible types (via @racket[concretize-type]).
@@ -165,13 +165,13 @@ It takes two additional parameters:
 @item{@italic{type}: @racket[concrete-type?] - the type you want the reference to be.  Note that it must be a concrete type.  If you want this type to be based somehow on the type of the node in question, use @racket[force-type-exploration-for-node!] so the node's type will be maximally concretely computed before you concretize it.}
 @item{@italic{write-reference?}: @racket[boolean?] - whether the reference will be used as a write reference.}
 ]
-It returns a @racket[string?] of the reference name.
+It returns a @racket[binding?] of the reference.
 
 Example:
 @racketblock[
 (code:comment "This will return the name of a variable in scope")
 (code:comment "with type int for a write reference")
-(define name (send this xsmith_get-reference! int #t))
+(define name (binding-name (send this xsmith_get-reference-for-child! int #t)))
 ]
 
 Like @rule[xsmith_get-reference!], it may cause a new definition to be lifted.
