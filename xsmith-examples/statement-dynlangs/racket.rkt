@@ -66,11 +66,11 @@
             (cdr list)))
       ,@(render-children 'definitions n)
       ,(render-child 'ExpressionSequence n)
-      #;(begin
+      (begin
         ,@(for/list ([c (ast-children (ast-child 'definitions n))])
             `(printf "Variable ~a value: ~v\n"
-                     ',(att-value 'name c)
-                     ,(att-value 'name c))))))]
+                     ',(string->symbol (ast-child 'name c))
+                     ,(string->symbol (ast-child 'name c)))))))]
 
  [Definition (λ (n)
                `(define ,(string->symbol (ast-child 'name n))
