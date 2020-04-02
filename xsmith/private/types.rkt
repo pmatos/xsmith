@@ -274,7 +274,7 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
     (cond [(null? work-list) transitive-members]
           [else
            (define maybe-new-ones (dir (car work-list)))
-           (define new-ones (set-subtract maybe-new-ones transitive-members))
+           (define new-ones (listeq-subtract maybe-new-ones transitive-members))
            (define new-transitive-members (set-union transitive-members new-ones))
            (define new-work-list (append new-ones (cdr work-list)))
            (loop new-transitive-members
@@ -1083,15 +1083,15 @@ TODO - when generating a record ref, I'll need to compare something like (record
                (set-intersect sup-lowers sub-uppers)))
 
   (define new-lowers
-    (set-subtract (apply set-union
-                         (map variable-lower-bounds
-                              intersection))
-                  intersection))
+    (listeq-subtract (apply set-union
+                            (map variable-lower-bounds
+                                 intersection))
+                     intersection))
   (define new-uppers
-    (set-subtract (apply set-union
-                         (map variable-upper-bounds
-                              intersection))
-                  intersection))
+    (listeq-subtract (apply set-union
+                            (map variable-upper-bounds
+                                 intersection))
+                     intersection))
   (list new-lowers new-uppers intersection))
 
 (define (squash-type-variables! sub super)
@@ -2037,7 +2037,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                        (variable-upper-bounds! t)))
                           (list))]
               [dones (cons (car init-todos) init-dones)]
-              [todo-bounds (set-subtract bounds dones)]
+              [todo-bounds (listeq-subtract bounds dones)]
               [todos (append todo-bounds (cdr init-todos))])
          (match t
            [(base-type _ _) (work vars todos dones)]
@@ -2069,7 +2069,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                   dones)]
 
            [(c-type-variable (list its ...) _ _)
-            (define not-done-inners (set-subtract its dones))
+            (define not-done-inners (listeq-subtract its dones))
             (work (cons t vars)
                   (append not-done-inners todos)
                   dones)]
@@ -2078,6 +2078,20 @@ TODO - when generating a record ref, I'll need to compare something like (record
                   todos
                   dones)]))]))
   (work '() (list orig-type) '()))
+
+
+;; This is a copy/pasted version of list-subtract from the `set` generic implementation.  The generic uses `equal?`-based testing, but I'm only using it on things where I want `eq?`-based testing.
+(define (listeq-subtract s . sets)
+  #;(for ([s2 (in-list sets)] [i (in-naturals 1)])
+    (unless (list? s2)
+      (apply raise-argument-error 'set-subtract "list?" i s sets)))
+  (for/fold
+      ([s1 '()])
+      ([x (in-list s)]
+       #:unless (for/or ([s2 (in-list sets)])
+                  (memq x s2)))
+    (cons x s1)))
+
 
 (module+ test
   (define v1 (fresh-type-variable))
