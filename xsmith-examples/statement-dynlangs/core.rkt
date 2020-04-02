@@ -33,7 +33,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
 ;(define-spec-component statement-dynlangs-core)
 
 
-(define array-max-length 10)
+;; Long arrays can sometimes create really long generation times, eg. for arrays of arrays of arrays of functions...
+(define array-max-length 4)
 (define max-effect-expressions 3)
 (define immutable-structural-record-type-constraint
   (λ (n)
