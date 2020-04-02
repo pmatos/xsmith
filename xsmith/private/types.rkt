@@ -2018,9 +2018,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
       (c-type-variable _ _ _)
       (c-structural-record-type _ _ _ _)
       (c-nominal-record-type _ _ _ _ _))
-     (not (set-empty?
-           (set-intersect (type->type-variable-list t)
-                          vs)))]))
+     (for/or ([it (type->type-variable-list t)])
+       (memq it vs))]))
 
 ;;; Returns a list of every type variable contained in a type or related as an upper/lower bound.
 (define (type->type-variable-list orig-type*)
