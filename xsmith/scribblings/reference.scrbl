@@ -171,7 +171,7 @@ Example:
 @racketblock[
 (code:comment "This will return the name of a variable in scope")
 (code:comment "with type int for a write reference")
-(define name (send this xsmith_get-reference! int #t))
+(define name (send this xsmith_get-reference-for-child! int #t))
 ]
 
 Like @rule[xsmith_get-reference!], it may cause a new definition to be lifted.
