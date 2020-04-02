@@ -79,7 +79,7 @@
   (λ (n)
     `(let* (,@(map (λ (dn) `[,(ast-child 'name dn)
                              ,(render-child 'Expression dn)])
-                   (ast-children (ast-child 'definitions))))
+                   (ast-children (ast-child 'definitions n))))
        ,(render-child 'Expression n)))]
 
  [IfExpression
