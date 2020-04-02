@@ -1492,7 +1492,6 @@ The second arm is a function that takes the type that the node has been assigned
                                   (type->type-variable-list hole-type)))
 
       (define (break?!)
-        ;; TODO - right now removing breaks fixes issues.  Probably I need to re-think the conditions under which I can terminate early with subtype unification rather than symmetric unification.
         (when (concrete-type? hole-type)
           (break!! #t))
         (when (not (can-unify? hole-type type-constraint))
