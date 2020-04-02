@@ -1,5 +1,5 @@
 #!/usr/bin/env racket
-#lang racket/base
+#lang xsmith/private/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2020 The University of Utah
@@ -33,6 +33,8 @@
 
 (require
  xsmith
+ xsmith/private/random
+ (submod xsmith/private/random distributions)  ;; for probability distributions
  racr
  xsmith/racr-convenience
  pprint
@@ -43,7 +45,6 @@
  racket/port
  racket/string
  ;;
- math/distributions ; for probability distributions
  )
 
 (define min-modules
@@ -70,44 +71,45 @@
 ;;
 ;;
 
-(define random-module-count-dist
+(define (random-module-count-dist)
   (binomial-dist (- (max-modules) (min-modules)) 0.5))
 
 (define (random-module-count)
   (+ (min-modules)
-     (inexact->exact (floor (sample random-module-count-dist)))))
+     (inexact->exact (floor (sample (random-module-count-dist))))))
 
 ;;
 ;;
 ;;
 
-(define random-module-item-count-dist
+(define (random-module-item-count-dist)
   (binomial-dist (- (max-module-items) (min-module-items)) 0.5))
 
 (define (random-module-item-count)
   (+ (min-module-items)
-     (inexact->exact (floor (sample random-module-item-count-dist)))))
+     (inexact->exact (floor (sample (random-module-item-count-dist))))))
 
 ;;
 ;;
 ;;
 
-(define random-block-statement-count-dist
+(define (random-block-statement-count-dist)
   (binomial-dist (- (max-block-statements) (min-block-statements)) 0.5))
 
 (define (random-block-statement-count)
   (+ (min-block-statements)
-     (inexact->exact (floor (sample random-block-statement-count-dist)))))
+     (inexact->exact (floor (sample (random-block-statement-count-dist))))))
 
 ;;
 ;;
 ;;
 
-(define random-small-const-int-dist (geometric-dist 0.05))
+(define (random-small-const-int-dist)
+  (geometric-dist 0.05))
 
 (define (random-small-const-int min)
   (+ min
-     (inexact->exact (floor (sample random-small-const-int-dist)))))
+     (inexact->exact (floor (sample (random-small-const-int-dist))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
