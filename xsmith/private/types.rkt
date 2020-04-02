@@ -905,11 +905,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
        (match (list inner1 inner2)
          [(list #f #f)
-          (when (not (member super (product-type-upper-bounds sub)))
+          (when (not (memq super (product-type-upper-bounds sub)))
             (set-product-type-upper-bounds!
              sub
              (cons super (product-type-upper-bounds sub))))
-          (when (not (member sub (product-type-lower-bounds super)))
+          (when (not (memq sub (product-type-lower-bounds super)))
             (set-product-type-lower-bounds!
              super
              (cons sub (product-type-lower-bounds super))))]
@@ -1004,7 +1004,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
               [work-list (cdr work-list)])
           (define (fold-body dones work lower upper)
             (cond
-              [(member (cons lower upper) dones) (values dones work)]
+              [(member (cons lower upper)
+                       dones
+                       (λ (x y) (and (eq? (car x) (car y))
+                                     (eq? (cdr x) (cdr y)))))
+               (values dones work)]
               [else
                (match-define (list subchange superchange)
                  (subtype-unify!-func lower upper))
@@ -1050,10 +1054,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (define tvi-sub-lowers (variable-transitive-lower-bounds tvi-sub))
   (define already-done?
     (or (eq? tvi-sub tvi-sup)
-        (member tvi-sup tvi-sub-uppers)))
+        (memq tvi-sup tvi-sub-uppers)))
   (define squash-case?
     ;; When a lower bound needs to become an upper bound, it means they need to be unified/squashed.
-    (member tvi-sup tvi-sub-lowers))
+    (memq tvi-sup tvi-sub-lowers))
 
   (cond
     [already-done? (void)]
@@ -2027,7 +2031,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (define (work vars init-todos init-dones)
     (cond
       [(null? init-todos) vars]
-      [(member (car init-todos) init-dones)
+      [(memq (car init-todos) init-dones)
        (work vars (cdr init-todos) init-dones)]
       [else
        (let* ([t (canonicalize-if-variable (car init-todos))]
