@@ -71,8 +71,13 @@
 ;;
 ;;
 
-(define (random-module-count-dist)
-  (binomial-dist (- (max-modules) (min-modules)) 0.5))
+(define random-module-count-dist
+  (let [(dist #f)]
+    (λ ()
+      (unless dist
+        (set! dist
+              (binomial-dist (- (max-modules) (min-modules)) 0.5)))
+      dist)))
 
 (define (random-module-count)
   (+ (min-modules)
@@ -82,8 +87,13 @@
 ;;
 ;;
 
-(define (random-module-item-count-dist)
-  (binomial-dist (- (max-module-items) (min-module-items)) 0.5))
+(define random-module-item-count-dist
+  (let [(dist #f)]
+    (λ ()
+      (unless dist
+        (set! dist
+              (binomial-dist (- (max-module-items) (min-module-items)) 0.5)))
+      dist)))
 
 (define (random-module-item-count)
   (+ (min-module-items)
@@ -93,8 +103,14 @@
 ;;
 ;;
 
-(define (random-block-statement-count-dist)
-  (binomial-dist (- (max-block-statements) (min-block-statements)) 0.5))
+(define random-block-statement-count-dist
+  (let [(dist #f)]
+    (λ ()
+      (unless dist
+        (set! dist
+              (binomial-dist (- (max-block-statements) (min-block-statements))
+                             0.5)))
+      dist)))
 
 (define (random-block-statement-count)
   (+ (min-block-statements)
@@ -104,8 +120,13 @@
 ;;
 ;;
 
-(define (random-small-const-int-dist)
-  (geometric-dist 0.05))
+(define random-small-const-int-dist
+  (let [(dist #f)]
+    (λ ()
+      (unless dist
+        (set! dist
+              (geometric-dist 0.05)))
+      dist)))
 
 (define (random-small-const-int min)
   (+ min
