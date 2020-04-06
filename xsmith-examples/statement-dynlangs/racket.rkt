@@ -68,9 +68,11 @@
       ,(render-child 'ExpressionSequence n)
       (begin
         ,@(for/list ([c (ast-children (ast-child 'definitions n))])
-            `(printf "Variable ~a value: ~v\n"
-                     ',(string->symbol (ast-child 'name c))
-                     ,(string->symbol (ast-child 'name c)))))))]
+            (if (base-type? (concretize-type (att-value 'xsmith_type c)))
+                `(printf "Variable ~a value: ~v\n"
+                         ',(string->symbol (ast-child 'name c))
+                         ,(string->symbol (ast-child 'name c)))
+                '(void))))))]
 
  [Definition (λ (n)
                `(define ,(string->symbol (ast-child 'name n))
@@ -171,11 +173,11 @@
 
  [MutableStructuralRecordLiteral
   (λ (n)
-    `(make-hash ,@(map (λ (name val)
-                         `(cons ',name
-                                ,(render-node val)))
-                       (ast-child 'fieldnames n)
-                       (ast-children (ast-child 'expressions n)))))]
+    `(make-hash (list ,@(map (λ (name val)
+                               `(cons ',name
+                                      ,(render-node val)))
+                             (ast-child 'fieldnames n)
+                             (ast-children (ast-child 'expressions n))))))]
  [ImmutableStructuralRecordLiteral
   (λ (n)
     `(hash ,@(apply append
@@ -221,7 +223,8 @@
   (define out (open-output-string))
   (for ([symex s-exps])
     (pretty-print symex out 1))
-  (get-output-string out))
+  (format "#lang racket/base\n~a"
+          (get-output-string out)))
 
 (module+ main
   (xsmith-command-line
