@@ -463,6 +463,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      ([array : VariableReference]
                       [index : Expression]
                       [newvalue : Expression])
+                     #:prop io #t
                      #:prop type-info
                      [void-type mutable-array-assignment-type-rhs]]))
                 #'())
@@ -590,6 +591,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      ([fieldname = (random-field-name)]
                       [record : VariableReference]
                       [newvalue : Expression])
+                     #:prop io #t
                      #:prop type-info
                      [void-type mutable-structural-record-assignment-type-rhs]]))
                 #'())
@@ -700,6 +702,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      ([array : VariableReference]
                       [index : Expression]
                       [newvalue : Expression])
+                     #:prop io #t
                      #:prop type-info
                      [no-return-type
                       (λ (n t)
@@ -716,6 +719,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      ([fieldname = (random-field-name)]
                       [record : VariableReference]
                       [newvalue : Expression])
+                     #:prop io #t
                      #:prop type-info
                      [no-return-type
                       mutable-structural-record-assignment-type-rhs]]))
