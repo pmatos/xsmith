@@ -36,7 +36,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
 ;; Long arrays can sometimes create really long generation times, eg. for arrays of arrays of arrays of functions...
 (define array-max-length 4)
 (define max-effect-expressions 3)
-(define immutable-structural-record-type-constraint
+(define (immutable-structural-record-type-constraint single?)
   (λ (n)
     (if (att-value 'xsmith_is-hole? n)
         (immutable
@@ -44,7 +44,9 @@ TODO - instead of defining a spec component, define macros that add elements to 
         (immutable
          (fresh-structural-record-type
           #:finalized? #t
-          (for/hash ([k (ast-child 'fieldnames n)])
+          (for/hash ([k (if single?
+                            (list (ast-child 'fieldname n))
+                            (ast-child 'fieldnames n))])
             (values k (fresh-type-variable))))))))
 (define mutable-structural-record-assignment-type-rhs
   (λ (n t)
@@ -493,7 +495,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                        (hash 'fieldnames all-fields
                              'expressions (length all-fields)))
                      #:prop type-info
-                     [immutable-structural-record-type-constraint
+                     [(immutable-structural-record-type-constraint #f)
                       (λ (n t)
                         (define fsrt (fresh-structural-record-type))
                         (define mfsrt (immutable fsrt))
@@ -519,7 +521,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                       [record : Expression]
                       [newvalue : Expression])
                      #:prop type-info
-                     [immutable-structural-record-type-constraint
+                     [(immutable-structural-record-type-constraint #t)
                       (λ (n t)
                         (define inner-t (fresh-type-variable))
                         (unify! (immutable (fresh-structural-record-type
