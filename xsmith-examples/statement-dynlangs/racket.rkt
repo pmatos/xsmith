@@ -72,8 +72,12 @@
                                   val
                                   (vector-ref vec i))))))
       ,@(render-children 'definitions n)
-      ,(render-child 'ExpressionSequence n)
+      (define program-result ,(render-child 'ExpressionSequence n))
       (begin
+        ,(if (base-type? (att-value 'xsmith_type
+                                    (ast-child 'ExpressionSequence n)))
+             '(printf "Program body result: ~v\n" program-result)
+             '(void))
         ,@(for/list ([c (ast-children (ast-child 'definitions n))])
             (if (base-type? (concretize-type (att-value 'xsmith_type c)))
                 `(printf "Variable ~a value: ~v\n"
