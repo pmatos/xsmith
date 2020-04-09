@@ -64,6 +64,14 @@
         (if (null? list)
             fallback
             (cdr list)))
+      (define (immutable-vector-set vec index-raw val)
+        (define index (modulo index-raw (vector-length vec)))
+        (define new-val ,(render-child 'newvalue n))
+        (vector->immutable-vector
+         (build-vector (vector-length vec)
+                       (λ (i) (if (equal? index)
+                                  val
+                                  (vector-ref vec i))))))
       ,@(render-children 'definitions n)
       ,(render-child 'ExpressionSequence n)
       (begin
@@ -164,12 +172,9 @@
                   ,(render-child 'newvalue n)))]
  [ImmutableArraySet
   (λ (n)
-    (define array-rendered (render-child 'array n))
-    `(let ([vec ,(render-child 'array n)])
-       (vector-set vec
-                   (modulo ,(render-child 'index n)
-                           (vector-length vec))
-                   ,(render-child 'newvalue n))))]
+    `(immutable-vector-set ,(render-child 'array n)
+                           ,(render-child 'index n)
+                           ,(render-child 'newvalue n)))]
 
  [MutableStructuralRecordLiteral
   (λ (n)
