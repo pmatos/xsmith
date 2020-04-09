@@ -66,7 +66,6 @@
             (cdr list)))
       (define (immutable-vector-set vec index-raw val)
         (define index (modulo index-raw (vector-length vec)))
-        (define new-val ,(render-child 'newvalue n))
         (vector->immutable-vector
          (build-vector (vector-length vec)
                        (λ (i) (if (equal? index)
