@@ -68,7 +68,7 @@
         (define index (modulo index-raw (vector-length vec)))
         (vector->immutable-vector
          (build-vector (vector-length vec)
-                       (λ (i) (if (equal? index)
+                       (λ (i) (if (equal? i index)
                                   val
                                   (vector-ref vec i))))))
       ,@(render-children 'definitions n)
