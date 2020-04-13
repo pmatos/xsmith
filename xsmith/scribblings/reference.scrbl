@@ -34,9 +34,11 @@
 "util.rkt"
 (for-label
 (except-in xsmith/private/base
-           module)
+           module
+           string)
 xsmith
 xsmith/racr-convenience
+xsmith/canned-components
 
 racket/contract/base
 racket/dict
@@ -1836,6 +1838,178 @@ Calls @racket[parent-node] until it reaches the last parent, and returns it.
 @defproc[(node-subtype? [n any/c]) any/c]{
 Wrapper for @racket[ast-subtype?] that returns #f rather than erroring when the given node is a bud, list, or non-node.
 }
+
+
+@section{Canned Components}
+@defmodule[xsmith/canned-components]
+
+The abstract grammars for many languages are very similar.
+We provide a library of canned components to get fuzzers up and running quickly for languages that include common patterns.
+
+Note that @racket[add-basic-expressions] and @racket[add-basic-statements] aren't good abstractions, they just facilitate some shared code of common components.  You ultimately still have to know the structure of all components added.
+
+The canned-components also export various types that the canned grammar nodes use.
+Of note, statements use two statement types: @racket[return-type] and @racket[no-return-type].
+The expressions use all the other provided types.
+
+@defform[(add-basic-expressions grammar-component optional ...)
+         #:grammar
+         [(optional
+           [#:ProgramWithSequence boolean]
+           [#:VoidExpression boolean]
+           [#:AssignmentExpression boolean]
+           [#:IfExpression boolean]
+           [#:LambdaWithExpression boolean]
+           [#:LambdaWithBlock boolean]
+           [#:LetSequential boolean]
+           [#:ExpressionSequence boolean]
+           [#:Booleans boolean]
+           [#:Strings boolean]
+           [#:MutableArray boolean]
+           [#:MutableArraySafeAssignmentExpression boolean]
+           [#:ImmutableArray boolean]
+           [#:ImmutableList boolean]
+           [#:MutableStructuralRecord boolean]
+           [#:MutableStructuralRecordAssignmentExpression boolean]
+           [#:ImmutableStructuralRecord boolean]
+           )]]{
+Extends @racket[grammar-component] with an expression language.
+All nodes added come with @racket[type-info] and other necessary properties specified, but they lack the @racket[render-node-info].
+In other words, this form gives you everything but the pretty printing for these parts of your language.
+
+TODO - maybe just show the add-to-grammar segments in the lists of what is added.
+For now, you really just need to look at the source of canned-components to see what it is.  It's not a real abstraction, but I don't want to tediously document all the internal names right now.
+
+The following top-level node types are always added to the grammar:
+
+@itemlist[
+@item{An abstract @tt{Expression} node (IE @racket[may-be-generated] is false).}
+@item{@tt{Definition} with children @tt{type}, @tt{name}}
+@item{@tt{FormalParameter} with @tt{type}, @tt{name}}
+]
+
+If @racket[#:ProgramWithSequence] is true,
+@tt{(ProgramWithSequence #f ([definitions : Definition *] ExpressionSequence))}
+is added.  Use this when your language is free from the nonsense of statements.
+
+The following @tt{Expression} node types are always added:
+
+TODO - document all of the field names
+
+@itemlist[
+@item{@tt{VariableReference} with @tt{name}}
+@item{@tt{ProcedureApplication}}
+@;@item{@tt{NumberLiteral} (abstract)}
+@item{@tt{IntLiteral} -- uses @racket[int] type}
+@item{@tt{Plus}}
+@item{@tt{Minus}}
+@item{@tt{Times}}
+@item{@tt{SafeDivide}}
+@item{@tt{LessThan}}
+@item{@tt{GreaterThan}}
+]
+
+Other options mostly add a single node type with the same name as the option.  The exceptions are:
+
+TODO
+
+
+Type considerations:
+@itemlist[
+@item{Numeric operations provided operate on the @racket[number] type.}
+@item{Arrays use either @racket[(mutable (array-type (fresh-type-variable)))] or @racket[(immutable (array-type (fresh-type-variable)))].}
+@item{Structural records use either @racket[(mutable (fresh-structural-record-type))] or @racket[(immutable (fresh-structural-record-type))].}
+@item{Lists use @racket[(immutable (list-type (fresh-type-variable)))]}
+]
+}
+
+
+@defform[(add-basic-statements grammar-component optional ...)
+         #:grammar
+         [(optional
+           [#:ProgramWithBlock boolean]
+           [#:AssignmentStatement boolean]
+           [#:ExpressionStatement boolean]
+           [#:MutableArraySafeAssignmentStatement boolean]
+           [#:MutableStructuralRecordAssignmentStatement boolean]
+           )]]{
+Like @racket[add-basic-expressions], extends @racket[grammar-component] with a statement language, providing all necessary properties except @racket[render-node-info].
+If you use @racket[add-basic-statements], you must use @racket[add-basic-expressions] as well.
+
+TODO - maybe just show the add-to-grammar segments in the lists of what is added.
+For now, you really just need to look at the source of canned-components to see what it is.  It's not a real abstraction, but I don't want to tediously document all the internal names right now.
+
+The following node types are always added to the grammar:
+
+@itemlist[
+@item{An abstract @tt{Statement} node (IE @racket[may-be-generated] is false).}
+@item{@tt{ReturnStatement} with @tt{Expression}}
+@item{@tt{Block} (a Statement subtype) with @tt{definitions} and @tt{statements}}
+@item{@tt{IfElseStatement} with @tt{test} @tt{then} @tt{else}}
+]
+
+The optional arguments add a node with the same name as the keyword.
+
+
+Type considerations:
+@itemlist[
+@item{@tt{ReturnStatement} is of type @racket[(return-type (fresh-type-variable))]}
+@item{@tt{Block} and @tt{IfElseStatement} are of type @racket[(fresh-maybe-return-type)]}
+@item{@tt{AssignmentStatement}, @tt{ExpressionStatement}, and others are of type @racket[no-return-type]}
+]
+}
+
+
+@defproc[(return-type [t type?]) type?]{
+A type used for statements in return position.
+
+This is used to encode where a return statement is needed and what type it must be.
+In other words, the block in a @tt{LambdaWithBlock} has @racket[return-type], the last statement in the block is unified to have the same type.
+
+For the curious, it is implemented as a @racket[generic-type?] with a covariant inner type.
+}
+
+@defthing[no-return-type base-type?]{
+A type for statements that don't return.  In other words, it's @racket[void-type] for statements.
+}
+
+@defproc[(fresh-maybe-return-type) type?]{
+Use this for compound statements that can optionally contain a return statement.
+
+IE @racket[(fresh-type-variable (return-type (fresh-type-variable)) no-return-type)].
+}
+
+@defthing[void-type base-type?]{
+A void type.  Used by @tt{AssignmentExpression} and the like.
+}
+@defthing[number base-type?]{}
+@defthing[int base-type?]{Subtype of @racket[number]}
+@defthing[float base-type?]{Subtype of @racket[number]}
+@defthing[bool base-type?]{}
+@defthing[string base-type?]{}
+
+@defproc[(mutable [t type?]) type?]{
+Used for encoding mutable versions of types.
+Eg. canned components provide @racket[(mutable (array-type (fresh-type-variable)))] and similar.
+
+It is implemented as a @racket[generic-type?] with a covariant inner type.
+}
+@defproc[(immutable [t type?]) type?]{
+Used for encoding immutable versions of types, much like @racket[mutable].
+}
+
+@defproc[(array-type [t type?]) type?]{
+Constructor for array types.
+Implemented as a @racket[generic-type?] with a covariant inner type.
+The canned components only use this wrapped in @racket[mutable] or @racket[immutable].
+}
+
+@defproc[(list-type [t type?]) type?]{
+Constructor for list types.
+Implemented as a @racket[generic-type?] with a covariant inner type.
+The canned components only use this wrapped in @racket[mutable] or @racket[immutable].
+}
+
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
