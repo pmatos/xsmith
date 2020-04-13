@@ -24,7 +24,7 @@
                        #:Strings #t
                        #:ImmutableList #t
                        #:MutableArray #t
-                       #:MutableArrayAssignmentExpression #t
+                       #:MutableArraySafeAssignmentExpression #t
                        #:ImmutableArray #t
                        #:MutableStructuralRecord #t
                        #:MutableStructuralRecordAssignmentExpression #t
@@ -154,26 +154,26 @@
   (λ (n) `(vector ,@(render-children 'expressions n)))]
  [ImmutableArrayLiteral
   (λ (n) `(vector-immutable ,@(render-children 'expressions n)))]
- [MutableArrayReference
+ [MutableArraySafeReference
   (λ (n)
     (define array-rendered (render-child 'array n))
     `(vector-ref ,array-rendered
                  (modulo ,(render-child 'index n)
                          (vector-length ,array-rendered))))]
- [ImmutableArrayReference
+ [ImmutableArraySafeReference
   (λ (n)
     `(let ([vec ,(render-child 'array n)])
        (vector-ref vec
                    (modulo ,(render-child 'index n)
                            (vector-length vec)))))]
- [MutableArrayAssignmentExpression
+ [MutableArraySafeAssignmentExpression
   (λ (n)
     (define array-rendered (render-child 'array n))
     `(vector-set! ,array-rendered
                   (modulo ,(render-child 'index n)
                           (vector-length ,array-rendered))
                   ,(render-child 'newvalue n)))]
- [ImmutableArraySet
+ [ImmutableArraySafeSet
   (λ (n)
     `(immutable-vector-set ,(render-child 'array n)
                            ,(render-child 'index n)

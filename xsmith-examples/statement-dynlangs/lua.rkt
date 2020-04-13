@@ -21,7 +21,7 @@
 (add-basic-statements lua-comp
                       #:ProgramWithBlock #t
                       #:AssignmentStatement #t
-                      #:MutableArrayAssignmentStatement #t
+                      #:MutableArraySafeAssignmentStatement #t
                       #:MutableStructuralRecordAssignmentStatement #t
                       )
 
@@ -191,7 +191,7 @@
                    (comma-list (map render-node
                                     (ast-children (ast-child 'expressions n))))
                    rbrace))]
- [MutableArrayReference
+ [MutableArraySafeReference
   ;; Lua's array index should start at 1.  And we should define a modulus function, one of the many... frustrating parts of lua is that there wasn't a built-in modulus operator until recently.  So to fuzz older versions we need to define a function for it.
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
@@ -200,7 +200,7 @@
               (render-node (ast-child 'index n))
               comma space (text "#") array-rendered
               rparen (text " + 1") rbracket))]
- [MutableArrayAssignmentStatement
+ [MutableArraySafeAssignmentStatement
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
     (h-append array-rendered

@@ -129,8 +129,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
          (~optional (~seq #:Booleans use-booleans:boolean))
          (~optional (~seq #:Strings use-strings:boolean))
          (~optional (~seq #:MutableArray use-mutable-array:boolean))
-         (~optional (~seq #:MutableArrayAssignmentExpression
-                          use-mutable-array-assignment-expression:boolean))
+         (~optional (~seq #:MutableArraySafeAssignmentExpression
+                          use-mutable-array-safe-assignment-expression:boolean))
          (~optional (~seq #:ImmutableArray use-immutable-array:boolean))
          (~optional (~seq #:ImmutableList use-immutable-list:boolean))
          (~optional (~seq #:MutableStructuralRecord
@@ -365,11 +365,13 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      ;; Be sure arrays are never empty.
                      ([expressions : Expression * = (add1 (random array-max-length))])
                      #:prop wont-over-deepen #t]
-                    [ImmutableArrayReference Expression ([array : VariableReference]
-                                                         [index : Expression])]
-                    [ImmutableArraySet Expression ([array : VariableReference]
-                                                   [index : Expression]
-                                                   [newvalue : Expression])])
+                    [ImmutableArraySafeReference
+                     Expression ([array : VariableReference]
+                                 [index : Expression])]
+                    [ImmutableArraySafeSet
+                     Expression ([array : VariableReference]
+                                 [index : Expression]
+                                 [newvalue : Expression])])
                    (add-prop
                     component
                     type-info
@@ -379,19 +381,21 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                               (define at (immutable (array-type et)))
                                               (subtype-unify! at t)
                                               (hash 'expressions et))]]
-                    [ImmutableArrayReference [(fresh-type-variable)
-                                              (λ (n t) (hash 'index int
-                                                             'array (immutable
-                                                                     (array-type t))))]]
-                    [ImmutableArraySet [(immutable (fresh-array-type))
-                                        (λ (n t)
-                                          (define inner-t (fresh-type-variable))
-                                          (unify! (immutable
-                                                   (array-type inner-t))
-                                                  t)
-                                          (hash 'index int
-                                                'array t
-                                                'newvalue inner-t))]]))
+                    [ImmutableArraySafeReference
+                     [(fresh-type-variable)
+                      (λ (n t) (hash 'index int
+                                     'array (immutable
+                                             (array-type t))))]]
+                    [ImmutableArraySafeSet
+                     [(immutable (fresh-array-type))
+                      (λ (n t)
+                        (define inner-t (fresh-type-variable))
+                        (unify! (immutable
+                                 (array-type inner-t))
+                                t)
+                        (hash 'index int
+                              'array t
+                              'newvalue inner-t))]]))
                 #'())
 
          #,@(if (use? use-immutable-list)
@@ -448,7 +452,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                         (define at (mutable (array-type et)))
                         (subtype-unify! at t)
                         (hash 'expressions et))]]
-                    [MutableArrayReference
+                    [MutableArraySafeReference
                      Expression ([array : VariableReference]
                                  [index : Expression])
                      #:prop type-info
@@ -457,10 +461,10 @@ TODO - instead of defining a spec component, define macros that add elements to 
                                      'array (mutable
                                              (array-type t))))]]))
                 #'())
-         #,@(if (use? use-mutable-array-assignment-expression)
+         #,@(if (use? use-mutable-array-safe-assignment-expression)
                 #'((add-to-grammar
                     component
-                    [MutableArrayAssignmentExpression
+                    [MutableArraySafeAssignmentExpression
                      Expression
                      ([array : VariableReference]
                       [index : Expression]
@@ -610,8 +614,8 @@ TODO - instead of defining a spec component, define macros that add elements to 
          (~optional (~seq #:ProgramWithBlock use-program-with-block:boolean))
          (~optional (~seq #:AssignmentStatement use-assignment-statement:boolean))
          (~optional (~seq #:ExpressionStatement use-expression-statement:boolean))
-         (~optional (~seq #:MutableArrayAssignmentStatement
-                          use-mutable-array-assignment-statement:boolean))
+         (~optional (~seq #:MutableArraySafeAssignmentStatement
+                          use-mutable-array-safe-assignment-statement:boolean))
          (~optional (~seq #:MutableStructuralRecordAssignmentStatement
                           use-mutable-structural-record-assignment-statement:boolean))
          )
@@ -696,10 +700,10 @@ TODO - instead of defining a spec component, define macros that add elements to 
                      [no-return-type
                       (λ (n t) (hash 'Expression (fresh-type-variable)))]]))
                 #'())
-         #,@(if (use? use-mutable-array-assignment-statement)
+         #,@(if (use? use-mutable-array-safe-assignment-statement)
                 #'((add-to-grammar
                     component
-                    [MutableArrayAssignmentStatement
+                    [MutableArraySafeAssignmentStatement
                      Statement
                      ([array : VariableReference]
                       [index : Expression]

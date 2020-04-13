@@ -22,7 +22,7 @@
                       #:ProgramWithBlock #t
                       #:ExpressionStatement #t
                       #:AssignmentStatement #t
-                      #:MutableArrayAssignmentStatement #t
+                      #:MutableArraySafeAssignmentStatement #t
                       #:MutableStructuralRecordAssignmentStatement #t
                       )
 
@@ -166,7 +166,7 @@
                    (comma-list (map render-node
                                     (ast-children (ast-child 'expressions n))))
                    rbracket))]
- [MutableArrayReference
+ [MutableArraySafeReference
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
     (h-append array-rendered
@@ -175,7 +175,7 @@
               space (text "%") space
               array-rendered (text ".length")
               rbracket))]
- [MutableArrayAssignmentStatement
+ [MutableArraySafeAssignmentStatement
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
     (h-append array-rendered
