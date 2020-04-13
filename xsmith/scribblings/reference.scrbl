@@ -1852,6 +1852,8 @@ The canned-components also export various types that the canned grammar nodes us
 Of note, statements use two statement types: @racket[return-type] and @racket[no-return-type].
 The expressions use all the other provided types.
 
+For some examples that use these canned components, see the @tt{xsmith-examples/simple} directory.
+
 @defform[(add-basic-expressions grammar-component optional ...)
          #:grammar
          [(optional
