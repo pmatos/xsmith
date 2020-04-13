@@ -1,5 +1,24 @@
 #lang racket/base
 
+(provide
+ add-basic-expressions
+ add-basic-statements
+ ;; Type system stuff
+ return-type
+ no-return-type
+ fresh-maybe-return-type
+ void-type
+ number
+ int
+ float
+ bool
+ string
+ mutable
+ immutable
+ array-type
+ list-type
+ )
+
 (require
  xsmith
  racr
@@ -15,27 +34,25 @@
    syntax/parse
    )))
 
-(provide
- (all-defined-out)
- )
 
-#|
-TODO - support immutable and mutable lists, structural records, etc.
-TODO - support record-set-expression and record-set-statement, etc.
-TODO - support LambdaWithBlock (statement-lang-only), LambdaWithExpression, ...
-TODO - good convention for names, since they need to be accessible for pretty printing, etc
-|#
 
-#|
-TODO - instead of defining a spec component, define macros that add elements to a language.  Start with something like (add-basic-expression-language spec-name) and (add-lambda-with-expression-body spec-name) to expand to calls to add-to-grammar, add fresh and type-info properties, etc.  Later I want to add a way to omit or override productions in the macros that add many (eg. add-basic-expression/statement-language).
-|#
 
-;(define-spec-component statement-dynlangs-core)
-
+;; TODO - all of these magic constants should be parameterizable somehow.  Eg. maybe they should be racket parameters.
 
 ;; Long arrays can sometimes create really long generation times, eg. for arrays of arrays of arrays of functions...
 (define array-max-length 4)
 (define max-effect-expressions 3)
+(define fieldname-options
+  '(a b c d e f g))
+(define (random-field-name)
+  (random-ref fieldname-options))
+(define (arg-length)
+  (random 6))
+(define (random-string-literal)
+  (random-ref (list "foo" "bar" "baz" "quux")))
+
+
+
 (define (immutable-structural-record-type-constraint single?)
   (λ (n)
     (if (att-value 'xsmith_is-hole? n)
@@ -287,7 +304,7 @@ TODO - instead of defining a spec component, define macros that add elements to 
                     [StringLiteral
                      Expression
                      ;; TODO - better fresh string literals
-                     ([v = (random-ref (list "foo" "bar" "baz" "quux"))])]
+                     ([v = (random-string-literal)])]
                     [StringAppend Expression ([l : Expression] [r : Expression])]
                     [StringLength Expression (Expression)])
                    (add-prop
@@ -735,13 +752,6 @@ TODO - instead of defining a spec component, define macros that add elements to 
          )]))
 
 
-(define fieldname-options
-  '(a b c d e f g))
-(define (random-field-name)
-  (random-ref fieldname-options))
-(define (arg-length)
-  (random 6))
-
 
 
 ;;;;;; Types
@@ -759,12 +769,9 @@ TODO - instead of defining a spec component, define macros that add elements to 
 (define void-type (base-type 'void))
 (define number (base-type 'number))
 (define int (base-type 'int number))
-;(define float (base-type 'float number))
+(define float (base-type 'float number))
 (define bool (base-type 'bool))
 (define string (base-type 'string))
-
-(define (type-thunks-for-concretization)
-  (list #;(λ()float) #;(λ()number) (λ()int) (λ()bool) (λ()string)))
 
 (define-generic-type mutable ([type covariant]))
 (define-generic-type immutable ([type covariant]))
@@ -785,7 +792,4 @@ TODO - instead of defining a spec component, define macros that add elements to 
 (define numeric-bin-op-subtype
   (λ (n t)
     (hash 'l t 'r t)))
-
-
-
 

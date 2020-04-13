@@ -4,7 +4,7 @@
  xsmith
  racr
  xsmith/racr-convenience
- "core.rkt"
+ xsmith/canned-components
  pprint
  racket/string
  )
@@ -233,6 +233,8 @@
  python
  python-comp)
 
+(define (type-thunks-for-concretization)
+  (list #;(λ()float) #;(λ()number) (λ()int) (λ()bool) (λ()string)))
 
 (define (python-generate)
   (parameterize ([current-xsmith-type-constructor-thunks

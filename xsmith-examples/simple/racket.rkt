@@ -4,7 +4,7 @@
  xsmith
  racr
  xsmith/racr-convenience
- "core.rkt"
+ xsmith/canned-components
  racket/string
  racket/list
  racket/pretty
@@ -221,6 +221,8 @@
  racket
  racket-comp)
 
+(define (type-thunks-for-concretization)
+  (list #;(λ()float) #;(λ()number) (λ()int) (λ()bool) (λ()string)))
 
 (define (racket-generate)
   (parameterize ([current-xsmith-type-constructor-thunks

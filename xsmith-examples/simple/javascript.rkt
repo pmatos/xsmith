@@ -4,26 +4,28 @@
  xsmith
  racr
  xsmith/racr-convenience
- "core.rkt"
+ xsmith/canned-components
  pprint
  racket/string
  )
 
-(define-spec-component lua-comp)
+(define-spec-component javascript-comp)
 
-(add-basic-expressions lua-comp
+(add-basic-expressions javascript-comp
                        #:LambdaWithBlock #t
                        #:Booleans #t
                        #:Strings #t
                        #:MutableArray #t
                        #:MutableStructuralRecord #t
                        )
-(add-basic-statements lua-comp
+(add-basic-statements javascript-comp
                       #:ProgramWithBlock #t
+                      #:ExpressionStatement #t
                       #:AssignmentStatement #t
                       #:MutableArraySafeAssignmentStatement #t
                       #:MutableStructuralRecordAssignmentStatement #t
                       )
+
 
 (define nest-step 4)
 (define (binary-op-renderer op-rendered)
@@ -31,7 +33,7 @@
                    space op-rendered space
                    (render-node (ast-child 'r n)) rparen)))
 (add-prop
- lua-comp
+ javascript-comp
  render-hole-info
  [#f (λ (h) (text "«HOLE»"))])
 
@@ -41,19 +43,14 @@
                       doc-list)))
 
 (add-prop
- lua-comp
+ javascript-comp
  render-node-info
 
  [ProgramWithBlock
   (λ (n)
     (define definitions (ast-children (ast-child 'definitions n)))
     (v-append
-     ;; TODO - this definition maybe needs to change based on lua version.  Is there a way to do conditional evaluation based on which lua implementation I'm in?
-     ;; This modulo definition is from the Lua reference manual:
-     ;; http://www.lua.org/manual/5.2/manual.html#3.4.1
-     (text "modulo = function(a, b) return a - math.floor(a/b)*b end")
-     (text "safe_divide = function(a, b) return (b == 0) and a or (a / b) end")
-     (text "expression_statement_dummy_var = 0;")
+     (text "safe_divide = function(a,b){return b == 0 ? a : a / b}")
      (vb-concat
       (list*
        (text "")
@@ -63,7 +60,7 @@
                     (list (ast-child 'Block n))))))
      (text "")
      (apply v-append
-            (map (λ (v) (text (format "print(~a)\n"
+            (map (λ (v) (text (format "console.log(~a)\n"
                                       (ast-child 'name v))))
                  (filter (λ (x) (base-type? (ast-child 'type x)))
                          definitions)))
@@ -75,12 +72,13 @@
                          space
                          equals
                          space
-                         (render-node (ast-child 'Expression n))))]
+                         (render-node (ast-child 'Expression n))
+                         semi))]
 
  [Block
   (λ (n)
     (h-append
-     (text "do")
+     lbrace
      (nest nest-step
            (h-append
             line
@@ -91,50 +89,29 @@
               (map (λ (cn) (render-node cn))
                    (ast-children (ast-child 'statements n)))))))
      line
-     (text "end")))]
+     rbrace))]
 
- ;; Lua doesn't actually allow expression statements.  Let's hack around that with an assignment to a dummy variable that is never read.
- #;[ExpressionStatement (λ (n) (h-append (text "expression_statement_dummy_var = ")
-                                       (render-node (ast-child 'Expression n))
+ [ExpressionStatement (λ (n) (h-append (render-node (ast-child 'Expression n))
                                        semi))]
 
  [ReturnStatement (λ (n) (h-append (text "return ")
                                    (render-node (ast-child 'Expression n))))]
-
  [AssignmentStatement
   (λ (n)
-    (hs-append (text (format "~a" (ast-child 'name n)))
-               equals
-               (render-node (ast-child 'Expression n))))]
+    (h-append (text (format "~a" (ast-child 'name n)))
+              space
+              equals
+              space
+              (render-node (ast-child 'Expression n))
+              semi))]
 
  [IfElseStatement
   (λ (n)
     (h-append
-     (h-append (text "if") space lparen (render-node (ast-child 'test n)) rparen
-               space
-               (text "then"))
-     (nest nest-step
-           (h-append line
-                     (v-concat
-                      (let ([b (ast-child 'then n)])
-                        (append
-                         (map (λ (cn) (render-node cn))
-                              (ast-children (ast-child 'definitions b)))
-                         (map (λ (cn) (render-node cn))
-                              (ast-children (ast-child 'statements b))))))))
-     line
+     (h-append (text "if") space lparen (render-node (ast-child 'test n)) rparen)
+     (render-node (ast-child 'then n))
      (text "else")
-     (nest nest-step
-           (h-append line
-                     (v-concat
-                      (let ([b (ast-child 'else n)])
-                        (append
-                         (map (λ (cn) (render-node cn))
-                              (ast-children (ast-child 'definitions b)))
-                         (map (λ (cn) (render-node cn))
-                              (ast-children (ast-child 'statements b))))))))
-     line
-     (text "end")))]
+     (render-node (ast-child 'else n))))]
 
 
 
@@ -148,23 +125,21 @@
                    rparen))]
  [FormalParameter (λ (n) (text (format "~a" (ast-child 'name n))))]
  [LambdaWithBlock
-  (λ (n) (h-append lparen
-                   (text "function") lparen
+  ;; Wrap the function in parentheses, so it always counts as an expression.
+  ;; If you try to put a function expression in statement position, it complains that it needs a name.
+  (λ (n) (h-append lparen (text "function") lparen
                    (comma-list (map render-node
                                     (ast-children (ast-child 'parameters n))))
                    rparen
-                   space
                    (render-node (ast-child 'body n))
-                   space
-                   (text "end")
                    rparen))]
 
  [BoolLiteral (λ (n) (text (if (ast-child 'v n) "true" "false")))]
- [Not (λ (n) (h-append (text "not") lparen
+ [Not (λ (n) (h-append (text "!") lparen
                        (render-node (ast-child 'Expression n))
                        rparen))]
- [And (binary-op-renderer (text "and"))]
- [Or (binary-op-renderer (text "or"))]
+ [And (binary-op-renderer (text "&&"))]
+ [Or (binary-op-renderer (text "||"))]
 
  [IntLiteral (λ (n) (text (format "~a" (ast-child 'v n))))]
  [Plus (binary-op-renderer (text "+"))]
@@ -180,56 +155,58 @@
                               rparen))]
 
  [StringLiteral (λ (n) (text (format "\"~a\"" (ast-child 'v n))))]
- [StringAppend (binary-op-renderer (text ".."))]
- [StringLength (λ (n) (h-append (text "string.len")
-                                lparen
+ [StringAppend (binary-op-renderer (text "+"))]
+ [StringLength (λ (n) (h-append lparen
                                 (render-node (ast-child 'Expression n))
-                                rparen))]
+                                rparen
+                                (text ".length")))]
 
  [MutableArrayLiteral
-  (λ (n) (h-append lbrace
+  (λ (n) (h-append lbracket
                    (comma-list (map render-node
                                     (ast-children (ast-child 'expressions n))))
-                   rbrace))]
+                   rbracket))]
  [MutableArraySafeReference
-  ;; Lua's array index should start at 1.  And we should define a modulus function, one of the many... frustrating parts of lua is that there wasn't a built-in modulus operator until recently.  So to fuzz older versions we need to define a function for it.
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
     (h-append array-rendered
-              lbracket (text "modulo") lparen
+              lbracket
               (render-node (ast-child 'index n))
-              comma space (text "#") array-rendered
-              rparen (text " + 1") rbracket))]
+              space (text "%") space
+              array-rendered (text ".length")
+              rbracket))]
  [MutableArraySafeAssignmentStatement
   (λ (n)
     (define array-rendered (render-node (ast-child 'array n)))
     (h-append array-rendered
-              lbracket (text "modulo") lparen
+              lbracket
               (render-node (ast-child 'index n))
-              comma space (text "#") array-rendered
-              rparen (text " + 1") rbracket
-              space equals space (render-node (ast-child 'newvalue n))))]
+              space (text "%") space
+              array-rendered (text ".length")
+              rbracket
+              space equals space (render-node (ast-child 'newvalue n))
+              semi))]
 
  [MutableStructuralRecordLiteral
   (λ (n)
-    (h-append lbrace
+    ;; We need to wrap it in parentheses in statement contexts.
+    (h-append lparen lbrace
               (comma-list (map (λ (fieldname expression-node)
                                  (h-append (text (format "~a" fieldname))
-                                           equals
+                                           colon
+                                           space
                                            (render-node expression-node)))
                                (ast-child 'fieldnames n)
                                (ast-children (ast-child 'expressions n))))
-              rbrace))]
+              rbrace rparen))]
  [MutableStructuralRecordReference
   (λ (n) (h-append (render-node (ast-child 'record n))
-                   lbracket dquote
-                   (text (format "~a" (ast-child 'fieldname n)))
-                   dquote rbracket))]
+                   (text ".")
+                   (text (format "~a" (ast-child 'fieldname n)))))]
  [MutableStructuralRecordAssignmentStatement
   (λ (n) (h-append (render-node (ast-child 'record n))
-                   lbracket dquote
+                   (text ".")
                    (text (format "~a" (ast-child 'fieldname n)))
-                   dquote rbracket
                    space equals space
                    (render-node (ast-child 'newvalue n))))]
  )
@@ -237,22 +214,24 @@
 
 
 (assemble-spec-components
- lua
- lua-comp)
+ javascript
+ javascript-comp)
 
+(define (type-thunks-for-concretization)
+  (list #;(λ()float) #;(λ()number) (λ()int) (λ()bool) (λ()string)))
 
-(define (lua-generate)
+(define (javascript-generate)
   (parameterize ([current-xsmith-type-constructor-thunks
                   (type-thunks-for-concretization)])
-    (lua-generate-ast 'ProgramWithBlock)))
+    (javascript-generate-ast 'ProgramWithBlock)))
 
-(define (lua-format-render doc)
+(define (javascript-format-render doc)
   (pretty-format doc 120))
 
 (module+ main
   (xsmith-command-line
-   lua-generate
-   #:format-render lua-format-render
-   #:comment-wrap (λ (lines) (string-join (map (λ (l) (format "-- ~a" l)) lines)
+   javascript-generate
+   #:format-render javascript-format-render
+   #:comment-wrap (λ (lines) (string-join (map (λ (l) (format "// ~a" l)) lines)
                                           "\n"))
    ))
