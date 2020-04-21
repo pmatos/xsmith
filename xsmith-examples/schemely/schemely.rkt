@@ -128,41 +128,41 @@
 
 ;; helper for render-node-info
 (define (->se sym . children-refs)
-  (λ (n) `(,sym ,@(map (λ (x) (render-node (ast-child x n)))
+  (λ (n) `(,sym ,@(map (λ (x) (att-value 'xsmith_render-node (ast-child x n)))
                        children-refs))))
 (define (->se* sym children-ref)
-  (λ (n) `(,sym ,@(map (λ (x) (render-node x))
+  (λ (n) `(,sym ,@(map (λ (x) (att-value 'xsmith_render-node x))
                        (ast-children (ast-child children-ref n))))))
 
 (add-prop
  schemely-core
  render-node-info
- [Program (λ (n) `(,@(map (λ (x) (render-node x))
+ [Program (λ (n) `(,@(map (λ (x) (att-value 'xsmith_render-node x))
                           (append (ast-children (ast-child 'definitions n))
                                   (ast-children (ast-child 'expressions n))))))]
- [DefinitionContext (λ (n) `(,@(map (λ (x) (render-node x))
+ [DefinitionContext (λ (n) `(,@(map (λ (x) (att-value 'xsmith_render-node x))
                                     (ast-children (ast-child 'definitions n)))
-                             ,@(map (λ (x) (render-node x))
+                             ,@(map (λ (x) (att-value 'xsmith_render-node x))
                                     (ast-children (ast-child 'expressions n)))))]
  [Definition (λ (n) `(define ,(string->symbol (ast-child 'name n))
-                       ,(render-node (ast-child 'Expression n))))]
+                       ,(att-value 'xsmith_render-node (ast-child 'Expression n))))]
  [Lambda (λ (n) `(lambda (,@(map (λ (x) (string->symbol (ast-child 'name x)))
                                  (ast-children (ast-child 'params n))))
-                   ,(render-node (ast-child 'body n))))]
- [Application (λ (n) `(,(render-node (ast-child 'procedure n))
-                       ,@(map (λ (x) (render-node x))
+                   ,(att-value 'xsmith_render-node (ast-child 'body n))))]
+ [Application (λ (n) `(,(att-value 'xsmith_render-node (ast-child 'procedure n))
+                       ,@(map (λ (x) (att-value 'xsmith_render-node x))
                               (ast-children (ast-child 'arguments n)))))]
 
  [LetStar (λ (n) `(let* (,@(map (λ (d) `(,(string->symbol (ast-child 'name d))
-                                         ,(render-node
+                                         ,(att-value 'xsmith_render-node
                                                      (ast-child 'Expression d))))
                                 (ast-children (ast-child 'definitions n))))
-                    ,@(render-node (ast-child 'body n))))]
+                    ,@(att-value 'xsmith_render-node (ast-child 'body n))))]
 
  [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
  [SetBangRet (λ (n) `(begin
                        (set! ,(string->symbol (ast-child 'name n))
-                             ,(render-node (ast-child 'Expression n)))
+                             ,(att-value 'xsmith_render-node (ast-child 'Expression n)))
                        ,(string->symbol (ast-child 'name n))))]
 
  [LiteralBool (λ (n) (ast-child 'v n))]

@@ -46,9 +46,7 @@
  lift-type->ast-binder-type
  binding-structure
  choice-filters-to-apply
- render-node
  render-node-info
- render-hole
  render-hole-info
 
  make-lift-reference-choice-proc
@@ -1709,33 +1707,29 @@ The second arm is a function that takes the type that the node has been assigned
           _xsmith_no-io-conflict?-info)))
 
 #|
-There are two properties involved in rendering ASTs for pretty-printing:
- - render-node
- - render-hole
+There are two attributes involved in rendering ASTs for pretty-printing:
+ - xsmith_render-node
+ - xsmith_render-hole
 
-The `render-node` property allows users to specify functions for rendering each
+The `xsmith_render-node` property allows users to specify functions for rendering each
 type of node. They may also give a default render function via #f. These can
 return any type, but if the type is not a string then the user should specify
 the `#:format-render` argument in the `xsmith-command-line` function to handle
 converting the rendered output to a string for printing.
 
 Functions specified this way will be wrapped with a test to determine whether
-the supplied argument is actually a hole. If it is, then `render-hole` will be
+the supplied argument is actually a hole. If it is, then `xsmith_render-hole` will be
 called instead.
-
-Users can call `(render-node <node>)` and `(render-hole <hole>)` instead of the
-longer-winded `(att-value 'render-node-info <node>)`-style calls.
 |#
-(define (render-node node)
+(define ((render-node-helper renderer) node)
   (when (not (ast-node? node))
     (error "render-node received object which is not a RACR AST node:" node))
   (cond
     [(ast-bud-node? node)
      (error 'render-node "cannot render bud node")]
     [(att-value 'xsmith_is-hole? node)
-     (render-hole node)]
-    [else
-     (att-value 'xsmith_render-node node)]))
+     (att-value 'xsmith_render-hole node)]
+    [else (renderer node)]))
 
 (define-property render-node-info
   #:appends
@@ -1747,11 +1741,8 @@ longer-winded `(att-value 'render-node-info <node>)`-style calls.
           (hash #f #'(λ (n) (symbol->string (ast-node-type n))))
           (for/hash ([(n v) (in-dict this-prop-info)])
             (values n
-                    v))))
+                    #`(render-node-helper #,v)))))
     (list xsmith_render-node-info)))
-
-(define (render-hole hole)
-  (att-value 'xsmith_render-hole hole))
 
 (define-property render-hole-info
   #:appends

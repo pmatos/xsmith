@@ -1,6 +1,7 @@
 #lang xsmith/private/base
 (require
  xsmith
+ xsmith/app
  racr
  racket/pretty
  racket/string
@@ -98,28 +99,28 @@
            (λ (n)
              `(let* (,@(map (λ (d)
                               `[,(string->symbol (ast-child 'name d))
-                                ,(render-node
-                                            (ast-child 'Expression d))])
+                                ,('xsmith_render-node
+                                  (ast-child 'Expression d))])
                             (ast-children (ast-child 'definitions n))))
-                ,@(map (λ (c) (render-node c))
+                ,@(map (λ (c) ('xsmith_render-node c))
                        (ast-children (ast-child 'sideEs n)))
-                ,(render-node (ast-child 'Expression n))))]
+                ,('xsmith_render-node (ast-child 'Expression n))))]
           [LiteralInt (λ (n) (ast-child 'v n))]
           [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
           [SetBangRet (λ (n) `(begin (set! ,(string->symbol (ast-child 'name n))
-                                           ,(render-node
-                                                       (ast-child 'Expression n)))
+                                           ,('xsmith_render-node
+                                             (ast-child 'Expression n)))
                                      ,(string->symbol (ast-child 'name n))))]
-          [Addition (λ (n) `(+ ,@(map (λ (c) (render-node c))
+          [Addition (λ (n) `(+ ,@(map (λ (c) ('xsmith_render-node c))
                                       (ast-children (ast-child 'es n)))))]
-          [DictRef (λ (n) `(dict-ref ,(render-node (ast-child 'Expression n))
+          [DictRef (λ (n) `(dict-ref ,('xsmith_render-node (ast-child 'Expression n))
                                      ,(ast-child 'fieldname n)))]
-          [DictSet (λ (n) `(dict-set ,(render-node (ast-child 'dict n))
+          [DictSet (λ (n) `(dict-set ,('xsmith_render-node (ast-child 'dict n))
                                      ,(ast-child 'fieldname n)
-                                     ,(render-node (ast-child 'newval n))))]
+                                     ,('xsmith_render-node (ast-child 'newval n))))]
           [LiteralDict (λ (n) `(make-dict
                                 (,@(ast-child 'fieldnames n))
-                                (,@(map render-node
+                                (,@(map (λ (cn) ('xsmith_render-node cn))
                                         (ast-children (ast-child 'vals n))))))]
           )
 

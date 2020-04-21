@@ -74,6 +74,21 @@ Example:
 (att-value 'xsmith_is-hole? (current-hole))
 ]
 }
+@item{@racket['xsmith_render-node]
+
+Accepts no arguments other than the node to call it on.
+Defined by the @racket[render-node-info] property.
+
+Example:
+@racketblock[
+(add-prop
+ my-spec-component
+ render-node-info
+ (code:comment "assuming we're outputting for a lispy language")
+ [AdditionExpression (λ (n) `(+ ,(att-value 'xsmith_render-node (ast-child 'l n))
+                                ,(att-value 'xsmith_render-node (ast-child 'r n))))])
+]
+}
 @item{@racket['xsmith_find-descendants]
 
 Accepts the node to call it on, then a predicate.
@@ -1174,7 +1189,7 @@ If you don't make custom filtering rules you don't need to specify this property
 
 Xsmith provides built-in pretty printer functionality used for final program output and debugging support.  This is given as a function which takes in one argument (a node) and renders that node in whatever format you like.  Common formats include plain strings, PPrint documents, or s-expressions.  If your @racket[render-node-info] functions don't return strings, then you must implement the @racket[#:format-render] argument of the @racket[xsmith-command-line] function to convert the final rendered AST to a string for pretty-printing as output.
 During debugging, this property may be called on a hole instead of a filled-in node.  If this happens, Xsmith will delegate to the @racket[render-hole-info] property, detailed below.
-You may call the rendering function with the @racket[render-node] shorthand function.
+The rendering function is defined as the @rule[xsmith_render-node] attribute.
 
 Example:
 @racketblock[
@@ -1183,9 +1198,6 @@ Example:
  render-node-info
  [#f (λ (node) (symbol->string (ast-node-type node)))])
 ]
-}
-@defproc[(render-node [n ast-node?]) any/c]{
-Calls the @rule[_xsmith_render-node] attribute defined by @racket[render-node-info].
 }
 
 
@@ -1578,7 +1590,7 @@ Example:
 
 @racket[default-max-depth] is a positive (non-zero) number that limits the maximum depth of your language's generated AST.  The larger this number, the more complex the programs generated can be.
 
-@racket[format-render] is a function which takes the output of your @racket[render-node] property as input and should return a string representing the program (perhaps by use of a pretty-printing function).  If your @racket[render-node] property produces a string already, you will not need to specify the @racket[format-render] parameter.
+@racket[format-render] is a function which takes the output of your @racket[render-node-info] property as input and should return a string representing the program (perhaps by use of a pretty-printing function).  If your @racket[render-node-info] property produces a string already, you will not need to specify the @racket[format-render] parameter.
 
 
 The command-line options given by @racket[xsmith-command-line] are:

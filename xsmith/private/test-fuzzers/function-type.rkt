@@ -96,25 +96,25 @@
            (λ (n)
              `(let* (,@(map (λ (d)
                               `[,(string->symbol (ast-child 'name d))
-                                ,(render-node
+                                ,(att-value 'xsmith_render-node
                                   (ast-child 'Expression d))])
                             (ast-children (ast-child 'definitions n))))
-                ,@(map (λ (c) (render-node c))
+                ,@(map (λ (c) (att-value 'xsmith_render-node c))
                        (ast-children (ast-child 'sideEs n)))
-                ,(render-node (ast-child 'Expression n))))]
+                ,(att-value 'xsmith_render-node (ast-child 'Expression n))))]
           [Lambda (λ (n) `(lambda (,(string->symbol
                                      (ast-child 'name (ast-child 'FormalParam n))))
-                            ,(render-node (ast-child 'body n))))]
-          [Application (λ (n) `(,(render-node (ast-child 'procedure n))
-                                ,(render-node (ast-child 'argument n))))]
+                            ,(att-value 'xsmith_render-node (ast-child 'body n))))]
+          [Application (λ (n) `(,(att-value 'xsmith_render-node (ast-child 'procedure n))
+                                ,(att-value 'xsmith_render-node (ast-child 'argument n))))]
           [LiteralInt (λ (n) (ast-child 'v n))]
           [LiteralFloat (λ (n) (ast-child 'v n))]
           [VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
           [SetBangRet (λ (n) `(begin (set! ,(string->symbol (ast-child 'name n))
-                                           ,(render-node
+                                           ,(att-value 'xsmith_render-node
                                              (ast-child 'Expression n)))
                                      ,(string->symbol (ast-child 'name n))))]
-          [Addition (λ (n) `(+ ,@(map (λ (c) (render-node c))
+          [Addition (λ (n) `(+ ,@(map (λ (c) (att-value 'xsmith_render-node c))
                                       (ast-children (ast-child 'es n)))))])
 
 (add-prop arith fresh

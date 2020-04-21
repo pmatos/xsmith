@@ -345,7 +345,7 @@
   (λ (n)
     (v-concat
      (apply-infix line
-                  (map render-node
+                  (map (λ (cn) (att-value 'xsmith_render-node cn))
                        (ast-children (ast-child 'modules n))))))]
  [ModuleDecl
   (λ (n)
@@ -361,7 +361,7 @@
                semi)
      (indent (indent-spaces)
              (v-concat
-              (map render-node
+              (map (λ (cn) (att-value 'xsmith_render-node cn))
                    (ast-children (ast-child 'items n)))))
      kw-endmodule))]
 
@@ -376,7 +376,7 @@
                       (h-append kw-reg space (text r) semi))
                     (att-value 'used-regs n)))
      ;; Print the `always` construct itself.
-     (h-append kw-initial space (render-node (ast-child 'stmt n)))))]
+     (h-append kw-initial space (att-value 'xsmith_render-node (ast-child 'stmt n)))))]
  [AlwaysConstruct
   (λ (n)
     (v-append
@@ -388,10 +388,10 @@
                       (h-append kw-reg space (text r) semi))
                     (att-value 'used-regs n)))
      ;; Print the `always` construct itself.
-     (h-append kw-always space (render-node (ast-child 'stmt n)))))]
+     (h-append kw-always space (att-value 'xsmith_render-node (ast-child 'stmt n)))))]
  [RegDeclaration
   (λ (n)
-    (let* ([init-doc (render-node (ast-child 'init n))]
+    (let* ([init-doc (att-value 'xsmith_render-node (ast-child 'init n))]
            [eq-doc (if (eq? init-doc empty)
                        empty
                        kw-equal)])
@@ -401,14 +401,14 @@
                    (list
                     kw-output
                     kw-reg
-                    #;(render-node (ast-child 'signed n))
+                    #;(att-value 'xsmith_render-node (ast-child 'signed n))
                     (text (ast-child 'name n))
                     eq-doc
                     init-doc)))
        semi)))]
  [WireDeclaration
   (λ (n)
-    (let* ([init-doc (render-node (ast-child 'init n))]
+    (let* ([init-doc (att-value 'xsmith_render-node (ast-child 'init n))]
            [eq-doc (if (eq? init-doc empty)
                        empty
                        kw-equal)])
@@ -416,9 +416,9 @@
        (hs-concat (filter
                    (λ (d) (not (eq? d empty)))
                    (list
-                    (render-node (ast-child 'dir n))
+                    (att-value 'xsmith_render-node (ast-child 'dir n))
                     kw-wire
-                    #;(render-node (ast-child 'signed n))
+                    #;(att-value 'xsmith_render-node (ast-child 'signed n))
                     (text (ast-child 'name n))
                     eq-doc
                     init-doc)))
@@ -430,33 +430,33 @@
      kw-begin
      (indent (indent-spaces)
              (v-concat
-              (map render-node
+              (map (λ (cn) (att-value 'xsmith_render-node cn))
                    (ast-children (ast-child 'stmts n)))))
      kw-end))]
  [ArrowStatement
   (λ (n)
     (h-append (text (ast-child 'lhs n))
               space kw-arrow space
-              (render-node (ast-child 'rhs n))
+              (att-value 'xsmith_render-node (ast-child 'rhs n))
               semi))]
  [EqualStatement
   (λ (n)
     (h-append (text (ast-child 'lhs n))
               space kw-equal space
-              (render-node (ast-child 'rhs n))
+              (att-value 'xsmith_render-node (ast-child 'rhs n))
               semi))]
  [IfStatement
   (λ (n)
     (v-append
      (h-append kw-if space lparen
-               (render-node (ast-child 'cond n))
+               (att-value 'xsmith_render-node (ast-child 'cond n))
                rparen)
-     (indent (indent-spaces) (render-node (ast-child 'then n)))
+     (indent (indent-spaces) (att-value 'xsmith_render-node (ast-child 'then n)))
      kw-else
-     (indent (indent-spaces) (render-node (ast-child 'else n)))))]
+     (indent (indent-spaces) (att-value 'xsmith_render-node (ast-child 'else n)))))]
  [JustStatement
   (λ (n)
-    (render-node (ast-child 'stmt n)))]
+    (att-value 'xsmith_render-node (ast-child 'stmt n)))]
  [NothingStatement
   (λ (n)
     semi)]
@@ -471,13 +471,13 @@
 
  ;; "Maybe pattern" instances
 
- [JustDirection		(λ (n) (render-node (ast-child 'dir n)))]
+ [JustDirection		(λ (n) (att-value 'xsmith_render-node (ast-child 'dir n)))]
  [NothingDirection	(λ (n) empty)]
 
- [JustSigned		(λ (n) (render-node (ast-child 'signed n)))]
+ [JustSigned		(λ (n) (att-value 'xsmith_render-node (ast-child 'signed n)))]
  [NothingSigned		(λ (n) empty)]
 
- [JustConstExpression		(λ (n) (render-node (ast-child 'cexpr n)))]
+ [JustConstExpression		(λ (n) (att-value 'xsmith_render-node (ast-child 'cexpr n)))]
  [NothingConstExpression	(λ (n) empty)]
 
  ;; "One-of-keyword pattern" instances

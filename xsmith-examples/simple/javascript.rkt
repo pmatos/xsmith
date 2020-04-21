@@ -29,9 +29,9 @@
 
 (define nest-step 4)
 (define (binary-op-renderer op-rendered)
-  (λ (n) (h-append lparen (render-node (ast-child 'l n))
+  (λ (n) (h-append lparen (att-value 'xsmith_render-node (ast-child 'l n))
                    space op-rendered space
-                   (render-node (ast-child 'r n)) rparen)))
+                   (att-value 'xsmith_render-node (ast-child 'r n)) rparen)))
 (add-prop
  javascript-comp
  render-hole-info
@@ -55,7 +55,7 @@
       (list*
        (text "")
        (text "")
-       (map (λ (cn) (render-node cn))
+       (map (λ (cn) (att-value 'xsmith_render-node cn))
             (append definitions
                     (list (ast-child 'Block n))))))
      (text "")
@@ -72,7 +72,7 @@
                          space
                          equals
                          space
-                         (render-node (ast-child 'Expression n))
+                         (att-value 'xsmith_render-node (ast-child 'Expression n))
                          semi))]
 
  [Block
@@ -84,43 +84,43 @@
             line
             (v-concat
              (append
-              (map (λ (cn) (render-node cn))
+              (map (λ (cn) (att-value 'xsmith_render-node cn))
                    (ast-children (ast-child 'definitions n)))
-              (map (λ (cn) (render-node cn))
+              (map (λ (cn) (att-value 'xsmith_render-node cn))
                    (ast-children (ast-child 'statements n)))))))
      line
      rbrace))]
 
- [ExpressionStatement (λ (n) (h-append (render-node (ast-child 'Expression n))
+ [ExpressionStatement (λ (n) (h-append (att-value 'xsmith_render-node (ast-child 'Expression n))
                                        semi))]
 
  [ReturnStatement (λ (n) (h-append (text "return ")
-                                   (render-node (ast-child 'Expression n))))]
+                                   (att-value 'xsmith_render-node (ast-child 'Expression n))))]
  [AssignmentStatement
   (λ (n)
     (h-append (text (format "~a" (ast-child 'name n)))
               space
               equals
               space
-              (render-node (ast-child 'Expression n))
+              (att-value 'xsmith_render-node (ast-child 'Expression n))
               semi))]
 
  [IfElseStatement
   (λ (n)
     (h-append
-     (h-append (text "if") space lparen (render-node (ast-child 'test n)) rparen)
-     (render-node (ast-child 'then n))
+     (h-append (text "if") space lparen (att-value 'xsmith_render-node (ast-child 'test n)) rparen)
+     (att-value 'xsmith_render-node (ast-child 'then n))
      (text "else")
-     (render-node (ast-child 'else n))))]
+     (att-value 'xsmith_render-node (ast-child 'else n))))]
 
 
 
  [VariableReference (λ (n) (text (format "~a" (ast-child 'name n))))]
 
  [ProcedureApplication
-  (λ (n) (h-append (render-node (ast-child 'procedure n))
+  (λ (n) (h-append (att-value 'xsmith_render-node (ast-child 'procedure n))
                    lparen
-                   (comma-list (map render-node
+                   (comma-list (map (λ (cn) (att-value 'xsmith_render-node cn))
                                     (ast-children (ast-child 'arguments n))))
                    rparen))]
  [FormalParameter (λ (n) (text (format "~a" (ast-child 'name n))))]
@@ -128,15 +128,15 @@
   ;; Wrap the function in parentheses, so it always counts as an expression.
   ;; If you try to put a function expression in statement position, it complains that it needs a name.
   (λ (n) (h-append lparen (text "function") lparen
-                   (comma-list (map render-node
+                   (comma-list (map (λ (cn) (att-value 'xsmith_render-node cn))
                                     (ast-children (ast-child 'parameters n))))
                    rparen
-                   (render-node (ast-child 'body n))
+                   (att-value 'xsmith_render-node (ast-child 'body n))
                    rparen))]
 
  [BoolLiteral (λ (n) (text (if (ast-child 'v n) "true" "false")))]
  [Not (λ (n) (h-append (text "!") lparen
-                       (render-node (ast-child 'Expression n))
+                       (att-value 'xsmith_render-node (ast-child 'Expression n))
                        rparen))]
  [And (binary-op-renderer (text "&&"))]
  [Or (binary-op-renderer (text "||"))]
@@ -149,42 +149,42 @@
  [GreaterThan (binary-op-renderer (text ">"))]
 
  [SafeDivide (λ (n) (h-append (text "safe_divide") lparen
-                              (render-node (ast-child 'l n))
+                              (att-value 'xsmith_render-node (ast-child 'l n))
                               (text ",") space
-                              (render-node (ast-child 'r n))
+                              (att-value 'xsmith_render-node (ast-child 'r n))
                               rparen))]
 
  [StringLiteral (λ (n) (text (format "\"~a\"" (ast-child 'v n))))]
  [StringAppend (binary-op-renderer (text "+"))]
  [StringLength (λ (n) (h-append lparen
-                                (render-node (ast-child 'Expression n))
+                                (att-value 'xsmith_render-node (ast-child 'Expression n))
                                 rparen
                                 (text ".length")))]
 
  [MutableArrayLiteral
   (λ (n) (h-append lbracket
-                   (comma-list (map render-node
+                   (comma-list (map (λ (cn) (att-value 'xsmith_render-node cn))
                                     (ast-children (ast-child 'expressions n))))
                    rbracket))]
  [MutableArraySafeReference
   (λ (n)
-    (define array-rendered (render-node (ast-child 'array n)))
+    (define array-rendered (att-value 'xsmith_render-node (ast-child 'array n)))
     (h-append array-rendered
               lbracket
-              (render-node (ast-child 'index n))
+              (att-value 'xsmith_render-node (ast-child 'index n))
               space (text "%") space
               array-rendered (text ".length")
               rbracket))]
  [MutableArraySafeAssignmentStatement
   (λ (n)
-    (define array-rendered (render-node (ast-child 'array n)))
+    (define array-rendered (att-value 'xsmith_render-node (ast-child 'array n)))
     (h-append array-rendered
               lbracket
-              (render-node (ast-child 'index n))
+              (att-value 'xsmith_render-node (ast-child 'index n))
               space (text "%") space
               array-rendered (text ".length")
               rbracket
-              space equals space (render-node (ast-child 'newvalue n))
+              space equals space (att-value 'xsmith_render-node (ast-child 'newvalue n))
               semi))]
 
  [MutableStructuralRecordLiteral
@@ -195,20 +195,20 @@
                                  (h-append (text (format "~a" fieldname))
                                            colon
                                            space
-                                           (render-node expression-node)))
+                                           (att-value 'xsmith_render-node expression-node)))
                                (ast-child 'fieldnames n)
                                (ast-children (ast-child 'expressions n))))
               rbrace rparen))]
  [MutableStructuralRecordReference
-  (λ (n) (h-append (render-node (ast-child 'record n))
+  (λ (n) (h-append (att-value 'xsmith_render-node (ast-child 'record n))
                    (text ".")
                    (text (format "~a" (ast-child 'fieldname n)))))]
  [MutableStructuralRecordAssignmentStatement
-  (λ (n) (h-append (render-node (ast-child 'record n))
+  (λ (n) (h-append (att-value 'xsmith_render-node (ast-child 'record n))
                    (text ".")
                    (text (format "~a" (ast-child 'fieldname n)))
                    space equals space
-                   (render-node (ast-child 'newvalue n))))]
+                   (att-value 'xsmith_render-node (ast-child 'newvalue n))))]
  )
 
 

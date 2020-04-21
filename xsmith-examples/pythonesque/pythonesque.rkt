@@ -33,6 +33,7 @@
 
 (require
  xsmith
+ xsmith/app
  xsmith/racr-convenience
  racr
  pprint
@@ -425,12 +426,12 @@ Fixes:
 
 (define (bin-expr op pn)
   (hs-append
-   (render-node (ast-child 'lhs pn))
+   ('xsmith_render-node (ast-child 'lhs pn))
    (text op)
-   (render-node (ast-child 'rhs pn))))
+   ('xsmith_render-node (ast-child 'rhs pn))))
 
 (define (pretty-print-children cns)
-  (map (λ (cn) (render-node cn)) cns))
+  (map (λ (cn) ('xsmith_render-node cn)) cns))
 
 (add-prop
  pythonesque-grammar
@@ -466,64 +467,64 @@ Fixes:
                (h-concat
                 (add-between
                  (map (λ (param)
-                        (render-node param))
+                        ('xsmith_render-node param))
                       params)
                  (text ", ")))
                (text "):"))
-              (tab (render-node (ast-child 'BlockOrStmt n)))))]
+              (tab ('xsmith_render-node (ast-child 'BlockOrStmt n)))))]
  [ParamDecl (λ (n)
               (text (ast-child 'name n)))]
  [VarDecl (λ (n)
             (hs-append
              (text (ast-child 'name n))
              (text "=")
-             (render-node (ast-child 'Val n))))]
+             ('xsmith_render-node (ast-child 'Val n))))]
  ; Statements.
  [Block (λ (n)
           (h-append
            (v-concat
             (append
-             (map (λ (cn) (render-node cn))
+             (map (λ (cn) ('xsmith_render-node cn))
                   (ast-children (ast-child 'decls n)))
-             (map (λ (cn) (render-node cn))
+             (map (λ (cn) ('xsmith_render-node cn))
                   (ast-children (ast-child 'stmts n)))))))]
  [AssignStmt (λ (n)
                (hs-append
                 (text (ast-child 'name n))
                 (text "=")
-                (render-node (ast-child 'Expr n))))]
+                ('xsmith_render-node (ast-child 'Expr n))))]
  [PassStmt (λ (n)
              (text "pass"))]
  [ValReturnStmt (λ (n)
                   (hs-append
                    (text "return")
-                   (render-node (ast-child 'Expr n))))]
+                   ('xsmith_render-node (ast-child 'Expr n))))]
  [ExprStmt (λ (n)
-             (render-node (ast-child 'Expr n)))]
+             ('xsmith_render-node (ast-child 'Expr n)))]
  [IfStmt (λ (n)
            (v-append
             (h-append
              (text "if ")
-             (render-node (ast-child 'test n))
+             ('xsmith_render-node (ast-child 'test n))
              (text ":"))
-            (tab (render-node (ast-child 'then n)))))]
+            (tab ('xsmith_render-node (ast-child 'then n)))))]
  [IfElseStmt (λ (n)
                (v-append
                 (h-append
                  (text "if ")
-                 (render-node (ast-child 'test n))
+                 ('xsmith_render-node (ast-child 'test n))
                  (text ":"))
-                (tab (render-node (ast-child 'then n)))
+                (tab ('xsmith_render-node (ast-child 'then n)))
                 (text "else:")
-                (tab (render-node (ast-child 'else n)))))]
+                (tab ('xsmith_render-node (ast-child 'else n)))))]
  ; Expressions.
  [FuncAppExpr (λ (n)
                 (h-append
-                 (render-node (ast-child 'func n))
+                 ('xsmith_render-node (ast-child 'func n))
                  (text "(")
                  (h-concat
                   (add-between
-                   (map (λ (arg) (render-node arg))
+                   (map (λ (arg) ('xsmith_render-node arg))
                         (ast-children (ast-child 'args n)))
                    (text ", ")))
                  (text ")")))]

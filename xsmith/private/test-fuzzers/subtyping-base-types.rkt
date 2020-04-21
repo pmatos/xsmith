@@ -105,33 +105,33 @@
            (λ (n)
              `(let* (,@(map (λ (d)
                               `[,(string->symbol (ast-child 'name d))
-                                ,(render-node
+                                ,(att-value 'xsmith_render-node
                                             (ast-child 'Expression d))])
                             (ast-children (ast-child 'definitions n))))
-                ,@(map (λ (c) (render-node c))
+                ,@(map (λ (c) (att-value 'xsmith_render-node c))
                        (ast-children (ast-child 'sideEs n)))
-                ,(render-node (ast-child 'Expression n))))]
+                ,(att-value 'xsmith_render-node (ast-child 'Expression n))))]
           [LiteralInt (λ (n) (ast-child 'v n))]
           [LiteralFloat (λ (n) (ast-child 'v n))]
           [LiteralBool (λ (n) (ast-child 'v n))]
           [LiteralString (λ (n) (ast-child 'v n))]
           #;[VariableReference (λ (n) (string->symbol (ast-child 'name n)))]
           #;[SetBangRet (λ (n) `(begin (set! ,(string->symbol (ast-child 'name n))
-                                           ,(render-node
+                                           ,(att-value 'xsmith_render-node
                                                        (ast-child 'Expression n)))
                                      ,(string->symbol (ast-child 'name n))))]
-          [Addition (λ (n) `(+ ,@(map (λ (c) (render-node c))
+          [Addition (λ (n) `(+ ,@(map (λ (c) (att-value 'xsmith_render-node c))
                                       (ast-children (ast-child 'es n)))))]
-          [And (λ (n) `(and ,@(map (λ (c) (render-node c))
+          [And (λ (n) `(and ,@(map (λ (c) (att-value 'xsmith_render-node c))
                                    (ast-children (ast-child 'es n)))))]
           [StringAppend (λ (n) `(string-append
-                                 ,@(map (λ (c) (render-node c))
+                                 ,@(map (λ (c) (att-value 'xsmith_render-node c))
                                         (ast-children (ast-child 'es n)))))]
-          [StringLength (λ (n) `(string-length ,(render-node
-                                                 (ast-child 'Expression n))))]
-          [If (λ (n) `(if ,(render-node (ast-child 'test n))
-                          ,(render-node (ast-child 'then n))
-                          ,(render-node (ast-child 'else n))))]
+          [StringLength (λ (n) `(string-length ,(att-value 'xsmith_render-node
+                                                           (ast-child 'Expression n))))]
+          [If (λ (n) `(if ,(att-value 'xsmith_render-node (ast-child 'test n))
+                          ,(att-value 'xsmith_render-node (ast-child 'then n))
+                          ,(att-value 'xsmith_render-node (ast-child 'else n))))]
           )
 
 

@@ -33,7 +33,7 @@
 (require
  racket/contract
  racket/contract/base
- (only-in racr ast-node?)
+ (only-in racr ast-node? att-value)
  racket/string
  )
 
@@ -365,7 +365,7 @@
               ;;;;
               ;; Convert an AST to a string.
               (define (ast->string root)
-                (let ([ppr (render-node root)])
+                (let ([ppr (att-value 'xsmith_render-node root)])
                   (if format-render-func
                       (format-render-func ppr)
                       (format "~a\n" ppr))))

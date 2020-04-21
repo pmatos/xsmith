@@ -40,9 +40,9 @@
 
 
 (define (render-child sym n)
-  (render-node (ast-child sym n)))
+  (att-value 'xsmith_render-node (ast-child sym n)))
 (define (render-children sym n)
-  (map render-node (ast-children (ast-child sym n))))
+  (map (λ (cn) (att-value 'xsmith_render-node cn)) (ast-children (ast-child sym n))))
 (define ((binary-op-renderer op) n)
   `(,op ,(render-child 'l n) ,(render-child 'r n)))
 
@@ -183,7 +183,7 @@
   (λ (n)
     `(make-hash (list ,@(map (λ (name val)
                                `(cons ',name
-                                      ,(render-node val)))
+                                      ,(att-value 'xsmith_render-node val)))
                              (ast-child 'fieldnames n)
                              (ast-children (ast-child 'expressions n))))))]
  [ImmutableStructuralRecordLiteral
@@ -191,7 +191,7 @@
     `(hash ,@(apply append
                     (map (λ (name val)
                            `(',name
-                             ,(render-node val)))
+                             ,(att-value 'xsmith_render-node val)))
                          (ast-child 'fieldnames n)
                          (ast-children (ast-child 'expressions n))))))]
  [MutableStructuralRecordReference

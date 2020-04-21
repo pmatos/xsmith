@@ -121,9 +121,9 @@
 
 (define (nest-if-not-block n)
   (if (equal? (node-type n) 'Block)
-      (render-node n)
+      (att-value 'xsmith_render-node n)
       (nest nest-step (h-append nest-step-string
-                                (render-node n)))))
+                                (att-value 'xsmith_render-node n)))))
 
 
 (define ident (λ(x)x))
@@ -422,18 +422,18 @@ New types
   (h-comment
    n
    (h-append lparen
-             (hs-append (render-node (ast-child 'l n))
+             (hs-append (att-value 'xsmith_render-node (ast-child 'l n))
                         op-sym
-                        (render-node (ast-child 'r n)))
+                        (att-value 'xsmith_render-node (ast-child 'r n)))
              rparen)))
 (define ({binary-expression-print/function type->f-name} n)
   (h-comment
    n
    (h-append (type->f-name (att-value 'xsmith_type n))
              lparen
-             (hs-append (render-node (ast-child 'l n))
+             (hs-append (att-value 'xsmith_render-node (ast-child 'l n))
                         comma
-                        (render-node (ast-child 'r n)))
+                        (att-value 'xsmith_render-node (ast-child 'r n)))
              rparen)))
 
 (define-syntax (def-type->print stx)

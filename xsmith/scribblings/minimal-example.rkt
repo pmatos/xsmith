@@ -20,11 +20,11 @@
           [Addition [int (λ (n t) (hash 'l int 'r int))]])
 
 (add-prop arith render-node-info
-          [Program (λ (n) (render-node (ast-child 'Expression n)))]
+          [Program (λ (n) (att-value 'xsmith_render-node (ast-child 'Expression n)))]
           [LiteralInt (λ (n) (number->string (ast-child 'v n)))]
           [Addition (λ (n) (format "(~a + ~a)"
-                                   (render-node (ast-child 'l n))
-                                   (render-node (ast-child 'r n))))])
+                                   (att-value 'xsmith_render-node (ast-child 'l n))
+                                   (att-value 'xsmith_render-node (ast-child 'r n))))])
 
 ;; This line defines `arithmetic-generate-ast`.
 (assemble-spec-components arithmetic arith)
