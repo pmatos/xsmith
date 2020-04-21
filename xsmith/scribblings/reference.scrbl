@@ -35,10 +35,13 @@
 (for-label
 (except-in xsmith/private/base
            module
-           string)
+           string
+           #%app)
+(prefix-in racket/base: racket/base)
 xsmith
 xsmith/racr-convenience
 xsmith/canned-components
+xsmith/app
 
 racket/contract/base
 racket/dict
@@ -1839,6 +1842,37 @@ Calls @racket[parent-node] until it reaches the last parent, and returns it.
 Wrapper for @racket[ast-subtype?] that returns #f rather than erroring when the given node is a bud, list, or non-node.
 }
 
+@section{xsmith/app}
+@defmodule[xsmith/app]
+
+The xsmith/app module provides a convenient @tt{#%app} replacement for accessing attributes (AKA methods, or att-rules on AST nodes) and methods (AKA choice-rules) on choice objects.
+
+See @secref["application" #:doc '(lib "scribblings/reference/reference.scrbl")] for more details on @tt{#%app}.
+
+Note that these bindings are @italic{not} provided by the main @tt{xsmith} module.
+
+@defform[(#%app form ...)]{
+When the first form (after the [probably implicit] @racket[#%app] identifier) is a quoted symbol, the form is treated as a method application.
+
+In short, if the node @tt{n} is an @racket[ast-node?], then:
+@racketblock[('xsmith_type n)]
+is essentially rewritten as:
+@racketblock[(att-value 'xsmith_type n)]
+
+Additionally, if @tt{n} is an @racket[object?] (probably a @racket[choice-object?]), then:
+@racketblock[('choice-rule-name n 1 2 3)]
+is essentially rewritten as:
+@racketblock[(send n choice-rule-name 1 2 3)]
+
+In practice, whether @tt{n} is an @racket[ast-node?] or @racket[object?] can't be determined statically, so it is tested at runtime.
+
+If the first form is not a quoted symbol, then the @racket[racket/base:#%app] from is used.
+}
+
+@defform[(define-xsmith-app xsmith-app-name inner-app)]{
+Defines a macro like @racket[#%app] above, but using @racket[inner-app] as the fallback instead of @racket[racket/base:#%app].
+Use this if you want to combine the xsmith/app behavior with another customized @tt{#%app} implementation.
+}
 
 @section{Canned Components}
 @defmodule[xsmith/canned-components]
@@ -1853,6 +1887,8 @@ Of note, statements use two statement types: @racket[return-type] and @racket[no
 The expressions use all the other provided types.
 
 For some examples that use these canned components, see the @tt{xsmith-examples/simple} directory.
+
+Note that these bindings are @italic{not} provided by the main @tt{xsmith} module.
 
 @defform[(add-basic-expressions grammar-component optional ...)
          #:grammar

@@ -1735,37 +1735,37 @@ longer-winded `(att-value 'render-node-info <node>)`-style calls.
     [(att-value 'xsmith_is-hole? node)
      (render-hole node)]
     [else
-     (att-value '_xsmith_render-node node)]))
+     (att-value 'xsmith_render-node node)]))
 
 (define-property render-node-info
   #:appends
-  (att-rule _xsmith_render-node)
+  (att-rule xsmith_render-node)
   #:transformer
   (λ (this-prop-info)
-    (define _xsmith_render-node-info
+    (define xsmith_render-node-info
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ (n) (symbol->string (ast-node-type n))))
           (for/hash ([(n v) (in-dict this-prop-info)])
             (values n
                     v))))
-    (list _xsmith_render-node-info)))
+    (list xsmith_render-node-info)))
 
 (define (render-hole hole)
-  (att-value '_xsmith_render-hole hole))
+  (att-value 'xsmith_render-hole hole))
 
 (define-property render-hole-info
   #:appends
-  (att-rule _xsmith_render-hole)
+  (att-rule xsmith_render-hole)
   #:transformer
   (λ (this-prop-info)
-    (define _xsmith_render-hole-info
+    (define xsmith_render-hole-info
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ (h) (format "<~a>"
                                     (symbol->string (ast-node-type h)))))
           (for/hash ([(n v) (in-dict this-prop-info)])
             (values n
                     v))))
-    (list _xsmith_render-hole-info)))
+    (list xsmith_render-hole-info)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
