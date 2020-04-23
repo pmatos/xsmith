@@ -1867,12 +1867,12 @@ Note that these bindings are @italic{not} provided by the main @tt{xsmith} modul
 When the first form (after the [probably implicit] @racket[#%app] identifier) is a quoted symbol, the form is treated as a method application.
 
 In short, if the node @tt{n} is an @racket[ast-node?], then:
-@racketblock[('xsmith_type n)]
+@racketblock[($xsmith_type n)]
 is essentially rewritten as:
 @racketblock[(att-value 'xsmith_type n)]
 
 Additionally, if @tt{n} is an @racket[object?] (probably a @racket[choice-object?]), then:
-@racketblock[('choice-rule-name n 1 2 3)]
+@racketblock[($choice-rule-name n 1 2 3)]
 is essentially rewritten as:
 @racketblock[(send n choice-rule-name 1 2 3)]
 
@@ -1881,9 +1881,13 @@ In practice, whether @tt{n} is an @racket[ast-node?] or @racket[object?] can't b
 If the first form is not a quoted symbol, then the @racket[racket/base:#%app] from is used.
 }
 
-@defform[(define-xsmith-app xsmith-app-name inner-app)]{
+@defform[(define-xsmith-app xsmith-app-name inner-app prefix)]{
 Defines a macro like @racket[#%app] above, but using @racket[inner-app] as the fallback instead of @racket[racket/base:#%app].
 Use this if you want to combine the xsmith/app behavior with another customized @tt{#%app} implementation.
+
+Additionally, @racket[prefix] is used instead of @tt{$}.  @racket[prefix] is given as a symbol.
+
+@racketblock[(define-xsmith-app my-xsmith-app #%plain-app $^!)]
 }
 
 @section{Canned Components}
