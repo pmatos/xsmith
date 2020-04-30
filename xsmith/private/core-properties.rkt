@@ -119,6 +119,15 @@
        (values node-name
                #`(λ () (let ([node-val #,(dict-ref this-prop/defaulted node-name)])
                          (cond
+                           ;; When the choice in question is a reference and the
+                           ;; parent node is a binding, let's automatically give
+                           ;; minimum weight to stop reference chains quickly.
+                           [(and (send this _xsmith_is-read-reference-choice?)
+                                 (parent-node current-hole)
+                                 ;; using this attribute as a binder? predicate...
+                                 (att-value '_xsmith_binder-type-field
+                                            (parent-node current-hole)))
+                            1]
                            [(procedure? node-val) (node-val)]
                            [(number? node-val) node-val]
                            [else (error 'choice-weight "Invalid weight given: ~a. Expected number or procedure." node-val)])))))
