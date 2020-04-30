@@ -916,27 +916,13 @@ few of these methods.
                 (λ (x) (not (effect-io? x)))
                 effect-write-variable?)
             (att-value '_xsmith_effect-constraints node)))
-  (define effect-variable-names
+  (define effect-variable-bindings
     (map effect-variable effects-to-avoid))
-
-  (define options/no-func-for-write
-    (if (not write-reference?)
-        reference-options
-        (filter
-         (λ (b)
-           (and (not (can-unify? (binding-type b)
-                                 (function-type
-                                  (fresh-type-variable)
-                                  (fresh-type-variable))))
-                (not (can-unify? (binding-type b)
-                                 (nominal-record-definition-type
-                                  (fresh-type-variable))))))
-         reference-options)))
 
   (define options/effect-filtered
     (filter
-     (λ (x) (not (member (binding-name x) effect-variable-names)))
-     options/no-func-for-write))
+     (λ (x) (not (memq x effect-variable-bindings)))
+     reference-options))
 
   ;; Higher order functions could have any effect!
   (define options/higher-order-effect-filtered
@@ -944,6 +930,9 @@ few of these methods.
              (not (null? effects-to-avoid)))
         (filter
          ;; Filter out function parameters
+         ;; IE if there are potentially conflicting effects, only choose functions
+         ;; that are globally visible because we can't reason about what effects
+         ;; a function passed in via function parameter might have.
          (λ (x) (eq? (binding-def-or-param x) 'definition))
          options/effect-filtered)
         options/effect-filtered))
@@ -1625,32 +1614,44 @@ The second arm is a function that takes the type that the node has been assigned
             [#f (values #f #f)]))
         (values
          n
-         #`(λ (n) (filter (λ(x)x)
-                          (list (and #,(dict-ref io-info n) (effect-io))
-                                #,(if read-or-write
-                                      #`(#,read-or-write
-                                         (att-value
-                                          '_xsmith_resolve-reference-name
-                                          n
-                                          (ast-child '#,varname n)))
-                                      #'#f)
-                                ;; This is an over-approximation.
-                                ;; For function application, I need the effects of
-                                ;; the function body.
-                                ;; If I can tell when a reference is for a function
-                                ;; specifically I can limit this to only function
-                                ;; lookup.
-                                ;; However, even then it is an over-approximation
-                                ;; because a function definition in some languages
-                                ;; can have arbitrary expressions around a lambda,
-                                ;; or even different lambdas behind conditionals.
-                                (and (equal? #,read-or-write effect-read-variable)
-                                     (att-value '_xsmith_effects
-                                                (binding-ast-node
-                                                 (att-value
-                                                  '_xsmith_resolve-reference-name
-                                                  n
-                                                  (ast-child '#,varname n)))))))))))
+         #`(λ (n)
+             (let ([binding #,(and read-or-write
+                                   #`(att-value
+                                      '_xsmith_resolve-reference-name
+                                      n
+                                      (ast-child '#,varname n)))])
+               (filter (λ(x)x)
+                       (list (and #,(dict-ref io-info n) (effect-io))
+                             (and binding (#,read-or-write binding))
+                             #,(if read-or-write
+                                   #`(#,read-or-write
+                                      (att-value
+                                       '_xsmith_resolve-reference-name
+                                       n
+                                       (ast-child '#,varname n)))
+                                   #'#f)
+                             ;; This is an over-approximation.
+                             ;; For function application, I need the effects of
+                             ;; the function body.
+                             ;; If I can tell when a reference is for a function
+                             ;; specifically I can limit this to only function
+                             ;; lookup.
+                             ;; However, even then it is an over-approximation
+                             ;; because a function definition in some languages
+                             ;; can have arbitrary expressions around a lambda,
+                             ;; or even different lambdas behind conditionals.
+                             (and (equal? #,read-or-write effect-read-variable)
+                                  (att-value '_xsmith_effects
+                                             (binding-ast-node binding)))
+                             ;; If we are getting a function type out of a function
+                             ;; parameter, then when that function is applied it
+                             ;; can have any effect!
+                             (and binding
+                                  (eq? (binding-def-or-param binding)
+                                       'parameter)
+                                  (type-contains-function-type?
+                                   (binding-type binding))
+                                  (any-effect)))))))))
     (define _xsmith_effects-info
       ;; TODO - this is not node specific, but I think I want att-rule caching on it...
       (hash
@@ -1693,13 +1694,23 @@ The second arm is a function that takes the type that the node has been assigned
       (for/hash ([n nodes])
         (values
          n
-         (syntax-parse (dict-ref io-info n)
-           [#t #'(λ () (or (not (ast-has-parent? (current-hole)))
-                           (not (memf effect-io?
-                                      (att-value '_xsmith_effect-constraints-for-child
-                                                 (ast-parent (current-hole))
-                                                 (current-hole))))))]
-           [#f #'(λ () #t)]))))
+         (syntax-parse (list (dict-ref io-info n) (dict-ref reference-info n #'#f))
+           [(#t _)
+            #'(λ () (or (not (ast-has-parent? (current-hole)))
+                        (not (memf (λ (e) (or (effect-io? e) (any-effect? e)))
+                                   (att-value '_xsmith_effect-constraints-for-child
+                                              (ast-parent (current-hole))
+                                              (current-hole))))))]
+           [(#f prop:reference-info-class)
+            ;; References are disallowed when there is a conflict of any-effect.
+            ;; Here we're cheating a little, because this isn't really an IO conflict.
+            ;; Maybe I should move this into a different choice method...
+            #'(λ ()
+                (not (memf any-effect?
+                           (att-value '_xsmith_effect-constraints-for-child
+                                      (ast-parent (current-hole))
+                                      (current-hole)))))]
+           [(#f #f) #'(λ () #t)]))))
     (list _xsmith_effects/no-children-info
           _xsmith_effects-info
           _xsmith_effect-constraints-for-child-info
