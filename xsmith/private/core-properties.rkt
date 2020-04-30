@@ -906,8 +906,7 @@ few of these methods.
                       (build-type-thunk))])))
 
 (define (reference-options-filter node reference-options concrete-type write-reference?)
-  ;; TODO - I should check if the type contains a function, not merely IS a function.  And for higher order effects I should check this before concretizing.
-  (define function? (function-type? concrete-type))
+  (define function? (type-contains-function-type? concrete-type))
   (when (and write-reference? function?)
     ;; Assigning to functions destroys language-agnostic effect tracking.
     (error 'xsmith "Got a function type as a type to assign to.  Xsmith's effect tracking requires that assignment can never have a function type."))

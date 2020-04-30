@@ -101,6 +101,7 @@ WIP checklist:
   [rename concrete? concrete-type? (-> type? any/c)]
   [rename mk-product-type product-type (-> (or/c #f (listof type?)) type?)]
   [function-type (-> type? type? type?)]
+  [type-contains-function-type? (-> (and/c type? concrete?) any/c)]
   )
  function-type?
  function-type-arg-type
@@ -112,6 +113,7 @@ WIP checklist:
  type->type-variable-list
  at-least-as-concrete
  contains-type-variables?
+
 
  )
 
@@ -2044,6 +2046,39 @@ TODO - when generating a record ref, I'll need to compare something like (record
                   todos
                   dones)]))]))
   (work '() (list orig-type) '()))
+
+(define (type-contains-function-type? t)
+  ;; Recursively checks for function types within a given type.
+  ;; This is for higher-order effect tracking
+  ;; Only gives correct answers for concrete types.  But that's in the contract-out contract.
+  (match t
+    [(base-type _ _) #f]
+    [(base-type-range _ _) #f]
+    [(function-type arg ret) #t]
+    [(product-type inners lb ub)
+     (when (not inners)
+       (error 'type-contains-function-type? "given non-concrete type: ~v" t))
+     (for/or ([it inners])
+       (type-contains-function-type? it))]
+    [(c-nominal-record-type name super known-fields lb ub)
+     (for/or ([it (dict-values known-fields)])
+       (type-contains-function-type? it))]
+    [(nominal-record-definition-type inner) #f]
+    [(c-structural-record-type f?1 known-fields-1 lb-1 ub-1)
+     (for/or ([it (dict-values known-fields-1)])
+       (type-contains-function-type? it))]
+    [(generic-type name constructor inners variances)
+     (for/or ([it inners])
+       (type-contains-function-type? it))]
+    [(c-type-variable (list single-it) _ _)
+     (type-contains-function-type? single-it)]
+    [(c-type-variable (list its ...) _ _)
+     ;; This one should maybe be an error, but it's actually already concrete enough to tell...
+     ;(error 'type-contains-function-type? "given non-concrete type: ~v" t)
+     (for/or ([it its])
+       (type-contains-function-type? it))]
+    [(c-type-variable #f _ _)
+     (error 'type-contains-function-type? "given non-concrete type: ~v" t)]))
 
 
 ;; This is a copy/pasted version of list-subtract from the `set` generic implementation.  The generic uses `equal?`-based testing, but I'm only using it on things where I want `eq?`-based testing.
