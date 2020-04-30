@@ -383,10 +383,10 @@
                      ([expressions : Expression * = (add1 (random array-max-length))])
                      #:prop wont-over-deepen #t]
                     [ImmutableArraySafeReference
-                     Expression ([array : VariableReference]
+                     Expression ([array : Expression]
                                  [index : Expression])]
                     [ImmutableArraySafeSet
-                     Expression ([array : VariableReference]
+                     Expression ([array : Expression]
                                  [index : Expression]
                                  [newvalue : Expression])])
                    (add-prop
@@ -470,7 +470,7 @@
                         (subtype-unify! at t)
                         (hash 'expressions et))]]
                     [MutableArraySafeReference
-                     Expression ([array : VariableReference]
+                     Expression ([array : Expression]
                                  [index : Expression])
                      #:prop type-info
                      [(fresh-type-variable)
@@ -598,7 +598,7 @@
                     [MutableStructuralRecordReference
                      Expression
                      ([fieldname = (random-field-name)]
-                      [record : VariableReference])
+                      [record : Expression])
                      #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t) (hash 'record
