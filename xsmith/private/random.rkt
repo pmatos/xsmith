@@ -288,18 +288,23 @@
 ;;   3. A PRG seeded from the first byte in the byte string, which will be used
 ;;      for extending the string as needed.
 (define (make-byte-sequence-value seq)
+  ;; First make sure a byte string was given.
   (unless (bytes? seq)
     (raise-argument-error
      'make-byte-sequence-value
      "bytes?"
      seq))
-  ;; If the given byte sequence is of insufficient length, it will be padded
-  ;; with \0 bytes to meet the minimum length.
-  (when (<= seq-chunk-size (bytes-length seq))
-    (set! seq
-          (bytes-append seq
-                        (make-bytes (- seq-chunk-size (bytes-length seq))))))
-  ;; Create a seq-val using the supplied sequence.
+  ;; If the given byte string is of insufficient length (i.e., smaller than the
+  ;; seq-chunk-size) or if the total number of bytes is not divisible by
+  ;; seq-chunk-size, pad the needed amount with \0 bytes.
+  (let* ([seq-len (bytes-length seq)]
+         [bytes-in-last-chunk (modulo seq-len seq-chunk-size)]
+         [needed-padding (- seq-chunk-size bytes-in-last-chunk)])
+    (when (or (<= seq-len seq-chunk-size)
+              (not (eq? 0 bytes-in-last-chunk)))
+      (set! seq (bytes-append seq (make-bytes needed-padding)))))
+  ;; Now that we know the byte string is definitely long enough, create a
+  ;; seq-val using that byte string.
   (let* ([seed-bytes (subbytes seq 0 seq-chunk-size)]
          [seed-int (integer-bytes->integer seed-bytes #f)]
          [seed-val (modulo seed-int (add1 max-seed-value))]
