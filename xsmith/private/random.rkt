@@ -296,13 +296,17 @@
      seq))
   (let* ([seed-bytes (subbytes seq 0 seq-chunk-size)]
          [seed-int (integer-bytes->integer seed-bytes #f)]
-         [seed-val (modulo seed-int (add1 max-seed-value))])
+         [seed-val (modulo seed-int (add1 max-seed-value))]
+         [init-idx (bytes-length seed-bytes)])
     (seq-val
      ;; The initial sequence is just the sequence that was passed in.
      seq
      ;; The index is initialized to be just after the bytes used to seed the
-     ;; PRG.
-     (bytes-length seed-bytes)
+     ;; PRG, unless this would consume all available bytes in which case the
+     ;; index becomes #f.
+     (if (eq? init-idx (bytes-length seq))
+         #f
+         init-idx)
      ;; The PRG is initialized using the first few bytes in the sequence.
      (make-prg seed-val))))
 
