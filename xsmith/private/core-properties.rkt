@@ -148,6 +148,7 @@
                            [(number? node-val) node-val]
                            [else (error 'choice-weight "Invalid weight given: ~a. Expected number or procedure." node-val)])))))
      (hash #f #'(λ () (not (zero? (send this _xsmith_choice-weight))))))))
+
 #|
 The fresh property will take an expression (to be the body of a method
 -- so `this` can be used to access the current choice method) that
@@ -160,6 +161,7 @@ default value expression specified in the grammar), #f if no default
 is specified and no type is known for the field, or an appropriate
 hole for the type.
 |#
+
 (define-property fresh
   #:reads
   (grammar)
@@ -439,6 +441,7 @@ Helper function for _xsmith_scope-graph-child-scope-dict.
 * parent scope is the scope that the parent node is in.
 * serial/parallel/recursive-flag is a symbol
 |#
+
 (define (make-child-scope-dict cb-pairs parent-scope serial/parallel/recursive-flag)
   (define cb-no-bindings (filter (λ (cb) (not (cdr cb))) cb-pairs))
   (define cb-with-bindings (filter (λ (cb) (cdr cb)) cb-pairs))
@@ -507,6 +510,7 @@ The scope-graph-scope attribute returns the scope that the node in question resi
 Note that this property doesn't have arguments and isn't public so users can't even set a value for it.
 It just reads the values of several other properties and produces the results for them.
 |#
+
 (define-property introduces-scope
   #:reads
   (grammar)
@@ -898,6 +902,7 @@ let-over-lambda (maybe the class macro rewrites the lambdas...).
 So let's have a weak hash table store the mutable state we need in a
 few of these methods.
 |#
+
 (define ref-choices-filtered-hash (make-weak-hasheq))
 
 (define (xsmith_get-reference!-func self lift-probability)
@@ -1270,6 +1275,7 @@ The second arm is a function that takes the type that the node has been assigned
 • its type
 • A function that takes the AST node for the child and returns its type. (This must be used for list children, IE those with a kleene star)
 |#
+
 (define-property type-info
   #:reads
   (grammar)
@@ -1756,6 +1762,7 @@ Functions specified this way will be wrapped with a test to determine whether
 the supplied argument is actually a hole. If it is, then `xsmith_render-hole` will be
 called instead.
 |#
+
 (define ((render-node-helper renderer) node)
   (when (not (ast-node? node))
     (error "render-node received object which is not a RACR AST node:" node))
