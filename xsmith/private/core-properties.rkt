@@ -1420,12 +1420,11 @@ The second arm is a function that takes the type that the node has been assigned
                 (ast-node-type node) child-types))
              (define reference-unify-target
                #,(dict-ref node-reference-unify-target n))
+             (define read-or-write
+               #,(dict-ref node-r/w-type n))
              (when (and reference-unify-target (not (eq? #t reference-unify-target)))
                ;; This is the case that we can't handle in
                ;; xsmith_type-info-func to avoid a cycle.
-               ;; Note that we symmetrically unify, to ensure that
-               ;; the RHS (which can be a subtype of the parent assignment)
-               ;; isn't a different, incompatible subtype than the LHS.
                (let ([binding-t
                       (binding-type
                        (att-value '_xsmith_resolve-reference-name
@@ -1446,7 +1445,18 @@ The second arm is a function that takes the type that the node has been assigned
                        (xd-printf "Type required for reference-unify target: ~v\n"
                                   target-t)
                        (raise e))])
-                   (unify! binding-t target-t))))
+                   ;; I should probably disallow the #:unifies argument
+                   ;; for read references. I'm not entirely sure what
+                   ;; the relationship to the target should be in that
+                   ;; case, so I'll be conservative and say it has to
+                   ;; symmetrically unify.
+                   ;;
+                   ;; But if it's a write, then it means that the target
+                   ;; is the RHS of the write, and it can be any subtype
+                   ;; of the variable referenced.
+                   (if (eq? 'read read-or-write)
+                       (unify! binding-t target-t)
+                       (subtype-unify! target-t binding-t)))))
              child-types))))
     (define _xsmith_type-constraint-from-parent-info
       (if (dict-empty? this-prop-info)
