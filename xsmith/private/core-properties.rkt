@@ -68,7 +68,7 @@
  "random.rkt"
  racr
  racket/class
- racket/dict
+ ;racket/dict
  racket/list
  racket/match
  (for-syntax
@@ -77,6 +77,22 @@
   racket/dict
   racket/list
   ))
+
+(require (rename-in racket/dict [dict-ref r:dict-ref]))
+(define-syntax (dict-ref stx)
+  (syntax-parse stx
+    [(_ d k (~optional fb))
+     #`(let ([d* d]
+             [k* k]
+             [src (quote #,(syntax-source stx))]
+             [line (quote #,(syntax-line stx))])
+         (when (not (dict? d*))
+           (error 'dict-ref/wrapped "not a dict: ~v, at ~a:~a"
+                  d* src line))
+         (r:dict-ref d* k* (~? fb (λ () (error 'dict-ref/wrapped
+                                               "key not found: ~v, at ~a:~a"
+                                               k* src line
+                                               )))))]))
 
 (define-non-inheriting-rule-property
   may-be-generated
