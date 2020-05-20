@@ -1791,9 +1791,18 @@ called instead.
     (define xsmith_render-node-info
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ (n) (symbol->string (ast-node-type n))))
-          (for/hash ([(n v) (in-dict this-prop-info)])
-            (values n
-                    #`(render-node-helper #,v)))))
+          (let ([hash-no-false (for/hash ([(n v) (in-dict this-prop-info)])
+                                 (values n
+                                         #`(render-node-helper #,v)))])
+            (if (hash-has-key? hash-no-false #f)
+                hash-no-false
+                (hash-set hash-no-false
+                          #f
+                          #'(render-node-helper
+                             (λ (n) (error
+                                     'xsmith_render-node
+                                     "No rule defined for node of type: ~v"
+                                     (ast-node-type n)))))))))
     (list xsmith_render-node-info)))
 
 (define-property render-hole-info
