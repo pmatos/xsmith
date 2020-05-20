@@ -789,6 +789,7 @@ Additionally, it defines the following att-rules within the RACR spec:
 
 It also defines within the RACR spec all att-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
 |#
+
 (define-syntax-parser assemble-spec-components/core
   [(_ spec:id
       (~and extra-props (prop-name:id ...))
@@ -834,6 +835,7 @@ Stage 3
 Perform error checking:
  - check for duplicates in grammar clauses, att-rules, and choice rules
 |#
+
 (define-syntax-parser assemble_stage3
   ;; These first patterns are error checking patterns that match when there
   ;; are duplicate definitions in the grammar or rules.
