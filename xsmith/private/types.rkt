@@ -113,6 +113,7 @@ WIP checklist:
  at-least-as-concrete
  contains-type-variables?
 
+ type-contains-function-type?
  )
 
 (require
@@ -162,6 +163,7 @@ When type variables are subtype-unified, the variables are set in each other's u
 If a (transitive) upper bound is ever equal to a (transitive) lower bound, that part of the lattice is unified into one type-variable-innard.
 
 |#
+
 (struct core-type-variable
   ([forward #:mutable]
    [type #:mutable]
@@ -362,6 +364,7 @@ Base types can be declared as subtypes of other base types.
 Inside a type variable, they are always placed in a base-type-range, which gives a minimum and maximum type.
 The minimum may be #f to mean any subtype of the maximum type.
 |#
+
 (struct base-type (name supertype) #:transparent
   #:methods gen:custom-write
   [(define (write-proc self port mode)
@@ -455,6 +458,7 @@ inner-type-list may be:
 • a list of types (which may contain type variables)
 upper-bounds and lower-bounds are lists of other product types that a given one has been subtype-unified with.  Once any product type among these has a list (instead of #f) for its inner type list, all the others will have a list of the same length created and filled with type variables.  Then they are all subtype-unified.
 |#
+
 (struct product-type
   ([inner-type-list #:mutable]
    [lower-bounds #:mutable]
@@ -710,6 +714,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
   ;; TODO - filter out any that are sub-ranges within each of these lists
   (list new-subs new-sups))
 
+(struct exn:fail:subtype-unify exn:fail ())
+(define (errsu message-format-string . args)
+  (raise (exn:fail:subtype-unify
+          (string-append "subtype-unify!: " (apply format message-format-string args))
+          (current-continuation-marks))))
 
 (define (subtype-unify! sub* super*)
   #|
@@ -749,8 +758,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
           (set-core-type-variable-type!
            sub
            (match new-possibilities
-             [(list) (error 'subtype-unify!
-                            "can't unify these types: ~v and ~v"
+             [(list) (errsu "can't unify these types: ~v and ~v"
                             sub super)]
              [(list (? base-type-range?) ...)
               (define super-range (match super
@@ -763,8 +771,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                    (and x (car x)))
                  new-possibilities))
               (match new-ranges
-                [(list) (error 'subtype-unify!
-                               "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
+                [(list) (errsu "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
                                sub super)]
                 [(list one) new-ranges]
                 [else new-ranges])]
@@ -801,8 +808,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
           (set-core-type-variable-type!
            super
            (match new-possibilities
-             [(list) (error 'subtype-unify!
-                            "can't unify the following types: ~v and ~v"
+             [(list) (errsu "can't unify the following types: ~v and ~v"
                             sub super)]
              [(list (? base-type-range?) ...)
               (define sub-range
@@ -816,8 +822,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                    (and x (cadr x)))
                  new-possibilities))
               (match new-ranges
-                [(list) (error 'subtype-unify!
-                               "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
+                [(list) (errsu "can't unify types: ~v and ~v (this error hopefully is unreachable...)"
                                sub super)]
                 [(list one) new-ranges]
                 [else new-ranges])]
@@ -889,8 +894,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (define l2 (and inner2 (length inner2)))
 
        (when (and l1 l2 (not (equal? l1 l2)))
-         (error 'subtype-unify!
-                "Tried to unify two product types with unequal lengths (~v and ~v): ~v, ~v"
+         (errsu "Tried to unify two product types with unequal lengths (~v and ~v): ~v, ~v"
                 l1 l2
                 sub super))
 
@@ -921,8 +925,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
        ;;(todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")
        ;; TODO - the below is the implementation of non-subtype `unify!`.  For now, let's assume nominal records don't subtype unify, only normal unify.
        #;(define (fail)
-         (error 'subtype-unify!
-                "can't unify types: ~v and ~v"
+         (errsu "can't unify types: ~v and ~v"
                 sub super))
        #;(define t1 sub)
        #;(define t2 super)
@@ -958,8 +961,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [(list (generic-type name1 constructor1 type-arguments1 variances1)
              (generic-type name2 constructor2 type-arguments2 variances2))
        (unless (eq? constructor1 constructor2)
-         (error 'subtype-unify!
-                "TODO - better message -- tried to unify different generic types."))
+         (errsu "TODO - better message -- tried to unify different generic types."))
        (for-each (λ (isub isuper variance)
                    (match variance
                      ['invariant (begin
@@ -975,10 +977,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
       [(list (or (? base-type?) (? base-type-range?))
              (or (? base-type?) (? base-type-range?)))
        (unless (can-subtype-unify? sub super)
-         (error 'subtype-unify!
-                "Base types: type ~v is not a subtype of type ~v."
+         (errsu "Base types: type ~v is not a subtype of type ~v."
                 sub super))]
-      [else (error 'subtype-unify! "case analysis reached end: can't unify types: ~v and ~v" sub super)])))
+      [else (errsu "case analysis reached end: can't unify types: ~v and ~v" sub super)])))
 
 (define (mk-ripple-subtype-unify-changes subtype-unify!-func)
   (define (done-pair-list-remove-with done-list target)
@@ -1218,12 +1219,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (match t-list
          [(list)
           (let ([err-values
-                 (with-handlers ([(λ(e)#t) (λ(e) (error 'xsmith
-                                                        "Internal error while raising subtyping error."))])
+                 (with-handlers ([(λ(e)#t) (λ(e) (errsu "Internal error while raising subtyping error."))])
                    (list (variable-canonicalize sub)
                          (variable-canonicalize super)))])
-            (error 'subtype-unify!
-                   "can't unify types ~v and ~v (this one shouldn't happen...)"
+            (errsu "can't unify types ~v and ~v (this one shouldn't happen...)"
                    (car err-values)
                    (cadr err-values)))]
          [(list ts ...) ts]))
@@ -1485,8 +1484,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define (unify! t1* t2*)
   (define t1 (canonicalize-if-variable t1*))
   (define t2 (canonicalize-if-variable t2*))
-  (begin (subtype-unify! t1 t2)
-         (subtype-unify! t2 t1)))
+  (with-handlers ([exn:fail:subtype-unify?
+                   (λ (e) (error 'unify!
+                                 (exn-message e)))])
+    (begin (subtype-unify! t1 t2)
+           (subtype-unify! t2 t1))))
 
 
 ;; symmetric can-unify? can't just check if each can subtype-unify the other,
@@ -2044,6 +2046,46 @@ TODO - when generating a record ref, I'll need to compare something like (record
                   todos
                   dones)]))]))
   (work '() (list orig-type) '()))
+
+(define (type-contains-function-type? t #:potential? [potential? #f])
+  ;; Recursively checks for function types within a given type.
+  ;; This is for higher-order effect tracking
+  (define (rec it)
+    (type-contains-function-type? it #:potential? potential?))
+  (match t
+    [(base-type _ _) #f]
+    [(base-type-range _ _) #f]
+    [(function-type arg ret) #t]
+    [(product-type inners lb ub)
+     (if potential?
+         #t
+         (when (not inners)
+           (error 'type-contains-function-type? "given non-concrete type: ~v" t)))
+     (for/or ([it inners])
+       (rec it))]
+    [(c-nominal-record-type name super known-fields lb ub)
+     (if (and potential? (not (concrete? t)))
+         #t
+         (for/or ([it (dict-values known-fields)])
+           (rec it)))]
+    [(nominal-record-definition-type inner) #f]
+    [(c-structural-record-type f?1 known-fields-1 lb-1 ub-1)
+     (if (and potential? (not (concrete? t)))
+         #t
+         (for/or ([it (dict-values known-fields-1)])
+           (rec it)))]
+    [(generic-type name constructor inners variances)
+     (for/or ([it inners])
+       (rec it))]
+    [(c-type-variable (list single-it) _ _)
+     (rec single-it)]
+    [(c-type-variable (list its ...) _ _)
+     (for/or ([it its])
+       (rec it))]
+    [(c-type-variable #f _ _)
+     (if potential?
+         #t
+         (error 'type-contains-function-type? "given non-concrete type: ~v" t))]))
 
 
 ;; This is a copy/pasted version of list-subtract from the `set` generic implementation.  The generic uses `equal?`-based testing, but I'm only using it on things where I want `eq?`-based testing.

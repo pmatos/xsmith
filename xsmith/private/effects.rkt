@@ -40,6 +40,8 @@
  effect-write-variable?
  effect-io
  effect-io?
+ any-effect
+ any-effect?
  )
 
 (struct effect (type variable) #:transparent)
@@ -59,6 +61,11 @@
 (define (effect-io? x)
   (and (effect? x)
        (eq? 'io (effect-type x))))
+(define (any-effect)
+  (effect 'any-effect #f))
+(define (any-effect? x)
+  (and (effect? x)
+       (eq? 'any-effect (effect-type x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

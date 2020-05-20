@@ -185,7 +185,8 @@
 
 
           [NumberLiteral Expression (v)
-                         #:prop may-be-generated #f]
+                         #:prop may-be-generated #f
+                         #:prop choice-weight 1]
           [IntLiteral NumberLiteral ()
                       ;; TODO - better random integer
                       #:prop fresh (hash 'v (random 200000))]
@@ -284,7 +285,8 @@
          #,@(if (use? use-booleans)
                 #'((add-to-grammar
                     component
-                    [BoolLiteral Expression ([v = (even? (random 2))])]
+                    [BoolLiteral Expression ([v = (even? (random 2))])
+                                 #:prop choice-weight 1]
                     [Not Expression ([Expression])]
                     [And Expression ([l : Expression] [r : Expression])]
                     [Or Expression ([l : Expression] [r : Expression])])
@@ -304,7 +306,8 @@
                     [StringLiteral
                      Expression
                      ;; TODO - better fresh string literals
-                     ([v = (random-string-literal)])]
+                     ([v = (random-string-literal)])
+                     #:prop choice-weight 1]
                     [StringAppend Expression ([l : Expression] [r : Expression])]
                     [StringLength Expression (Expression)])
                    (add-prop
@@ -323,6 +326,7 @@
                      Expression ([parameters : FormalParameter * = (arg-length)]
                                  [body : Expression])
                      #:prop wont-over-deepen #t
+                     #:prop choice-weight 1
                      #:prop fresh
                      (lambda-fresh-implementation current-hole make-fresh-node)
                      #:prop type-info
@@ -336,6 +340,7 @@
                      Expression ([parameters : FormalParameter * = (arg-length)]
                                  [body : Block])
                      #:prop wont-over-deepen #t
+                     #:prop choice-weight 1
                      #:prop fresh
                      (lambda-fresh-implementation current-hole make-fresh-node)
                      #:prop type-info
@@ -381,12 +386,13 @@
                      Expression
                      ;; Be sure arrays are never empty.
                      ([expressions : Expression * = (add1 (random array-max-length))])
-                     #:prop wont-over-deepen #t]
+                     #:prop wont-over-deepen #t
+                     #:prop choice-weight 1]
                     [ImmutableArraySafeReference
-                     Expression ([array : VariableReference]
+                     Expression ([array : Expression]
                                  [index : Expression])]
                     [ImmutableArraySafeSet
-                     Expression ([array : VariableReference]
+                     Expression ([array : Expression]
                                  [index : Expression]
                                  [newvalue : Expression])])
                    (add-prop
@@ -422,6 +428,7 @@
                      Expression
                      ([expressions : Expression * = (random array-max-length)])
                      #:prop wont-over-deepen #t
+                     #:prop choice-weight 1
                      #:prop type-info
                      [(immutable (list-type (fresh-type-variable)))
                       (λ (n t)
@@ -462,6 +469,7 @@
                      ;; Be sure arrays are never empty.
                      ([expressions : Expression * = (add1 (random array-max-length))])
                      #:prop wont-over-deepen #t
+                     #:prop choice-weight 1
                      #:prop type-info
                      [(mutable (fresh-array-type))
                       (λ (n t)
@@ -470,7 +478,7 @@
                         (subtype-unify! at t)
                         (hash 'expressions et))]]
                     [MutableArraySafeReference
-                     Expression ([array : VariableReference]
+                     Expression ([array : Expression]
                                  [index : Expression])
                      #:prop type-info
                      [(fresh-type-variable)
@@ -499,6 +507,7 @@
                      Expression
                      (fieldnames [expressions : Expression *])
                      #:prop wont-over-deepen #t
+                     #:prop choice-weight 1
                      #:prop fresh
                      (let* ([t (begin (force-type-exploration-for-node!
                                        (current-hole))
@@ -560,6 +569,7 @@
                      Expression
                      (fieldnames [expressions : Expression *])
                      #:prop wont-over-deepen #t
+                     #:prop choice-weight 1
                      #:prop fresh
                      (let* ([t (begin (force-type-exploration-for-node!
                                        (current-hole))
@@ -598,7 +608,7 @@
                     [MutableStructuralRecordReference
                      Expression
                      ([fieldname = (random-field-name)]
-                      [record : VariableReference])
+                      [record : Expression])
                      #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t) (hash 'record
