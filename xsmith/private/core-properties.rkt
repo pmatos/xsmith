@@ -732,16 +732,27 @@ It just reads the values of several other properties and produces the results fo
         (syntax-parse (dict-ref name+type+d/p-hash node #f)
           [#f rule-info]
           [(name-field-name type-field-name def-or-param)
-           (dict-set rule-info node
-                     #'(λ (n)
-                         (let ([name (ast-child 'name-field-name n)]
-                               [type (ast-child 'type-field-name n)])
-                           (if (or (and (ast-node? type) (ast-bud-node? type))
-                                   (and (ast-node? name) (ast-bud-node? name)))
-                               #f
-                               (begin
-                                 (unify! type (att-value 'xsmith_type n))
-                                 (binding name n type 'def-or-param))))))])))
+           (dict-set
+            rule-info node
+            #'(λ (n)
+                (let ([name (ast-child 'name-field-name n)]
+                      [type (ast-child 'type-field-name n)])
+                  (if (or (and (ast-node? type) (ast-bud-node? type))
+                          (and (ast-node? name) (ast-bud-node? name)))
+                      #f
+                      (begin
+                        (with-handlers
+                          ([(λ(e)#t)
+                            (λ (e)
+                              (xd-printf
+                               "Error unifying recorded type of definition node\n")
+                              (xd-printf "Node type: ~v\n" (ast-node-type n))
+                              (xd-printf "Type recorded with definition: ~v\n" type)
+                              (xd-printf "Type computed for node: ~v\n\n"
+                                         (att-value 'xsmith_type n))
+                              (raise e))])
+                          (unify! type (att-value 'xsmith_type n)))
+                        (binding name n type 'def-or-param))))))])))
     (list _xsmith_binder-type-field xsmith_definition-binding-info)))
 
 ;; This property should be a list containing:
@@ -1394,35 +1405,49 @@ The second arm is a function that takes the type that the node has been assigned
 
     (define _xsmith_children-type-dict-info
       (for/hash ([n (dict-keys node-child-dict-funcs)])
-        (values n #`(λ (node)
-                      (define my-type (att-value 'xsmith_type node))
-                      (define my-type->child-type-dict
-                        #,(dict-ref node-child-dict-funcs n))
-                      (define child-types
-                        (my-type->child-type-dict node my-type))
-                      (when (not (dict? child-types))
-                        (error
-                         'type-info
-                         "Bad type rule for node type: ~v, instead of dict?, got: ~v"
-                         (ast-node-type node) child-types))
-                      (define reference-unify-target
-                        #,(dict-ref node-reference-unify-target n))
-                      (when (and reference-unify-target (not (eq? #t reference-unify-target)))
-                        ;; This is the case that we can't handle in
-                        ;; xsmith_type-info-func to avoid a cycle.
-                        ;; Note that we symmetrically unify, to ensure that
-                        ;; the RHS (which can be a subtype of the parent assignment)
-                        ;; isn't a different, incompatible subtype than the LHS.
-                        (unify!
-                         (binding-type (att-value '_xsmith_resolve-reference-name
-                                                  node
-                                                  (ast-child #,(dict-ref node-reference-field n) node)))
-                         (get-value-from-parent-dict child-types reference-unify-target
-                                                     (λ () (error 'type-info
-                                                                  "No type given for field ~a"
-                                                                  reference-unify-target)))
-                         ))
-                      child-types))))
+        (values
+         n
+         #`(λ (node)
+             (define my-type (att-value 'xsmith_type node))
+             (define my-type->child-type-dict
+               #,(dict-ref node-child-dict-funcs n))
+             (define child-types
+               (my-type->child-type-dict node my-type))
+             (when (not (dict? child-types))
+               (error
+                'type-info
+                "Bad type rule for node type: ~v, instead of dict?, got: ~v"
+                (ast-node-type node) child-types))
+             (define reference-unify-target
+               #,(dict-ref node-reference-unify-target n))
+             (when (and reference-unify-target (not (eq? #t reference-unify-target)))
+               ;; This is the case that we can't handle in
+               ;; xsmith_type-info-func to avoid a cycle.
+               ;; Note that we symmetrically unify, to ensure that
+               ;; the RHS (which can be a subtype of the parent assignment)
+               ;; isn't a different, incompatible subtype than the LHS.
+               (let ([binding-t
+                      (binding-type
+                       (att-value '_xsmith_resolve-reference-name
+                                  node
+                                  (ast-child #,(dict-ref node-reference-field n)
+                                             node)))]
+                     [target-t
+                      (get-value-from-parent-dict
+                       child-types reference-unify-target
+                       (λ () (error 'type-info
+                                    "No type given for field ~a"
+                                    reference-unify-target)))])
+                 (with-handlers
+                   ([(λ(e)#t)
+                     (λ (e)
+                       (xd-printf "Error while unifying type for reference.\n")
+                       (xd-printf "Type recorded in definition: ~v\n" binding-t)
+                       (xd-printf "Type required for reference-unify target: ~v\n"
+                                  target-t)
+                       (raise e))])
+                   (unify! binding-t target-t))))
+             child-types))))
     (define _xsmith_type-constraint-from-parent-info
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ (node) default-base-type))
