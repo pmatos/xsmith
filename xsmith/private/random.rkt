@@ -95,7 +95,7 @@
 ;;
 ;; TODO Items
 ;;
-;; [ ] Coverage-Guided Generation
+;; [X] Coverage-Guided Generation
 ;;   [X] Initialize/store source of randomness (generator or bit sequence)
 ;;     [X] Initialize from PRG
 ;;     [X] Initialize from sequence
@@ -112,7 +112,7 @@
 ;;     [X] random-char
 ;;     [X] random-string
 ;;   [X] Provide functions for custom use cases
-;;   [ ] Consider specialized distribution functions
+;;   [X] Consider specialized distribution functions
 ;; [ ] Investigate More Specific Sequence Representations
 ;;    -  Instead of just storing the random bits, consider storing the results
 ;;       of computations along with their generation constraints. This would
@@ -294,15 +294,17 @@
      'make-byte-sequence-value
      (format "bytes? of at least length ~a" seq-chunk-size)
      seq))
-  (seq-val seq
-           (let ([bytes-remaining (- (bytes-length seq) seq-chunk-size)])
-             (if (eq? 0 bytes-remaining)
-                 #f
-                 bytes-remaining))
-           (let* ([seed-bytes (subbytes seq 0 seq-chunk-size)]
-                  [seed-int (integer-bytes->integer seed-bytes #f)]
-                  [seed-val (modulo seed-int (add1 max-seed-value))])
-             (make-prg seed-val))))
+  (let* ([seed-bytes (subbytes seq 0 seq-chunk-size)]
+         [seed-int (integer-bytes->integer seed-bytes #f)]
+         [seed-val (modulo seed-int (add1 max-seed-value))])
+    (seq-val
+     ;; The initial sequence is just the sequence that was passed in.
+     seq
+     ;; The index is initialized to be just after the bytes used to seed the
+     ;; PRG.
+     (bytes-length seed-bytes)
+     ;; The PRG is initialized using the first few bytes in the sequence.
+     (make-prg seed-val))))
 
 (struct seq-val
   ([seq #:mutable]
@@ -393,16 +395,17 @@
 
 ;; Produce an unsigned integer for a sequenced random-source.
 (define (next-uint-from-seq)
-  ;; If the byte sequence hasn't been fully consumed, take the next integer
-  ;; from there.
-  (unless (eq? #f (rnd-seq-index))
-    (consume-uint-from-seq!))
-  ;; Otherwise, produce a new integer using the seq-val's PRG, extend the byte
-  ;; sequence to include this new integer, and then return the integer.
-  (let* ([next-uint (generate-uint-from-seq-val)]
-         [new-bytes (integer->integer-bytes next-uint seq-chunk-size #f)])
-    (extend-seq! new-bytes)
-    next-uint))
+  (if (eq? #f (rnd-seq-index))
+      ;; If the byte sequence is fully consumed (i.e., there are no values
+      ;; remaining to consume), produce a new integer using the seq-val's PRG
+      ;; and extend the byte sequence to include this new integer. Then, return
+      ;; the new integer.
+      (let* ([next-uint (generate-uint-from-seq-val)]
+             [new-bytes (integer->integer-bytes next-uint seq-chunk-size #f)])
+        (extend-seq! new-bytes)
+        next-uint)
+      ;; Otherwise, simply consume the next integer in the byte sequence.
+      (consume-uint-from-seq!)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
