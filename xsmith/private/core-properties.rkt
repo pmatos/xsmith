@@ -1342,14 +1342,19 @@ The second arm is a function that takes the type that the node has been assigned
             (values n #`(λ () (#,(dict-ref get-constraints-checked n) current-hole 'choice))))))
 
     (define node-child-dict-funcs
-      (hash-set
-       (for/fold ([h (hash)])
-                 ([n nodes])
-         (define f (syntax-parse (dict-ref this-prop-info n default-prop-info)
-                     [(_ f:expr) #'f]
-                     [else #f]))
-         (if f (hash-set h n f) h))
-       #f #'(λ (n t) (error 'type-info "Missing parent-child type relation."))))
+      (let ()
+        (define h-no-false
+          (for/fold ([h (hash)])
+                    ([n nodes])
+            (define f (syntax-parse (dict-ref this-prop-info n default-prop-info)
+                        [(_ f:expr) #'f]
+                        [else #f]))
+            (if f (hash-set h n f) h)))
+        (hash-set
+         h-no-false
+         #f (hash-ref h-no-false #f
+                      #'(λ (n t) (error 'type-info
+                                        "Missing parent-child type relation."))))))
 
     (define node-reference-info-cleansed
       (for/list ([n nodes])
@@ -1395,6 +1400,11 @@ The second arm is a function that takes the type that the node has been assigned
                         #,(dict-ref node-child-dict-funcs n))
                       (define child-types
                         (my-type->child-type-dict node my-type))
+                      (when (not (dict? child-types))
+                        (error
+                         'type-info
+                         "Bad type rule for node type: ~v, instead of dict?, got: ~v"
+                         (ast-node-type node) child-types))
                       (define reference-unify-target
                         #,(dict-ref node-reference-unify-target n))
                       (when (and reference-unify-target (not (eq? #t reference-unify-target)))
