@@ -1371,7 +1371,6 @@
   (define t (concretize-type t*))
   (cond [(base-type? t) (base-type->string t)]
         [(nominal-record-type? t)
-         (eprintf "type->string called on nrt: ~v\n" t)
          (format "struct ~a" (nominal-record-type-name t))]
         [(volatile-type? t) (format "volatile ~a"
                                     (type->string (volatile-type-type t)))]
