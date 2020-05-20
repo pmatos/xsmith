@@ -1319,7 +1319,7 @@
      (or (let ([p (parent-node (current-hole))])
            (and (ast-subtype? p 'LiteralStruct)
                 (eq? (current-hole) (ast-child 'structdefref p))))
-         (misc-constraints-choice-rule-default (current-hole)))]
+         #t)]
     [AssignmentExpression
      (set-empty? (set-intersect '(constant no-assignment)
                                 (att-value 'misc-constraints
