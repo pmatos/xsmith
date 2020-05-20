@@ -163,6 +163,7 @@ When type variables are subtype-unified, the variables are set in each other's u
 If a (transitive) upper bound is ever equal to a (transitive) lower bound, that part of the lattice is unified into one type-variable-innard.
 
 |#
+
 (struct core-type-variable
   ([forward #:mutable]
    [type #:mutable]
@@ -363,6 +364,7 @@ Base types can be declared as subtypes of other base types.
 Inside a type variable, they are always placed in a base-type-range, which gives a minimum and maximum type.
 The minimum may be #f to mean any subtype of the maximum type.
 |#
+
 (struct base-type (name supertype) #:transparent
   #:methods gen:custom-write
   [(define (write-proc self port mode)
@@ -456,6 +458,7 @@ inner-type-list may be:
 • a list of types (which may contain type variables)
 upper-bounds and lower-bounds are lists of other product types that a given one has been subtype-unified with.  Once any product type among these has a list (instead of #f) for its inner type list, all the others will have a list of the same length created and filled with type variables.  Then they are all subtype-unified.
 |#
+
 (struct product-type
   ([inner-type-list #:mutable]
    [lower-bounds #:mutable]
