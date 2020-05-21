@@ -928,6 +928,99 @@ The values in the hash may be types or functions from node to type.
 For kleene-star children, if they are all supposed to have the same type, it is convenient to use the field name as the key.
 However, if a kleene-star child needs a different type for each element of the list, you should use the nodes themselves as keys or use a function as dictionary value.
 
+Note that the type argument of the function may always be a type variable.
+Even if the only possible type that could come in is, say, the @tt{int} type, it may come in wrapped as a type variable that has been unified such that @tt{int} is the only possibility, but it is not @racket[equal?] to the @tt{int} type.
+To deconstruct types, you should create the type you want to deconstruct, @racket[unify!] it with the type you want to deconstruct, then deconstruct the one you built.
+For example:
+@racketblock[
+(add-to-grammar
+ my-spec-component
+ [Cons Expression ([newval : Expression] [list : Expression])])
+(add-prop
+ my-spec-component
+ type-info
+ [Cons [(list-type (fresh-type-variable))
+        (λ (n t)
+          (define lt (fresh-list-type))
+          (unify! lt t)
+          (define inner (list-type-type lt))
+          (hash 'newval inner 'list t))]])
+]
+
+If the typing function makes any decisions about the type of the parent node when deciding the type of the child nodes, the decision needs to be reflected by either some unification with the child node types, construction/deconstruction using the parent type, or by saving the decision in the parent node and unifying with it in future passes.
+Here's an example of a subtly broken type rule:
+
+@racketblock[
+(add-to-grammar
+ my-spec-component
+ [Convert Expression (Expression)])
+(add-prop
+ my-spec-component
+ type-info
+ [Convert [(fresh-type-variable int float)
+           (λ (n t)
+             (cond
+               (code:comment "Don't do this.")
+               [(can-unify? t int) (hash 'Expression float)]
+               [(can-unify? t float) (hash 'Expression int)]))]])
+]
+
+This example uses the input type to determine an output type, and in fact makes a decision about what the input type is.
+But this decision isn't saved.
+The problem is that @tt{t} could be a concrete @tt{int}, a concrete @tt{float}, or it could be a type variable that could be unified with either!
+In the first two cases this type rule is fine, but in the third case it will effectively decide that the type is an @tt{int}, and generate a @tt{float} child expression.
+Because it doesn't unify and save this decision, generation in another branch of code could then unify the variable with @tt{float}, which would then cause a type error when this type function is re-run.
+
+To fix it, there are two choices.
+@itemlist[
+@item{
+You could split @tt{Convert} into two rules that accept one type each.
+@racketblock[
+(add-to-grammar
+ my-spec-component
+ [IntToFloat Expression (Expression)]
+ [FloatToInt Expression (Expression)])
+(add-prop
+ my-spec-component
+ type-info
+ [IntToFloat [int (λ (n t) float)]]
+ [FloatToInt [float (λ (n t) int)]])
+]
+
+This solves the problem by making the type choice explicit in the requirements to generate the conversion node in the first place.
+}
+@item{
+You could save the choice in a field of the @tt{Convert} node and re-unify in later passes.
+
+@racketblock[
+(add-to-grammar
+ my-spec-component
+ [Convert Expression (Expression outputtype)])
+(add-prop
+ my-spec-component
+ type-info
+ [Convert [(fresh-type-variable int float)
+           (λ (n t)
+             (define it (ast-child 'outputtype n))
+             (when it
+               (unify! t it))
+             (define (save-choice chosen-type)
+               (when (not it)
+                 (enqueue-inter-choice-transform
+                  (λ ()
+                    (rewrite-terminal 'outputtype n chosen-type)))))
+             (cond
+               [(can-unify? t int)
+                (save-choice int)
+                (hash 'Expression float)]
+               [(can-unify? t float)
+                (save-choice float)
+                (hash 'Expression int)]))]])
+]
+}
+]
+
+Note that the complexity of the @tt{Convert} example arises because the input type has a relationship with the output type that can't be expressed in terms of a construction, decomposition, or unification of types.
 }
 
 
@@ -1563,6 +1656,14 @@ Example:
 @racketblock[
 (fresh-var-name "variable_") (code:comment "returns the string \"variable_123\", or something like it.")
 ]
+}
+
+@defproc[(enqueue-inter-choice-transform [thunk procedure?]) void?]{
+You can't mutate the RACR tree during attribute evaluation.
+But sometimes you really want to.
+At any rate, if your attribute (perhaps defined by a property) needs to save some information in the tree for future iterations (such as a type rule that proactively concretizes a type), you can use this to make tree changes between the filling of one tree hole and another.
+
+In other words, if your attribute needs to use @racket[rewrite-terminal], stick that computation in a thunk, use this on it, and it will be evaluated after the current round of attribute evaluation but before the next one.
 }
 
 
