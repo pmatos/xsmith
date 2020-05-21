@@ -1062,7 +1062,7 @@ This property allows you to bias reference choice.
 The property takes a function that takes three arguments:
 @itemlist[
 @item{The node}
-@item{A (potentially empty) list of reference options}
+@item{A (potentially empty) list of @racket[binding?] reference options}
 @item{A boolean that tells whether lifting a new definition is an option}
 ]
 
