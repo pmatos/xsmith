@@ -157,8 +157,10 @@ Note that the type of the node may be a not-yet-concretized type variable.
 @itemlist[
 @item{@racket['xsmith_get-reference!]
 This is a choice method that can be used when creating a reference node.
-If no binding of the appropriate type for the current node is in scope, this method will cause a fresh appropriate definition to be lifted into a node that can hold definitions.
-It returns a @racket[binding?] of the reference, which you can use @racket[binding-name] on.
+It uses @racket[reference-choice-info] to choose a reference.
+The default value of @racket[reference-choice-info] will cause a fresh appropriate definition to be lifted if none exists.
+If no reference can be made (due to a non-default @racket[reference-choice-info]), @racket[#f] will be returned.
+Otherwise, it returns a @racket[binding?] of the reference, which you can use @racket[binding-name] on.
 
 Example:
 @racketblock[
@@ -185,7 +187,8 @@ It takes two additional parameters:
 @item{@italic{type}: @racket[concrete-type?] - the type you want the reference to be.  Note that it must be a concrete type.  If you want this type to be based somehow on the type of the node in question, use @racket[force-type-exploration-for-node!] so the node's type will be maximally concretely computed before you concretize it.}
 @item{@italic{write-reference?}: @racket[boolean?] - whether the reference will be used as a write reference.}
 ]
-It returns a @racket[binding?] of the reference.
+
+It returns a @racket[binding?] of the reference or @racket[#f] if none can be made (due to a non-default @racket[reference-choice-info]).
 
 Example:
 @racketblock[
@@ -1051,6 +1054,35 @@ Example:
  [Reference (read name)]
  [Assignment (write name #:unifies Expression)])
 ]
+}
+
+@defform[#:kind "spec-property" #:id reference-choice-info reference-choice-info]{
+This property allows you to bias reference choice.
+
+The property takes a function that takes three arguments:
+@itemlist[
+@item{The node}
+@item{A (potentially empty) list of reference options}
+@item{A boolean that tells whether lifting a new definition is an option}
+]
+
+The function must return one of the options, the symbol @racket['lift] to lift a fresh definition, or @racket[#f].
+If it returns @racket[#f], then you can't have a reference there, and you have to deal with that in your fuzzer.
+Returning @racket[#f] is probably a bad idea.
+The default shouldn't ever return @racket[#f].
+The default value biases towards choosing parameters over definitions and lexically closer bindings over far ones.
+
+You can give different values to different nodes, but a default on @racket[#f] is probably good enough?
+
+Here is an example that randomly chooses any option available, that only lifts when there are no existing options:
+@racketblock[
+(add-prop
+ my-spec-component
+ reference-choice-info
+ [#f (λ (n options lift-available?)
+       (if (null? options)
+           (and lift-available? 'lift)
+           (random-ref options)))])]
 }
 
 @defform[#:kind "spec-property" #:id binding-structure binding-structure]{
