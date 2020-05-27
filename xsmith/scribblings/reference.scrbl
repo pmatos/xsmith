@@ -1799,6 +1799,10 @@ Generates a random, signed integer.
 Generates a random boolean.
 }
 
+@defproc[(random-seed-value) (integer-in 0 (add1 max-seed-value))]{
+Generates a random value suitable for use as a PRG seed.
+}
+
 @defproc[(random-ref [lst list?]) any/c]{
 Randomly selects an element from the list @racket[lst].
 }

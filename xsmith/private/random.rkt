@@ -445,7 +445,7 @@
   (syntax-parse stx
     [(_ body ...+)
      #'(let ()
-         (define seed (random 0 (add1 max-seed-value)))
+         (define seed (random-seed-value))
          (define prg (make-prg seed))
          (begin-with-racket-prg
            prg
@@ -525,6 +525,10 @@
 ;; Produce a Boolean.
 (define (random-bool)
   (>= 0.5 (random)))
+
+;; Produce a valid seed value suitable for PRGs.
+(define (random-seed-value)
+  (random 0 (add1 max-seed-value)))
 
 ;; Get a random element from a list.
 (define (random-ref lst)
