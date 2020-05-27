@@ -31,6 +31,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (provide
+ (all-defined-out)
  ;; Constants
  max-seed-value
  ;; Source selection/initialization.
@@ -473,10 +474,10 @@
 (define-syntax (begin-with-random-seed stx)
   (syntax-parse stx
     [(_ seed body ...+)
-       #'(begin
-           (define prg (make-prg seed))
+     #'(begin
+         (let ([prg (make-prg seed)])
            (begin-with-prg prg
-                           body ...))]))
+                           body ...)))]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
