@@ -40,6 +40,7 @@
  type-info
  binder-info
  reference-info
+ reference-choice-info
  strict-child-order?
  io
  lift-predicate
@@ -66,6 +67,7 @@
  "types.rkt"
  "effects.rkt"
  "random.rkt"
+ (submod "random.rkt" distributions)
  racr
  racket/class
  ;racket/dict
@@ -167,7 +169,10 @@ hole for the type.
   (grammar)
   (property binder-info)
   (property reference-info)
-  #:appends (choice-rule _xsmith_fresh) (att-rule _xsmith_field-names)
+  #:appends
+  (choice-rule _xsmith_fresh)
+  (att-rule _xsmith_field-names)
+  (choice-rule _xsmith_current-hole)
   #:transformer
   (λ (this-prop-info grammar-info binder-info-info reference-info-info)
     (define nodes (dict-keys grammar-info))
@@ -354,7 +359,9 @@ hole for the type.
                (create-ast (current-racr-spec)
                            '#,node
                            all-values+xsmith-injected))))))
-    (list _xsmith_fresh-info _xsmith_field-names-info)))
+    (define _xsmith_current-hole-info
+      (hash #f #'(λ () current-hole)))
+    (list _xsmith_fresh-info _xsmith_field-names-info _xsmith_current-hole-info)))
 
 (define-property child-node-name-dict
   #:reads (grammar)
@@ -817,6 +824,59 @@ It just reads the values of several other properties and produces the results fo
           _xsmith_is-reference-node?-info
           _xsmith_resolve-reference)))
 
+(define reference-choice-info-default
+  (λ (n options lift-available?)
+    ;; By default, bias parameters over definitions,
+    ;; prefer closer vs farther.
+    ;; Lift rarely if there is an option.
+    (define parameters
+      (filter (λ (o) (eq? 'parameter (binding-def-or-param o)))
+              options))
+    (define definitions
+      (filter (λ (o) (eq? 'definition (binding-def-or-param o)))
+              options))
+    (define lifts (if lift-available? '(lift) '()))
+    (define choices-ordered (append parameters definitions lifts))
+    (match choices-ordered
+      [(list) #f]
+      [(list one) one]
+      [(list multiple ...)
+       (define n-choices (length choices-ordered))
+       ;; Use a distribution to choose a number less than
+       ;; n-choices, biased to be close to zero.
+       ;;
+       ;; I don't know what distribution would actually be
+       ;; good. So I'm just going to use a truncated normal
+       ;; distribution, take its absolute value, and truncate
+       ;; to integer.
+       (define choice-n
+         (abs
+          (inexact->exact
+           (truncate
+            (sample (truncated-dist
+                     ;; If there are only a few choices, want them
+                     ;; all to be likely, though still biased. Once
+                     ;; there are a lot of choices, I want to bias more
+                     ;; sharply.
+                     (normal-dist 0 (max 3 (/ n-choices 2)))
+                     ;; Never choose something higher than
+                     ;; max-choices - 1
+                     (* n-choices -0.99) (* n-choices 0.99)))))))
+       (list-ref choices-ordered choice-n)])))
+
+(define-property reference-choice-info
+  #:reads (grammar)
+  #:appends (att-rule _xsmith_reference-choice)
+  #:transformer
+  (λ (this-prop-info grammar-info)
+    (define nodes (dict-keys grammar-info))
+
+    (define _xsmith_reference-choice-info
+      (if (dict-has-key? this-prop-info #f)
+          this-prop-info
+          (dict-set this-prop-info #f #'reference-choice-info-default)))
+    (list _xsmith_reference-choice-info)))
+
 ;; TODO - this is not a great design, but I need the user to specify
 ;; one function for this and make it available to the xsmith machinery.
 ;; The function given to this should be something like:
@@ -918,20 +978,28 @@ few of these methods.
 
 (define (xsmith_get-reference!-func self lift-probability)
   (get-reference-core (send self _xsmith_reference-options!)
-                      lift-probability))
+                      (send self _xsmith_current-hole)))
 (define (xsmith_get-reference-for-child!-func node type write? lift-probability)
   (get-reference-core
    (xsmith_reference-options-for-child-func node type write?)
-   lift-probability))
-(define (get-reference-core all-options lift-probability)
-  (let* ([options/lift (if (<= (random) lift-probability)
-                           all-options
-                           (filter (λ (x) (not (procedure? x))) all-options))]
-         [options (if (null? options/lift) all-options options/lift)]
-         ;; TODO - add some tunable heuristics to make good choices here.
-         [choice/proc (random-ref options)]
-         [choice (if (procedure? choice/proc) (choice/proc) choice/proc)])
-    choice))
+   node))
+(define (get-reference-core all-options node)
+  (define lift-option (if (and (not (null? all-options))
+                               (procedure? (car all-options)))
+                          (car all-options)
+                          #f))
+  (define non-lift-options (if lift-option (cdr all-options) all-options))
+  (define choice
+    (att-value '_xsmith_reference-choice node non-lift-options (->bool lift-option)))
+  (cond
+    [(and (eq? 'lift choice) lift-option) (lift-option)]
+    [(eq? 'lift choice) (error 'reference-choice-info
+                               "Returned 'lift when no lift is possible")]
+    [(not choice) #f]
+    [(memq choice non-lift-options) choice]
+    [else (error 'reference-choice-info
+                 "Got something other than one of the reference options: ~v"
+                 choice)]))
 
 (define (type-satisfaction-loop node-to-satisfy
                                 build-type-thunk

@@ -66,6 +66,7 @@
          introduces-scope
          binder-info
          reference-info
+         reference-choice-info
          binder-info
          lift-predicate
          lift-type->ast-binder-type
