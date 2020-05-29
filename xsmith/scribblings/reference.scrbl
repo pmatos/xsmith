@@ -1431,6 +1431,10 @@ Creates a base type.  Base types with the same name are the same.
 Predicate for base-types.
 }
 
+@defproc[(base-type-name [bt base-type?]) symbol?]{
+Get the name of a base type.
+}
+
 
 @defproc[(function-type [arg-type type?] [return-type type?]) type?]{
 Creates a function type.
