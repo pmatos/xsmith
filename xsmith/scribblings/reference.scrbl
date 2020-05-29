@@ -33,22 +33,22 @@
 @(require
 "util.rkt"
 (for-label
-(except-in xsmith/private/base
-           module
-           string
-           #%app)
-(prefix-in racket/base: racket/base)
-xsmith
-xsmith/racr-convenience
-xsmith/canned-components
-xsmith/app
+ (except-in xsmith/private/base
+            module
+            string
+            #%app)
+ (prefix-in racket/base: racket/base)
+ xsmith
+ xsmith/racr-convenience
+ xsmith/canned-components
+ xsmith/app
 
-racket/contract/base
-racket/dict
+ racket/contract/base
+ racket/dict
 
-@; if racr had scribble documentation this would provide hyperlinks
-@;racr
-)
+ @; if racr had scribble documentation this would provide hyperlinks
+ @;racr
+ )
 )
 
 @title{Xsmith Reference}
