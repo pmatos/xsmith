@@ -78,12 +78,12 @@
                                     (ast-child 'ExpressionSequence n)))
              '(printf "Program body result: ~v\n" program-result)
              '(void))
-        ,@(for/list ([c (ast-children (ast-child 'definitions n))])
-            (if (base-type? (concretize-type (att-value 'xsmith_type c)))
-                `(printf "Variable ~a value: ~v\n"
-                         ',(string->symbol (ast-child 'name c))
-                         ,(string->symbol (ast-child 'name c)))
-                '(void))))))]
+        ,@(for/list ([c (ast-children (ast-child 'definitions n))]
+                     #:when (base-type? (concretize-type
+                                         (att-value 'xsmith_type c))))
+            `(printf "Variable ~a value: ~v\n"
+                     ',(string->symbol (ast-child 'name c))
+                     ,(string->symbol (ast-child 'name c)))))))]
 
  [Definition (λ (n)
                `(define ,(string->symbol (ast-child 'name n))
