@@ -1606,6 +1606,9 @@ The second arm is a function that takes the type that the node has been assigned
   (when (not (ast-node? node-in-question))
     (error 'can-unify-node-type-with-type?!
            "given non-node value: ~v" node-in-question))
+  (when (ast-bud-node? node-in-question)
+    (error 'can-unify-node-type-with-type?!
+           "given bud-node value: ~v" node-in-question))
   (when (not (type? type-constraint))
     (error 'can-unify-node-type-with-type?!
            "given non-type value: ~v" type-constraint))
@@ -1731,7 +1734,9 @@ The second arm is a function that takes the type that the node has been assigned
     (list _xsmith_strict-child-order?-info)))
 
 (define (non-hole-node? x)
-  (and (ast-node? x) (not (att-value 'xsmith_is-hole? x))))
+  (and (ast-node? x)
+       (not (ast-bud-node? x))
+       (not (att-value 'xsmith_is-hole? x))))
 
 (define-property mutable-container-access
   #:appends
@@ -1928,6 +1933,8 @@ called instead.
   (cond
     [(ast-bud-node? node)
      (error 'render-node "cannot render bud node")]
+    [(ast-list-node? node)
+     (error 'render-node "cannot render list node")]
     [(att-value 'xsmith_is-hole? node)
      (att-value 'xsmith_render-hole node)]
     [else (renderer node)]))

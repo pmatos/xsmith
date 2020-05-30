@@ -527,6 +527,7 @@
            (λ (n)
              (cond
                [(ast-list-node? n) #f]
+               [(ast-bud-node? n) #f]
                [(att-value 'xsmith_is-hole? n)
                 (begin
                   (rewrite-subtree n (att-value '_xsmith_hole->replacement n))
@@ -676,7 +677,9 @@
 
 (define _xsmith_hole->replacement-function
   (λ (n)
-    (if (att-value 'xsmith_is-hole? n)
+    (if (and (not (ast-bud-node? n))
+             (not (ast-list-node? n))
+             (att-value 'xsmith_is-hole? n))
         (let* ([choices (att-value '_xsmith_hole->choice-list n)]
                [choice? (λ (x) (is-a? x ast-choice%))]
                [should-force-deepen?

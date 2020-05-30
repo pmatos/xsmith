@@ -465,7 +465,8 @@ Type definitions are in cish-utils.rkt
      (define arg-nodes (ast-children (ast-child 'args n)))
      (define func-node (ast-child 'function n))
      (define arg-types (map (λ (c) (fresh-type-variable)) arg-nodes))
-     (when (not (att-value 'xsmith_is-hole? func-node))
+     (when (and (not (ast-bud-node? func-node))
+                (not (att-value 'xsmith_is-hole? func-node)))
        (unify! args-type (product-type arg-types)))
      (for/fold ([dict (hash 'function (function-type args-type t))])
                ([a arg-nodes]
@@ -519,7 +520,8 @@ Type definitions are in cish-utils.rkt
  [LiteralStruct
   [(fresh-type-variable (any-nominal-record-type))
    (λ (n t)
-     (if (att-value 'xsmith_is-hole? (ast-child 'structdefref n))
+     (if (and (not (ast-bud-node? (ast-child 'structdefref n)))
+              (att-value 'xsmith_is-hole? (ast-child 'structdefref n)))
          (hash 'structdefref (nominal-record-definition-type t))
          (let* ([vals (ast-children (ast-child 'vals n))]
                 [struct-ref (ast-child 'structdefref n)]
