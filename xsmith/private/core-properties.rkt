@@ -42,6 +42,7 @@
  reference-info
  reference-choice-info
  strict-child-order?
+ mutable-container-access
  io
  lift-predicate
  lift-type->ast-binder-type
@@ -937,6 +938,7 @@ It just reads the values of several other properties and produces the results fo
            _xsmith_wont-over-deepen
            _xsmith_satisfies-type-constraint?
            _xsmith_no-io-conflict?
+           _xsmith_no-mutable-container-effect-conflict?
            _xsmith_nonzero-weight?
            #,@user-filters)))
     (define (helper filter-method-stx filter-failure-set!-id)
@@ -1731,6 +1733,49 @@ The second arm is a function that takes the type that the node has been assigned
 (define (non-hole-node? x)
   (and (ast-node? x) (not (att-value 'xsmith_is-hole? x))))
 
+(define-property mutable-container-access
+  #:appends
+  (att-rule _xsmith_mutable-container-effects)
+  (choice-rule _xsmith_no-mutable-container-effect-conflict?)
+  #:transformer
+  (λ (this-prop-info)
+    (define nodes (remove-duplicates (cons #f (dict-keys this-prop-info))))
+    (define _xsmith_mutable-container-effects-info
+      (for/hash ([n nodes])
+        (values
+         n
+         (syntax-parse (dict-ref this-prop-info n #f)
+           [((~datum read) container-key:expr)
+            #'(λ (n) (effect-read-mutable-container container-key))]
+           [((~datum write) container-key:expr)
+            #'(λ (n) (effect-write-mutable-container container-key))]
+           [#f #'(λ (n) #f)]))))
+    (define _xsmith_no-mutable-container-effect-conflict?
+      (for/hash ([n nodes])
+        (values
+         n
+         (syntax-parse (dict-ref this-prop-info n #f)
+           [((~datum read) container-key:expr)
+            #'(λ ()
+                (define key container-key)
+                (not
+                 (findf (λ (e) (or (any-effect? e)
+                                   (and (effect-write-mutable-container? e)
+                                        (eq? key (effect-variable e)))))
+                        (att-value '_xsmith_effects current-hole))))]
+           [((~datum write) container-key:expr)
+            #'(λ ()
+                (define key container-key)
+                (not
+                 (findf (λ (e) (or (any-effect? e)
+                                   (and (or (effect-write-mutable-container? e)
+                                            (effect-read-mutable-container? e))
+                                        (eq? key (effect-variable e)))))
+                        (att-value '_xsmith_effects current-hole))))]
+           [#f #'(λ () #t)]))))
+    (list _xsmith_mutable-container-effects-info
+          _xsmith_no-mutable-container-effect-conflict?)))
+
 (define-property io
   #:reads
   (grammar)
@@ -1787,6 +1832,7 @@ The second arm is a function that takes the type that the node has been assigned
                              (and (equal? #,read-or-write effect-read-variable)
                                   (att-value '_xsmith_effects
                                              (binding-ast-node binding)))
+                             (att-value '_xsmith_mutable-container-effects n)
                              ;; If we are getting a function type out of a function
                              ;; parameter, then when that function is applied it
                              ;; can have any effect!

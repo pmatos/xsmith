@@ -38,6 +38,10 @@
  effect-read-variable?
  effect-write-variable
  effect-write-variable?
+ effect-read-mutable-container
+ effect-read-mutable-container?
+ effect-write-mutable-container
+ effect-write-mutable-container?
  effect-io
  effect-io?
  any-effect
@@ -56,6 +60,16 @@
 (define (effect-write-variable? x)
   (and (effect? x)
        (eq? 'write-variable (effect-type x))))
+(define (effect-read-mutable-container v)
+  (effect 'read-mutable-container v))
+(define (effect-read-mutable-container? x)
+  (and (effect? x)
+       (eq? 'read-mutable-container (effect-type x))))
+(define (effect-write-mutable-container v)
+  (effect 'write-mutable-container v))
+(define (effect-write-mutable-container? x)
+  (and (effect? x)
+       (eq? 'write-mutable-container (effect-type x))))
 (define (effect-io)
   (effect 'io #f))
 (define (effect-io? x)

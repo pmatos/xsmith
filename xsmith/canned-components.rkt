@@ -480,6 +480,7 @@
                     [MutableArraySafeReference
                      Expression ([array : Expression]
                                  [index : Expression])
+                     #:prop mutable-container-access (read 'MutableArray)
                      #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t) (hash 'index int
@@ -494,7 +495,7 @@
                      ([array : VariableReference]
                       [index : Expression]
                       [newvalue : Expression])
-                     #:prop io #t
+                     #:prop mutable-container-access (write 'MutableArray)
                      #:prop type-info
                      [void-type mutable-array-assignment-type-rhs]]))
                 #'())
@@ -609,6 +610,7 @@
                      Expression
                      ([fieldname = (random-field-name)]
                       [record : Expression])
+                     #:prop mutable-container-access (read 'MutableStructuralRecord)
                      #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t) (hash 'record
@@ -624,7 +626,7 @@
                      ([fieldname = (random-field-name)]
                       [record : VariableReference]
                       [newvalue : Expression])
-                     #:prop io #t
+                     #:prop mutable-container-access (write 'MutableStructuralRecord)
                      #:prop type-info
                      [void-type mutable-structural-record-assignment-type-rhs]]))
                 #'())
@@ -735,7 +737,7 @@
                      ([array : VariableReference]
                       [index : Expression]
                       [newvalue : Expression])
-                     #:prop io #t
+                     #:prop mutable-container-access (write 'MutableArray)
                      #:prop type-info
                      [no-return-type
                       (λ (n t)
@@ -752,7 +754,7 @@
                      ([fieldname = (random-field-name)]
                       [record : VariableReference]
                       [newvalue : Expression])
-                     #:prop io #t
+                     #:prop mutable-container-access (write 'MutableStructuralRecord)
                      #:prop type-info
                      [no-return-type
                       mutable-structural-record-assignment-type-rhs]]))

@@ -328,10 +328,12 @@
           [AssignmentExpression (write name)]
           )
 (add-prop cish-grammar
+          mutable-container-access
+          [StructSetField (write 'struct)]
+          [StructReference (read 'struct)])
+(add-prop cish-grammar
           io
-          [StructSetField #t]
-          [VolatileVariableReference #t]
-          )
+          [VolatileVariableReference #t])
 (add-prop cish-grammar
           strict-child-order?
           [Program #t]

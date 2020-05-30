@@ -1221,20 +1221,36 @@ Example:
 ]
 }
 
+@defform[#:kind "spec-property" #:id mutable-container-access
+         mutable-container-access]{
+Used to specify whether a node reads or writes a mutable container.
+Here “container” means any kind of record, array, list, or compound data type.
+If you have any kind of mutable record, array, etc, tag the read and write nodes with this effect.
+
+The property takes a list of either the identifier @tt{read} or the identifier @tt{write}, then an expression for the key for the kind of mutable container.
+The key can be anything, but it needs to be @racket[eq?] for each access of the same container type and not @racket[eq?] for accesses to different container types.
+Eg. you could use the type constructor, or just a symbol for the name of the type.
+
+Example:
+@racketblock[
+(add-prop
+ my-spec-component
+ mutable-container-access
+ [MutableRecordGetField (read 'MutableRecord)]
+ [MutableRecordSetField (write 'MutableRecord)]
+ [MutableArrayReference (read 'MutableArray)]
+ [MutableArraySet (write 'MutableArray)])]
+}
 
 @defform[#:kind "spec-property" #:id io io]{
 Used to specify that a node has some kind of IO effect, such as printing or reading a volatile variable.
-
-Until and unless I make something better, this should also be used for any form that mutates some kind of higher-order object.
-For example, setting a field in a mutable record.
 
 Example:
 @racketblock[
 (add-prop
  my-spec-component
  io
- [Print #t]
- [SetRecordField #t])
+ [Print #t])
 ]
 }
 

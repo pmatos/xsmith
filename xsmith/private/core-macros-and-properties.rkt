@@ -71,6 +71,7 @@
          lift-predicate
          lift-type->ast-binder-type
          binding-structure
+         mutable-container-access
          io
          strict-child-order?
          render-node-info
