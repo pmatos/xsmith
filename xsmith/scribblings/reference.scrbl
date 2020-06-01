@@ -184,7 +184,7 @@ Nodes with the @racket[reference-info] property marked will automatically have t
 This is a choice method that can be used when creating reference nodes for children during the @racket[fresh] rule.
 It takes two additional parameters:
 @itemlist[
-@item{@italic{type}: @racket[concrete-type?] - the type you want the reference to be.  Note that it must be a concrete type.  If you want this type to be based somehow on the type of the node in question, use @racket[force-type-exploration-for-node!] so the node's type will be maximally concretely computed before you concretize it.}
+@item{@italic{type}: @racket[settled-type?] - the type you want the reference to be.  Note that it must be a settled type.  If you want this type to be based somehow on the type of the node in question, use @racket[force-type-exploration-for-node!] so the node's type will be maximally concretely computed before you concretize it.}
 @item{@italic{write-reference?}: @racket[boolean?] - whether the reference will be used as a write reference.}
 ]
 
@@ -1640,16 +1640,36 @@ TODO - explain better when you need to use this.
 
 }
 
-@defproc[(concrete-type? [t type?]) bool?]{
-A concrete type is a type with no variableness.
-In other words, all type variables contained in this type (including @racket[product-type]s, @racket[nominal-record-type]s, and @racket[structural-record-type]s) have been unified such that they only have one option, which is itself concrete.
-If you have a variable that is not concrete and you need a concrete one, you can use @racket[concretize-type] to get a concrete version (that you may want to unify to the type you used as its input).
+@defproc[(settled-type? [t type?]) bool?]{
+A settled type is a type that either has no variables (a la @racket[type-has-no-variables?]) or that has type variables that have been completely constrained.
+
+In other words, all type variables contained in this type (including @racket[product-type]s, @racket[nominal-record-type]s, and @racket[structural-record-type]s) have been unified such that they only have one option, which is itself settled.
+If you have a variable that is not settled and you need a settled one, you can use @racket[concretize-type] on the type you have.
+
+See warnings in @racket[concretize-type] about its use!
+
+Note that through @racket[subtype-unify!], variables may be effectively settled without passing the @racket[settled-type?] predicate.
+Xsmith uses @racket[subtype-unify!] internally, so this could be an issue even if you don't manually use it.
+When a variable is subtype-unified to be the subtype of a base type, say @tt{string}, the variable can unify with the range (@racket[#f], @tt{string}).
+If @tt{string} has no subtypes, then @tt{string} is the only type it can be unified with.
+However, the @racket[settled-type?] function doesn't currently have access to the list of subtypes (because currently they can be created dynamically), so it doesn't know that it's effectively settled.
+}
+
+@defproc[(type-has-no-variables? [t type?]) bool?]{
+If this returns true, then @racket[t] is both a @racket[settled-type?] AND has no type variable wrappers (IE created at some point by @racket[fresh-type-variable]).
+Note that it may have @racket[product-type]s, @racket[nominal-record-type]s, and @racket[structural-record-type]s, but only ones that have been settled.
+
+Mostly this is just useful to tell whether you can confidently use projection functions (eg. @racket[product-type-inner-type-list]) without running into type variable wrappers.
 }
 
 @defproc[(concretize-type [t type?]) type?]{
-Returns a fully concrete (no type variables) type that @racket[can-unify?] with @racket[t].
+Returns a type that @racket[can-unify?] with @racket[t], but that is both a @racket[settled-type?] and a @racket[type-has-no-variables?].
+Note that it does @emph{not} @racket[unify!] or @racket[subtype-unify!] the returned type with the input type.
 
-This function can be useful if you want to generate a random type.  But beware!  You should probably NOT generate random types unless you also store them in the grammar node that represents that type.  The type-checking code defined in the @racket[type-info] property can be run many times for each node, so a node that randomly chooses its type will not be stable.  Because the type algorithm imperatively unifies types, this causes mayhem.  Don't do it.
+This function can be useful if you want to generate a random type or proactively make a decision about an unsettled type you have where you need a settled, concrete type.
+But beware!  You should probably NOT generate random types or unify with concretized types unless you also store them in the grammar node that represents that type.
+The type-checking code defined in the @racket[type-info] property can be flushed and re-run many times for each node, so a node that randomly chooses its type will not be stable.
+Because the type algorithm imperatively unifies types, this causes mayhem.  Don't do it.
 
 Note that to use this function you must parameterize @racket[current-xsmith-type-constructor-thunks].  Probably in the @verb{generate} function passed to @racket[xsmith-command-line].
 }

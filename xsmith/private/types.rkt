@@ -98,7 +98,8 @@ WIP checklist:
   [concretize-type (->* (type?)
                         (#:at-node ast-node?)
                         type?)]
-  [rename concrete? concrete-type? (-> type? any/c)]
+  [rename settled? settled-type? (-> type? any/c)]
+  [type-has-no-variables? (-> type? any/c)]
   [rename mk-product-type product-type (-> (or/c #f (listof type?)) type?)]
   [function-type (-> type? type? type?)]
   )
@@ -110,7 +111,7 @@ WIP checklist:
  type-variable-subtype-default
 
  type->type-variable-list
- at-least-as-concrete
+ at-least-as-settled
  contains-type-variables?
 
  type-contains-function-type?
@@ -723,7 +724,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define (subtype-unify! sub* super*)
   #|
   * This sets variables to be in each others' upper- and lower-bounds.
-  * As variables are unified, possibilities that don't fit with variables they are unified with (or concrete types they are unified with) are filtered out.
+  * As variables are unified, possibilities that don't fit with variables they are unified with (or settled types they are unified with) are filtered out.
   * Unification transitively affects all upper and lower bounds of a variable.
   * Subtype-unified type variables form a lattice, and any time a lower bound becomes an upper bound (or vice-versa), the lattice between those two nodes is squashed to a single node.
   * recursion into inner type structures (function, generic, etc) will operate on type-specific meanings of subtyping -- generics will have a way of specifying per field whether the field is invariant (the default), covariant, or contravariant
@@ -862,7 +863,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
          ;; At each step, unify the lists.
          ;; This basically initializes all of the inner lists of a graph
          ;; of product-types that had been subtype-unified to each other
-         ;; with none of them having a concrete length yet.
+         ;; with none of them having a settled length yet.
          ;; Once they are initialized, the inner type variables can carry
          ;; all the info about subtype relations, and the outer product types
          ;; are free to be simple lists.
@@ -1664,10 +1665,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
            (mk-product-type (map r inner-types))
            (mk-product-type (map (λ (x) (r (fresh-type-variable)))
                                  (make-list (random 6) #f))))]
-      [(and (? nominal-record-type?) (? concrete?)) t]
+      [(and (? nominal-record-type?) (? settled?)) t]
       [(c-nominal-record-type name super known-fields lb ub)
        (when name
-         (eprintf "nominal-record-type with name not concrete! ~v\n" name))
+         (eprintf "nominal-record-type with name not settled! ~v\n" name))
        (cond
          [(and node (nominal-record-type?/with-field t))
           (let* ([d (nominal-record-definition-type t)]
@@ -1796,31 +1797,36 @@ TODO - when generating a record ref, I'll need to compare something like (record
   )
 
 
-(define (concrete? t)
+(define (settled?/core t only-if-no-wrappers?)
+  (define (rec t) (settled?/core t only-if-no-wrappers?))
   (match t
     [(c-type-variable (list one-type) _ _)
-     (concrete? one-type)]
+     (and only-if-no-wrappers? (rec one-type))]
     [(c-type-variable _ _ _) #f]
     [(base-type _ _) #t]
     [(base-type-range l r) (equal? l r)]
     [(function-type a r)
-     (and (concrete? a) (concrete? r))]
+     (and (rec a) (rec r))]
     [(c-nominal-record-type name super fields lb ub)
-     ;; If a name is set then it's concrete.
+     ;; If a name is set then it's settled.
      (->bool name)]
-    [(nominal-record-definition-type inner) (concrete? inner)]
+    [(nominal-record-definition-type inner) (rec inner)]
     [(c-structural-record-type finalized? fields lb ub)
      (and finalized?
           (for/and ([k (dict-keys fields)])
-            (concrete? (dict-ref fields k))))]
+            (rec (dict-ref fields k))))]
     [(product-type itl lb ub)
-     (and (list? itl) (andmap concrete? itl))]
+     (and (list? itl) (andmap rec itl))]
     [(generic-type _ _ inners _)
-     (andmap concrete? inners)]))
+     (andmap rec inners)]))
+(define (settled? t)
+  (settled?/core t #f))
+(define (type-has-no-variables? t)
+  (settled?/core t #t))
 
 (define (highlight arg)
   (format "\033[31m~a\033[0m\n" arg))
-(define (at-least-as-concrete v constraint-type)
+(define (at-least-as-settled v constraint-type)
   #|
   Returns #t when:
   • they are different types
@@ -1836,10 +1842,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list _ (c-type-variable #f _ _)) #t]
     [(list (c-type-variable (list one-type) _ _)
            _)
-     (at-least-as-concrete one-type constraint-type)]
+     (at-least-as-settled one-type constraint-type)]
     [(list _
            (c-type-variable (list one-type) _ _))
-     (at-least-as-concrete v one-type)]
+     (at-least-as-settled v one-type)]
     ;; two type variables with multiple options
     [(list (c-type-variable (list ts ...) _ _)
            (c-type-variable (list cs ...) _ _))
@@ -1854,13 +1860,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                      (or (can-subtype-unify? t c)
                                          (can-subtype-unify? c t)))]
             [(? function-type?)
-             (ormap (λ (c) (at-least-as-concrete t c))
+             (ormap (λ (c) (at-least-as-settled t c))
                     (filter function-type? cs))]
             [(? product-type?)
-             (ormap (λ (c) (at-least-as-concrete t c))
+             (ormap (λ (c) (at-least-as-settled t c))
                     (filter product-type? cs))]
             [(? generic-type?)
-             (ormap (λ (c) (at-least-as-concrete t c))
+             (ormap (λ (c) (at-least-as-settled t c))
                     (filter (λ (c) (and (generic-type? c)
                                         (eq? (generic-type-constructor c)
                                              (generic-type-constructor t))))
@@ -1890,19 +1896,19 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; left type variable with multiple options
     [(list (c-type-variable (list ts ...) _ _)
            _)
-     (for/and ([t ts]) (at-least-as-concrete t constraint-type))]
+     (for/and ([t ts]) (at-least-as-settled t constraint-type))]
     ;; right type variable with multiple options
     [(list _
            (c-type-variable (list cs ...) _ _))
-     (for/and ([c cs]) (at-least-as-concrete v c))]
+     (for/and ([c cs]) (at-least-as-settled v c))]
     ;; No more variables
-    [(list (c-type-variable _ _ _) _) (error 'at-least-as-concrete "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
-    [(list _ (c-type-variable _ _ _)) (error 'at-least-as-concrete "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
+    [(list (c-type-variable _ _ _) _) (error 'at-least-as-settled "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
+    [(list _ (c-type-variable _ _ _)) (error 'at-least-as-settled "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
     [(list (base-type _ _) _) #t]
     [(list (base-type-range _ _) _) #t]
     [(list (function-type v-arg v-ret) (function-type c-arg c-ret))
-     (and (at-least-as-concrete v-arg c-arg)
-          (at-least-as-concrete v-ret c-ret))]
+     (and (at-least-as-settled v-arg c-arg)
+          (at-least-as-settled v-ret c-ret))]
     [(list (function-type _ _) rtype) #f]
     [(list (function-type _ _) _) #t]
     [(list (product-type v-inner-list _ _) (product-type c-inner-list _ _))
@@ -1912,7 +1918,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
          [(list _ #f) #t]
          [(list #f _) #f]
          [else (if (equal? (length ts) (length cs))
-                   (andmap at-least-as-concrete ts cs)
+                   (andmap at-least-as-settled ts cs)
                    #t)]))]
     [(list (product-type _ _ _) _) #t]
     [(list (c-nominal-record-type v-name v-super v-inners v-lb v-ub)
@@ -1922,43 +1928,43 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (c-nominal-record-type _ _ _ _ _) _) #t]
     [(list (nominal-record-definition-type inner1)
            (nominal-record-definition-type inner2))
-     (at-least-as-concrete inner1 inner2)]
+     (at-least-as-settled inner1 inner2)]
     [(list (nominal-record-definition-type _) _) #t]
     [(list (c-structural-record-type f?1 known-fields-1 lb-1 ub-1)
            (c-structural-record-type f?2 known-fields-2 lb-2 ub-2))
-     #;(error 'at-least-as-concrete/structural-record-type-case "TODO - implement.  check finalized status, fail quickly if both are finalized and fields are clearly incompatible (each record has a field that the other doesn't), recur through known-fields.")
+     #;(error 'at-least-as-settled/structural-record-type-case "TODO - implement.  check finalized status, fail quickly if both are finalized and fields are clearly incompatible (each record has a field that the other doesn't), recur through known-fields.")
      ;; TODO - for now, let's just conservatively force maximal exploration.
      #f]
     [(list (c-structural-record-type _ _ _ _) _) #t]
     [(list (generic-type v-n v-ctor v-inners v-vars)
            (generic-type c-n c-ctor c-inners v-vars))
      (if (eq? v-ctor c-ctor)
-         (andmap at-least-as-concrete v-inners c-inners)
+         (andmap at-least-as-settled v-inners c-inners)
          #t)]
     [(list (generic-type _ _ _ _) _) #t]
     ;; No else, so we get an error if there are new types that we don't extend this with.
     ))
 
 (module+ test
-  (check-true (at-least-as-concrete (mk-base-type 'foo) (fresh-type-variable)))
-  (check-true (at-least-as-concrete (mk-base-type 'foo)
+  (check-true (at-least-as-settled (mk-base-type 'foo) (fresh-type-variable)))
+  (check-true (at-least-as-settled (mk-base-type 'foo)
                                     (fresh-type-variable (mk-base-type 'foo)
                                                          (mk-base-type 'bar))))
-  (check-true (at-least-as-concrete (mk-base-type 'foo)
+  (check-true (at-least-as-settled (mk-base-type 'foo)
                                     (fresh-type-variable (mk-base-type 'foo)
                                                          (mk-base-type 'bar))))
-  (check-false (at-least-as-concrete (fresh-type-variable)
+  (check-false (at-least-as-settled (fresh-type-variable)
                                      (fresh-type-variable (mk-base-type 'foo)
                                                           (mk-base-type 'bar))))
-  (check-false (at-least-as-concrete (function-type (fresh-type-variable)
+  (check-false (at-least-as-settled (function-type (fresh-type-variable)
                                                     (mk-base-type 'foo))
                                      (function-type (mk-base-type 'bar)
                                                     (mk-base-type 'foo))))
-  ;; TODO - this test raises an exception, but at-least-as-concrete is not even used right now
-  #;(check-true (at-least-as-concrete (fresh-type-variable (mk-product-type #f))
+  ;; TODO - this test raises an exception, but at-least-as-settled is not even used right now
+  #;(check-true (at-least-as-settled (fresh-type-variable (mk-product-type #f))
                                     (fresh-type-variable (mk-base-type 'foo)
                                                          (mk-base-type 'bar))))
-  (check-false (at-least-as-concrete (fresh-type-variable (mk-product-type #f))
+  (check-false (at-least-as-settled (fresh-type-variable (mk-product-type #f))
                                      (fresh-type-variable
                                       (mk-product-type (list (fresh-type-variable)))
                                       (mk-base-type 'bar))))
@@ -2060,17 +2066,17 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (if potential?
          #t
          (when (not inners)
-           (error 'type-contains-function-type? "given non-concrete type: ~v" t)))
+           (error 'type-contains-function-type? "given non-settled type: ~v" t)))
      (for/or ([it inners])
        (rec it))]
     [(c-nominal-record-type name super known-fields lb ub)
-     (if (and potential? (not (concrete? t)))
+     (if (and potential? (not (settled? t)))
          #t
          (for/or ([it (dict-values known-fields)])
            (rec it)))]
     [(nominal-record-definition-type inner) #f]
     [(c-structural-record-type f?1 known-fields-1 lb-1 ub-1)
-     (if (and potential? (not (concrete? t)))
+     (if (and potential? (not (settled? t)))
          #t
          (for/or ([it (dict-values known-fields-1)])
            (rec it)))]
@@ -2085,7 +2091,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(c-type-variable #f _ _)
      (if potential?
          #t
-         (error 'type-contains-function-type? "given non-concrete type: ~v" t))]))
+         (error 'type-contains-function-type? "given non-settled type: ~v" t))]))
 
 
 ;; This is a copy/pasted version of list-subtract from the `set` generic implementation.  The generic uses `equal?`-based testing, but I'm only using it on things where I want `eq?`-based testing.

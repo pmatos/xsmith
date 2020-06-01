@@ -316,7 +316,7 @@ hole for the type.
                      (let* ([t (hash-ref all-values-hash
                                          binder-type-field)]
                             [concretized
-                             (if (concrete-type? t)
+                             (if (settled-type? t)
                                  t
                                  (let ()
                                    (xd-printf
@@ -1051,7 +1051,7 @@ few of these methods.
   options/higher-order-effect-filtered)
 
 (define (reference-options-add-lift node reference-options lift-type)
-  ;; lift-type must be concrete
+  ;; lift-type must be settled
   (cond
     [(and (or (not lift-type)
               (nominal-record-definition-type? lift-type))
@@ -1075,7 +1075,7 @@ few of these methods.
     (att-value '_xsmith_visible-bindings node))
   (define visibles-with-type
     (filter (λ (b) (and b
-                        (concrete-type? (binding-type b))
+                        (settled-type? (binding-type b))
                         (can-unify? (binding-type b)
                                     type)))
             visibles))
@@ -1105,7 +1105,7 @@ few of these methods.
           (define my-choice-type-constraint (send self _xsmith_my-type-constraint))
           (define visibles-with-type
             (filter (λ (b) (and b
-                                (concrete-type? (binding-type b))
+                                (settled-type? (binding-type b))
                                 ;; Sometimes a reference choice may have a stricter
                                 ;; type requirement than the hole node.  So we ask
                                 ;; if it can unify with the choice type constraint
@@ -1373,11 +1373,11 @@ The second arm is a function that takes the type that the node has been assigned
   (choice-rule _xsmith_satisfies-type-constraint?)
   ;_xsmith_satisfies-type-constraint? -- choice predicate -- tests if a hole's type and a choice object are compatible
   (choice-rule _xsmith_reference-options!)
-  ;_xsmith_reference-options! -- returns a list of options for a variable to reference that are type compatible.  BUT - it unifies the type of the reference with a fully concrete version.  One of the list members is a thunk that can be applied to get a lifted binding.
+  ;_xsmith_reference-options! -- returns a list of options for a variable to reference that are type compatible.  BUT - it unifies the type of the reference with a fully settled version.  One of the list members is a thunk that can be applied to get a lifted binding.
   (choice-rule xsmith_get-reference!)
   ;xsmith_get-reference! -- like xsmith_reference-options! but it just returns one (pre-called in the case of lifts).
   (choice-rule xsmith_get-reference-for-child!)
-  ;xsmith_get-reference-for-child! -- returns a reference name like xsmith_reference-options! but it must be called with a (concrete) type and a boolean for whether or not the reference will be a write reference.  Can be used to build multiple references at once.
+  ;xsmith_get-reference-for-child! -- returns a reference name like xsmith_reference-options! but it must be called with a (settled) type and a boolean for whether or not the reference will be a write reference.  Can be used to build multiple references at once.
   #:transformer
   (λ (this-prop-info grammar-info reference-info-info binder-info-info)
     (define nodes (cons #f (dict-keys grammar-info)))
@@ -1587,8 +1587,8 @@ The second arm is a function that takes the type that the node has been assigned
      )))
 
 (define (can-unify-node-type-with-type?! node-in-question type-constraint
-                                         #:break-when-more-concrete?
-                                         [break-when-more-concrete? #t])
+                                         #:break-when-more-settled?
+                                         [break-when-more-settled? #t])
   #|
   We need to call `can-unify?`, but we do type checking lazily.
   This means that the node type may need to unify with a cousin node's type
@@ -1596,7 +1596,7 @@ The second arm is a function that takes the type that the node has been assigned
   if we haven't done that unification.
 
   So we need to walk some of the tree to unify.  But we don't want to walk the
-  whole tree.  So we check as we go whether the type is sufficiently concrete
+  whole tree.  So we check as we go whether the type is sufficiently settled
   to always give a correct answer, and break the loop when it is.
 
   We start by going to sibling nodes, and when any type shares variables with
@@ -1627,12 +1627,12 @@ The second arm is a function that takes the type that the node has been assigned
                                   (type->type-variable-list hole-type)))
 
       (define (break?!)
-        (when (concrete-type? hole-type)
+        (when (settled-type? hole-type)
           (break!! #t))
         (when (not (can-unify? hole-type type-constraint))
           (break!! #f))
-        (when (and break-when-more-concrete?
-                   (at-least-as-concrete hole-type type-constraint))
+        (when (and break-when-more-settled?
+                   (at-least-as-settled hole-type type-constraint))
             (break!! #t)))
       (break?!)
       (let parent-loop ([p (parent-node node-in-question)]
@@ -1712,14 +1712,14 @@ The second arm is a function that takes the type that the node has been assigned
             (parent-loop (parent-node p) p))))))
   ;;; End traversal
 
-  ;; The hole type is now either maximally unified or sufficiently concrete
+  ;; The hole type is now either maximally unified or sufficiently settled
   ;; that no more unification can change the result of this predicate.
   (and maybe-can-unify?
        (can-unify? hole-type type-constraint)))
 
 (define (force-type-exploration-for-node! node)
   (can-unify-node-type-with-type?! node (fresh-type-variable)
-                                   #:break-when-more-concrete? #f))
+                                   #:break-when-more-settled? #f))
 
 
 (define-property strict-child-order?
