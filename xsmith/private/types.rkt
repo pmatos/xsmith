@@ -1796,6 +1796,12 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (check-true (can-unify? an-or3->int int->int))
   )
 
+;; TODO - It might make sense for Xsmith to track construction of
+;; `base-types` or otherwise maintain a list of all base types so it
+;; can know what the *actual* lowest types are. Right now a type can
+;; not pass the `settled?` predicate because a variable has a base type
+;; range with bottom `#f` when in reality the type IS settled because
+;; the top type of the range has no subtypes.
 
 (define (settled?/core t only-if-no-wrappers?)
   (define (rec t) (settled?/core t only-if-no-wrappers?))
