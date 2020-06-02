@@ -13,6 +13,7 @@
 
 (add-basic-expressions javascript-comp
                        #:LambdaWithBlock #t
+                       #:Numbers #t
                        #:Booleans #t
                        #:Strings #t
                        #:MutableArray #t

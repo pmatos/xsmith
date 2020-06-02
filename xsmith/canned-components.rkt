@@ -132,7 +132,6 @@
 
 (define-syntax (add-basic-expressions stx)
   (syntax-parse stx
-    ;; TODO - options
     [(_ component
         (~or
          (~optional (~seq #:ProgramWithSequence use-program-with-sequence:boolean))
@@ -143,6 +142,7 @@
          (~optional (~seq #:LambdaWithBlock use-LWB:boolean))
          (~optional (~seq #:LetSequential use-let-sequential:boolean))
          (~optional (~seq #:ExpressionSequence use-expression-sequence:boolean))
+         (~optional (~seq #:Numbers use-numbers:boolean))
          (~optional (~seq #:Booleans use-booleans:boolean))
          (~optional (~seq #:Strings use-strings:boolean))
          (~optional (~seq #:MutableArray use-mutable-array:boolean))
@@ -184,18 +184,6 @@
                                  [arguments : Expression * = (arg-length)])]
 
 
-          [NumberLiteral Expression (v)
-                         #:prop may-be-generated #f
-                         #:prop choice-weight 1]
-          [IntLiteral NumberLiteral ()
-                      ;; TODO - better random integer
-                      #:prop fresh (hash 'v (random 200000))]
-          [Plus Expression ([l : Expression] [r : Expression])]
-          [Minus Expression ([l : Expression] [r : Expression])]
-          [Times Expression ([l : Expression] [r : Expression])]
-          [SafeDivide Expression ([l : Expression] [r : Expression])]
-          [LessThan Expression ([l : Expression] [r : Expression])]
-          [GreaterThan Expression ([l : Expression] [r : Expression])]
           )
 
          (add-prop
@@ -224,18 +212,36 @@
                  (values arg arg-type))
                'procedure
                (function-type args-type t)))]]
-
-          [IntLiteral [int no-child-types]]
-          [Plus [number numeric-bin-op-subtype]]
-          [Minus [number numeric-bin-op-subtype]]
-          [Times [number numeric-bin-op-subtype]]
-          [SafeDivide [number numeric-bin-op-subtype]]
-          [LessThan [bool numeric-bin-op/no-relation-to-return]]
-          [GreaterThan [bool numeric-bin-op/no-relation-to-return]]
           )
 
 
          ;;; Optional components
+
+         #,@(if (use? use-numbers)
+                #'((add-to-grammar
+                    component
+                    [NumberLiteral Expression (v)
+                                   #:prop may-be-generated #f
+                                   #:prop choice-weight 1]
+                    [IntLiteral NumberLiteral ()
+                                ;; TODO - better random integer
+                                #:prop fresh (hash 'v (random 200000))]
+                    [Plus Expression ([l : Expression] [r : Expression])]
+                    [Minus Expression ([l : Expression] [r : Expression])]
+                    [Times Expression ([l : Expression] [r : Expression])]
+                    [SafeDivide Expression ([l : Expression] [r : Expression])]
+                    [LessThan Expression ([l : Expression] [r : Expression])]
+                    [GreaterThan Expression ([l : Expression] [r : Expression])])
+                   (add-prop
+                    component type-info
+                    [IntLiteral [int no-child-types]]
+                    [Plus [number numeric-bin-op-subtype]]
+                    [Minus [number numeric-bin-op-subtype]]
+                    [Times [number numeric-bin-op-subtype]]
+                    [SafeDivide [number numeric-bin-op-subtype]]
+                    [LessThan [bool numeric-bin-op/no-relation-to-return]]
+                    [GreaterThan [bool numeric-bin-op/no-relation-to-return]]))
+                #'())
 
          #,@(if (use? use-void-expression)
                 #'((add-to-grammar

@@ -14,6 +14,7 @@
 
 (add-basic-expressions python-comp
                        #:LambdaWithExpression #t
+                       #:Numbers #t
                        #:Booleans #t
                        #:Strings #t
                        #:MutableArray #t

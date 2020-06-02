@@ -20,6 +20,7 @@
                        #:ExpressionSequence #t
                        #:LetSequential #t
                        #:LambdaWithExpression #t
+                       #:Numbers #t
                        #:Booleans #t
                        #:Strings #t
                        #:ImmutableList #t

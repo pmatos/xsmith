@@ -14,6 +14,7 @@
 
 (add-basic-expressions lua-comp
                        #:LambdaWithBlock #t
+                       #:Numbers #t
                        #:Booleans #t
                        #:Strings #t
                        #:MutableArray #t
