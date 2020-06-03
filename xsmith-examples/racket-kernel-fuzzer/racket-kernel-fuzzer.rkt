@@ -36,7 +36,7 @@
                        #:ImmutableList #t
                        #:MutableArray #t
                        #:MutableArraySafeAssignmentExpression #t
-                       #:ImmutableArray #t
+                       ;#:ImmutableArray #t
                        #:MutableStructuralRecord #t
                        #:MutableStructuralRecordAssignmentExpression #t
                        #:ImmutableStructuralRecord #t
@@ -83,7 +83,7 @@
                    #:prop type-info [(immutable (list-type (fresh-type-variable)))
                                      no-child-types]
                    #:prop render-node-info (λ (n) 'null)]
- [MutableStringLiteral Expression ()
+ [MutableStringLiteral Expression ([v = (random-string)])
                        #:prop choice-weight 1
                        #:prop type-info [mutable-string no-child-types]
                        #:prop render-node-info (λ (n)
@@ -98,7 +98,7 @@
    #'(ag [name Expression ([v = fresh-expr])
                #:prop choice-weight 1
                #:prop type-info [type no-child-types]
-               #:prop render-node-info (λ (n) (ast-child 'v n))])])
+               #:prop render-node-info (λ (n) `(quote ,(ast-child 'v n)))])])
 (ag/atomic-literal IntLiteral int (random-int))
 (ag/atomic-literal CharLiteral char (random-char))
 (ag/atomic-literal BoolLiteral bool (random-bool))
@@ -127,6 +127,8 @@
 (ag/variadic Append 'append 0 #:type (immutable (list-type (fresh-type-variable))))
 (ag/variadic String 'string 0 #:type string
              #:ctype (λ (n t) (hash 'minargs char 'moreargs char)))
+(ag/variadic StringAppend 'string-append 0 #:type mutable-string
+             #:ctype (λ (n t) (hash 'minargs string 'moreargs string)))
 
  ;; The numerical comparison operators require at least 1 argument.  I'm not sure why they don't accept 0 args -- eg. as a predicate that an empty list is sorted.
 (define-syntax-parser ag/number-compare
@@ -196,15 +198,18 @@
   [(_ etype:expr)
    #'(λ (n t) (hash 'Expression etype))])
 (ag/single-arg Abs 'abs)
+(ag/single-arg Cos 'cos)
 (ag/single-arg Acos 'acos)
+(ag/single-arg Sin 'sin)
 (ag/single-arg Asin 'asin)
+(ag/single-arg Tan 'tan)
+(ag/single-arg AtanOne (if NE? 'NE/atan 'atan))
 (ag/single-arg AddOne 'add1)
 (ag/single-arg SubOne 'sub1)
 (ag/single-arg Angle 'angle)
 (ag/single-arg Ceiling 'ceiling)
 (ag/single-arg Truncate 'truncate)
 (ag/single-arg Not 'not #:type bool)
-(ag/single-arg AtanOne (if NE? 'NE/atan 'atan))
 (ag/single-arg BitwiseNot 'bitwise-not #:type int)
 (ag/single-arg ZeroP 'zero? #:type bool #:ctype (Ectype number))
 (ag/single-arg NullP 'null? #:type bool
@@ -212,6 +217,7 @@
 (ag/single-arg SymbolInternedP 'symbol-interned? #:type bool #:ctype (Ectype symbol))
 (ag/single-arg SymbolUnreadableP 'symbol-unreadable?
                #:type bool #:ctype (Ectype symbol))
+(ag/single-arg IntegerLength 'integer-length #:type int)
 
 (ag/single-arg CharDowncase 'char-downcase #:type char)
 (ag/single-arg CharFoldcase 'char-foldcase #:type char)
@@ -241,6 +247,17 @@
 (ag/single-arg StringUpcase 'string-upcase #:type string)
 
 (ag/single-arg StringLength 'string-length #:type int #:ctype (Ectype string))
+(ag/single-arg StringUTFELength 'string-utf-8-length
+               #:type int #:ctype (Ectype string))
+(ag/single-arg StringCopy 'string-copy #:type mutable-string #:ctype (Ectype string))
+(ag/single-arg StringNormalizeNFC 'string-normalize-nfc
+               #:type mutable-string #:ctype (Ectype string))
+(ag/single-arg StringNormalizeNFD 'string-normalize-nfd
+               #:type mutable-string #:ctype (Ectype string))
+(ag/single-arg StringNormalizeNFKC 'string-normalize-nfkc
+               #:type mutable-string #:ctype (Ectype string))
+(ag/single-arg StringNormalizeNFKD 'string-normalize-nfkd
+               #:type mutable-string #:ctype (Ectype string))
 
 (define-syntax-parser ag/converter
   [(_ name:id sym:expr from:expr to:expr)
@@ -269,6 +286,8 @@
 (ag/type-predicate ExnP 'exn?)
 (ag/type-predicate HashP 'hash?)
 (ag/type-predicate ImmutableP 'immutable?)
+(ag/type-predicate IntegerP 'integer?)
+(ag/type-predicate InternedCharP 'interned-char?)
 (ag/type-predicate KeywordP 'keyword?)
 (ag/type-predicate ListP 'list?)
 (ag/type-predicate ListPairP 'list-pair?)
@@ -335,31 +354,35 @@
 
  [ProgramWithSequence
   (λ (n)
-    `((define (NE/ arg1 . args)
-        (if (null? args)
-            (if (eq? arg1 0)
-                0
-                (/ arg1))
-            (apply / arg1 (map (λ (x) (if (eq? 0 x) 1 x)) args))))
+    `((define-values (NE/)
+        (λ (arg1 . args)
+          (if (null? args)
+              (if (eq? arg1 0)
+                  0
+                  (/ arg1))
+              (apply / arg1 (map (λ (x) (if (eq? 0 x) 1 x)) args)))))
       ;; TODO - add safe/NoException wrappers
       ;; TODO - NE/atan
-      (define (safe-car list fallback)
-        (if (null? list)
-            fallback
-            (car list)))
-      (define (safe-cdr list fallback)
-        (if (null? list)
-            fallback
-            (cdr list)))
-      (define (immutable-vector-set vec index-raw val)
-        (define index (modulo index-raw (vector-length vec)))
-        (vector->immutable-vector
-         (build-vector (vector-length vec)
-                       (λ (i) (if (equal? i index)
-                                  val
-                                  (vector-ref vec i))))))
+      (define-values (safe-car)
+        (λ (list fallback)
+          (if (null? list)
+              fallback
+              (car list))))
+      (define-values (safe-cdr)
+        (λ (list fallback)
+          (if (null? list)
+              fallback
+              (cdr list))))
+      #;(define-values (immutable-vector-set)
+        (λ (vec index-raw val)
+          (define-values (index) (modulo index-raw (vector-length vec)))
+          (vector->immutable-vector
+           (build-vector (vector-length vec)
+                         (λ (i) (if (equal? i index)
+                                    val
+                                    (vector-ref vec i)))))))
       ,@(render-children 'definitions n)
-      (define program-result ,(render-child 'ExpressionSequence n))
+      (define-values (program-result) ,(render-child 'ExpressionSequence n))
       (begin
         ,(if #;(base-type? (att-value 'xsmith_type
                                       (ast-child 'ExpressionSequence n)))
@@ -375,7 +398,7 @@
                      ,(string->symbol (ast-child 'name c)))))))]
 
  [Definition (λ (n)
-               `(define ,(string->symbol (ast-child 'name n))
+               `(define-values (,(string->symbol (ast-child 'name n)))
                   ,(render-child 'Expression n)))]
  [AssignmentExpression
   (λ (n) `(set! ,(string->symbol (ast-child 'name n))
@@ -387,10 +410,14 @@
        ,(render-child 'finalexpression n)))]
  [LetSequential
   (λ (n)
-    `(let* (,@(map (λ (dn) `[,(string->symbol (ast-child 'name dn))
-                             ,(render-child 'Expression dn)])
-                   (ast-children (ast-child 'definitions n))))
-       ,(render-child 'body n)))]
+    (define let-pairs
+      (map (λ (dn) `[(,(string->symbol (ast-child 'name dn)))
+                     ,(render-child 'Expression dn)])
+           (ast-children (ast-child 'definitions n))))
+    (foldr (λ (v accum)
+             `(let-values (,v) ,accum))
+           (render-child 'body n)
+           let-pairs))]
 
  [IfExpression
   (λ (n)
@@ -440,15 +467,15 @@
                 ,(render-child 'list n)))]
  [MutableArrayLiteral
   (λ (n) `(vector ,@(render-children 'expressions n)))]
- [ImmutableArrayLiteral
+ #;[ImmutableArrayLiteral
   (λ (n) `(vector-immutable ,@(render-children 'expressions n)))]
  [MutableArraySafeReference
   (λ (n)
-    (define array-rendered (render-child 'array n))
+    (define-values (array-rendered) (render-child 'array n))
     `(vector-ref ,array-rendered
                  (modulo ,(render-child 'index n)
                          (vector-length ,array-rendered))))]
- [ImmutableArraySafeReference
+ #;[ImmutableArraySafeReference
   (λ (n)
     `(let ([vec ,(render-child 'array n)])
        (vector-ref vec
@@ -456,12 +483,12 @@
                            (vector-length vec)))))]
  [MutableArraySafeAssignmentExpression
   (λ (n)
-    (define array-rendered (render-child 'array n))
+    (define-values (array-rendered) (render-child 'array n))
     `(vector-set! ,array-rendered
                   (modulo ,(render-child 'index n)
                           (vector-length ,array-rendered))
                   ,(render-child 'newvalue n)))]
- [ImmutableArraySafeSet
+ #;[ImmutableArraySafeSet
   (λ (n)
     `(immutable-vector-set ,(render-child 'array n)
                            ,(render-child 'index n)
@@ -510,7 +537,19 @@
  racket-comp)
 
 (define (type-thunks-for-concretization)
-  (list #;(λ()float) #;(λ()number) (λ()int) #;(λ()bool) #;(λ()string)))
+  (list
+   (λ()bool)
+   (λ()number)
+   (λ()int)
+   #;(λ()float)
+   (λ()char)
+   (λ()string)
+   (λ()symbol)
+   (λ()keyword)
+   (λ() (immutable (list-type (fresh-type-variable))))
+   (λ() (immutable (box-type (fresh-type-variable))))
+   (λ() (mutable (box-type (fresh-type-variable))))
+   ))
 
 (define (racket-generate)
   (parameterize ([current-xsmith-type-constructor-thunks
@@ -521,7 +560,7 @@
   (define out (open-output-string))
   (for ([symex s-exps])
     (pretty-print symex out 1))
-  (format "#lang racket/base\n~a"
+  (format "(module random-fuzzing-module '#%kernel\n~a\n)\n"
           (get-output-string out)))
 
 (module+ main
