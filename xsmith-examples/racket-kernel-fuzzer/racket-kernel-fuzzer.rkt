@@ -54,6 +54,8 @@
 ;; TODO - make canned-components have a keyword for what number type to use?
 (define char (base-type 'char bool))
 (define string (base-type 'string bool))
+(define mutable-string (base-type 'mutable-string string))
+(define immutable-string (base-type 'immutable-string string))
 (define symbol (base-type 'symbol bool))
 (define keyword (base-type 'keyword bool))
 
@@ -81,6 +83,11 @@
                    #:prop type-info [(immutable (list-type (fresh-type-variable)))
                                      no-child-types]
                    #:prop render-node-info (λ (n) 'null)]
+ [MutableStringLiteral Expression ()
+                       #:prop choice-weight 1
+                       #:prop type-info [mutable-string no-child-types]
+                       #:prop render-node-info (λ (n)
+                                                 `(string-copy ,(ast-child 'v n)))]
  [VariadicExpression Expression ([minargs : Expression *]
                                  [moreargs : Expression * = (random 5)])
                      #:prop may-be-generated #f])
@@ -95,14 +102,16 @@
 (ag/atomic-literal IntLiteral int (random-int))
 (ag/atomic-literal CharLiteral char (random-char))
 (ag/atomic-literal BoolLiteral bool (random-bool))
-(ag/atomic-literal StringLiteral string (random-string))
+(ag/atomic-literal ImmutableStringLiteral immutable-string (random-string))
 (ag/atomic-literal SymbolLiteral symbol (string->symbol (random-string)))
 (ag/atomic-literal KeywordLiteral keyword (string->keyword (random-string)))
 
 (define-syntax-parser ag/variadic
   [(_ name:id symbol:expr min-args:expr
       (~or (~optional (~seq #:type type:expr)
-                      #:defaults ([type #'(fresh-subtype-of number)])))
+                      #:defaults ([type #'(fresh-subtype-of number)]))
+           (~optional (~seq #:ctype ctype:expr)
+                      #:defaults ([ctype #'(λ (n t) (hash 'minargs t 'moreargs t))])))
       ...)
    #'(ag [name VariadicExpression ()
                #:prop fresh (hash 'minargs min-args)
@@ -116,6 +125,8 @@
 (ag/variadic BitwiseIor 'bitwise-ior 0 #:type int)
 (ag/variadic BitwiseXor 'bitwise-xor 0 #:type int)
 (ag/variadic Append 'append 0 #:type (immutable (list-type (fresh-type-variable))))
+(ag/variadic String 'string 0 #:type string
+             #:ctype (λ (n t) (hash 'minargs char 'moreargs char)))
 
  ;; The numerical comparison operators require at least 1 argument.  I'm not sure why they don't accept 0 args -- eg. as a predicate that an empty list is sorted.
 (define-syntax-parser ag/number-compare
@@ -147,7 +158,28 @@
 (ag/char-compare CharCIEqual 'char-ci=?)
 (ag/char-compare CharCIGreaterThan 'char-ci>?)
 (ag/char-compare CharCIGreaterThanEqual 'char-ci>=?)
-
+(ag [SymbolLessThan VariadicExpression ()
+                    #:prop fresh (hash 'minargs 1)
+                    #:prop type-info
+                    [bool (λ (n t) (hash 'minargs symbol 'moreargs symbol))]
+                    #:prop render-node-info (render-variadic 'symbol<?)])
+(define-syntax-parser ag/string-compare
+  [(_ name:id symbol:expr)
+   #'(ag [name VariadicExpression ()
+               #:prop fresh (hash 'minargs 1)
+               #:prop type-info
+               [bool (λ (n t) (hash 'minargs string 'moreargs string))]
+               #:prop render-node-info (render-variadic symbol)])])
+(ag/string-compare StringLessThan 'string<?)
+(ag/string-compare StringLessThanEqual 'string<=?)
+(ag/string-compare StringEqual 'string=?)
+(ag/string-compare StringGreaterThan 'string>?)
+(ag/string-compare StringGreaterThanEqual 'string>=?)
+(ag/string-compare StringCILessThan 'string-ci<?)
+(ag/string-compare StringCILessThanEqual 'string-ci<=?)
+(ag/string-compare StringCIEqual 'string-ci=?)
+(ag/string-compare StringCIGreaterThan 'string-ci>?)
+(ag/string-compare StringCIGreaterThanEqual 'string-ci>=?)
 
 (define-syntax-parser ag/single-arg
   [(_ name:id symbol:expr
@@ -170,8 +202,17 @@
 (ag/single-arg SubOne 'sub1)
 (ag/single-arg Angle 'angle)
 (ag/single-arg Ceiling 'ceiling)
-(ag/single-arg CharToInteger 'char->integer #:type int
-               #:ctype (λ (n t) (hash 'Expression char)))
+(ag/single-arg Truncate 'truncate)
+(ag/single-arg Not 'not #:type bool)
+(ag/single-arg AtanOne (if NE? 'NE/atan 'atan))
+(ag/single-arg BitwiseNot 'bitwise-not #:type int)
+(ag/single-arg ZeroP 'zero? #:type bool #:ctype (Ectype number))
+(ag/single-arg NullP 'null? #:type bool
+               #:ctype (Ectype (immutable (list-type (fresh-type-variable)))))
+(ag/single-arg SymbolInternedP 'symbol-interned? #:type bool #:ctype (Ectype symbol))
+(ag/single-arg SymbolUnreadableP 'symbol-unreadable?
+               #:type bool #:ctype (Ectype symbol))
+
 (ag/single-arg CharDowncase 'char-downcase #:type char)
 (ag/single-arg CharFoldcase 'char-foldcase #:type char)
 (ag/single-arg CharTitlecase 'char-titlecase #:type char)
@@ -194,13 +235,25 @@
 (ag/char-pred CharUpperCaseP 'char-upper-case?)
 (ag/char-pred CharWhitespaceP 'char-whitespace?)
 
-(ag/single-arg Truncate 'truncate)
-(ag/single-arg Not 'not #:type bool)
-(ag/single-arg AtanOne (if NE? 'NE/atan 'atan))
-(ag/single-arg BitwiseNot 'bitwise-not #:type int)
-(ag/single-arg ZeroP 'zero? #:type bool #:ctype (Ectype number))
-(ag/single-arg NullP 'null? #:type bool
-               #:ctype (Ectype (immutable (list-type (fresh-type-variable)))))
+(ag/single-arg StringDowncase 'string-downcase #:type string)
+(ag/single-arg StringFoldcase 'string-foldcase #:type string)
+(ag/single-arg StringTitlecase 'string-titlecase #:type string)
+(ag/single-arg StringUpcase 'string-upcase #:type string)
+
+(ag/single-arg StringLength 'string-length #:type int #:ctype (Ectype string))
+
+(define-syntax-parser ag/converter
+  [(_ name:id sym:expr from:expr to:expr)
+   #'(ag/single-arg name sym #:type to #:ctype (Ectype from))])
+(ag/converter CharToInteger 'char->integer char int)
+(ag/converter StringToSymbol 'string->symbol string symbol)
+(ag/converter StringToUninternedSymbol 'string->uninterned-symbol string symbol)
+(ag/converter StringToUnreadableSymbol 'string->unreadable-symbol string symbol)
+(ag/converter SymbolToString 'symbol->string symbol string)
+(ag/converter StringToKeyword 'string->keyword string keyword)
+(ag/converter KeywordToString 'keyword->string keyword string)
+(ag/converter StringToList 'string->list string (immutable (list-type char)))
+(ag/converter StringImmutableString 'string->immutable-string string immutable-string)
 
 (define-syntax-parser ag/type-predicate
   [(_ name:id symbol:expr)
