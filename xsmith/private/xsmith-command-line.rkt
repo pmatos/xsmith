@@ -123,7 +123,7 @@
   (define listen-ip "127.0.0.1")
   (define given-seed #f)
   (define server? #f)
-  (define tree-on-error? #f)
+  (define render-on-error? #f)
   (define seq-to-file #f)
   (define seq-from-file #f)
   (define max-depth default-max-depth)
@@ -246,13 +246,13 @@
        (["Run the fuzzer with the given path."
          "Defaults to /"]
         "path")]
-      [("--tree-on-error")
-       ,(λ (flag show-tree-on-error?)
-          (set! tree-on-error? (string->bool show-tree-on-error? 'show-tree-on-error?)))
+      [("--render-on-error")
+       ,(λ (flag show-render-on-error?)
+          (set! render-on-error? (string->bool show-render-on-error? 'show-render-on-error?)))
        (["Print the partial tree (using the render-node-info property) if an"
          "error is encountered."
          "Defaults to false."]
-        "show-tree-on-error?")]
+        "show-render-on-error?")]
       [("--seq-to-file")
        ,(λ (flag filename) (set! seq-to-file filename))
        (["Output the generated randomness sequence to a file at the given path."
@@ -387,7 +387,7 @@
                 ;; If the user asked for it (and if any AST was salvaged from the
                 ;; generation stage), attempt to convert the partially completed AST
                 ;; to pre-print representation (PPR).
-                (if (and tree-on-error?
+                (if (and render-on-error?
                          error-root)
                     (let* ([ppr-error? #f]
                            [original-captured-output captured-output]
