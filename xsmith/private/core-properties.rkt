@@ -1071,6 +1071,11 @@ few of these methods.
 (define (xsmith_reference-options-for-child-func node
                                                  type
                                                  write-reference?)
+  (when (not (settled-type? type))
+    (error 'xsmith_reference-options-for-child-func
+           "Type provided for child of node ~v is not settled: ~v."
+           (ast-node-type node)
+           type))
   (define visibles
     (att-value '_xsmith_visible-bindings node))
   (define visibles-with-type
@@ -1082,7 +1087,7 @@ few of these methods.
   (define visibles/generic-filters
     (reference-options-filter node visibles-with-type type write-reference?))
   (define legal+lift
-    (reference-options-add-lift node visibles/generic-filters type))
+    (reference-options-add-lift node visibles/generic-filters (concretize-type type)))
   legal+lift)
 
 (define (_xsmith_reference-options!-func self

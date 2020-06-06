@@ -529,8 +529,8 @@
                [(ast-list-node? n) #f]
                [(ast-bud-node? n) #f]
                [(att-value 'xsmith_is-hole? n)
-                (begin
-                  (rewrite-subtree n (att-value '_xsmith_hole->replacement n))
+                (let ([replacement (att-value '_xsmith_hole->replacement n)])
+                  (rewrite-subtree n replacement)
                   (execute-inter-choice-transform-queue)
                   #t)]
                [else #f]))])
