@@ -35,6 +35,7 @@
  racket/contract/base
  (only-in racr ast-node? att-value)
  racket/string
+ racket/pretty
  )
 
 (define (dash-dash-string? s)
@@ -124,6 +125,7 @@
   (define given-seed #f)
   (define server? #f)
   (define render-on-error? #f)
+  (define s-exp-on-error? #f)
   (define seq-to-file #f)
   (define seq-from-file #f)
   (define max-depth default-max-depth)
@@ -253,6 +255,13 @@
          "error is encountered."
          "Defaults to false."]
         "show-render-on-error?")]
+      [("--s-exp-on-error")
+       ,(λ (flag show-s-exp-on-error)
+          (set! s-exp-on-error?
+                (string->bool show-s-exp-on-error 'show-s-exp-on-error?)))
+       (["Print an s-expression representation of the tree if an error is encountered"
+         "Defaults to false."]
+        "show-s-exp-on-error?")]
       [("--seq-to-file")
        ,(λ (flag filename) (set! seq-to-file filename))
        (["Output the generated randomness sequence to a file at the given path."
@@ -349,6 +358,7 @@
                                     (format "\nPartially generated program:\n~a\n"
                                             partial-prog))
                                    output)])
+                  (set! captured-output "")
                   (display output)))
               ;; Compute the result of a procedure, capturing all output to
               ;; `captured-output` and returning the procedure's result.
@@ -384,40 +394,33 @@
                            (λ (e) (set! error? e))])
                          (generate-func)))))
               (when error?
+                (output-error
+                 error?
+                 "Error encountered while generating program!")
                 ;; If the user asked for it (and if any AST was salvaged from the
                 ;; generation stage), attempt to convert the partially completed AST
                 ;; to pre-print representation (PPR).
-                (if (and render-on-error?
-                         error-root)
-                    (let* ([ppr-error? #f]
-                           [original-captured-output captured-output]
-                           [partial-prog (capture-output!
-                                          (λ () (with-handlers ([(λ (e) #t)
-                                                                 (λ (e) (set! ppr-error? e))])
-                                                  (ast->string error-root))))])
-                      (if ppr-error?
-                          (begin
-                            ;; Something went wrong during printing.
-                            (output-error
-                             ppr-error?
-                             "Error 001: Error encountered in printing while intercepting another error in AST generation.")
-                            (display "Original error reproduced below:\n\n")
-                            (set! captured-output original-captured-output)
-                            (output-error
-                             error?
-                             "Error 002: Error generating program!"))
-                          (begin
-                            ;; Printing was successful, so we can show the partial program.
-                            (set! captured-output original-captured-output)
-                            (output-error
-                             error?
-                             "Error 003: Error encountered while generating program!"
-                             partial-prog))))
-                    (begin
-                      ;; Just print the base error message and quit.
-                      (output-error
-                       error?
-                       "Error 004: Error encountered while generating program!")))
+                (when (and s-exp-on-error?
+                           error-root)
+                  (printf "S-expression representation of program:\n")
+                  (pretty-print
+                   (att-value '_xsmith_to-s-expression error-root)
+                   (current-output-port)
+                   1)
+                  (printf "\n\n"))
+                (when (and render-on-error?
+                           error-root)
+                  (let* ([ppr-error? #f]
+                         [partial-prog (capture-output!
+                                        (λ () (with-handlers ([(λ (e) #t)
+                                                               (λ (e) (set! ppr-error? e))])
+                                                (ast->string error-root))))])
+                    (if ppr-error?
+                        (output-error
+                           ppr-error?
+                           "Error encountered in printing while intercepting another error in AST generation.")
+                        (printf "Partially generated program render:\n~a\n\n"
+                                partial-prog))))
                 ;; Quit further execution.
                 (abort))
               ;; Convert the AST to PPR.
@@ -430,7 +433,7 @@
                 ;; Something went wrong during printing.
                 (output-error
                  error?
-                 "Error 005: Error encountered while printing program.")
+                 "Error encountered while printing program.")
                 (abort))
               ;; Everything was successful!
               (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."

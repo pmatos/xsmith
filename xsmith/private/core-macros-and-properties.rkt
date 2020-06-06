@@ -57,6 +57,7 @@
         (
          ;; Default properties
          depth-increase
+         serialize
          fresh
          choice-filters-to-apply
          may-be-generated

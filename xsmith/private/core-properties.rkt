@@ -34,6 +34,7 @@
  may-be-generated
  depth-increase
  choice-weight
+ serialize
  fresh
  child-node-name-dict
  wont-over-deepen
@@ -79,6 +80,7 @@
   syntax/parse
   racket/dict
   racket/list
+  racket/match
   ))
 
 (require (rename-in racket/dict [dict-ref r:dict-ref]))
@@ -151,6 +153,52 @@
                            [(number? node-val) node-val]
                            [else (error 'choice-weight "Invalid weight given: ~a. Expected number or procedure." node-val)])))))
      (hash #f #'(λ () (not (zero? (send this _xsmith_choice-weight))))))))
+
+(define-property serialize
+  #:reads (grammar)
+  #:appends
+  (att-rule _xsmith_to-s-expression)
+  #:transformer
+  (λ (this-prop-info grammar-info)
+    (define nodes (dict-keys grammar-info))
+    ;; Field-info-hash maps node names to lists of grammar-node-field-structs
+    (define field-info-hash
+      (for/hash ([node-name nodes])
+        (values node-name
+                (grammar-node-name->field-info-list node-name grammar-info))))
+    (define _xsmith_to-s-expression-info
+      (for/hash ([node nodes])
+        (define gnfss (dict-ref field-info-hash node))
+        (values
+         node
+         #`(λ (n)
+             ;; Compute the node name so we get hole names.
+             (define node-name (ast-node-type n))
+             `(,node-name
+               #,@(for/list ([gnfs gnfss])
+                    (match gnfs
+                      [(grammar-node-field-struct field-name #f #f _)
+                       ;; No type, no kleene star.
+                       #`,(list '#,field-name (ast-child '#,field-name n))]
+                      [(grammar-node-field-struct field-name #f #t _)
+                       ;; No type, yes kleene star.
+                       #`,(list '#,field-name
+                                (ast-children (ast-child '#,field-name n)))]
+                      [(grammar-node-field-struct field-name
+                                                  ast-node-type
+                                                  #f _)
+                       ;; AST type, no kleene star
+                       #`,(list '#,field-name
+                                (att-value '_xsmith_to-s-expression
+                                           (ast-child '#,field-name n)))]
+                      [(grammar-node-field-struct field-name
+                                                  ast-node-type
+                                                  #t _)
+                       ;; AST type, yes kleene star
+                       #`,(list '#,field-name
+                                (map (λ (cn) (att-value '_xsmith_to-s-expression cn))
+                                     (ast-children (ast-child '#,field-name n))))])))))))
+    (list _xsmith_to-s-expression-info)))
 
 #|
 The fresh property will take an expression (to be the body of a method
