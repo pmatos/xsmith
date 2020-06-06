@@ -1495,22 +1495,22 @@ The second arm is a function that takes the type that the node has been assigned
              (when (and reference-unify-target (not (eq? #t reference-unify-target)))
                ;; This is the case that we can't handle in
                ;; xsmith_type-info-func to avoid a cycle.
-               (let ([binding-t
-                      (binding-type
-                       (att-value '_xsmith_resolve-reference-name
-                                  node
-                                  (ast-child #,(dict-ref node-reference-field n)
-                                             node)))]
-                     [target-t
-                      (get-value-from-parent-dict
-                       child-types reference-unify-target
-                       (λ () (error 'type-info
-                                    "No type given for field ~a"
-                                    reference-unify-target)))])
+               (let* ([var-name (ast-child #,(dict-ref node-reference-field n)
+                                           node)]
+                      [binding-t
+                       (binding-type
+                        (att-value '_xsmith_resolve-reference-name node var-name))]
+                      [target-t
+                       (get-value-from-parent-dict
+                        child-types reference-unify-target
+                        (λ () (error 'type-info
+                                     "No type given for field ~a"
+                                     reference-unify-target)))])
                  (with-handlers
                    ([(λ(e)#t)
                      (λ (e)
                        (xd-printf "Error while unifying type for reference.\n")
+                       (xd-printf "Variable name: ~a\n" var-name)
                        (xd-printf "Type recorded in definition: ~v\n" binding-t)
                        (xd-printf "Type required for reference-unify target: ~v\n"
                                   target-t)
