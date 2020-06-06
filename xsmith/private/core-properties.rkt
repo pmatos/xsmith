@@ -288,7 +288,7 @@ hole for the type.
                                            #f)])
                        (if hole-type
                            (hash binder-name-field hole-name
-                                 binder-type-field hole-type)
+                                 binder-type-field (concretize-type hole-type))
                            (hash)))
                      (hash)))
                (define fresh-expr-result fresh-expr)
