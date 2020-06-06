@@ -1136,7 +1136,10 @@ This property marks nodes that are reference nodes.  The argument for the proper
 @itemlist[
 @item{The identifier @verb{read} or the identifier @verb{write}, indicating whether the reference reads or writes the variable}
 @item{The name of the field that stores the reference name (as an identifier).}
-@item{An optional keyword field @racket[#:unifies], which accepts the name of a field that the type checker unifies with respect to.  The default value, @racket[#t], unifies the node itself instead of one of its fields.  Use @racket[#f] to disable automated unification for this node.  (If you disable unification, you should implement your own manually!)}
+@item{An optional keyword field @racket[#:unifies], which accepts the name of a field that the type checker unifies with respect to.  The default value, @racket[#t], unifies the node itself instead of one of its fields.  Use @racket[#f] to disable automated unification for this node.  (If you disable unification, you should implement your own manually!)
+
+If you give a field for the unification target, that field's type rule must NOT depend on the parent node's type.
+Essentially, the @racket[#:unifies] argument is meant for writes to any type in a node that itself has type void.}
 ]
 
 Example:
