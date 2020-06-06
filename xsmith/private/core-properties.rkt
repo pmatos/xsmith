@@ -978,10 +978,10 @@ few of these methods.
 
 (define ref-choices-filtered-hash (make-weak-hasheq))
 
-(define (xsmith_get-reference!-func self lift-probability)
+(define (xsmith_get-reference!-func self)
   (get-reference-core (send self _xsmith_reference-options!)
                       (send self _xsmith_current-hole)))
-(define (xsmith_get-reference-for-child!-func node type write? lift-probability)
+(define (xsmith_get-reference-for-child!-func node type write?)
   (get-reference-core
    (xsmith_reference-options-for-child-func node type write?)
    node))
@@ -1564,15 +1564,14 @@ The second arm is a function that takes the type that the node has been assigned
        #f #'(λ () (error '_xsmith_reference-options!
                          "Only defined for nodes with reference-info property"))))
     (define xsmith_get-reference!-info
-      (hash #f #`(λ (#:lift-probability [lift-probability 0])
-                   (xsmith_get-reference!-func this lift-probability))))
+      (hash #f #`(λ ()
+                   (xsmith_get-reference!-func this))))
     (define xsmith_get-reference-for-child!-info
-      (hash #f #'(λ (type write? #:lift-probability [lift-probability 0])
+      (hash #f #'(λ (type write?)
                    (xsmith_get-reference-for-child!-func
                     current-hole
                     type
-                    write?
-                    lift-probability))))
+                    write?))))
 
     (list
      _xsmith_my-type-constraint-info/att-rule
