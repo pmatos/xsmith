@@ -850,7 +850,7 @@ Perform error checking:
       prop-clauses
       refiners-clauses)
    (raise-syntax-error #f "duplicate definitions for grammar clause"
-                       #'g-part1 #f #'g-part2)]
+                       #'g-part1 #f (list #'g-part2))]
   [(_ spec
       extra-props
       grammar-clauses
@@ -859,7 +859,7 @@ Perform error checking:
       prop-clauses
       refiners-clauses)
    (raise-syntax-error #f "duplicate definitions for att-rule"
-                       #'ag1 #f #'ag2)]
+                       #'ag1 #f (list #'ag2))]
   [(_ spec
       extra-props
       grammar-clauses
@@ -868,7 +868,7 @@ Perform error checking:
       prop-clauses
       refiners-clauses)
    (raise-syntax-error #f "duplicate definitions for choice rule"
-                       #'ag1 #f #'ag2)]
+                       #'ag1 #f (list #'ag2))]
   ;; If the syntax has not been parsed by one of the above, it is duplicate-free.
   ;; The match expression for this pattern will run property transformers.
   [(_ spec
