@@ -201,6 +201,8 @@
 (ag/variadic bitwise-xor 0 #:type int)
 (ag/variadic lcm 0 #:type int)
 (ag/variadic gcd 0 #:type int)
+(ag/variadic min 1 #:type number)
+(ag/variadic max 1 #:type number)
 (ag/variadic append 0 #:type (immutable (list-type (fresh-type-variable))))
 (ag/variadic string 0 #:type string
              #:ctype (λ (n t) (hash 'minargs char 'moreargs char)))
@@ -317,7 +319,8 @@
 (ag/single-arg round)
 (ag/single-arg truncate)
 (ag/single-arg imag-part)
-(ag/single-arg real-part-part)
+(ag/single-arg real-part)
+(ag/single-arg magnitude)
 ;; TODO - numerator and denominator take rational reals (not imaginaries or irrationals)
 (ag/single-arg numerator #:type int)
 (ag/single-arg denominator #:type int)
@@ -412,6 +415,31 @@
 ;; TODO - should be real instead of int
 ;; TODO - needs a second boolean arg for whether it's local time (the default #t is local) -- or maybe I should always use UTC?
 (ag/converter seconds->date int date*)
+(ag/single-arg vector->list
+               #:racr-name ImmutableVectorToList
+               #:type (immutable (array-type (fresh-type-variable)))
+               #:ctype (λ (n t)
+                         (define inner-type (fresh-type-variable))
+                         (unify! t (immutable (array-type inner-type)))
+                         (hash 'Expression (immutable (list-type inner-type)))))
+(ag/single-arg vector->list
+               #:racr-name MutableVectorToList
+               #:type (mutable (array-type (fresh-type-variable)))
+               #:ctype (λ (n t)
+                         (define inner-type (fresh-type-variable))
+                         (unify! t (mutable (array-type inner-type)))
+                         (hash 'Expression (immutable (list-type inner-type)))))
+;; This one is kinda dumb, it probably checks and is just identity.
+#;(ag/single-arg vector->immutable-vector
+               #:racr-name ImmutableVectorToImmutableVector
+               #:type (immutable (array-type (fresh-type-variable))))
+(ag/single-arg vector->immutable-vector
+               #:racr-name MutableVectorToImmutableVector
+               #:type (mutable (array-type (fresh-type-variable)))
+               #:ctype (λ (n t)
+                         (define inner-type (fresh-type-variable))
+                         (unify! t (mutable (array-type inner-type)))
+                         (hash 'Expression (immutable (array-type inner-type)))))
 
 (define-syntax-parser ag/type-predicate
   [(_ name:id)
@@ -496,6 +524,14 @@
 (ag/two-arg eq?
             #:type bool
             #:ctype (λ (n t) 'l (fresh-type-variable) 'r (fresh-type-variable)))
+(ag/two-arg make-polar
+            #:type number
+            ;; TODO - should be real real, once I fix the numeric tower
+            #:ctype (E2ctype int int))
+(ag/two-arg make-rectangular
+            #:type number
+            ;; TODO - should be real real, once I fix the numeric tower
+            #:ctype (E2ctype int int))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
