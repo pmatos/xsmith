@@ -52,13 +52,17 @@
 
 (define-generic-type box-type ([type covariant]))
 ;; canned-components.rkt provides some of these types, etc, but let's override them so they can be subtypes of bool.  But only override ones that aren't used in the canned components that we use! (eg. number is used.)
-;; TODO - make canned-components have a keyword for what number type to use?
+;; TODO - make canned-components have a keyword for what number type to use?  I'm using canned-components that depend on `number`, so I can't make a different hierarchy of number types.
 (define char (base-type 'char bool))
 (define string (base-type 'string bool))
 (define mutable-string (base-type 'mutable-string string))
 (define immutable-string (base-type 'immutable-string string))
 (define symbol (base-type 'symbol bool))
 (define keyword (base-type 'keyword bool))
+(define date (base-type 'date bool))
+(define date* (base-type 'date* date))
+;; for literal #t and #f
+(define exact-bool (base-type 'exact-bool bool))
 
 (define-for-syntax (racr-ize-symbol sym)
   ;; Turn common racket identifiers into something RACR can deal with.
@@ -96,6 +100,8 @@
              ["1" "One"]
              ["8" "Eight"]
              ["*" "Star"]
+             ["*?" "StarP"]
+             ["*-" "Star"]
              [else ""]))
          (reverse dividers-rev)))
 
@@ -143,6 +149,11 @@
                        #:prop type-info [mutable-string no-child-types]
                        #:prop render-node-info (λ (n)
                                                  `(string-copy ,(ast-child 'v n)))]
+ [DateLiteral Expression ([v = (random-int)])
+              #:prop choice-weight 1
+              #:prop type-info [date* no-child-types]
+              ;; OK, so I'm just using seconds->date.  Not literally a date literal.
+              #:prop render-node-info (λ (n) `(seconds->date ,(ast-child 'v n)))]
  [VariadicExpression Expression ([minargs : Expression *]
                                  [moreargs : Expression * = (random 5)])
                      #:prop may-be-generated #f])
@@ -156,7 +167,7 @@
                #:prop render-node-info (λ (n) `(quote ,(ast-child 'v n)))])])
 (ag/atomic-literal IntLiteral int (random-int))
 (ag/atomic-literal CharLiteral char (random-char))
-(ag/atomic-literal BoolLiteral bool (random-bool))
+(ag/atomic-literal BoolLiteral exact-bool (random-bool))
 (ag/atomic-literal ImmutableStringLiteral immutable-string (random-string))
 (ag/atomic-literal SymbolLiteral symbol (string->symbol (random-string)))
 (ag/atomic-literal KeywordLiteral keyword (string->keyword (random-string)))
@@ -188,6 +199,8 @@
 (ag/variadic bitwise-and 0 #:type int)
 (ag/variadic bitwise-ior 0 #:type int)
 (ag/variadic bitwise-xor 0 #:type int)
+(ag/variadic lcm 0 #:type int)
+(ag/variadic gcd 0 #:type int)
 (ag/variadic append 0 #:type (immutable (list-type (fresh-type-variable))))
 (ag/variadic string 0 #:type string
              #:ctype (λ (n t) (hash 'minargs char 'moreargs char)))
@@ -266,6 +279,29 @@
 (define-syntax-parser Ectype
   [(_ etype:expr)
    #'(λ (n t) (hash 'Expression etype))])
+
+(define-syntax-parser ag/two-arg
+  [(_ name:id
+      (~or (~optional (~seq #:type type:expr)
+                      #:defaults ([type #'(fresh-subtype-of number)]))
+           (~optional (~seq #:ctype ctype:expr)
+                      #:defaults ([ctype #'(λ (n t) (hash 'l t 'r t))]))
+           (~optional (~seq #:racr-name racr-name:id)
+                      #:defaults ([racr-name (racr-ize-id #'name)]))
+           (~optional (~seq #:NE-name NE-name)
+                      #:defaults ([NE-name #'name])))
+      ...)
+   #'(ag [racr-name Expression ([l : Expression]
+                                [r : Expression])
+                    #:prop type-info [type ctype]
+                    #:prop render-node-info
+                    (λ (n) `(,(if NE? 'NE-name 'name)
+                             ,(render-child 'l n)
+                             ,(render-child 'r n)))])])
+(define-syntax-parser E2ctype
+  [(_ etypel:expr etyper:expr)
+   #'(λ (n t) (hash 'l etypel 'r etyper))])
+
 (ag/single-arg abs)
 (ag/single-arg cos)
 (ag/single-arg acos)
@@ -277,7 +313,16 @@
 (ag/single-arg sub1)
 (ag/single-arg angle)
 (ag/single-arg ceiling)
+(ag/single-arg floor)
+(ag/single-arg round)
 (ag/single-arg truncate)
+(ag/single-arg imag-part)
+(ag/single-arg real-part-part)
+;; TODO - numerator and denominator take rational reals (not imaginaries or irrationals)
+(ag/single-arg numerator #:type int)
+(ag/single-arg denominator #:type int)
+;; TODO - what should I do about exp, expt, arithmetic-shift, and other functions that potentially need a limited domain?  Make NE versions?
+
 (ag/single-arg not #:type bool)
 (ag/single-arg bitwise-not #:type int)
 (ag/single-arg zero? #:type bool #:ctype (Ectype number))
@@ -287,6 +332,16 @@
 (ag/single-arg symbol-unreadable?
                #:type bool #:ctype (Ectype symbol))
 (ag/single-arg integer-length #:type int)
+(ag/single-arg even? #:type bool #:ctype (Ectype int))
+(ag/single-arg odd? #:type bool #:ctype (Ectype int))
+(ag/single-arg exact? #:type bool #:ctype (Ectype number))
+(ag/single-arg inexact? #:type bool #:ctype (Ectype number))
+(ag/single-arg exact-integer? #:type bool #:ctype (Ectype number))
+(ag/single-arg exact-positive-integer? #:type bool #:ctype (Ectype number))
+(ag/single-arg exact-nonnegative-integer? #:type bool #:ctype (Ectype number))
+(ag/single-arg inexact-real? #:type bool #:ctype (Ectype number))
+(ag/single-arg exact->inexact #:type number)
+(ag/single-arg inexact->exact #:type number)
 
 (ag/single-arg char-downcase #:type char)
 (ag/single-arg char-foldcase #:type char)
@@ -295,6 +350,20 @@
 (ag/single-arg char-utf-8-length #:type int #:ctype (Ectype char))
 (ag/single-arg char-general-category #:type symbol
                #:ctype (Ectype char))
+
+(ag/single-arg date*-nanosecond #:type number #:ctype (Ectype date*))
+(ag/single-arg date*-time-zone-name #:type immutable-string #:ctype (Ectype date*))
+(ag/single-arg date-day #:type int #:ctype (Ectype date))
+(ag/single-arg date-dst? #:type bool #:ctype (Ectype date))
+(ag/single-arg date-hour #:type int #:ctype (Ectype date))
+(ag/single-arg date-minute #:type int #:ctype (Ectype date))
+(ag/single-arg date-month #:type int #:ctype (Ectype date))
+(ag/single-arg date-second #:type int #:ctype (Ectype date))
+(ag/single-arg date-time-zone-offset #:type int #:ctype (Ectype date))
+(ag/single-arg date-week-day #:type int #:ctype (Ectype date))
+(ag/single-arg date-year #:type int #:ctype (Ectype date))
+(ag/single-arg date-year-day #:type int #:ctype (Ectype date))
+
 (define-syntax-parser ag/char-pred
   [(_ name:id)
    #'(ag/single-arg name #:type bool #:ctype (Ectype char))])
@@ -340,6 +409,9 @@
 (ag/converter keyword->string keyword string)
 (ag/converter string->list string (immutable (list-type char)))
 (ag/converter string->immutable-string string immutable-string)
+;; TODO - should be real instead of int
+;; TODO - needs a second boolean arg for whether it's local time (the default #t is local) -- or maybe I should always use UTC?
+(ag/converter seconds->date int date*)
 
 (define-syntax-parser ag/type-predicate
   [(_ name:id)
@@ -349,9 +421,11 @@
 (ag/type-predicate boolean?)
 (ag/type-predicate box?)
 (ag/type-predicate byte?)
-(ag/type-predicate string?)
 (ag/type-predicate char?)
 (ag/type-predicate complex?)
+(ag/type-predicate date?)
+(ag/type-predicate date*?)
+(ag/type-predicate evt?)
 (ag/type-predicate exn?)
 (ag/type-predicate hash?)
 (ag/type-predicate immutable?)
@@ -371,6 +445,7 @@
 (ag/type-predicate rational?)
 (ag/type-predicate real?)
 (ag/type-predicate regexp?)
+(ag/type-predicate string?)
 (ag/type-predicate struct-type?)
 (ag/type-predicate struct-type-property?)
 (ag/type-predicate struct?)
@@ -411,6 +486,16 @@
                 #:prop render-node-info (λ (n) `(set-box! ,(render-child 'box n)
                                                           ,(render-child 'newval n)))])
 
+
+(ag/two-arg equal?
+            #:type bool
+            #:ctype (λ (n t) 'l (fresh-type-variable) 'r (fresh-type-variable)))
+(ag/two-arg eqv?
+            #:type bool
+            #:ctype (λ (n t) 'l (fresh-type-variable) 'r (fresh-type-variable)))
+(ag/two-arg eq?
+            #:type bool
+            #:ctype (λ (n t) 'l (fresh-type-variable) 'r (fresh-type-variable)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
