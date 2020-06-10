@@ -12,6 +12,7 @@
  (for-syntax
   racket/base
   syntax/parse
+  racket/match
   ))
 
 ;; Likely I'll want to fuzz both with and without exceptions.  Let's make it toggleable.
@@ -58,6 +59,60 @@
 (define immutable-string (base-type 'immutable-string string))
 (define symbol (base-type 'symbol bool))
 (define keyword (base-type 'keyword bool))
+
+(define-for-syntax (racr-ize-symbol sym)
+  ;; Turn common racket identifiers into something RACR can deal with.
+  (define split-chars (string->list "-<>?!*+/=18"))
+
+  (define-values (parts-rev dividers-rev)
+    (let ()
+      (define-values (parts dividers current-thing current-divider?)
+        (for/fold ([parts '()]
+                   [dividers '()]
+                   [current ""]
+                   [current-divider? #f])
+                  ([c (string->list (symbol->string sym))])
+          (define divider? (member c split-chars))
+          (cond [(and divider? current-divider?)
+                 (values parts dividers (string-append current (string c)) #t)]
+                [divider?
+                 (values (cons current parts) dividers (string c) #t)]
+                [current-divider?
+                 (values parts (cons current dividers) (string c) #f)]
+                [else
+                 (values parts dividers (string-append current (string c)) #f)])))
+      (cond [current-divider? (values parts (cons current-thing dividers))]
+            [else (values (cons current-thing parts) dividers)])))
+
+  (define part-strings
+    (map string-titlecase (reverse parts-rev)))
+  (define divider-strings
+    (map (λ (divider)
+           (match divider
+             ["->" "To"]
+             ["/" "With"]
+             ["?" "P"]
+             ["!" "Bang"]
+             ["1" "One"]
+             ["8" "Eight"]
+             ["*" "Star"]
+             [else ""]))
+         (reverse dividers-rev)))
+
+  (define (merge-parts accum ps ds)
+    (match (list ps ds)
+      [(list (list) (list)) accum]
+      [(list (list p ps ...) (list d ds ...))
+       (merge-parts (string-append accum p d) ps ds)]
+      [(list (list p ps ...) (list))
+       (merge-parts (string-append accum p) ps null)]))
+
+  (define converted-string (merge-parts "" part-strings divider-strings))
+  (string->symbol converted-string))
+(define-for-syntax (racr-ize-id id)
+  (datum->syntax id
+                 (racr-ize-symbol (syntax-e id))
+                 id))
 
 (define (render-child sym n)
   (att-value 'xsmith_render-node (ast-child sym n)))
@@ -107,27 +162,36 @@
 (ag/atomic-literal KeywordLiteral keyword (string->keyword (random-string)))
 
 (define-syntax-parser ag/variadic
-  [(_ name:id symbol:expr min-args:expr
+  [(_ racket-name:id min-args:expr
       (~or (~optional (~seq #:type type:expr)
                       #:defaults ([type #'(fresh-subtype-of number)]))
            (~optional (~seq #:ctype ctype:expr)
-                      #:defaults ([ctype #'(λ (n t) (hash 'minargs t 'moreargs t))])))
+                      #:defaults ([ctype #'(λ (n t) (hash 'minargs t 'moreargs t))]))
+           (~optional (~seq #:racr-name racr-name:id)
+                      #:defaults ([racr-name (datum->syntax
+                                              #'racket-name
+                                              (racr-ize-symbol
+                                               (syntax-e #'racket-name))
+                                              #'racket-name)]))
+           (~optional (~seq #:NE-name NE-name:id)
+                      #:defaults ([NE-name #'racket-name])))
       ...)
-   #'(ag [name VariadicExpression ()
+   #'(ag [racr-name VariadicExpression ()
                #:prop fresh (hash 'minargs min-args)
                #:prop type-info [type (λ (n t) (hash 'minargs t 'moreargs t))]
-               #:prop render-node-info (render-variadic symbol)])])
-(ag/variadic Times '* 0)
-(ag/variadic Plus '+ 0)
-(ag/variadic Minus '- 1)
-(ag/variadic Divide (if NE? 'NE/ '/) 1)
-(ag/variadic BitwiseAnd 'bitwise-and 0 #:type int)
-(ag/variadic BitwiseIor 'bitwise-ior 0 #:type int)
-(ag/variadic BitwiseXor 'bitwise-xor 0 #:type int)
-(ag/variadic Append 'append 0 #:type (immutable (list-type (fresh-type-variable))))
-(ag/variadic String 'string 0 #:type string
+               #:prop render-node-info (render-variadic
+                                        (if NE? 'NE-name 'racket-name))])])
+(ag/variadic * 0 #:racr-name Times)
+(ag/variadic + 0 #:racr-name Plus)
+(ag/variadic - 1 #:racr-name Minus)
+(ag/variadic / 1 #:racr-name Divide #:NE-name NE/)
+(ag/variadic bitwise-and 0 #:type int)
+(ag/variadic bitwise-ior 0 #:type int)
+(ag/variadic bitwise-xor 0 #:type int)
+(ag/variadic append 0 #:type (immutable (list-type (fresh-type-variable))))
+(ag/variadic string 0 #:type string
              #:ctype (λ (n t) (hash 'minargs char 'moreargs char)))
-(ag/variadic StringAppend 'string-append 0 #:type mutable-string
+(ag/variadic string-append 0 #:type mutable-string
              #:ctype (λ (n t) (hash 'minargs string 'moreargs string)))
 
  ;; The numerical comparison operators require at least 1 argument.  I'm not sure why they don't accept 0 args -- eg. as a predicate that an empty list is sorted.
@@ -184,163 +248,168 @@
 (ag/string-compare StringCIGreaterThanEqual 'string-ci>=?)
 
 (define-syntax-parser ag/single-arg
-  [(_ name:id symbol:expr
+  [(_ name:id
       (~or (~optional (~seq #:type type:expr)
                       #:defaults ([type #'(fresh-subtype-of number)]))
            (~optional (~seq #:ctype ctype:expr)
-                      #:defaults ([ctype #'(λ (n t) (hash 'Expression t))])))
+                      #:defaults ([ctype #'(λ (n t) (hash 'Expression t))]))
+           (~optional (~seq #:racr-name racr-name:id)
+                      #:defaults ([racr-name (racr-ize-id #'name)]))
+           (~optional (~seq #:NE-name NE-name)
+                      #:defaults ([NE-name #'name])))
       ...)
-   #'(ag [name Expression (Expression)
-               #:prop type-info [type ctype]
-               #:prop render-node-info
-               (λ (n) `(,symbol ,(render-child 'Expression n)))])])
+   #'(ag [racr-name Expression (Expression)
+                    #:prop type-info [type ctype]
+                    #:prop render-node-info
+                    (λ (n) `(,(if NE? 'NE-name 'name)
+                             ,(render-child 'Expression n)))])])
 (define-syntax-parser Ectype
   [(_ etype:expr)
    #'(λ (n t) (hash 'Expression etype))])
-(ag/single-arg Abs 'abs)
-(ag/single-arg Cos 'cos)
-(ag/single-arg Acos 'acos)
-(ag/single-arg Sin 'sin)
-(ag/single-arg Asin 'asin)
-(ag/single-arg Tan 'tan)
-(ag/single-arg AtanOne (if NE? 'NE/atan 'atan))
-(ag/single-arg AddOne 'add1)
-(ag/single-arg SubOne 'sub1)
-(ag/single-arg Angle 'angle)
-(ag/single-arg Ceiling 'ceiling)
-(ag/single-arg Truncate 'truncate)
-(ag/single-arg Not 'not #:type bool)
-(ag/single-arg BitwiseNot 'bitwise-not #:type int)
-(ag/single-arg ZeroP 'zero? #:type bool #:ctype (Ectype number))
-(ag/single-arg NullP 'null? #:type bool
+(ag/single-arg abs)
+(ag/single-arg cos)
+(ag/single-arg acos)
+(ag/single-arg sin)
+(ag/single-arg asin)
+(ag/single-arg tan)
+(ag/single-arg atan #:racr-name AtanOne #:NE-name NE/atan)
+(ag/single-arg add1)
+(ag/single-arg sub1)
+(ag/single-arg angle)
+(ag/single-arg ceiling)
+(ag/single-arg truncate)
+(ag/single-arg not #:type bool)
+(ag/single-arg bitwise-not #:type int)
+(ag/single-arg zero? #:type bool #:ctype (Ectype number))
+(ag/single-arg null? #:type bool
                #:ctype (Ectype (immutable (list-type (fresh-type-variable)))))
-(ag/single-arg SymbolInternedP 'symbol-interned? #:type bool #:ctype (Ectype symbol))
-(ag/single-arg SymbolUnreadableP 'symbol-unreadable?
+(ag/single-arg symbol-interned? #:type bool #:ctype (Ectype symbol))
+(ag/single-arg symbol-unreadable?
                #:type bool #:ctype (Ectype symbol))
-(ag/single-arg IntegerLength 'integer-length #:type int)
+(ag/single-arg integer-length #:type int)
 
-(ag/single-arg CharDowncase 'char-downcase #:type char)
-(ag/single-arg CharFoldcase 'char-foldcase #:type char)
-(ag/single-arg CharTitlecase 'char-titlecase #:type char)
-(ag/single-arg CharUpcase 'char-upcase #:type char)
-(ag/single-arg CharUTFELength 'char-utf-8-length #:type int #:ctype (Ectype char))
-(ag/single-arg CharGeneralCategory 'char-general-category #:type symbol
+(ag/single-arg char-downcase #:type char)
+(ag/single-arg char-foldcase #:type char)
+(ag/single-arg char-titlecase #:type char)
+(ag/single-arg char-upcase #:type char)
+(ag/single-arg char-utf-8-length #:type int #:ctype (Ectype char))
+(ag/single-arg char-general-category #:type symbol
                #:ctype (Ectype char))
 (define-syntax-parser ag/char-pred
-  [(_ name:id sym:expr)
-   #'(ag/single-arg name sym #:type bool #:ctype (Ectype char))])
-(ag/char-pred CharAlphabeticP 'char-alphabetic?)
-(ag/char-pred CharBlankP 'char-blank?)
-(ag/char-pred CharGraphicP 'char-graphic?)
-(ag/char-pred CharIsoControlP 'char-iso-control?)
-(ag/char-pred CharLowerCaseP 'char-lower-case?)
-(ag/char-pred CharNumericP 'char-numeric?)
-(ag/char-pred CharPunctuationP 'char-punctuation?)
-(ag/char-pred CharSymbolicP 'char-symbolic?)
-(ag/char-pred CharTitleCaseP 'char-title-case?)
-(ag/char-pred CharUpperCaseP 'char-upper-case?)
-(ag/char-pred CharWhitespaceP 'char-whitespace?)
+  [(_ name:id)
+   #'(ag/single-arg name #:type bool #:ctype (Ectype char))])
+(ag/char-pred char-alphabetic?)
+(ag/char-pred char-blank?)
+(ag/char-pred char-graphic?)
+(ag/char-pred char-iso-control?)
+(ag/char-pred char-lower-case?)
+(ag/char-pred char-numeric?)
+(ag/char-pred char-punctuation?)
+(ag/char-pred char-symbolic?)
+(ag/char-pred char-title-case?)
+(ag/char-pred char-upper-case?)
+(ag/char-pred char-whitespace?)
 
-(ag/single-arg StringDowncase 'string-downcase #:type string)
-(ag/single-arg StringFoldcase 'string-foldcase #:type string)
-(ag/single-arg StringTitlecase 'string-titlecase #:type string)
-(ag/single-arg StringUpcase 'string-upcase #:type string)
+(ag/single-arg string-downcase #:type string)
+(ag/single-arg string-foldcase #:type string)
+(ag/single-arg string-titlecase #:type string)
+(ag/single-arg string-upcase #:type string)
 
-(ag/single-arg StringLength 'string-length #:type int #:ctype (Ectype string))
-(ag/single-arg StringUTFELength 'string-utf-8-length
+(ag/single-arg string-length #:type int #:ctype (Ectype string))
+(ag/single-arg string-utf-8-length
                #:type int #:ctype (Ectype string))
-(ag/single-arg StringCopy 'string-copy #:type mutable-string #:ctype (Ectype string))
-(ag/single-arg StringNormalizeNFC 'string-normalize-nfc
+(ag/single-arg string-copy #:type mutable-string #:ctype (Ectype string))
+(ag/single-arg string-normalize-nfc
                #:type mutable-string #:ctype (Ectype string))
-(ag/single-arg StringNormalizeNFD 'string-normalize-nfd
+(ag/single-arg string-normalize-nfd
                #:type mutable-string #:ctype (Ectype string))
-(ag/single-arg StringNormalizeNFKC 'string-normalize-nfkc
+(ag/single-arg string-normalize-nfkc
                #:type mutable-string #:ctype (Ectype string))
-(ag/single-arg StringNormalizeNFKD 'string-normalize-nfkd
+(ag/single-arg string-normalize-nfkd
                #:type mutable-string #:ctype (Ectype string))
 
 (define-syntax-parser ag/converter
-  [(_ name:id sym:expr from:expr to:expr)
-   #'(ag/single-arg name sym #:type to #:ctype (Ectype from))])
-(ag/converter CharToInteger 'char->integer char int)
-(ag/converter StringToSymbol 'string->symbol string symbol)
-(ag/converter StringToUninternedSymbol 'string->uninterned-symbol string symbol)
-(ag/converter StringToUnreadableSymbol 'string->unreadable-symbol string symbol)
-(ag/converter SymbolToString 'symbol->string symbol string)
-(ag/converter StringToKeyword 'string->keyword string keyword)
-(ag/converter KeywordToString 'keyword->string keyword string)
-(ag/converter StringToList 'string->list string (immutable (list-type char)))
-(ag/converter StringImmutableString 'string->immutable-string string immutable-string)
+  [(_ name:id from:expr to:expr)
+   #'(ag/single-arg name #:type to #:ctype (Ectype from))])
+(ag/converter char->integer char int)
+(ag/converter string->symbol string symbol)
+(ag/converter string->uninterned-symbol string symbol)
+(ag/converter string->unreadable-symbol string symbol)
+(ag/converter symbol->string symbol string)
+(ag/converter string->keyword string keyword)
+(ag/converter keyword->string keyword string)
+(ag/converter string->list string (immutable (list-type char)))
+(ag/converter string->immutable-string string immutable-string)
 
 (define-syntax-parser ag/type-predicate
-  [(_ name:id symbol:expr)
-   #'(ag/single-arg name symbol
+  [(_ name:id)
+   #'(ag/single-arg name
                     #:type bool
                     #:ctype (Ectype (fresh-type-variable)))])
-(ag/type-predicate BooleanP 'boolean?)
-(ag/type-predicate BoxP 'box?)
-(ag/type-predicate ByteP 'byte?)
-(ag/type-predicate BytesP 'string?)
-(ag/type-predicate CharP 'char?)
-(ag/type-predicate ComplexP 'complex?)
-(ag/type-predicate ExnP 'exn?)
-(ag/type-predicate HashP 'hash?)
-(ag/type-predicate ImmutableP 'immutable?)
-(ag/type-predicate IntegerP 'integer?)
-(ag/type-predicate InternedCharP 'interned-char?)
-(ag/type-predicate KeywordP 'keyword?)
-(ag/type-predicate ListP 'list?)
-(ag/type-predicate ListPairP 'list-pair?)
-(ag/type-predicate MPairP 'mpair?)
-(ag/type-predicate NumberP 'number?)
-(ag/type-predicate PairP 'pair?)
-(ag/type-predicate ParameterP 'parameter?)
-(ag/type-predicate ParameterizationP 'parameterization?)
-(ag/type-predicate PathP 'path?)
-(ag/type-predicate PregexpP 'pregexp?)
-(ag/type-predicate ProcedureP 'procedure?)
-(ag/type-predicate RationalP 'rational?)
-(ag/type-predicate RealP 'real?)
-(ag/type-predicate RegexpP 'regexp?)
-(ag/type-predicate StringP 'string?)
-(ag/type-predicate StructTypeP 'struct-type?)
-(ag/type-predicate StructTypePropertyP 'struct-type-property?)
-(ag/type-predicate StructP 'struct?)
-(ag/type-predicate SymbolP 'symbol?)
-(ag/type-predicate SyntaxP 'syntax?)
-(ag/type-predicate TrueObjectP 'true-object?)
-(ag/type-predicate VectorP 'Vector?)
-(ag/type-predicate VoidP 'void?)
+(ag/type-predicate boolean?)
+(ag/type-predicate box?)
+(ag/type-predicate byte?)
+(ag/type-predicate string?)
+(ag/type-predicate char?)
+(ag/type-predicate complex?)
+(ag/type-predicate exn?)
+(ag/type-predicate hash?)
+(ag/type-predicate immutable?)
+(ag/type-predicate integer?)
+(ag/type-predicate interned-char?)
+(ag/type-predicate keyword?)
+(ag/type-predicate list?)
+(ag/type-predicate list-pair?)
+(ag/type-predicate mpair?)
+(ag/type-predicate number?)
+(ag/type-predicate pair?)
+(ag/type-predicate parameter?)
+(ag/type-predicate parameterization?)
+(ag/type-predicate path?)
+(ag/type-predicate pregexp?)
+(ag/type-predicate procedure?)
+(ag/type-predicate rational?)
+(ag/type-predicate real?)
+(ag/type-predicate regexp?)
+(ag/type-predicate struct-type?)
+(ag/type-predicate struct-type-property?)
+(ag/type-predicate struct?)
+(ag/type-predicate symbol?)
+(ag/type-predicate syntax?)
+(ag/type-predicate true-object?)
+(ag/type-predicate vector?)
+(ag/type-predicate void?)
 
-(ag/single-arg MutableBoxLiteral 'box
+(ag/single-arg box
+               #:racr-name MutableBoxLiteral
                #:type (mutable (box-type (fresh-type-variable)))
                #:ctype (λ (n t)
                          (define inner-type (fresh-type-variable))
                          (unify! (mutable (box-type inner-type)) t)
                          (hash 'Expression inner-type)))
 (ap wont-over-deepen [MutableBoxLiteral #t])
-(ag/single-arg ImmutableBoxLiteral 'box
+(ag/single-arg box-immutable #:racr-name ImmutableBoxLiteral
                #:type (immutable (box-type (fresh-type-variable)))
                #:ctype (λ (n t)
                          (define inner-type (fresh-type-variable))
                          (unify! (immutable (box-type inner-type)) t)
                          (hash 'Expression inner-type)))
 (ap wont-over-deepen [ImmutableBoxLiteral #t])
-(ag/single-arg Unbox 'unbox
+(ag/single-arg unbox
                #:type (fresh-type-variable)
                #:ctype (λ (n t) (hash 'Expression (fresh-type-variable
                                                    (immutable (box-type t))
                                                    (mutable (box-type t))))))
 (ap mutable-container-access [Unbox (read 'box)])
-(ag [SetBox Expression ([box : Expression] [newval : Expression])
-            #:prop mutable-container-access (write 'box)
-            #:prop type-info [void-type
-                              (λ (n t)
-                                (define inner-type (fresh-type-variable))
-                                (hash 'box (mutable (box-type inner-type))
-                                      'newval inner-type))]
-            #:prop render-node-info (λ (n) `(set-box! ,(render-child 'box n)
-                                                      ,(render-child 'newval n)))])
+(ag [SetBoxBang Expression ([box : Expression] [newval : Expression])
+                #:prop mutable-container-access (write 'box)
+                #:prop type-info [void-type
+                                  (λ (n t)
+                                    (define inner-type (fresh-type-variable))
+                                    (hash 'box (mutable (box-type inner-type))
+                                          'newval inner-type))]
+                #:prop render-node-info (λ (n) `(set-box! ,(render-child 'box n)
+                                                          ,(render-child 'newval n)))])
 
 
 
