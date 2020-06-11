@@ -1911,7 +1911,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(list (c-type-variable _ _ _) _) (error 'at-least-as-settled "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
     [(list _ (c-type-variable _ _ _)) (error 'at-least-as-settled "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
     [(list (base-type _ _) _) #t]
-    [(list (base-type-range _ _) _) #t]
+    [(list (base-type-range min max) _)
+     (or (not (can-unify? v constraint-type))
+         (eq? min max))]
     [(list (function-type v-arg v-ret) (function-type c-arg c-ret))
      (and (at-least-as-settled v-arg c-arg)
           (at-least-as-settled v-ret c-ret))]
@@ -1966,14 +1968,18 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                                     (mk-base-type 'foo))
                                      (function-type (mk-base-type 'bar)
                                                     (mk-base-type 'foo))))
-  ;; TODO - this test raises an exception, but at-least-as-settled is not even used right now
-  #;(check-true (at-least-as-settled (fresh-type-variable (mk-product-type #f))
+  (check-true (at-least-as-settled (fresh-type-variable (mk-product-type #f))
                                     (fresh-type-variable (mk-base-type 'foo)
                                                          (mk-base-type 'bar))))
   (check-false (at-least-as-settled (fresh-type-variable (mk-product-type #f))
                                      (fresh-type-variable
                                       (mk-product-type (list (fresh-type-variable)))
                                       (mk-base-type 'bar))))
+  ;; When multiple base types are possible and the constraint is one of them, it's not sufficiently settled.
+  (check-false (at-least-as-settled (fresh-type-variable penguin dog) dog))
+  ;; When multiple base types are possible but the constraint is out of the set, it's good.
+  (check-true (at-least-as-settled (fresh-type-variable penguin dog)
+                                   (mk-base-type 'unrelated-base-type)))
   )
 
 
