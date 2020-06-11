@@ -487,13 +487,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
 |#
 #;(struct record-type (name scope) #:transparent)
 #;(define (mk-record-type #:name [name #f] name-type-dict)
-  (record-type name (scope #f
-                           (map (λ (k) (binding k
-                                                #f
-                                                (dict-ref name-type-dict k)
-                                                'definition))
-                                (dict-keys name-type-dict))
-                           '())))
+    (record-type name (scope #f
+                             (map (λ (k) (binding k
+                                                  #f
+                                                  (dict-ref name-type-dict k)
+                                                  'definition))
+                                  (dict-keys name-type-dict))
+                             '())))
 
 (struct nominal-record-type
   ;; If name is not #f, known-field-dict is an ordered dict of name to type.
@@ -730,10 +730,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
   * recursion into inner type structures (function, generic, etc) will operate on type-specific meanings of subtyping -- generics will have a way of specifying per field whether the field is invariant (the default), covariant, or contravariant
   |#
   #;(define can-unify-result
-    (can-subtype-unify? sub super))
+      (can-subtype-unify? sub super))
   #;(when (not can-unify-result)
-    (xd-printf "\nWarning: subtype-unify! called when can-subtype-unify? claims unification is impossible.  If this doesn't error, there's a problem.\n")
-    (xd-printf "Called with subtype: ~v, supertype: ~v\n" sub super))
+      (xd-printf "\nWarning: subtype-unify! called when can-subtype-unify? claims unification is impossible.  If this doesn't error, there's a problem.\n")
+      (xd-printf "Called with subtype: ~v, supertype: ~v\n" sub super))
   (define sub (canonicalize-if-variable sub*))
   (define super (canonicalize-if-variable super*))
   (define (rec sub super)
@@ -741,7 +741,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (with-handlers ([(λ(e)#t)
                    (λ(e)
                      #;(when can-unify-result
-                       (xd-printf "\n\nsubtype-unify! errored even though can-subtype-unify? said it should pass!\n\n"))
+                         (xd-printf "\n\nsubtype-unify! errored even though can-subtype-unify? said it should pass!\n\n"))
                      (raise e))])
     (match (list sub super)
       ;; type variable x2
@@ -926,23 +926,23 @@ TODO - when generating a record ref, I'll need to compare something like (record
        ;;(todo-code "If both are fully specified I can just check that they are equal, otherwise I need to check that the partial specification fits and mutate if the other is fully specified.")
        ;; TODO - the below is the implementation of non-subtype `unify!`.  For now, let's assume nominal records don't subtype unify, only normal unify.
        #;(define (fail)
-         (errsu "can't unify types: ~v and ~v"
-                sub super))
+           (errsu "can't unify types: ~v and ~v"
+                  sub super))
        #;(define t1 sub)
        #;(define t2 super)
 
        #;(match (list sub super)
-         [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
-          ;; TODO - do a sanity check that the inners match up and error if they don't.
-          (set-nominal-record-type-name! t1 name2)
-          (set-nominal-record-type-inners! t1 inners2)]
-         [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
-          ;; TODO - do a sanity check that the inners match up and error if they don't.
-          (set-nominal-record-type-name! t2 name1)
-          (set-nominal-record-type-inners! t2 inners1)]
-         [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
-          (when (not (equal? name1 name2))
-            (fail))])]
+           [(list (nominal-record-type #f inners1) (nominal-record-type name2 inners2))
+            ;; TODO - do a sanity check that the inners match up and error if they don't.
+            (set-nominal-record-type-name! t1 name2)
+            (set-nominal-record-type-inners! t1 inners2)]
+           [(list (nominal-record-type name1 inners1) (nominal-record-type #f inners2))
+            ;; TODO - do a sanity check that the inners match up and error if they don't.
+            (set-nominal-record-type-name! t2 name1)
+            (set-nominal-record-type-inners! t2 inners1)]
+           [(list (nominal-record-type name1 inners1) (nominal-record-type name2 inners2))
+            (when (not (equal? name1 name2))
+              (fail))])]
       ;; nominal record definition type
       [(list (nominal-record-definition-type inner1)
              (nominal-record-definition-type inner2))
@@ -1858,27 +1858,27 @@ TODO - when generating a record ref, I'll need to compare something like (record
      (or
       ;; check if every case in ts is covered in cs
       (for/and ([t ts])
-          (match t
-            [(base-type _ _) (for/or ([c (filter base-type? cs)])
-                               (or (can-subtype-unify? t c)
-                                   (can-subtype-unify? c t)))]
-            [(base-type-range _ _) (for/or ([c (filter base-type-range? cs)])
-                                     (or (can-subtype-unify? t c)
-                                         (can-subtype-unify? c t)))]
-            [(? function-type?)
-             (ormap (λ (c) (at-least-as-settled t c))
-                    (filter function-type? cs))]
-            [(? product-type?)
-             (ormap (λ (c) (at-least-as-settled t c))
-                    (filter product-type? cs))]
-            [(? generic-type?)
-             (ormap (λ (c) (at-least-as-settled t c))
-                    (filter (λ (c) (and (generic-type? c)
-                                        (eq? (generic-type-constructor c)
-                                             (generic-type-constructor t))))
-                            cs))]
-            ;; TODO - more cases, and make `else` an error.
-            [else #f]))
+        (match t
+          [(base-type _ _) (for/or ([c (filter base-type? cs)])
+                             (or (can-subtype-unify? t c)
+                                 (can-subtype-unify? c t)))]
+          [(base-type-range _ _) (for/or ([c (filter base-type-range? cs)])
+                                   (or (can-subtype-unify? t c)
+                                       (can-subtype-unify? c t)))]
+          [(? function-type?)
+           (ormap (λ (c) (at-least-as-settled t c))
+                  (filter function-type? cs))]
+          [(? product-type?)
+           (ormap (λ (c) (at-least-as-settled t c))
+                  (filter product-type? cs))]
+          [(? generic-type?)
+           (ormap (λ (c) (at-least-as-settled t c))
+                  (filter (λ (c) (and (generic-type? c)
+                                      (eq? (generic-type-constructor c)
+                                           (generic-type-constructor t))))
+                          cs))]
+          ;; TODO - more cases, and make `else` an error.
+          [else #f]))
       ;; check if they have nothing in common
       (for/and ([c cs])
         (match c
@@ -1956,25 +1956,25 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (module+ test
   (check-true (at-least-as-settled (mk-base-type 'foo) (fresh-type-variable)))
   (check-true (at-least-as-settled (mk-base-type 'foo)
-                                    (fresh-type-variable (mk-base-type 'foo)
-                                                         (mk-base-type 'bar))))
+                                   (fresh-type-variable (mk-base-type 'foo)
+                                                        (mk-base-type 'bar))))
   (check-true (at-least-as-settled (mk-base-type 'foo)
-                                    (fresh-type-variable (mk-base-type 'foo)
-                                                         (mk-base-type 'bar))))
+                                   (fresh-type-variable (mk-base-type 'foo)
+                                                        (mk-base-type 'bar))))
   (check-false (at-least-as-settled (fresh-type-variable)
-                                     (fresh-type-variable (mk-base-type 'foo)
-                                                          (mk-base-type 'bar))))
-  (check-false (at-least-as-settled (function-type (fresh-type-variable)
-                                                    (mk-base-type 'foo))
-                                     (function-type (mk-base-type 'bar)
-                                                    (mk-base-type 'foo))))
-  (check-true (at-least-as-settled (fresh-type-variable (mk-product-type #f))
                                     (fresh-type-variable (mk-base-type 'foo)
                                                          (mk-base-type 'bar))))
+  (check-false (at-least-as-settled (function-type (fresh-type-variable)
+                                                   (mk-base-type 'foo))
+                                    (function-type (mk-base-type 'bar)
+                                                   (mk-base-type 'foo))))
+  (check-true (at-least-as-settled (fresh-type-variable (mk-product-type #f))
+                                   (fresh-type-variable (mk-base-type 'foo)
+                                                        (mk-base-type 'bar))))
   (check-false (at-least-as-settled (fresh-type-variable (mk-product-type #f))
-                                     (fresh-type-variable
-                                      (mk-product-type (list (fresh-type-variable)))
-                                      (mk-base-type 'bar))))
+                                    (fresh-type-variable
+                                     (mk-product-type (list (fresh-type-variable)))
+                                     (mk-base-type 'bar))))
   ;; When multiple base types are possible and the constraint is one of them, it's not sufficiently settled.
   (check-false (at-least-as-settled (fresh-type-variable penguin dog) dog))
   ;; When multiple base types are possible but the constraint is out of the set, it's good.
@@ -2110,8 +2110,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
 ;; This is a copy/pasted version of list-subtract from the `set` generic implementation.  The generic uses `equal?`-based testing, but I'm only using it on things where I want `eq?`-based testing.
 (define (listeq-subtract s . sets)
   #;(for ([s2 (in-list sets)] [i (in-naturals 1)])
-    (unless (list? s2)
-      (apply raise-argument-error 'set-subtract "list?" i s sets)))
+      (unless (list? s2)
+        (apply raise-argument-error 'set-subtract "list?" i s sets)))
   (for/fold
       ([s1 '()])
       ([x (in-list s)]
