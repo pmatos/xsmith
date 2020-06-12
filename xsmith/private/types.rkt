@@ -1902,7 +1902,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; left type variable with multiple options
     [(list (c-type-variable (list ts ...) _ _)
            _)
-     (for/and ([t ts]) (at-least-as-settled t constraint-type))]
+     (and (for/and ([t ts])
+            (at-least-as-settled t constraint-type))
+          (or (not (base-type? constraint-type))
+              (let ([btrs (filter base-type-range? ts)])
+                (or (for/and ([btr btrs])
+                      (can-unify? btr constraint-type))
+                    (for/and ([btr btrs])
+                      (not (can-unify? btr constraint-type)))))))]
     ;; right type variable with multiple options
     [(list _
            (c-type-variable (list cs ...) _ _))
