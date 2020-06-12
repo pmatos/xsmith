@@ -21,6 +21,29 @@
 
 (define random-max 4294967087)
 
+
+(define-generic-type box-type ([type covariant]))
+(define bool (base-type 'bool #:leaf? #f))
+
+(define number (base-type 'number bool #:leaf? #f))
+(define complex (base-type 'complex number #:leaf? #f))
+(define real (base-type 'real complex #:leaf? #f))
+(define rational (base-type 'rational real #:leaf? #f))
+(define int (base-type 'int rational #:leaf? #f))
+(define nat (base-type 'nat int #:leaf? #f))
+
+(define char (base-type 'char bool))
+(define string (base-type 'string bool #:leaf? #f))
+(define mutable-string (base-type 'mutable-string string))
+(define immutable-string (base-type 'immutable-string string))
+(define symbol (base-type 'symbol bool))
+(define keyword (base-type 'keyword bool))
+(define date (base-type 'date bool #:leaf? #f))
+(define date* (base-type 'date* date))
+;; for literal #t and #f
+(define exact-bool (base-type 'exact-bool bool))
+
+
 (define-spec-component racket-comp)
 
 (add-basic-expressions racket-comp
@@ -41,6 +64,8 @@
                        #:MutableStructuralRecord #t
                        #:MutableStructuralRecordAssignmentExpression #t
                        #:ImmutableStructuralRecord #t
+                       #:int-type int
+                       #:bool-type bool
                        )
 
 
@@ -49,20 +74,6 @@
  render-hole-info
  [#f (λ (h) '_HOLE_)])
 
-
-(define-generic-type box-type ([type covariant]))
-;; canned-components.rkt provides some of these types, etc, but let's override them so they can be subtypes of bool.  But only override ones that aren't used in the canned components that we use! (eg. number is used.)
-;; TODO - make canned-components have a keyword for what number type to use?  I'm using canned-components that depend on `number`, so I can't make a different hierarchy of number types.
-(define char (base-type 'char bool))
-(define string (base-type 'string bool #:leaf? #f))
-(define mutable-string (base-type 'mutable-string string))
-(define immutable-string (base-type 'immutable-string string))
-(define symbol (base-type 'symbol bool))
-(define keyword (base-type 'keyword bool))
-(define date (base-type 'date bool #:leaf? #f))
-(define date* (base-type 'date* date))
-;; for literal #t and #f
-(define exact-bool (base-type 'exact-bool bool))
 
 (define-for-syntax (racr-ize-symbol sym)
   ;; Turn common racket identifiers into something RACR can deal with.

@@ -8,11 +8,11 @@
  no-return-type
  fresh-maybe-return-type
  void-type
- number
- int
- float
- bool
- string
+ number-type
+ int-type
+ float-type
+ bool-type
+ string-type
  mutable
  immutable
  array-type
@@ -72,11 +72,11 @@
                    (fresh-structural-record-type
                     (hash (ast-child 'fieldname n) newtype)))
           'newvalue newtype)))
-(define mutable-array-assignment-type-rhs
+(define (mutable-array-assignment-type-rhs index-and-length-type)
   (λ (n t)
     (define inner (fresh-type-variable))
     (hash 'array (mutable (array-type inner))
-          'index int
+          'index index-and-length-type
           'newvalue inner)))
 
 (define (lambda-fresh-implementation cur-hole make-fresh-node-func)
@@ -156,10 +156,21 @@
                           use-mutable-structural-record-assignment-expression:boolean))
          (~optional (~seq #:ImmutableStructuralRecord
                           use-immutable-structural-record:boolean))
+         (~optional (~seq #:bool-type bool-type-e:expr)
+                    #:defaults ([bool-type-e #'bool-type]))
+         (~optional (~seq #:number-type number-type-e:expr)
+                    #:defaults ([number-type-e #'number-type]))
+         (~optional (~seq #:int-type int-type-e:expr)
+                    #:defaults ([int-type-e #'int-type]))
+         (~optional (~seq #:index-and-length-type index-and-length-type-e:expr))
          )
         ...
         )
      #`(begin
+         (define bool bool-type-e)
+         (define number number-type-e)
+         (define int int-type-e)
+         (define index-and-length-type (~? index-and-length-type-e int))
          ;; Core grammar
 
          (add-to-grammar
@@ -239,8 +250,8 @@
                     [Minus [number numeric-bin-op-subtype]]
                     [Times [number numeric-bin-op-subtype]]
                     [SafeDivide [number numeric-bin-op-subtype]]
-                    [LessThan [bool numeric-bin-op/no-relation-to-return]]
-                    [GreaterThan [bool numeric-bin-op/no-relation-to-return]]))
+                    [LessThan [bool (numeric-bin-op/no-relation-to-return number)]]
+                    [GreaterThan [bool (numeric-bin-op/no-relation-to-return number)]]))
                 #'())
 
          #,@(if (use? use-void-expression)
@@ -321,7 +332,8 @@
                     type-info
                     [StringLiteral [string (no-child-types)]]
                     [StringAppend [string (λ (n t) (hash 'l string 'r string))]]
-                    [StringLength [int (λ (n t) (hash 'Expression string))]]))
+                    [StringLength [index-and-length-type
+                                   (λ (n t) (hash 'Expression string))]]))
                 #'())
 
 
@@ -412,7 +424,7 @@
                                               (hash 'expressions et))]]
                     [ImmutableArraySafeReference
                      [(fresh-type-variable)
-                      (λ (n t) (hash 'index int
+                      (λ (n t) (hash 'index index-and-length-type
                                      'array (immutable
                                              (array-type t))))]]
                     [ImmutableArraySafeSet
@@ -422,7 +434,7 @@
                         (unify! (immutable
                                  (array-type inner-t))
                                 t)
-                        (hash 'index int
+                        (hash 'index index-and-length-type
                               'array t
                               'newvalue inner-t))]]))
                 #'())
@@ -489,7 +501,7 @@
                      #:prop mutable-container-access (read 'MutableArray)
                      #:prop type-info
                      [(fresh-type-variable)
-                      (λ (n t) (hash 'index int
+                      (λ (n t) (hash 'index index-and-length-type
                                      'array (mutable
                                              (array-type t))))]]))
                 #'())
@@ -503,7 +515,8 @@
                       [newvalue : Expression])
                      #:prop mutable-container-access (write 'MutableArray)
                      #:prop type-info
-                     [void-type mutable-array-assignment-type-rhs]]))
+                     [void-type (mutable-array-assignment-type-rhs
+                                 index-and-length-type)]]))
                 #'())
 
 
@@ -653,10 +666,18 @@
                           use-mutable-array-safe-assignment-statement:boolean))
          (~optional (~seq #:MutableStructuralRecordAssignmentStatement
                           use-mutable-structural-record-assignment-statement:boolean))
+         (~optional (~seq #:bool-type bool-type-e:expr)
+                    #:defaults ([bool-type-e #'bool-type]))
+         (~optional (~seq #:int-type int-type-e:expr)
+                    #:defaults ([int-type-e #'int-type]))
+         (~optional (~seq #:index-and-length-type index-and-length-type-e:expr))
          )
         ...
         )
      #`(begin
+         (define bool bool-type-e)
+         (define int int-type-e)
+         (define index-and-length-type (~? index-and-length-type-e int))
          (add-to-grammar
           component
           [Statement #f ()
@@ -749,7 +770,7 @@
                       (λ (n t)
                         (define inner (fresh-type-variable))
                         (hash 'array (mutable (array-type inner))
-                              'index int
+                              'index index-and-length-type
                               'newvalue inner))]]))
                 #'())
          #,@(if (use? use-mutable-structural-record-assignment-statement)
@@ -787,12 +808,12 @@
 ;; TODO - these should be injectable.  They are used in the type specifications,
 ;; but sometimes I want to create a slightly different hierarchy while still using
 ;; the same canned components.
-(define void-type (base-type 'void #:leaf? #f))
-(define number (base-type 'number #:leaf? #f))
-(define int (base-type 'int number #:leaf? #f))
-(define float (base-type 'float number #:leaf? #f))
-(define bool (base-type 'bool #:leaf? #f))
-(define string (base-type 'string #:leaf? #f))
+(define void-type (base-type 'void))
+(define number-type (base-type 'number #:leaf? #f))
+(define int-type (base-type 'int number-type))
+(define float-type (base-type 'float number-type))
+(define bool-type (base-type 'bool))
+(define string-type (base-type 'string))
 
 (define-generic-type mutable ([type covariant]))
 (define-generic-type immutable ([type covariant]))
@@ -808,8 +829,8 @@
   (concretize-type (fresh-type-variable)))
 
 
-(define numeric-bin-op/no-relation-to-return
-  (λ (n t) (hash 'l number 'r number)))
+(define (numeric-bin-op/no-relation-to-return number-type)
+  (λ (n t) (hash 'l number-type 'r number-type)))
 (define numeric-bin-op-subtype
   (λ (n t)
     (hash 'l t 'r t)))

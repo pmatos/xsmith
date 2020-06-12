@@ -223,7 +223,7 @@
  racket-comp)
 
 (define (type-thunks-for-concretization)
-  (list #;(λ()float) #;(λ()number) (λ()int) (λ()bool) (λ()string)))
+  (list #;(λ()float-type) #;(λ()number-type) (λ()int-type) (λ()bool-type) (λ()string-type)))
 
 (define (racket-generate)
   (parameterize ([current-xsmith-type-constructor-thunks

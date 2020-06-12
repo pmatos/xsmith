@@ -2218,11 +2218,11 @@ IE @racket[(fresh-type-variable (return-type (fresh-type-variable)) no-return-ty
 @defthing[void-type base-type?]{
 A void type.  Used by @tt{AssignmentExpression} and the like.
 }
-@defthing[number base-type?]{}
-@defthing[int base-type?]{Subtype of @racket[number]}
-@defthing[float base-type?]{Subtype of @racket[number]}
-@defthing[bool base-type?]{}
-@defthing[string base-type?]{}
+@defthing[number-type base-type?]{}
+@defthing[int-type base-type?]{Subtype of @racket[number]}
+@defthing[float-type base-type?]{Subtype of @racket[number]}
+@defthing[bool-type base-type?]{}
+@defthing[string-type base-type?]{}
 
 @defproc[(mutable [t type?]) type?]{
 Used for encoding mutable versions of types.
