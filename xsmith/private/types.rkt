@@ -44,10 +44,11 @@ WIP checklist:
 
  ;(struct-out base-type)
  (contract-out
-  [rename mk-base-type base-type (->* (any/c) (base-type?)
+  [rename mk-base-type base-type (->* (any/c) (base-type? #:leaf? any/c)
                                       base-type?)])
  base-type-name
  base-type-supertype
+ base-type-leaf?
  base-type?
  default-base-type
 
@@ -345,8 +346,8 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
                    #f
                    (map (λ (x) (if (base-type? x)
                                    (if subtype?
-                                       (base-type-range #f x)
-                                       (base-type-range x x))
+                                       (mk-base-type-range #f x)
+                                       (mk-base-type-range x x))
                                    x))
                         args)))
   (core-type-variable #f type '() '()))
@@ -366,13 +367,13 @@ Inside a type variable, they are always placed in a base-type-range, which gives
 The minimum may be #f to mean any subtype of the maximum type.
 |#
 
-(struct base-type (name supertype) #:transparent
+(struct base-type (name supertype leaf?) #:transparent
   #:methods gen:custom-write
   [(define (write-proc self port mode)
      (fprintf port "#<~a>" (base-type-name self)))])
 
 ;; a default base type, for when users don't specify any type rules.
-(define default-base-type (base-type 'xsmith_default-base-type #f))
+(define default-base-type (base-type 'xsmith_default-base-type #f #t))
 
 (module+ test
   ;; Define some base types for testing
@@ -381,7 +382,7 @@ The minimum may be #f to mean any subtype of the maximum type.
   (define penguin (mk-base-type 'penguin bird))
   (define canine (mk-base-type 'canine animal))
   (define dog (mk-base-type 'dog canine))
-  (define labradoodle (mk-base-type 'labradoodle dog))
+  (define labradoodle (mk-base-type 'labradoodle dog #:leaf? #t))
   )
 
 (define (base-type->parent-chain bt)
@@ -389,8 +390,10 @@ The minimum may be #f to mean any subtype of the maximum type.
       (list bt)
       (cons bt (base-type->parent-chain (base-type-supertype bt)))))
 
-(define (mk-base-type name [parent #f])
-  (base-type name parent))
+(define (mk-base-type name [parent #f] #:leaf? [leaf? #f])
+  (when (and parent (base-type-leaf? parent))
+    (error 'base-type "can't create a subtype of leaf type: ~v" parent))
+  (base-type name parent leaf?))
 
 (define (base-type->superest bt)
   (if (not (base-type-supertype bt))
@@ -448,6 +451,10 @@ The minimum may be #f to mean any subtype of the maximum type.
      (fprintf port "#<range:~a-~a>"
               (base-type-range-sub self)
               (base-type-range-super self)))])
+(define (mk-base-type-range min max)
+  (if (base-type-leaf? max)
+      (base-type-range max max)
+      (base-type-range min max)))
 
 (struct function-type (arg-type return-type) #:transparent)
 
@@ -673,36 +680,36 @@ TODO - when generating a record ref, I'll need to compare something like (record
             (define new-lsup (base-type-greatest-lower-bound lsup rsup))
             ;; rsub must not be lower than lsub -- IE the lower bound of the subtype is also a lower bound on the supertype.
             (define new-rsub (base-type-least-upper-bound lsub rsub))
-            (define new-l (base-type-range lsub new-lsup))
-            (define new-r (base-type-range new-rsub rsup))
+            (define new-l (mk-base-type-range lsub new-lsup))
+            (define new-r (mk-base-type-range new-rsub rsup))
             (list new-l new-r)))]
     [else #f]))
 (module+ test
   (check-equal? (base-type-ranges->unified-versions
-                 (base-type-range #f dog)
-                 (base-type-range labradoodle canine))
-                (list (base-type-range #f dog)
-                      (base-type-range labradoodle canine)))
+                 (mk-base-type-range #f dog)
+                 (mk-base-type-range labradoodle canine))
+                (list (mk-base-type-range #f dog)
+                      (mk-base-type-range labradoodle canine)))
   (check-equal? (base-type-ranges->unified-versions
-                 (base-type-range labradoodle canine)
-                 (base-type-range #f dog))
-                (list (base-type-range labradoodle dog)
-                      (base-type-range labradoodle dog)))
+                 (mk-base-type-range labradoodle canine)
+                 (mk-base-type-range #f dog))
+                (list (mk-base-type-range labradoodle dog)
+                      (mk-base-type-range labradoodle dog)))
   (check-equal? (base-type-ranges->unified-versions
-                 (base-type-range dog canine)
-                 (base-type-range #f dog))
-                (list (base-type-range dog dog)
-                      (base-type-range dog dog)))
+                 (mk-base-type-range dog canine)
+                 (mk-base-type-range #f dog))
+                (list (mk-base-type-range dog dog)
+                      (mk-base-type-range dog dog)))
   (check-equal? (base-type-ranges->unified-versions
-                 (base-type-range penguin penguin)
-                 (base-type-range #f bird))
-                (list (base-type-range penguin penguin)
-                      (base-type-range penguin bird)))
+                 (mk-base-type-range penguin penguin)
+                 (mk-base-type-range #f bird))
+                (list (mk-base-type-range penguin penguin)
+                      (mk-base-type-range penguin bird)))
   (check-equal? (base-type-ranges->unified-versions
-                 (base-type-range #f bird)
-                 (base-type-range penguin penguin))
-                (list (base-type-range #f penguin)
-                      (base-type-range penguin penguin)))
+                 (mk-base-type-range #f bird)
+                 (mk-base-type-range penguin penguin))
+                (list (mk-base-type-range #f penguin)
+                      (mk-base-type-range penguin penguin)))
   )
 (define (type-lists->unified-base-types sub-list super-list)
   (define result
@@ -764,7 +771,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
              [(list (? base-type-range?) ...)
               (define super-range (match super
                                     [(base-type-range _ _) super]
-                                    [(base-type _ _) (base-type-range #f super)]))
+                                    [(base-type _ _ _) (mk-base-type-range #f super)]))
               (define new-ranges
                 (filter-map
                  (λ (sub)
@@ -783,11 +790,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
                [(base-type-range super-low super-high)
                 (set-core-type-variable-type!
                  sub
-                 (list (base-type-range #f super-high)))]
+                 (list (mk-base-type-range #f super-high)))]
                [(? base-type?)
                 (set-core-type-variable-type!
                  sub
-                 (list (base-type-range #f super)))]
+                 (list (mk-base-type-range #f super)))]
                [else
                 (set-core-type-variable-type!
                  sub
@@ -815,7 +822,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
               (define sub-range
                 (match sub
                   [(base-type-range _ _) sub]
-                  [(base-type _ _) (base-type-range sub sub)]))
+                  [(base-type _ _ _) (mk-base-type-range sub sub)]))
               (define new-ranges
                 (filter-map
                  (λ (super)
@@ -834,11 +841,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
                [(base-type-range sub-low sub-high)
                 (set-core-type-variable-type!
                  super
-                 (list (base-type-range sub-high (base-type->superest sub-high))))]
+                 (list (mk-base-type-range sub-high (base-type->superest sub-high))))]
                [(? base-type?)
                 (set-core-type-variable-type!
                  super
-                 (list (base-type-range sub (base-type->superest sub))))]
+                 (list (mk-base-type-range sub (base-type->superest sub))))]
                [else
                 (set-core-type-variable-type!
                  super
@@ -1177,7 +1184,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
       sub
       (map (λ (t)
              (match t
-               [(base-type-range low high) (base-type-range #f high)]
+               [(base-type-range low high) (mk-base-type-range #f high)]
                [else
                 (define inner-sub (type->skeleton-with-vars t))
                 (subtype-unify! inner-sub t)
@@ -1190,7 +1197,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
       (map (λ (t)
              (match t
                [(base-type-range low high)
-                (base-type-range low (base-type->superest high))]
+                (mk-base-type-range low (base-type->superest high))]
                [else
                 (define inner-sup (type->skeleton-with-vars t))
                 (subtype-unify! t inner-sup)
@@ -1349,8 +1356,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
                   [sup sups])
           (match (list sub sup)
             [(list (base-type-range #f lsup) (base-type-range _ rsup))
-             (equal? (base-type->superest lsup)
-                     (base-type->superest rsup))]
+             (and
+              (eq? (base-type->superest lsup)
+                   (base-type->superest rsup))
+              (or (memq rsup (base-type->parent-chain lsup))
+                  (memq lsup (base-type->parent-chain rsup))))]
             [(list (base-type-range lsub _) (base-type-range _ rsup))
              (rec lsub rsup)]
             [else (rec sub sup)]))])]
@@ -1411,19 +1421,19 @@ TODO - when generating a record ref, I'll need to compare something like (record
               ['covariant (rec l r)]
               ['contravariant (rec r l)])))]
     ;; base-type
-    [(list (base-type lname lsuper) (base-type rname rsuper))
-     (->bool (member super (base-type->parent-chain sub)))]
+    [(list (base-type lname lsuper _) (base-type rname rsuper _))
+     (->bool (memq super (base-type->parent-chain sub)))]
     ;; While base-type-ranges can only be in type variables, it is convenient to recursively use this function to test them
     [(list (base-type-range l-low l-high) (base-type-range r-low r-high))
      (->bool
       (if l-low
-          (member r-high (base-type->parent-chain l-low))
-          (or (member r-high (base-type->parent-chain l-high))
-              (member l-high (base-type->parent-chain r-high)))))]
-    [(list (base-type _ _) (base-type-range _ _))
-     (rec (base-type-range sub sub) super)]
-    [(list (base-type-range _ _) (base-type _ _))
-     (rec sub (base-type-range super super))]
+          (memq r-high (base-type->parent-chain l-low))
+          (or (memq r-high (base-type->parent-chain l-high))
+              (memq l-high (base-type->parent-chain r-high)))))]
+    [(list (base-type _ _ _) (base-type-range _ _))
+     (rec (mk-base-type-range sub sub) super)]
+    [(list (base-type-range _ _) (base-type _ _ _))
+     (rec sub (mk-base-type-range super super))]
     [else #f]))
 
 (define (can-X-unify?/one-type-variable tv rtype inner-can-unify?)
@@ -1436,7 +1446,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
          [(list) #f]
          [(list one) (inner-can-unify? one rtype)]))
      (match rtype
-       [(base-type name superbase)
+       [(base-type name superbase _)
         (for/or ([possibility t])
           (match possibility
             [(base-type-range low high)
@@ -1592,14 +1602,14 @@ TODO - when generating a record ref, I'll need to compare something like (record
                     [inner-r type-arguments2])
             (rec inner-l inner-r)))]
     ;; base-type
-    [(list (base-type _ _) (base-type _ _))
-     (equal? l r)]
+    [(list (base-type _ _ _) (base-type _ _ _))
+     (eq? l r)]
     [(list (base-type-range l-low l-high) (base-type-range r-low r-high))
      ;; In this case we return the new range that the variables would occupy if symmetrically unified.
      (define new-high
-       (cond [(member r-high (base-type->parent-chain l-high))
+       (cond [(memq r-high (base-type->parent-chain l-high))
               l-high]
-             [(member l-high (base-type->parent-chain r-high))
+             [(memq l-high (base-type->parent-chain r-high))
               r-high]
              [else 'bad]))
      (and (not (eq? new-high 'bad))
@@ -1607,18 +1617,18 @@ TODO - when generating a record ref, I'll need to compare something like (record
                            [(list #f _) r-low]
                            [(list _ #f) l-low]
                            [else
-                            (cond [(member r-low (base-type->parent-chain l-low))
+                            (cond [(memq r-low (base-type->parent-chain l-low))
                                    r-low]
-                                  [(member l-low (base-type->parent-chain r-low))
+                                  [(memq l-low (base-type->parent-chain r-low))
                                    l-low]
                                   [else 'bad])])])
             (and (not (eq? 'bad new-low))
                  (or (not new-low)
-                     (->bool (member new-high (base-type->parent-chain new-low)))))))]
-    [(list (base-type _ _) (base-type-range _ _))
-     (can-unify? (base-type-range l l) r)]
-    [(list (base-type-range _ _) (base-type _ _))
-     (can-unify? l (base-type-range r r))]
+                     (->bool (memq new-high (base-type->parent-chain new-low)))))))]
+    [(list (base-type _ _ _) (base-type-range _ _))
+     (can-unify? (mk-base-type-range l l) r)]
+    [(list (base-type-range _ _) (base-type _ _ _))
+     (can-unify? l (mk-base-type-range r r))]
     [else #f]))
 
 
@@ -1655,7 +1665,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                                   options-use)))
          (error 'concretize-type (format "Received a typeless type variable in options.  Don't use (fresh-type-variable) when parameterizing current-xsmith-type-constructor-thunks." options-use)))
        (r (random-ref options-use))]
-      [(base-type _ _) t]
+      [(base-type _ _ _) t]
       [(base-type-range low high)
        ;; TODO - this should be a random choice.  But I also need to deal with the #f low case and enumerate all possibilities.  For now I just want to get the code working again.
        high]
@@ -1809,7 +1819,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     [(c-type-variable (list one-type) _ _)
      (and only-if-no-wrappers? (rec one-type))]
     [(c-type-variable _ _ _) #f]
-    [(base-type _ _) #t]
+    [(base-type _ _ _) #t]
     [(base-type-range l r) (equal? l r)]
     [(function-type a r)
      (and (rec a) (rec r))]
@@ -1859,9 +1869,9 @@ TODO - when generating a record ref, I'll need to compare something like (record
       ;; check if every case in ts is covered in cs
       (for/and ([t ts])
         (match t
-          [(base-type _ _) (for/or ([c (filter base-type? cs)])
-                             (or (can-subtype-unify? t c)
-                                 (can-subtype-unify? c t)))]
+          [(base-type _ _ _) (for/or ([c (filter base-type? cs)])
+                               (or (can-subtype-unify? t c)
+                                   (can-subtype-unify? c t)))]
           [(base-type-range _ _) (for/or ([c (filter base-type-range? cs)])
                                    (or (can-subtype-unify? t c)
                                        (can-subtype-unify? c t)))]
@@ -1917,7 +1927,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
     ;; No more variables
     [(list (c-type-variable _ _ _) _) (error 'at-least-as-settled "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
     [(list _ (c-type-variable _ _ _)) (error 'at-least-as-settled "internal error, shouldn't reach this point with a type variable, got l: ~v, r: ~v\n" v constraint-type)]
-    [(list (base-type _ _) _) #t]
+    [(list (base-type _ _ _) _) #t]
     [(list (base-type-range min max) _)
      (or (not (can-unify? v constraint-type))
          (eq? min max))]
@@ -1996,7 +2006,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   ;; The variables must be in canonical form.
   (define (rec t) (contains-type-variables? t vs))
   (match t
-    [(base-type _ _) #f]
+    [(base-type _ _ _) #f]
     [(base-type-range _ _) #f]
     [(function-type arg ret) (or (rec arg) (rec ret))]
     [(product-type inners lb ub)
@@ -2034,7 +2044,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
               [todo-bounds (listeq-subtract bounds dones)]
               [todos (append todo-bounds (cdr init-todos))])
          (match t
-           [(base-type _ _) (work vars todos dones)]
+           [(base-type _ _ _) (work vars todos dones)]
            [(base-type-range _ _) (work vars todos dones)]
            [(function-type arg ret)
             (work vars (list* arg ret todos) dones)]
@@ -2079,7 +2089,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (define (rec it)
     (type-contains-function-type? it #:potential? potential?))
   (match t
-    [(base-type _ _) #f]
+    [(base-type _ _ _) #f]
     [(base-type-range _ _) #f]
     [(function-type arg ret) #t]
     [(product-type inners lb ub)
@@ -2206,10 +2216,10 @@ TODO - when generating a record ref, I'll need to compare something like (record
 
 
   ;; Check differences between symmetric and subtype can-unify?
-  (define birddog1 (fresh-type-variable (base-type-range bird bird)
-                                        (base-type-range labradoodle labradoodle)))
-  (define birddog2 (fresh-type-variable (base-type-range dog dog)
-                                        (base-type-range penguin penguin)))
+  (define birddog1 (fresh-type-variable (mk-base-type-range bird bird)
+                                        (mk-base-type-range labradoodle labradoodle)))
+  (define birddog2 (fresh-type-variable (mk-base-type-range dog dog)
+                                        (mk-base-type-range penguin penguin)))
   (check-true (can-subtype-unify? birddog1 birddog2))
   (check-true (can-subtype-unify? birddog2 birddog1))
   (check-false (can-unify? birddog1 birddog2))
@@ -2235,24 +2245,24 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (subtype-unify! penguin1 penguin)
   (check-true (can-subtype-unify? penguin1 bird))
   (check-true (can-subtype-unify? penguin penguin1))
-  (check-true (can-subtype-unify? penguin1 bird1))
-  (check-true (can-subtype-unify? bird1 penguin1))
+  (check-not-false (can-subtype-unify? penguin1 bird1))
+  (check-not-false (can-subtype-unify? bird1 penguin1))
 
   (check-false (can-subtype-unify? bird penguin1))
 
   ;; Tests for my subtyping + function parameter bug
-  (define bird-will-be-penguin (fresh-type-variable (base-type-range #f bird)))
-  (define bird-will-be-penguin/left (fresh-type-variable (base-type-range #f bird)))
-  (define bird-will-be-penguin/right (fresh-type-variable (base-type-range #f bird)))
+  (define bird-will-be-penguin (fresh-type-variable (mk-base-type-range #f bird)))
+  (define bird-will-be-penguin/left (fresh-type-variable (mk-base-type-range #f bird)))
+  (define bird-will-be-penguin/right (fresh-type-variable (mk-base-type-range #f bird)))
   (unify! bird-will-be-penguin penguin)
   (subtype-unify! bird-will-be-penguin/left penguin)
   (subtype-unify! penguin bird-will-be-penguin/right)
   (check-equal? (car (c-type-variable-type bird-will-be-penguin))
-                (base-type-range penguin penguin))
+                (mk-base-type-range penguin penguin))
   (check-equal? (car (c-type-variable-type bird-will-be-penguin/left))
-                (base-type-range #f penguin))
+                (mk-base-type-range #f penguin))
   (check-equal? (car (c-type-variable-type bird-will-be-penguin/right))
-                (base-type-range penguin bird))
+                (mk-base-type-range penguin bird))
 
 
   ;; testing contains-type-variables over a graph
