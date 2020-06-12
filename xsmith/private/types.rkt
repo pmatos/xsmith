@@ -377,11 +377,11 @@ The minimum may be #f to mean any subtype of the maximum type.
 
 (module+ test
   ;; Define some base types for testing
-  (define animal (mk-base-type 'animal))
-  (define bird (mk-base-type 'bird animal))
-  (define penguin (mk-base-type 'penguin bird))
-  (define canine (mk-base-type 'canine animal))
-  (define dog (mk-base-type 'dog canine))
+  (define animal (mk-base-type 'animal #:leaf? #f))
+  (define bird (mk-base-type 'bird animal #:leaf? #f))
+  (define penguin (mk-base-type 'penguin bird #:leaf? #f))
+  (define canine (mk-base-type 'canine animal #:leaf? #f))
+  (define dog (mk-base-type 'dog canine #:leaf? #f))
   (define labradoodle (mk-base-type 'labradoodle dog #:leaf? #t))
   )
 
@@ -390,7 +390,7 @@ The minimum may be #f to mean any subtype of the maximum type.
       (list bt)
       (cons bt (base-type->parent-chain (base-type-supertype bt)))))
 
-(define (mk-base-type name [parent #f] #:leaf? [leaf? #f])
+(define (mk-base-type name [parent #f] #:leaf? [leaf? #t])
   (when (and parent (base-type-leaf? parent))
     (error 'base-type "can't create a subtype of leaf type: ~v" parent))
   (base-type name parent leaf?))

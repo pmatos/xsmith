@@ -206,7 +206,7 @@
 ;;; Types
 
 (type-variable-subtype-default #t)
-(define number (base-type 'number))
+(define number (base-type 'number #:leaf? #f))
 (define int (base-type 'int number))
 (define float (base-type 'float number))
 (define bool (base-type 'bool))

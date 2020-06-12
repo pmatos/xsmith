@@ -63,7 +63,7 @@
            #:prop choice-weight 50])
 
 
-(define number (base-type 'number))
+(define number (base-type 'number #:leaf? #f))
 (define int (base-type 'int number))
 (define float (base-type 'float number))
 (add-prop arith type-info

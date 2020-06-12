@@ -784,12 +784,15 @@
 
 ;; Expression types
 (type-variable-subtype-default #t)
-(define void-type (base-type 'void))
-(define number (base-type 'number))
-(define int (base-type 'int number))
-(define float (base-type 'float number))
-(define bool (base-type 'bool))
-(define string (base-type 'string))
+;; TODO - these should be injectable.  They are used in the type specifications,
+;; but sometimes I want to create a slightly different hierarchy while still using
+;; the same canned components.
+(define void-type (base-type 'void #:leaf? #f))
+(define number (base-type 'number #:leaf? #f))
+(define int (base-type 'int number #:leaf? #f))
+(define float (base-type 'float number #:leaf? #f))
+(define bool (base-type 'bool #:leaf? #f))
+(define string (base-type 'string #:leaf? #f))
 
 (define-generic-type mutable ([type covariant]))
 (define-generic-type immutable ([type covariant]))

@@ -54,12 +54,12 @@
 ;; canned-components.rkt provides some of these types, etc, but let's override them so they can be subtypes of bool.  But only override ones that aren't used in the canned components that we use! (eg. number is used.)
 ;; TODO - make canned-components have a keyword for what number type to use?  I'm using canned-components that depend on `number`, so I can't make a different hierarchy of number types.
 (define char (base-type 'char bool))
-(define string (base-type 'string bool))
+(define string (base-type 'string bool #:leaf? #f))
 (define mutable-string (base-type 'mutable-string string))
 (define immutable-string (base-type 'immutable-string string))
 (define symbol (base-type 'symbol bool))
 (define keyword (base-type 'keyword bool))
-(define date (base-type 'date bool))
+(define date (base-type 'date bool #:leaf? #f))
 (define date* (base-type 'date* date))
 ;; for literal #t and #f
 (define exact-bool (base-type 'exact-bool bool))

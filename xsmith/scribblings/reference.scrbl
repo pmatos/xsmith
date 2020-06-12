@@ -1442,7 +1442,7 @@ The @racket[subtype-unify!] function is used automatically during type checking 
 The @racket[unify!] function is more useful in user code.
 }
 
-@defproc[(base-type [name symbol?] [supertype (or/c #f base-type?) #f] [#:leaf? leaf? any/c #f]) type?]{
+@defproc[(base-type [name symbol?] [supertype (or/c #f base-type?) #f] [#:leaf? leaf? any/c #t]) type?]{
 Creates a base type.  Base types are the same if they are @racket[eq?].  The @racket[name] field is really just for convenience in printing for debugging.
 
 If @racket[leaf?] is true, no subtypes of this base type can be created.
