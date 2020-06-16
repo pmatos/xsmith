@@ -41,6 +41,7 @@
                "pprint"
                "racr"
                "rosette"
+               "clotho"
                ))
 (define build-deps '("scribble-lib"
                      "racket-doc"
