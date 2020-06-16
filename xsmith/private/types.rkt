@@ -119,11 +119,11 @@ WIP checklist:
  )
 
 (require
+ clotho
  racket/match
  racket/dict
  racket/list
  racket/set
- "random.rkt"
  "scope-graph.rkt"
  "xsmith-utils.rkt"
  racr

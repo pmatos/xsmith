@@ -1,4 +1,4 @@
-#lang racket/base
+#lang clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -38,6 +38,7 @@
 (require
  xsmith
  xsmith/racr-convenience
+ clotho
  racr
  pprint
  racket/dict
@@ -46,7 +47,7 @@
  (prefix-in rt: rosette)
  (except-in racket/list empty)
  (for-syntax
-  racket/base
+  clotho/racket/base
   syntax/parse
   ))
 

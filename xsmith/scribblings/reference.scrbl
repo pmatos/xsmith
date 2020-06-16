@@ -33,7 +33,8 @@
 @(require
 "util.rkt"
 (for-label
- (except-in module
+ (except-in clotho/racket/base
+            module
             string
             #%app)
  (prefix-in racket/base: racket/base)

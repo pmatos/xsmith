@@ -32,6 +32,7 @@
 
 (require
  xsmith
+ clotho
  racr
  racket/pretty
  racket/string

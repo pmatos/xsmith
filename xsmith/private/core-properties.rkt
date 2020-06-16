@@ -68,8 +68,8 @@
  "scope-graph.rkt"
  "types.rkt"
  "effects.rkt"
- "random.rkt"
- (submod "random.rkt" distributions)
+ clotho
+ clotho/math/distributions
  racr
  racket/class
  ;racket/dict

@@ -1,7 +1,8 @@
-#lang racket/base
+#lang clotho/racket/base
 
 (require
  xsmith
+ clotho
  racr
  xsmith/racr-convenience
  xsmith/canned-components
@@ -10,7 +11,7 @@
  racket/pretty
  syntax/parse/define
  (for-syntax
-  racket/base
+  clotho/racket/base
   syntax/parse
   racket/match
   ))

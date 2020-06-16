@@ -1,7 +1,8 @@
-#lang racket/base
+#lang clotho/racket/base
 
 (require
  xsmith
+ clotho
  racr
  xsmith/racr-convenience
  xsmith/canned-components

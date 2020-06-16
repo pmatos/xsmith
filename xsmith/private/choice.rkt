@@ -37,7 +37,7 @@
  )
 
 (require
- "random.rkt"
+ clotho
  racket/class
  racket/list
  (for-syntax

@@ -2,6 +2,7 @@
 (require
  xsmith
  xsmith/app
+ clotho
  racr
  racket/pretty
  racket/string

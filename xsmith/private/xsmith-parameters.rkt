@@ -33,7 +33,7 @@
 (provide (all-defined-out))
 
 (require
- "random.rkt"
+ clotho
  racket/dict)
 
 (define random-seed-max (expt 2 31))

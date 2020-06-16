@@ -1,4 +1,4 @@
-#lang racket/base
+#lang clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -49,7 +49,7 @@
  (except-in racket/list empty)
  syntax/parse/define
  (for-syntax
-  racket/base
+  clotho/racket/base
   syntax/parse
   ))
 

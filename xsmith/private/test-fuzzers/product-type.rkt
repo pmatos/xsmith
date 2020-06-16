@@ -30,13 +30,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require xsmith
-         xsmith/racr-convenience
-         racr
-         racket/pretty
-         racket/string
-         racket/port
-         racket/list)
+(require
+ xsmith
+ xsmith/racr-convenience
+ clotho
+ racr
+ racket/pretty
+ racket/string
+ racket/port
+ racket/list)
 
 (define-spec-component arith)
 

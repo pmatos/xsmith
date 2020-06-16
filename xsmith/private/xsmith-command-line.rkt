@@ -31,7 +31,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (require
- clotho
  racket/contract
  racket/contract/base
  (only-in racr ast-node? att-value)
@@ -66,6 +65,7 @@
 
 
 (require
+ clotho
  racket/dict
  racket/match
  racket/cmdline
@@ -75,7 +75,6 @@
  racket/pretty
  racket/list
  raco/command-name
- "random.rkt"
  "xsmith-parameters.rkt"
  "xsmith-utils.rkt"
  (submod "xsmith-utils.rkt" for-private)
@@ -451,7 +450,7 @@
               (display "\n"))
             ;; If the flag was set, output the random-source's byte sequence to file.
             (when seq-to-file
-              (write-bytes (get-random-source-byte-sequence) (open-output-file seq-to-file #:exists 'replace)))
+              (write-bytes (get-random-source-byte-string) (open-output-file seq-to-file #:exists 'replace)))
             ;; Update the seed. (This is used in server mode.)
             (dict-set! (xsmith-options)
                        'random-seed

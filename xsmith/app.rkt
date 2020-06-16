@@ -1,4 +1,4 @@
-#lang racket/base
+#lang clotho/racket/base
 
 (provide
  define-xsmith-app
@@ -9,7 +9,7 @@
  racket/class
  racr
  (for-syntax
-  racket/base
+  clotho/racket/base
   syntax/parse
   racket/string
   ))

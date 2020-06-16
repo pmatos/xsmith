@@ -1,5 +1,5 @@
 #!/usr/bin/env racket
-#lang racket/base
+#lang clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah
@@ -35,6 +35,7 @@
  xsmith
  xsmith/app
  xsmith/racr-convenience
+ clotho
  racr
  pprint
  racket/class

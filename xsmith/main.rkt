@@ -31,8 +31,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Require and provide the public interface components for the xsmith library.
-(require clotho/racket/base
-         syntax/parse/define)
+(require syntax/parse/define
+         (for-syntax clotho/racket/base))
 (define-syntax-parser reprovide
   [(_ arg ...+)
    #'(begin
@@ -41,7 +41,6 @@
 
 (reprovide
  "private/core-macros-and-properties.rkt"
- "private/random.rkt"
  "private/scope-graph.rkt"
  "private/xsmith-command-line.rkt"
  "private/xsmith-parameters.rkt"
