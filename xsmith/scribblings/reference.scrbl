@@ -33,8 +33,7 @@
 @(require
 "util.rkt"
 (for-label
- (except-in xsmith/private/base
-            module
+ (except-in module
             string
             #%app)
  (prefix-in racket/base: racket/base)

@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho/racket/base
 (require
  xsmith
  xsmith/app

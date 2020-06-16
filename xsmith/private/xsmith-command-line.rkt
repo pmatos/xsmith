@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2020 The University of Utah
@@ -31,6 +31,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (require
+ clotho
  racket/contract
  racket/contract/base
  (only-in racr ast-node? att-value)

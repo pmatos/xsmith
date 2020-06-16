@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -129,7 +129,7 @@ WIP checklist:
  racr
  (submod "xsmith-utils.rkt" for-private)
  (for-syntax
-  xsmith/private/base
+  clotho/racket/base
   syntax/parse
   racket/syntax
   ))

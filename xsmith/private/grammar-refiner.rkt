@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah
@@ -39,7 +39,7 @@
  racket/syntax
  syntax/parse
  (for-template
-  xsmith/private/base
+  clotho/racket/base
   racr)  ;; This is required for providing λ at runtime.
  )
 

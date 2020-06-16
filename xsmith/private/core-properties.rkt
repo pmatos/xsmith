@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2020 The University of Utah
@@ -76,7 +76,7 @@
  racket/list
  racket/match
  (for-syntax
-  xsmith/private/base
+  clotho/racket/base
   syntax/parse
   racket/dict
   racket/list

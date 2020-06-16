@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah
@@ -31,8 +31,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Require and provide the public interface components for the xsmith library.
-(require syntax/parse/define
-         (for-syntax xsmith/private/base))
+(require clotho/racket/base
+         syntax/parse/define)
 (define-syntax-parser reprovide
   [(_ arg ...+)
    #'(begin

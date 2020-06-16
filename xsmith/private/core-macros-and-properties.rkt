@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -43,7 +43,7 @@
  (submod "core-properties.rkt" for-private)
  syntax/parse/define
  (for-syntax
-  xsmith/private/base
+  clotho/racket/base
   ))
 
 (define-syntax-parser assemble-spec-components
