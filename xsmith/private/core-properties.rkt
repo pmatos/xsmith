@@ -954,10 +954,8 @@ It just reads the values of several other properties and produces the results fo
                #'(λ (type) (error 'lift-type->ast-binder-type
                                   "You must specify a #f value for the lift-type->ast-binder-type property if your language has more than one binding form."))))))
 
-    (unless (equal? 1 (length (dict-keys this-prop-defaulted)))
-      (raise-syntax-error 'lift-type->ast-binder-type
-                          "you need to specify exactly one function under #f"))
-    (list (hash #f #`(λ (n) #,(dict-ref this-prop-defaulted #f))))))
+    (list (for/hash ([k (dict-keys this-prop-defaulted)])
+            (values k #`(λ (n) #,(dict-ref this-prop-defaulted k)))))))
 
 ;; These are declared separately, but are handled by the transformer of
 ;; the `introduces-scope` property.
