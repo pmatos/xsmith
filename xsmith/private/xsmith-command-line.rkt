@@ -545,6 +545,7 @@
                     len (bytes-length bytes)))
            bytes)
          (define (write-netstring port netstring)
+           ;(eprintf "writing netstring:\n~v" netstring)
            (display (bytes-length netstring) port)
            (display #":" port)
            (display netstring port)
