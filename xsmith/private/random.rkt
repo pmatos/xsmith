@@ -475,7 +475,7 @@
   (syntax-parse stx
     [(_ seed body ...+)
      #'(begin
-         (let ([prg (make-prg seed)])
+         (let ([prg (make-prg (modulo seed (add1 max-seed-value)))])
            (begin-with-prg prg
                            body ...)))]))
 
