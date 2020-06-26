@@ -124,6 +124,7 @@
   (define listen-ip "127.0.0.1")
   (define given-seed #f)
   (define server? #f)
+  (define netstring-server-path #f)
   (define render-on-error? #f)
   (define s-exp-on-error? #f)
   (define seq-to-file #f)
@@ -219,7 +220,7 @@
      (once-each
       [("--seed" "-s")
        ,(λ (flag seed)
-          (dict-set! options 'random-seed (string->number seed)))
+          (set! given-seed (string->number seed)))
        ("Set the random seed" "seed")]
       [("--output-file" "-o")
        ,(λ (flag filename) (dict-set! options 'output-filename filename))
@@ -229,6 +230,10 @@
           (set! server? (string->bool run-as-server? 'run-as-server?)))
        ("Run as a web server instead of generating a single program."
         "run-as-server?")]
+      [("--netstring-server")
+       ,(λ (flag socket-path) (set! netstring-server-path socket-path))
+       ("Run as a netstring server on a Unix domain socket at given path."
+        "socket-path")]
       [("--server-port")
        ,(λ (flag n) (set! server-port (string->number n)))
        ("Use port n instead of 8080 (when running as server)." "n")]
@@ -301,163 +306,166 @@
    ;; unknown-proc
    )
 
-  (define (generate-and-print!/xsmith-parameterized)
+  (define initial-random-source
+    (if seq-from-file
+        (port->bytes (open-input-file seq-from-file))
+        given-seed))
+
+  (define (generate-and-print!/xsmith-parameterized
+           #:random-source [random-input initial-random-source])
     (parameterize ([current-xsmith-max-depth max-depth]
                    [current-xsmith-features features]
                    [xsmith-options options]
-                   [xsmith-state (make-generator-state)])
-      (let* ([seed (xsmith-option 'random-seed)]
-             [random-source-val (if seq-from-file
-                                    (port->bytes (open-input-file seq-from-file))
-                                    seed)])
-        (parameterize ([random-source (make-random-source random-source-val)])
+                   [xsmith-state (make-generator-state)]
+                   [random-source (make-random-source random-input)])
+      (let/ec abort
+        (define option-lines
+          (append
+           (if fuzzer-name
+               (list (format "Fuzzer: ~a" fuzzer-name))
+               (list))
+           (list (format "Version: ~a" version-info)
+                 (format "Options: ~a" (string-join
+                                        (vector->list
+                                         (xsmith-option 'command-line))))
+                 (if (number? random-input)
+                     (format "Seed: ~a" random-input)
+                     (format "Random-input: ~v" random-input)))))
+        (define captured-output "")
+        (define (output-error err msg [partial-prog #f])
+          (let* ([output
+                  (format
+                   (string-join
+                    '("!!! Xsmith Error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                      "~a"  ;; Error message.
+                      ""
+                      "Options:"
+                      "~a"  ;; Option lines.
+                      "Debug Log:"
+                      "~a"  ;; Debug log.
+                      ""
+                      "Exception:"
+                      "~a"  ;; Exception.
+                      )
+                    "\n")
+                   msg
+                   (string-join
+                    option-lines
+                    "\n")
+                   (get-xsmith-debug-log!)
+                   (exn->string err))]
+                 [output (if (not (eq? captured-output ""))
+                             (string-append
+                              output
+                              (format "\nProgram output captured:\n~a\n"
+                                      captured-output))
+                             output)]
+                 [output (if partial-prog
+                             (string-append
+                              output
+                              (format "\nPartially generated program:\n~a\n"
+                                      partial-prog))
+                             output)])
+            (set! captured-output "")
+            (display output)))
+        ;; Compute the result of a procedure, capturing all output to
+        ;; `captured-output` and returning the procedure's result.
+        (define (capture-output! proc)
+          (let* ([result #f]
+                 [out (with-output-to-string
+                        (λ () (set! result (proc))))])
+            #;(set! captured-output out)
+            (when (not (eq? out ""))
+              (set! captured-output (string-append captured-output out)))
+            result))
+        ;;;;;;;;;;;;;;;;
+        ;; Actual generation and printing starts here.
+        ;;;;
+        ;; Convert an AST to a string.
+        (define (ast->string root)
+          (let ([ppr (att-value 'xsmith_render-node root)])
+            (if format-render-func
+                (format-render-func ppr)
+                (format "~a\n" ppr))))
+        ;; Attempt to generate the AST.
+        (define error? #f)
+        (define error-root #f)
+        (define ast
+          (capture-output!
+           (λ () (with-handlers
+                   ([(match-lambda [(list 'ast-gen-error e root) #t]
+                                   [_ #f])
+                     (λ (l)
+                       (set! error? (second l))
+                       (set! error-root (third l)))]
+                    [(λ (e) #t)
+                     (λ (e) (set! error? e))])
+                   (generate-func)))))
+        (when error?
+          (output-error
+           error?
+           "Error encountered while generating program!")
+          ;; If the user asked for it (and if any AST was salvaged from the
+          ;; generation stage), attempt to convert the partially completed AST
+          ;; to pre-print representation (PPR).
+          (when (and s-exp-on-error?
+                     error-root)
+            (printf "S-expression representation of program:\n")
+            (pretty-print
+             (att-value '_xsmith_to-s-expression error-root)
+             (current-output-port)
+             1)
+            (printf "\n\n"))
+          (when (and render-on-error?
+                     error-root)
+            (let* ([ppr-error? #f]
+                   [partial-prog (capture-output!
+                                  (λ () (with-handlers ([(λ (e) #t)
+                                                         (λ (e) (set! ppr-error? e))])
+                                          (ast->string error-root))))])
+              (if ppr-error?
+                  (output-error
+                   ppr-error?
+                   "Error encountered in printing while intercepting another error in AST generation.")
+                  (printf "Partially generated program render:\n~a\n\n"
+                          partial-prog))))
+          ;; Quit further execution.
+          (abort))
+        ;; Convert the AST to PPR.
+        (define program
+          (capture-output!
+           (λ () (with-handlers ([(λ (e) #t)
+                                  (λ (e) (set! error? e))])
+                   (ast->string ast)))))
+        (when error?
+          ;; Something went wrong during printing.
+          (output-error
+           error?
+           "Error encountered while printing program.")
+          (abort))
+        ;; Everything was successful!
+        (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
+                                     option-lines)))
+        (display (format "\n\n~a\n" program))
+        (when (non-empty-string? captured-output)
+          (display "\n")
+          (display (comment-func (flatten
+                                  (list "!!! The following output was captured during execution:"
+                                        ""
+                                        (string-split captured-output "\n")))))
+          (display "\n"))
 
-          (let/ec abort
-              (define option-lines
-                (append
-                 (if fuzzer-name
-                     (list (format "Fuzzer: ~a" fuzzer-name))
-                     (list))
-                 (list (format "Version: ~a" version-info)
-                       (format "Options: ~a" (string-join
-                                              (vector->list
-                                               (xsmith-option 'command-line))))
-                       (format "Seed: ~a" seed))))
-              (define captured-output "")
-              (define (output-error err msg [partial-prog #f])
-                (let* ([output
-                        (format
-                         (string-join
-                          '("!!! Xsmith Error !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-                            "~a"  ;; Error message.
-                            ""
-                            "Options:"
-                            "~a"  ;; Option lines.
-                            "Debug Log:"
-                            "~a"  ;; Debug log.
-                            ""
-                            "Exception:"
-                            "~a"  ;; Exception.
-                            )
-                          "\n")
-                         msg
-                         (string-join
-                          option-lines
-                          "\n")
-                         (get-xsmith-debug-log!)
-                         (exn->string err))]
-                       [output (if (not (eq? captured-output ""))
-                                   (string-append
-                                    output
-                                    (format "\nProgram output captured:\n~a\n"
-                                            captured-output))
-                                   output)]
-                       [output (if partial-prog
-                                   (string-append
-                                    output
-                                    (format "\nPartially generated program:\n~a\n"
-                                            partial-prog))
-                                   output)])
-                  (set! captured-output "")
-                  (display output)))
-              ;; Compute the result of a procedure, capturing all output to
-              ;; `captured-output` and returning the procedure's result.
-              (define (capture-output! proc)
-                (let* ([result #f]
-                       [out (with-output-to-string
-                              (λ () (set! result (proc))))])
-                  #;(set! captured-output out)
-                  (when (not (eq? out ""))
-                    (set! captured-output (string-append captured-output out)))
-                  result))
-              ;;;;;;;;;;;;;;;;
-              ;; Actual generation and printing starts here.
-              ;;;;
-              ;; Convert an AST to a string.
-              (define (ast->string root)
-                (let ([ppr (att-value 'xsmith_render-node root)])
-                  (if format-render-func
-                      (format-render-func ppr)
-                      (format "~a\n" ppr))))
-              ;; Attempt to generate the AST.
-              (define error? #f)
-              (define error-root #f)
-              (define ast
-                (capture-output!
-                 (λ () (with-handlers
-                         ([(match-lambda [(list 'ast-gen-error e root) #t]
-                                         [_ #f])
-                           (λ (l)
-                             (set! error? (second l))
-                             (set! error-root (third l)))]
-                          [(λ (e) #t)
-                           (λ (e) (set! error? e))])
-                         (generate-func)))))
-              (when error?
-                (output-error
-                 error?
-                 "Error encountered while generating program!")
-                ;; If the user asked for it (and if any AST was salvaged from the
-                ;; generation stage), attempt to convert the partially completed AST
-                ;; to pre-print representation (PPR).
-                (when (and s-exp-on-error?
-                           error-root)
-                  (printf "S-expression representation of program:\n")
-                  (pretty-print
-                   (att-value '_xsmith_to-s-expression error-root)
-                   (current-output-port)
-                   1)
-                  (printf "\n\n"))
-                (when (and render-on-error?
-                           error-root)
-                  (let* ([ppr-error? #f]
-                         [partial-prog (capture-output!
-                                        (λ () (with-handlers ([(λ (e) #t)
-                                                               (λ (e) (set! ppr-error? e))])
-                                                (ast->string error-root))))])
-                    (if ppr-error?
-                        (output-error
-                           ppr-error?
-                           "Error encountered in printing while intercepting another error in AST generation.")
-                        (printf "Partially generated program render:\n~a\n\n"
-                                partial-prog))))
-                ;; Quit further execution.
-                (abort))
-              ;; Convert the AST to PPR.
-              (define program
-                (capture-output!
-                 (λ () (with-handlers ([(λ (e) #t)
-                                        (λ (e) (set! error? e))])
-                         (ast->string ast)))))
-              (when error?
-                ;; Something went wrong during printing.
-                (output-error
-                 error?
-                 "Error encountered while printing program.")
-                (abort))
-              ;; Everything was successful!
-              (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
-                                           option-lines)))
-              (display (format "\n\n~a\n" program))
-              (when (non-empty-string? captured-output)
-                (display "\n")
-                (display (comment-func (flatten
-                                        (list "!!! The following output was captured during execution:"
-                                              ""
-                                              (string-split captured-output "\n")))))
-                (display "\n"))
+        (display "\n"))
+      ;; If the flag was set, output the random-source's byte sequence to file.
+      (when seq-to-file
+        (write-bytes (get-random-source-byte-sequence) (open-output-file seq-to-file #:exists 'replace)))
+      ;; Update the seed. (This is used in server mode.)
+      (dict-set! (xsmith-options)
+                 'random-seed
+                 (modulo (add1 (xsmith-option 'random-seed))
+                         random-seed-max))))
 
-              (display "\n"))
-            ;; If the flag was set, output the random-source's byte sequence to file.
-            (when seq-to-file
-              (write-bytes (get-random-source-byte-sequence) (open-output-file seq-to-file #:exists 'replace)))
-            ;; Update the seed. (This is used in server mode.)
-            (dict-set! (xsmith-options)
-                       'random-seed
-                       (modulo (add1 seed)
-                               random-seed-max))))))
-
-  (define (generate-and-print!)
+  (define (generate-and-print! #:random-source [random-source initial-random-source])
     (define (do-parameterized param-pairs thunk)
       (match param-pairs
         ['() (thunk)]
@@ -471,38 +479,99 @@
                           (cons p (unbox b))))
             extra-param-params
             extra-param-boxes)))
-    (do-parameterized param-pairs generate-and-print!/xsmith-parameterized))
+    (do-parameterized param-pairs
+                      (λ () (generate-and-print!/xsmith-parameterized
+                             #:random-source random-source))))
 
-  (if server?
-      (let ([serve/servlet (dynamic-require 'web-server/servlet-env 'serve/servlet)]
-            [response (dynamic-require 'web-server/http/response-structs 'response)])
-        (define (servlet-start req)
-          (let ((out (open-output-string)))
-            (parameterize ((current-output-port out))
-              (generate-and-print!))
-            (response 200
-                      #"OK"
-                      (current-seconds)
-                      #"text/plain"
-                      '()
-                      (λ (op)
-                        (write-bytes
-                         (string->bytes/utf-8 (get-output-string out))
-                         op)))))
-        (eprintf "Starting server...\n")
-        (eprintf "Visit: http://localhost:~a~a\n" server-port server-path)
-        (serve/servlet servlet-start
-                       #:port server-port
-                       #:command-line? #t
-                       #:listen-ip listen-ip
-                       #:servlet-path server-path))
-      (if (dict-ref options 'output-filename #f)
-          (call-with-output-file (dict-ref options 'output-filename)
-            #:exists 'replace
-            (lambda (out)
-              (parameterize ([current-output-port out])
-                (generate-and-print!))))
-          (generate-and-print!)))
+  (cond [(and server? netstring-server-path)
+         (error 'server? "--server and --netstring-server are mutually exclusive")]
+        [server?
+         (let ([serve/servlet (dynamic-require 'web-server/servlet-env 'serve/servlet)]
+               [response (dynamic-require 'web-server/http/response-structs 'response)])
+           (define (servlet-start req)
+             (let ((out (open-output-string)))
+               (parameterize ((current-output-port out))
+                 (generate-and-print!))
+               (response 200
+                         #"OK"
+                         (current-seconds)
+                         #"text/plain"
+                         '()
+                         (λ (op)
+                           (write-bytes
+                            (string->bytes/utf-8 (get-output-string out))
+                            op)))))
+           (eprintf "Starting server...\n")
+           (eprintf "Visit: http://localhost:~a~a\n" server-port server-path)
+           (serve/servlet servlet-start
+                          #:port server-port
+                          #:command-line? #t
+                          #:listen-ip listen-ip
+                          #:servlet-path server-path))]
+        [netstring-server-path
+         (define make-parent-directory*
+           (dynamic-require 'racket/file 'make-parent-directory*))
+         (define (dr-us name)
+           (dynamic-require 'racket/unix-socket name))
+         (define unix-socket-listen (dr-us 'unix-socket-listen))
+         (define unix-socket-accept (dr-us 'unix-socket-accept))
+         (define unix-socket-close-listener (dr-us 'unix-socket-close-listener))
+
+         (make-parent-directory* netstring-server-path)
+         (define listener (unix-socket-listen netstring-server-path))
+         (define (close)
+           (unix-socket-close-listener listener)
+           (delete-file netstring-server-path))
+         (define (read-netstring port)
+           (define m (regexp-match (pregexp "^(\\d+):") port))
+           (when (not m)
+             (error 'read-netstring "Input port not at netstring"))
+           (define len (string->number (bytes->string/utf-8 (cadr m))))
+           (define bytes (read-bytes len port))
+           (define closing-comma (read-char port))
+           (when (not (equal? #\, closing-comma))
+             (error 'read-netstring
+                    "netstring did not end in a closing comma, got :~v"
+                    closing-comma))
+           (when (not (equal? (bytes-length bytes) len))
+             (error 'read-netstring
+                    "Result length did not match.  Expected: ~v, Actual: ~v"
+                    len (bytes-length bytes)))
+           bytes)
+         (define (write-netstring port netstring)
+           (display (bytes-length netstring) port)
+           (display #":" port)
+           (display netstring port)
+           (display #"," port)
+           (flush-output port))
+         (define (server-loop)
+           (let-values ([(in-port out-port) (unix-socket-accept listener)])
+             (define (connection-loop)
+               (define maybe-eof (peek-char in-port))
+               (if (eof-object? maybe-eof)
+                   (close-input-port in-port)
+                   (let ()
+                     (define bytes-in (read-netstring in-port))
+                     (define bytes-out
+                       (with-output-to-bytes
+                         (λ () (generate-and-print! #:random-source bytes-in))))
+                     (write-netstring out-port bytes-out)
+                     (connection-loop))))
+             (connection-loop)
+             (close-output-port out-port)
+             (server-loop)))
+         (with-handlers ([(λ(x)x) (λ(e)
+                                    (close)
+                                    (raise e))])
+           (server-loop))]
+        [else
+         (if (dict-ref options 'output-filename #f)
+             (call-with-output-file (dict-ref options 'output-filename)
+               #:exists 'replace
+               (lambda (out)
+                 (parameterize ([current-output-port out])
+                   (generate-and-print!))))
+             (generate-and-print!))])
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

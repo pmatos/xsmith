@@ -41,6 +41,7 @@
                "pprint"
                "racr"
                "math-lib"
+               "unix-socket-lib"
                ))
 (define build-deps '("scribble-lib"
                      "racket-doc"
