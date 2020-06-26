@@ -34,6 +34,7 @@
  racket/contract
  racket/contract/base
  (only-in racr ast-node? att-value)
+ (only-in racket/base [random racket:random])
  racket/string
  racket/pretty
  )
@@ -123,6 +124,7 @@
   (define server-path "/")
   (define listen-ip "127.0.0.1")
   (define given-seed #f)
+  (define (generate-random-seed) (racket:random (sub1 (expt 2 31))))
   (define server? #f)
   (define netstring-server-path #f)
   (define render-on-error? #f)
@@ -309,7 +311,7 @@
   (define initial-random-source
     (if seq-from-file
         (port->bytes (open-input-file seq-from-file))
-        given-seed))
+        (or given-seed (generate-random-seed))))
 
   (define (generate-and-print!/xsmith-parameterized
            #:random-source [random-input initial-random-source])
@@ -488,11 +490,14 @@
          (error 'server? "--server and --netstring-server are mutually exclusive")]
         [server?
          (let ([serve/servlet (dynamic-require 'web-server/servlet-env 'serve/servlet)]
-               [response (dynamic-require 'web-server/http/response-structs 'response)])
+               [response (dynamic-require 'web-server/http/response-structs 'response)]
+               [random-source (or initial-random-source
+                                  (generate-random-seed))])
            (define (servlet-start req)
              (let ((out (open-output-string)))
                (parameterize ((current-output-port out))
-                 (generate-and-print!))
+                 (generate-and-print! #:random-source random-source))
+               (set! random-source (generate-random-seed))
                (response 200
                          #"OK"
                          (current-seconds)
