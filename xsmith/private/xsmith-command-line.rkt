@@ -238,10 +238,11 @@
        ("Run as a netstring server on a Unix domain socket at given path."
         "socket-path")]
       [("--netstring-ignore-input")
-       ,(λ (flag bool) (set! netstring-ignore-input? (string->bool bool)))
-       ("Whether to ignore netstring input and just use random seeds"
-        "(For netstring server mode)"
-        "bool")]
+       ,(λ (flag bool) (set! netstring-ignore-input?
+                             (string->bool bool 'netstring-ignore-input)))
+       (["Whether to ignore netstring input and just use random seeds"
+         "(For netstring server mode)"]
+        "netstring-ignore-input")]
       [("--server-port")
        ,(λ (flag n) (set! server-port (string->number n)))
        ("Use port n instead of 8080 (when running as server)." "n")]
