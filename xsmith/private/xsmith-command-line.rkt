@@ -127,6 +127,7 @@
   (define (generate-random-seed) (racket:random (sub1 (expt 2 31))))
   (define server? #f)
   (define netstring-server-path #f)
+  (define netstring-ignore-input? #f)
   (define render-on-error? #f)
   (define s-exp-on-error? #f)
   (define seq-to-file #f)
@@ -236,6 +237,11 @@
        ,(λ (flag socket-path) (set! netstring-server-path socket-path))
        ("Run as a netstring server on a Unix domain socket at given path."
         "socket-path")]
+      [("--netstring-ignore-input")
+       ,(λ (flag bool) (set! netstring-ignore-input? (string->bool bool)))
+       ("Whether to ignore netstring input and just use random seeds"
+        "(For netstring server mode)"
+        "bool")]
       [("--server-port")
        ,(λ (flag n) (set! server-port (string->number n)))
        ("Use port n instead of 8080 (when running as server)." "n")]
@@ -561,7 +567,10 @@
                      (define bytes-in (read-netstring in-port))
                      (define bytes-out
                        (with-output-to-bytes
-                         (λ () (generate-and-print! #:random-source bytes-in))))
+                         (λ () (generate-and-print!
+                                #:random-source (if netstring-ignore-input?
+                                                    (generate-random-seed)
+                                                    bytes-in)))))
                      (write-netstring out-port bytes-out)
                      (connection-loop))))
              (connection-loop)
