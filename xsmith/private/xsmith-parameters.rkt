@@ -1,4 +1,4 @@
-#lang clotho/racket/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -32,9 +32,7 @@
 
 (provide (all-defined-out))
 
-(require
- clotho
- racket/dict)
+(require racket/dict)
 
 (define random-seed-max (expt 2 31))
 
@@ -42,7 +40,7 @@
   (make-parameter #f))
 (define (xsmith-options-defaults)
   (make-hasheq
-   (list (cons 'random-seed (parameterize ([random-source (make-random-source)])
+   (list (cons 'random-seed (parameterize ([current-random-source (make-random-source)])
                               (random random-seed-max))))))
 (define (xsmith-option
          key

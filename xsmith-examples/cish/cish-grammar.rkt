@@ -1,4 +1,4 @@
-#lang clotho/racket/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -35,7 +35,6 @@
 (require
  "cish-utils.rkt"
  xsmith
- clotho
  (only-in pprint [empty empty-doc])
  racr
  racket/class

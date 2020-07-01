@@ -1,4 +1,4 @@
-#lang clotho/racket/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2020 The University of Utah
@@ -65,7 +65,6 @@
 
 
 (require
- clotho
  racket/dict
  racket/match
  racket/cmdline
@@ -310,7 +309,8 @@
              [random-source-val (if seq-from-file
                                     (port->bytes (open-input-file seq-from-file))
                                     seed)])
-        (parameterize ([random-source (make-random-source random-source-val)])
+        (parameterize ([current-random-source
+                        (make-random-source random-source-val)])
 
           (let/ec abort
               (define option-lines
@@ -450,7 +450,8 @@
               (display "\n"))
             ;; If the flag was set, output the random-source's byte sequence to file.
             (when seq-to-file
-              (write-bytes (get-random-source-byte-string) (open-output-file seq-to-file #:exists 'replace)))
+              (write-bytes (get-current-random-source-byte-string)
+                           (open-output-file seq-to-file #:exists 'replace)))
             ;; Update the seed. (This is used in server mode.)
             (dict-set! (xsmith-options)
                        'random-seed

@@ -1,5 +1,5 @@
 #!/usr/bin/env racket
-#lang clotho/racket/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2020 The University of Utah
@@ -33,7 +33,6 @@
 
 (require
  xsmith
- clotho
  clotho/math/distributions  ;; for probability distributions
  racr
  xsmith/racr-convenience

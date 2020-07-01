@@ -1,4 +1,4 @@
-#lang clotho/racket/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2020 The University of Utah
@@ -68,7 +68,6 @@
  "scope-graph.rkt"
  "types.rkt"
  "effects.rkt"
- clotho
  clotho/math/distributions
  racr
  racket/class

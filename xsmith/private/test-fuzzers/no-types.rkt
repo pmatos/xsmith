@@ -1,4 +1,4 @@
-#lang clotho/racket/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019-2020 The University of Utah
@@ -33,7 +33,6 @@
 (require
  xsmith
  xsmith/app
- clotho
  racr
  racket/pretty
  racket/string

@@ -1,8 +1,7 @@
-#lang clotho/racket/base
+#lang clotho
 (require
  xsmith
  xsmith/app
- clotho
  racr
  racket/pretty
  racket/string

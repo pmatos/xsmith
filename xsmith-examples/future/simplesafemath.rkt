@@ -1,9 +1,8 @@
-#lang clotho/racket/base
+#lang clotho
 
 (require
  xsmith
  xsmith/racr-convenience
- clotho
  racr
  racket/pretty)
 

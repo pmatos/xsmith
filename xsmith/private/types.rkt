@@ -1,4 +1,4 @@
-#lang clotho/racket/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -119,7 +119,6 @@ WIP checklist:
  )
 
 (require
- clotho
  racket/match
  racket/dict
  racket/list
