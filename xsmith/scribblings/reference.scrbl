@@ -1778,8 +1778,20 @@ The values of these features is available via @racket[xsmith-feature-enabled?].
 
 @racket[param-specs] is a list of specifications for extra custom command line parameters.
 Each list contains the switch string (which must begin with @racket["--"] and have no spaces), a documentation string, a parameter, and a normalization function (or @racket[#f]).
-Example:
-@racketblock[#:extra-parameters (list (list "--max-widgets" "The maximum number of widgets" widget-parameter string->number))]
+The following example defines a @racket["--max-widgets"] parameter with a default of 3:
+   
+@racketblock[(define widget-parameter 
+               (make-parameter 3))
+
+             ...
+
+             (xsmith-command-line
+               ...
+               #:extra-parameters (list
+                                    (list "--max-widgets"
+                                          "The maximum number of widgets"
+                                          widget-parameter 
+                                          string->number)))]
 
 @racket[default-max-depth] is a positive (non-zero) number that limits the maximum depth of your language's generated AST.  The larger this number, the more complex the programs generated can be.
 
