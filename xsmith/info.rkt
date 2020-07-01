@@ -40,6 +40,7 @@
                "at-exp-lib"
                "pprint"
                "racr"
+               "clotho"
                "math-lib"
                "unix-socket-lib"
                ))

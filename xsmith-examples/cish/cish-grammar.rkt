@@ -1,4 +1,4 @@
-#lang racket/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -41,7 +41,7 @@
  racket/dict
 
  (for-syntax
-  racket/base
+  clotho/racket/base
   syntax/parse
   ))
 

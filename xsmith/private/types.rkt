@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -123,13 +123,12 @@ WIP checklist:
  racket/dict
  racket/list
  racket/set
- "random.rkt"
  "scope-graph.rkt"
  "xsmith-utils.rkt"
  racr
  (submod "xsmith-utils.rkt" for-private)
  (for-syntax
-  xsmith/private/base
+  clotho/racket/base
   syntax/parse
   racket/syntax
   ))

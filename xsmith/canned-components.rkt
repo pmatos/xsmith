@@ -1,4 +1,4 @@
-#lang racket/base
+#lang clotho
 
 (provide
  add-basic-expressions
@@ -27,10 +27,10 @@
  racket/list
  racket/port
  (for-syntax
-  racket/base
+  clotho/racket/base
   syntax/parse
   (for-syntax
-   racket/base
+   clotho/racket/base
    syntax/parse
    )))
 
@@ -834,4 +834,3 @@
 (define numeric-bin-op-subtype
   (λ (n t)
     (hash 'l t 'r t)))
-

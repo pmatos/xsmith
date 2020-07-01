@@ -1,4 +1,4 @@
-#lang at-exp racket/base
+#lang at-exp clotho/racket/base
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah
@@ -36,7 +36,7 @@
  (only-in scribble/core make-element)
  scribble/base
  (for-syntax
-  racket/base
+  clotho/racket/base
   syntax/parse
   ))
 

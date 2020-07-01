@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah

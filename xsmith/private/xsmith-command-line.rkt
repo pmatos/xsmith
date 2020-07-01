@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2020 The University of Utah
@@ -75,7 +75,6 @@
  racket/pretty
  racket/list
  raco/command-name
- "random.rkt"
  "xsmith-parameters.rkt"
  "xsmith-utils.rkt"
  (submod "xsmith-utils.rkt" for-private)
@@ -326,7 +325,7 @@
                    [current-xsmith-features features]
                    [xsmith-options options]
                    [xsmith-state (make-generator-state)]
-                   [random-source (make-random-source random-input)])
+                   [current-random-source (make-random-source random-input)])
       (let/ec abort
         (define option-lines
           (append

@@ -1,4 +1,4 @@
-#lang racket/base
+#lang clotho
 (require xsmith racr racket/string)
 
 (define-spec-component arith)

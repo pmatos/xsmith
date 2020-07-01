@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2019 The University of Utah
@@ -30,13 +30,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require xsmith
-         xsmith/racr-convenience
-         racr
-         racket/pretty
-         racket/string
-         racket/port
-         racket/list)
+(require
+ xsmith
+ xsmith/racr-convenience
+ racr
+ racket/pretty
+ racket/string
+ racket/port
+ racket/list)
 
 (define-spec-component arith)
 

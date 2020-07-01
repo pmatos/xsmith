@@ -1,4 +1,4 @@
-#lang racket/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2019 The University of Utah
@@ -46,7 +46,7 @@
  (prefix-in rt: rosette)
  (except-in racket/list empty)
  (for-syntax
-  racket/base
+  clotho/racket/base
   syntax/parse
   ))
 

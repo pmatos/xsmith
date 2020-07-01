@@ -1,4 +1,4 @@
-#lang racket/base
+#lang clotho
 
 (require
  xsmith
@@ -10,7 +10,7 @@
  racket/pretty
  syntax/parse/define
  (for-syntax
-  racket/base
+  clotho/racket/base
   syntax/parse
   racket/match
   ))

@@ -1,5 +1,5 @@
 #!/usr/bin/env racket
-#lang xsmith/private/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2020 The University of Utah
@@ -33,8 +33,7 @@
 
 (require
  xsmith
- xsmith/private/random
- (submod xsmith/private/random distributions)  ;; for probability distributions
+ clotho/math/distributions  ;; for probability distributions
  racr
  xsmith/racr-convenience
  pprint

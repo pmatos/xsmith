@@ -36,11 +36,8 @@
   racket/file
   (for-label
    xsmith
-   (except-in racket/base
-              module
-              random
-              make-pseudo-random-generator
-              )))
+   clotho/base
+   (except-in clotho/racket/base module)))
 
 @(define-runtime-path minimal-example-path "minimal-example.rkt")
 @(define-runtime-path minimal-example-with-variables-path

@@ -1,4 +1,4 @@
-#lang xsmith/private/base
+#lang clotho
 ;; -*- mode: Racket -*-
 ;;
 ;; Copyright (c) 2017-2020 The University of Utah
@@ -68,15 +68,14 @@
  "scope-graph.rkt"
  "types.rkt"
  "effects.rkt"
- "random.rkt"
- (submod "random.rkt" distributions)
+ clotho/math/distributions
  racr
  racket/class
  ;racket/dict
  racket/list
  racket/match
  (for-syntax
-  xsmith/private/base
+  clotho/racket/base
   syntax/parse
   racket/dict
   racket/list
