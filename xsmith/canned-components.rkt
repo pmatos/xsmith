@@ -330,10 +330,10 @@
                    (add-prop
                     component
                     type-info
-                    [StringLiteral [string (no-child-types)]]
-                    [StringAppend [string (λ (n t) (hash 'l string 'r string))]]
+                    [StringLiteral [string-type (no-child-types)]]
+                    [StringAppend [string-type (λ (n t) (hash 'l string-type 'r string-type))]]
                     [StringLength [index-and-length-type
-                                   (λ (n t) (hash 'Expression string))]]))
+                                   (λ (n t) (hash 'Expression string-type))]]))
                 #'())
 
 

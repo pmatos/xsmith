@@ -1314,12 +1314,27 @@ Example:
 
 This property accepts a syntax list of choice-rule names to use as a filter for the node type.  Generally this should be set on the greatest super node type (or @racket[#f] if there is no explicit super node type in your grammar).  Each choice-rule in the list is called on the choice object with no arguments.  Each rule that returns @racket[#f] rules the node out as a choice for filling in a hole.
 
-Example:
+Uses for this include restricting where certain nodes can appear.
+For example, the easiest way to create a fuzzer for a language with functions is to have a Lambda expression node.
+However, some languages do not support first-class functions.
+But you can still encode the fuzzer as having a lambda node that is simply restricted to only be generated as children of definition nodes, or perhaps only global definition nodes.
+
+In this code snippet, we define a choice method encoding this restriction, and add it to the @racket[choice-filters-to-apply]:
 @racketblock[
-(add-prop
- my-spec-component
- choice-filters-to-apply
- [#f (my-custom-filter-choice-rule my-other-filter-choice-rule)])
+(add-choice-rule
+ my-component
+ no-lambda-except-global-def
+ [#f (λ () #t)]
+ [Lambda (λ ()
+           (and (parent-node current-hole)
+                (equal? (ast-node-type (parent-node current-hole))
+                        'Definition)
+                (parent-node (parent-node current-hole))
+                (equal? (ast-node-type (parent-node (parent-node current-hole)))
+                        'Program)))])
+(add-prop my-component
+          choice-filters-to-apply
+          [#f (no-lambda-except-global-def)])
 ]
 
 Some core methods are always applied in addition to this list, such as the method defined by the @racket[may-be-generated] property.

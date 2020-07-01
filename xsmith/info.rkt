@@ -40,8 +40,9 @@
                "at-exp-lib"
                "pprint"
                "racr"
-               "rosette"
                "clotho"
+               "math-lib"
+               "unix-socket-lib"
                ))
 (define build-deps '("scribble-lib"
                      "racket-doc"
