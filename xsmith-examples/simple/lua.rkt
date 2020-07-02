@@ -27,6 +27,11 @@
                       #:MutableStructuralRecordAssignmentStatement #t
                       )
 
+(add-prop
+ lua-comp
+ choice-weight
+ [ProcedureApplication 50])
+
 (define nest-step 4)
 (define (binary-op-renderer op-rendered)
   (λ (n) (h-append lparen ($xsmith_render-node (ast-child 'l n))
