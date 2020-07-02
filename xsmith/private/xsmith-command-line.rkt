@@ -132,6 +132,7 @@
   (define seq-to-file #f)
   (define seq-from-file #f)
   (define max-depth default-max-depth)
+  (define generation-timeout #f)
   (define options (xsmith-options-defaults))
 
   ;; Save the command-line options so that we can output them into the
@@ -285,6 +286,11 @@
        (["Use the bytes in the given file as the source of randomness."
          "Supersedes any other options that define the random source."]
         "seq-from-file")]
+      [("--timeout")
+       ,(λ (flag timeout-seconds) (set! generation-timeout
+                                        (string->number timeout-seconds)))
+       (["Timeout for generation, in seconds."]
+        "timout")]
       )
      (help-labels "")
      (help-labels "[[LANGUAGE-GENERATION OPTIONS]]")
@@ -474,7 +480,8 @@
                  (modulo (add1 (xsmith-option 'random-seed))
                          random-seed-max))))
 
-  (define (generate-and-print! #:random-source [random-source initial-random-source])
+  (define (generate-and-print! #:random-source [random-source initial-random-source]
+                               #:timeout [timeout generation-timeout])
     (define (do-parameterized param-pairs thunk)
       (match param-pairs
         ['() (thunk)]
@@ -488,9 +495,22 @@
                           (cons p (unbox b))))
             extra-param-params
             extra-param-boxes)))
-    (do-parameterized param-pairs
-                      (λ () (generate-and-print!/xsmith-parameterized
-                             #:random-source random-source))))
+    (define out (open-output-string))
+    (define work-thread
+      (thread (λ ()
+                (parameterize ([current-output-port out])
+                  (do-parameterized param-pairs
+                                    (λ () (generate-and-print!/xsmith-parameterized
+                                           #:random-source random-source)))))))
+    (define on-time?
+      (sync/timeout timeout work-thread))
+    (if on-time?
+        (display (get-output-string out))
+        (begin
+          (kill-thread work-thread)
+          (displayln
+           (comment-func
+            (list "Generation failed because timeout was exceeded."))))))
 
   (cond [(and server? netstring-server-path)
          (error 'server? "--server and --netstring-server are mutually exclusive")]
