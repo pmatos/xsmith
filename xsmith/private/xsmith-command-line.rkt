@@ -465,8 +465,8 @@
 
         (display "\n"))
       ;; If the flag was set, output the random-source's byte sequence to file.
-      #;(when seq-to-file
-        (write-bytes (get-random-source-byte-sequence)
+      (when seq-to-file
+        (write-bytes (get-current-random-source-byte-string)
                      (open-output-file seq-to-file #:exists 'replace)))
       ;; Update the seed. (This is used in server mode.)
       (dict-set! (xsmith-options)
