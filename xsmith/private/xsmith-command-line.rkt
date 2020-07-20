@@ -415,36 +415,38 @@
                     [(λ (e) #t)
                      (λ (e) (set! error? e))])
                    (generate-func)))))
-        (when error?
-          (output-error
-           error?
-           "Error encountered while generating program!")
-          ;; If the user asked for it (and if any AST was salvaged from the
-          ;; generation stage), attempt to convert the partially completed AST
-          ;; to pre-print representation (PPR).
-          (when (and s-exp-on-error?
-                     error-root)
-            (printf "S-expression representation of program:\n")
-            (pretty-print
-             (att-value '_xsmith_to-s-expression error-root)
-             (current-output-port)
-             1)
-            (printf "\n\n"))
-          (when (and render-on-error?
-                     error-root)
-            (let* ([ppr-error? #f]
-                   [partial-prog (capture-output!
-                                  (λ () (with-handlers ([(λ (e) #t)
-                                                         (λ (e) (set! ppr-error? e))])
-                                          (ast->string error-root))))])
-              (if ppr-error?
-                  (output-error
-                   ppr-error?
-                   "Error encountered in printing while intercepting another error in AST generation.")
-                  (printf "Partially generated program render:\n~a\n\n"
-                          partial-prog))))
-          ;; Quit further execution.
-          (abort))
+        (define (do-error-printing)
+          (when error?
+            (output-error
+             error?
+             "Error encountered while generating program!")
+            ;; If the user asked for it (and if any AST was salvaged from the
+            ;; generation stage), attempt to convert the partially completed AST
+            ;; to pre-print representation (PPR).
+            (when (and s-exp-on-error?
+                       (or error-root ast))
+              (printf "S-expression representation of program:\n")
+              (pretty-print
+               (att-value '_xsmith_to-s-expression (or error-root ast))
+               (current-output-port)
+               1)
+              (printf "\n\n"))
+            (when (and render-on-error?
+                       error-root)
+              (let* ([ppr-error? #f]
+                     [partial-prog (capture-output!
+                                    (λ () (with-handlers ([(λ (e) #t)
+                                                           (λ (e) (set! ppr-error? e))])
+                                            (ast->string error-root))))])
+                (if ppr-error?
+                    (output-error
+                     ppr-error?
+                     "Error encountered in printing while intercepting another error in AST generation.")
+                    (printf "Partially generated program render:\n~a\n\n"
+                            partial-prog))))
+            ;; Quit further execution.
+            (abort)))
+        (do-error-printing)
         ;; Convert the AST to PPR.
         (define program
           (capture-output!
@@ -453,9 +455,8 @@
                    (ast->string ast)))))
         (when error?
           ;; Something went wrong during printing.
-          (output-error
-           error?
-           "Error encountered while printing program.")
+          (printf "Error encountered while printing program.\n")
+          (do-error-printing)
           (abort))
         ;; Everything was successful!
         (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
