@@ -184,6 +184,7 @@ Remember:  Attributes and choice rules are functions used (and usable) within sp
   "minimal-example.rkt"
   (typeset-code
    #:keep-lang-line? #t
+   #:indent 0
    #:context #'here
    (file->string minimal-example-path)))))
 
@@ -196,6 +197,7 @@ Remember:  Attributes and choice rules are functions used (and usable) within sp
   "minimal-example-with-variables.rkt"
   (typeset-code
    #:keep-lang-line? #t
+   #:indent 0
    #:context #'here
    (file->string minimal-example-with-variables-path)))))
 
