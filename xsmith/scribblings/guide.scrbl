@@ -36,8 +36,7 @@
   racket/file
   (for-label
    xsmith
-   clotho/base
-   (except-in clotho/racket/base module)))
+   (except-in clotho module)))
 
 @(define-runtime-path minimal-example-path "minimal-example.rkt")
 @(define-runtime-path minimal-example-with-variables-path
