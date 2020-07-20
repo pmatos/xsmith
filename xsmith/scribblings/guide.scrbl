@@ -34,6 +34,7 @@
   "util.rkt"
   racket/runtime-path
   racket/file
+  scribble/core
   (for-label
    xsmith
    (except-in clotho module)))
@@ -176,17 +177,27 @@ Remember:  Attributes and choice rules are functions used (and usable) within sp
 
 @section{Minimal Example}
 
-@(typeset-code
-  #:keep-lang-line? #t
-  #:context #'here
-  (file->string minimal-example-path))
+@(nested-flow
+(style 'code-inset '())
+(list
+ (filebox
+  "minimal-example.rkt"
+  (typeset-code
+   #:keep-lang-line? #t
+   #:context #'here
+   (file->string minimal-example-path)))))
 
 @section{Another Small Example With Variables}
 
-@(typeset-code
-  #:keep-lang-line? #t
-  #:context #'here
-  (file->string minimal-example-with-variables-path))
+@(nested-flow
+(style 'code-inset '())
+(list
+ (filebox
+  "minimal-example-with-variables.rkt"
+  (typeset-code
+   #:keep-lang-line? #t
+   #:context #'here
+   (file->string minimal-example-with-variables-path)))))
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
