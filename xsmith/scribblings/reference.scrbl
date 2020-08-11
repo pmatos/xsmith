@@ -1344,6 +1344,37 @@ If you don't make custom filtering rules you don't need to specify this property
 }
 
 
+@defform[#:kind "spec-property" #:id edit edit]{
+
+The @racket[edit] property allows program trees to be edited during program elaboration.
+The main purpose of the @racket[edit] property is to control ordering when filling out a tree.
+Xsmith doesn't guarantee an ordering when filling in holes, but provides the @racket[edit] property to take manual control.
+
+
+The edit property is specified as a procedure that takes the node in question and returns either @racket[#f] to signify that there is no edit necessary or a thunk that performs the edit.
+The returned thunk @emph{must} perform an edit in such a way that the @racket[edit] property's procedure will return @racket[#f] in the future, or editing will loop indefinitely.
+The edit property may be specified multiple times, each with a different procedure that potentially performs an edit.
+If multiple edit procedures are specified, the ordering of the procedures is not guaranteed, so if an order between them is necessary, they must have their own method of signalling between them.
+
+One way the edit property may be used to stage edits is to specify a @racket[fresh] property that fills nodes as bud nodes (with @tt{create-ast-bud}), then check for that node's dependencies (eg. sibling nodes) in the edit property.
+When the dependencies are appropriately filled, the edit property can then replace the bud node with a hole node (using @tt{rewrite-subtree} and @racket[make-hole]) to be filled in normally.
+Note that if you follow this pattern, you need to take care in other properties (such as @racket[type-info]) to check whether children are bud nodes before trying to query their attributes.
+
+@racketblock[
+(add-to-grammar
+ my-component
+ (code:comment "be sure the left node is filled before the right node")
+ [Addition Expression ([l : Expression] [r : Expression = (create-ast-bud)])
+           #:prop edit (λ (n) (and (ast-bud-node? (ast-child 'r n))
+                                   (not (att-value 'xsmith_is-hole?
+                                                   (ast-child 'l n)))
+                                   (λ () (rewrite-subtree (ast-child 'r n)
+                                                          (make-hole 'Expression)))))])
+]
+
+}
+
+
 @defform[#:kind "spec-property" #:id render-node-info render-node-info]{
 
 Xsmith provides built-in pretty printer functionality used for final program output and debugging support.  This is given as a function which takes in one argument (a node) and renders that node in whatever format you like.  Common formats include plain strings, PPrint documents, or s-expressions.  If your @racket[render-node-info] functions don't return strings, then you must implement the @racket[#:format-render] argument of the @racket[xsmith-command-line] function to convert the final rendered AST to a string for pretty-printing as output.
