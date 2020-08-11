@@ -190,11 +190,32 @@
                              #:prop reference-info (read name)]
 
           ;; TODO - procedure application should require at least one kind of lambda...
-          [ProcedureApplication Expression
-                                ([procedure : Expression]
-                                 [arguments : Expression * = (arg-length)])]
-
-
+          [ProcedureApplication
+           Expression
+           ([procedure : Expression]
+            [arguments : Expression * = (create-ast-bud)])
+           #:prop edit
+           (λ (n)
+             (and
+              (ast-bud-node? (ast-child 'arguments n))
+              (not (att-value 'xsmith_is-hole?
+                              (ast-child 'procedure n)))
+              (λ () (rewrite-subtree
+                     (ast-child 'arguments n)
+                     (let* ([ft (att-value 'xsmith_type
+                                           (ast-child 'procedure n))]
+                            [ft-access (function-type (product-type #f)
+                                                      (fresh-type-variable))]
+                            [_ (begin (unify! ft ft-access)
+                                      (force-type-exploration-for-node!
+                                       (ast-child 'procedure n)))]
+                            [arg-types (product-type-inner-type-list
+                                        (function-type-arg-type ft-access))])
+                       (create-ast-list
+                        (if (list? arg-types)
+                            (map (λ (x) (make-hole 'Expression)) arg-types)
+                            (build-list (arg-length)
+                                        (λ (x) (make-hole 'Expression))))))))))]
           )
 
          (add-prop
@@ -212,15 +233,20 @@
            [(fresh-type-variable)
             (λ (n t)
               (define proc (ast-child 'procedure n))
-              (define args (ast-children (ast-child 'arguments n)))
-              (define args-type (product-type
-                                 (map (λ(x)(fresh-type-variable))
-                                      args)))
-              (define args-type-list (product-type-inner-type-list args-type))
+              (define args-node (ast-child 'arguments n))
+              (define args-done? (not (ast-bud-node? args-node)))
+              (define args (and args-done? (ast-children args-node)))
+              (define args-type (if args-done?
+                                    (product-type
+                                     (map (λ(x)(fresh-type-variable))
+                                          args))
+                                    (product-type #f)))
               (hash-set
-               (for/hash ([arg args]
-                          [arg-type args-type-list])
-                 (values arg arg-type))
+               (if args-done?
+                   (for/hash ([arg args]
+                              [arg-type (product-type-inner-type-list args-type)])
+                     (values arg arg-type))
+                   (hash))
                'procedure
                (function-type args-type t)))]]
           )
