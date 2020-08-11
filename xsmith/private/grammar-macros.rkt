@@ -532,6 +532,12 @@
                 (let ([replacement (att-value '_xsmith_hole->replacement n)])
                   (rewrite-subtree n replacement)
                   (execute-inter-choice-transform-queue)
+                  (let loop ()
+                    (define edit (att-value '_xsmith_edit-walk root))
+                    (when edit
+                      (begin (edit)
+                             (execute-inter-choice-transform-queue)
+                             (loop))))
                   #t)]
                [else #f]))])
       (perform-rewrites root 'top-down fill-in)))

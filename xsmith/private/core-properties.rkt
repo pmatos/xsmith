@@ -51,6 +51,7 @@
  choice-filters-to-apply
  render-node-info
  render-hole-info
+ edit
 
  make-lift-reference-choice-proc
 
@@ -2025,6 +2026,48 @@ called instead.
             (values n
                     v))))
     (list xsmith_render-hole-info)))
+
+
+#|
+The edit property is for controlled rewrites during elaboration.
+Primarily this is to be able to take control of the order of node filling,
+eg. so that a number of arguments can be chosen after the function itself
+is chosen.
+TODO - add proper documentation.
+|#
+
+(define-property edit
+  #:allow-duplicates? #t
+  #:appends
+  (att-rule _xsmith_edit-single)
+  (att-rule _xsmith_edit-walk)
+  #:transformer
+  (λ (this-prop-info)
+    (when (dict-has-key? this-prop-info #f)
+      (raise-syntax-error 'edit
+                          "The edit property disallows a #f default instance."
+                          (syntax-parse (dict-ref this-prop-info #f)
+                            [(p1 p* ...) #'p1])))
+    (define _xsmith_edit-single-info
+      (hash-set
+       (for/hash ([(k v) (in-dict this-prop-info)])
+         (syntax-parse v
+           [(edit-proc ...)
+            (values
+             k
+             #'(λ (n)
+                 (define procs (list edit-proc ...))
+                 (for/or ([p procs])
+                   (p n))))]))
+       #f
+       #'(λ (n) #f)))
+    (define _xsmith_edit-walk-info
+      (hash #f #'(λ (n) (or (att-value '_xsmith_edit-single n)
+                            (for/or ([c (ast-children/flat n)])
+                              (and (ast-node? c)
+                                   (not (ast-bud-node? c))
+                                   (att-value '_xsmith_edit-walk c)))))))
+    (list _xsmith_edit-single-info _xsmith_edit-walk-info)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
