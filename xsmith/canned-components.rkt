@@ -318,6 +318,7 @@
                      Expression ([test : Expression]
                                  [then : Expression]
                                  [else : Expression])
+                     #:prop strict-child-order? #t
                      #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t) (hash 'test bool
@@ -715,7 +716,8 @@
                  #:prop strict-child-order? #t]
           ;; TODO - these languages all have some kind of loop.  What kind of loop should I model here?  Maybe just “loop over an array”?
           [IfElseStatement Statement
-                           ([test : Expression] [then : Block] [else : Block])])
+                           ([test : Expression] [then : Block] [else : Block])
+                           #:prop strict-child-order? #t])
          (add-prop
           component
           type-info
