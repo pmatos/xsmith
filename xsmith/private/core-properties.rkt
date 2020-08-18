@@ -1440,6 +1440,7 @@ The second arm is a function that takes the type that the node has been assigned
   ;xsmith_get-reference! -- like xsmith_reference-options! but it just returns one (pre-called in the case of lifts).
   (choice-rule xsmith_get-reference-for-child!)
   ;xsmith_get-reference-for-child! -- returns a reference name like xsmith_reference-options! but it must be called with a (settled) type and a boolean for whether or not the reference will be a write reference.  Can be used to build multiple references at once.
+  (att-rule _xsmith_function-application)
   #:transformer
   (λ (this-prop-info grammar-info reference-info-info binder-info-info)
     (define nodes (cons #f (dict-keys grammar-info)))
@@ -1635,6 +1636,34 @@ The second arm is a function that takes the type that the node has been assigned
                     type
                     write?))))
 
+    (define _xsmith_function-application-info
+      ;; We detect function application by seeing if a child node
+      ;; has a function type whose return type is the same as the
+      ;; parent node's type.
+      ;;
+      ;; We return #f if there is no function application, and we
+      ;; return a list of children that have the appropriate function
+      ;; type if we do detect function application.
+      ;; Realistically only such child is the function that is being applied,
+      ;; but I'm just going to assume any of them could be the function applied.
+      (hash #f #'(λ (n)
+                   (define my-type (att-value 'xsmith_type n))
+                   (define function-children
+                     (filter-map
+                      (λ (c)
+                        (and (ast-node? c)
+                             (not (ast-bud-node? c))
+                             (let ([t (att-value 'xsmith_type c)])
+                               (and
+                                (can-unify? t
+                                            (function-type (fresh-type-variable)
+                                                           my-type))
+                                c))))
+                      (ast-children/flat n)))
+                   (and (not (null? function-children))
+                        ;; return the children
+                        function-children))))
+
     (list
      _xsmith_my-type-constraint-info/att-rule
      _xsmith_my-type-constraint-info/choice-rule
@@ -1645,6 +1674,7 @@ The second arm is a function that takes the type that the node has been assigned
      _xsmith_reference-options!-info
      xsmith_get-reference!-info
      xsmith_get-reference-for-child!-info
+     _xsmith_function-application-info
      )))
 
 (define (can-unify-node-type-with-type?! node-in-question type-constraint
@@ -1849,6 +1879,9 @@ The second arm is a function that takes the type that the node has been assigned
   #:appends
   (att-rule _xsmith_effects/no-children) ;; effects directly caused by a node
   (att-rule _xsmith_effects) ;; effects caused by a node and its children
+  ;; effects when the node is applied as a function
+  (att-rule _xsmith_function-application-effects/no-children)
+  (att-rule _xsmith_function-application-effects)
   (att-rule _xsmith_effect-constraints-for-child)
   (choice-rule _xsmith_no-io-conflict?)
   #:transformer
@@ -1878,49 +1911,103 @@ The second arm is a function that takes the type that the node has been assigned
                (filter (λ(x)x)
                        (list (and #,(dict-ref io-info n) (effect-io))
                              (and binding (#,read-or-write binding))
-                             #,(if read-or-write
-                                   #`(#,read-or-write
-                                      (att-value
-                                       '_xsmith_resolve-reference-name
-                                       n
-                                       (ast-child '#,varname n)))
-                                   #'#f)
-                             ;; This is an over-approximation.
-                             ;; For function application, I need the effects of
-                             ;; the function body.
-                             ;; If I can tell when a reference is for a function
-                             ;; specifically I can limit this to only function
-                             ;; lookup.
-                             ;; However, even then it is an over-approximation
-                             ;; because a function definition in some languages
-                             ;; can have arbitrary expressions around a lambda,
-                             ;; or even different lambdas behind conditionals.
-                             (and (equal? #,read-or-write effect-read-variable)
-                                  (att-value '_xsmith_effects
-                                             (binding-ast-node binding)))
                              (att-value '_xsmith_mutable-container-effects n)
-                             ;; If we are getting a function type out of a function
-                             ;; parameter, then when that function is applied it
-                             ;; can have any effect!
-                             (and binding
-                                  (eq? (binding-def-or-param binding)
-                                       'parameter)
-                                  (type-contains-function-type?
-                                   (binding-type binding))
-                                  (any-effect)))))))))
+                             )))))))
+    (define _xsmith_function-application-effects/no-children-info
+      (for/hash ([n nodes])
+        (define-values (read-or-write varname)
+          (syntax-parse (dict-ref reference-info n #'#f)
+            [prop:reference-info-class #:when (attribute prop.is-read?)
+                                       (values #'effect-read-variable #'prop.field-name)]
+            [prop:reference-info-class #:when (not (attribute prop.is-read?))
+                                       (values #'effect-write-variable #'prop.field-name)]
+            [#f (values #f #f)]))
+        (values
+         n
+         #`(λ (n)
+             (let ([binding #,(and read-or-write
+                                   #`(att-value
+                                      '_xsmith_resolve-reference-name
+                                      n
+                                      (ast-child '#,varname n)))])
+               (append
+                (att-value '_xsmith_effects/no-children n)
+                (filter (λ(x)x)
+                        (list
+                         ;; This is an over-approximation.
+                         ;; For function application, I need the effects of
+                         ;; the function body.
+                         ;; If I can tell when a reference is for a function
+                         ;; specifically I can limit this to only function
+                         ;; lookup.
+                         ;; However, even then it is an over-approximation
+                         ;; because a function definition in some languages
+                         ;; can have arbitrary expressions around a lambda,
+                         ;; or even different lambdas behind conditionals.
+                         ;;
+                         ;; We don't need to worry about any effects at a function
+                         ;; variable's write location because we disallow writes
+                         ;; to variables with types that contain functions.
+                         (and (equal? #,read-or-write effect-read-variable)
+                              (att-value '_xsmith_function-application-effects
+                                         (binding-ast-node binding)))
+
+                         ;; If we are getting a function type out of a function
+                         ;; parameter, then when that function is applied it
+                         ;; can have any effect!
+                         ;; Since we get the effects of the definition site (above),
+                         ;; this trickles through to other definitions that are
+                         ;; not parameters but include data from a parameter.
+                         (and binding
+                              (eq? (binding-def-or-param binding)
+                                   'parameter)
+                              (type-contains-function-type?
+                               (binding-type binding))
+                              (any-effect))
+
+                         ;; If a function comes as the result of another function,
+                         ;; assume it may do anything.
+                         (and (att-value '_xsmith_function-application n)
+                              (any-effect))))))))))
+    (define _xsmith_function-application-effects-info
+      (hash
+       #f
+       #`(λ (n)
+           (define effects-1
+             (remove-duplicates
+              (flatten
+               (list
+                (att-value '_xsmith_function-application-effects/no-children n)
+                (for/list ([child (filter non-hole-node? (ast-children/flat n))])
+                  (att-value '_xsmith_function-application-effects child))))))
+           ;; If we are applying a function that we're getting out of a container
+           ;; let's add the any-effect.  Here we are checking whether we get
+           ;; a function out of a mutable container.  For immutable containers,
+           ;; we can enumerate the effects based on its definition site (or
+           ;; punt to any-effect if it comes through a parameter) by virtue
+           ;; of recursively getting function-application-effects.
+           ;; We are technically just checking if any mutable container access
+           ;; occurs here, but we'll assume any access is to get the function.
+           (if (findf (λ (e) (effect-read-mutable-container? e))
+                      effects-1)
+               (cons (any-effect) effects-1)
+               effects-1))))
     (define _xsmith_effects-info
-      ;; TODO - this is not node specific, but I think I want att-rule caching on it...
       (hash
        #f
        #`(λ (n)
            (remove-duplicates
             (flatten
-             (cons
+             (list
               (att-value '_xsmith_effects/no-children n)
+              (let ([function-children (att-value '_xsmith_function-application n)])
+                (if function-children
+                    (map (λ (c) (att-value '_xsmith_function-application-effects c))
+                         function-children)
+                    '()))
               (for/list ([child (filter non-hole-node? (ast-children/flat n))])
                 (att-value '_xsmith_effects child))))))))
     (define _xsmith_effect-constraints-for-child-info
-      ;; TODO - this is not node specific, but I think I want att-rule caching on it...
       (hash
        #f
        #`(λ (n c)
@@ -1969,6 +2056,8 @@ The second arm is a function that takes the type that the node has been assigned
            [(#f #f) #'(λ () #t)]))))
     (list _xsmith_effects/no-children-info
           _xsmith_effects-info
+          _xsmith_function-application-effects/no-children-info
+          _xsmith_function-application-effects-info
           _xsmith_effect-constraints-for-child-info
           _xsmith_no-io-conflict?-info)))
 
