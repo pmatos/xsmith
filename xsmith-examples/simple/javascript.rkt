@@ -23,6 +23,7 @@
                       #:ProgramWithBlock #t
                       #:ExpressionStatement #t
                       #:AssignmentStatement #t
+                      #:NullStatement #t
                       #:MutableArraySafeAssignmentStatement #t
                       #:MutableStructuralRecordAssignmentStatement #t
                       )
@@ -97,6 +98,7 @@
 
  [ReturnStatement (λ (n) (h-append (text "return ")
                                    (att-value 'xsmith_render-node (ast-child 'Expression n))))]
+ [NullStatement (λ (n) (text ";"))]
  [AssignmentStatement
   (λ (n)
     (h-append (text (format "~a" (ast-child 'name n)))

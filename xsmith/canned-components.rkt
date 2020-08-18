@@ -688,6 +688,7 @@
         (~or
          (~optional (~seq #:ProgramWithBlock use-program-with-block:boolean))
          (~optional (~seq #:AssignmentStatement use-assignment-statement:boolean))
+         (~optional (~seq #:NullStatement use-null-statement:boolean))
          (~optional (~seq #:ExpressionStatement use-expression-statement:boolean))
          (~optional (~seq #:MutableArraySafeAssignmentStatement
                           use-mutable-array-safe-assignment-statement:boolean))
@@ -783,6 +784,14 @@
                      #:prop type-info
                      [no-return-type
                       (λ (n t) (hash 'Expression (fresh-type-variable)))]]))
+                #'())
+         #,@(if (use? use-null-statement)
+                #'((add-to-grammar
+                    component
+                    [NullStatement
+                     Statement ()
+                     #:prop choice-weight 1
+                     #:prop type-info [no-return-type no-child-types]]))
                 #'())
          #,@(if (use? use-mutable-array-safe-assignment-statement)
                 #'((add-to-grammar
