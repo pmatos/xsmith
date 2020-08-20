@@ -48,6 +48,12 @@
          (apply-infix (h-append comma space)
                       doc-list)))
 
+(define (lua-render-let varname binding-expr body-expr)
+  (h-append lparen lparen (text (format "function(~a) do return " varname))
+            body-expr
+            (text " end") rparen
+            lparen binding-expr rparen rparen))
+
 (add-prop
  lua-comp
  render-node-info
@@ -205,20 +211,24 @@
   ;; Lua's array index should start at 1.  And we should define a modulus function, one of the many... frustrating parts of lua is that there wasn't a built-in modulus operator until recently.  So to fuzz older versions we need to define a function for it.
   (λ (n)
     (define array-rendered ($xsmith_render-node (ast-child 'array n)))
-    (h-append array-rendered
-              lbracket (text "modulo") lparen
-              ($xsmith_render-node (ast-child 'index n))
-              comma space (text "#") array-rendered
-              rparen (text " + 1") rbracket))]
+    (lua-render-let 'array array-rendered
+                    (h-append (text "array")
+                              lbracket (text "modulo") lparen
+                              ($xsmith_render-node (ast-child 'index n))
+                              comma space (text "#") (text "array")
+                              rparen (text " + 1") rbracket)))]
  [MutableArraySafeAssignmentStatement
   (λ (n)
     (define array-rendered ($xsmith_render-node (ast-child 'array n)))
-    (h-append array-rendered
-              lbracket (text "modulo") lparen
-              ($xsmith_render-node (ast-child 'index n))
-              comma space (text "#") array-rendered
-              rparen (text " + 1") rbracket
-              space equals space ($xsmith_render-node (ast-child 'newvalue n))))]
+    (lua-render-let 'array array-rendered
+                    (h-append (text "array")
+                              lbracket (text "modulo") lparen
+                              ($xsmith_render-node (ast-child 'index n))
+                              comma space (text "#") (text "array")
+                              rparen (text " + 1") rbracket
+                              space equals space
+                              ($xsmith_render-node (ast-child 'newvalue n))))
+    )]
 
  [MutableStructuralRecordLiteral
   (λ (n)
