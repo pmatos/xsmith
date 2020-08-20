@@ -49,7 +49,7 @@
                       doc-list)))
 
 (define (lua-render-let varname binding-expr body-expr)
-  (h-append lparen lparen (text (format "function(~a) do return " varname))
+  (h-append lparen lparen (text (format "function(~a) return " varname))
             body-expr
             (text " end") rparen
             lparen binding-expr rparen rparen))
