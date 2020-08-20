@@ -141,19 +141,6 @@ WIP checklist:
 
 
 #|
-TODO - record types that use scope graphs
-TODO - generic types (eg. array types)
-|#
-
-
-
-#|
-Type variables need to be able to partially constrain types in various ways for nodes to be able to specify what types they can fulfill, including:
-• unconstrained (classic type variable) for eg FunctionApplication (could return anything)
-• List of potential types (for eg. generic operations like AdditionExpression can be int or float but not unconstrained).
-|#
-
-#|
 Type variables contain:
 
 a "type", which is either:
