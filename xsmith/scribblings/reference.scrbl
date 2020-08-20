@@ -1129,6 +1129,9 @@ Example:
  binder-info
  [Definition (name type definition)])
 ]
+
+Note that when definitions are lifted automatically, the @verb{name} and @verb{type} fields are given automatically.
+But if definition nodes are filled in normally (not via lifting), values must be provided by the @racket[fresh] property.
 }
 @defform[#:kind "spec-property" #:id reference-info reference-info]{
 This property marks nodes that are reference nodes.  The argument for the property is a list containing:
