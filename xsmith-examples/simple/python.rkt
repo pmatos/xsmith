@@ -14,6 +14,7 @@
 
 (add-basic-expressions python-comp
                        #:LambdaWithExpression #t
+                       #:LambdaWithBlock #t
                        #:Numbers #t
                        #:Booleans #t
                        #:Strings #t
@@ -28,6 +29,25 @@
                       #:MutableArraySafeAssignmentStatement #t
                       #:MutableStructuralRecordAssignmentStatement #t
                       )
+
+;; We use LambdaWithBlock as an easy way to implement function definitions.
+;; This choice-rule restricts them from being generated anywhere other than in
+;; a Definition context.
+;; Then, the render-node-info implementation for Definitions is adjusted to
+;; properly render function definitions accordingly.
+(add-choice-rule
+ python-comp
+ lwb-must-be-under-definition
+ [LambdaWithBlock
+  (λ () (let ([parent-node (ast-parent (current-hole))])
+          (and (not (ast-list-node? parent-node))
+               (equal? (ast-node-type parent-node)
+                       'Definition))))])
+
+(add-prop
+ python-comp
+ choice-filters-to-apply
+ [LambdaWithBlock (lwb-must-be-under-definition)])
 
 (define nest-step 4)
 (define (binary-op-renderer op-rendered)
@@ -70,12 +90,31 @@
      ;; Hack to get a newline...
      (text "")))]
 
- [Definition (λ (n)
-               (h-append (text (ast-child 'name n))
-                         space
-                         equals
-                         space
-                         ($xsmith_render-node (ast-child 'Expression n))))]
+ [Definition
+   (λ (n)
+     (let ([expr-node (ast-child 'Expression n)])
+       (if (equal? (ast-node-type expr-node)
+                   'LambdaWithBlock)
+           (let ([name (ast-child 'name n)]
+                 [parameters (ast-children (ast-child 'parameters expr-node))]
+                 [body (ast-child 'body expr-node)])
+             (nest nest-step
+                   (v-append
+                    (h-append (text "def ")
+                              (text (format "~a" name))
+                              space
+                              lparen
+                              (h-concat (apply-infix
+                                         (text ", ")
+                                         (map (λ (cn) ($xsmith_render-node cn)) parameters)))
+                              rparen
+                              colon)
+                    ($xsmith_render-node body))))
+           (h-append (text (ast-child 'name n))
+                     space
+                     equals
+                     space
+                     ($xsmith_render-node (ast-child 'Expression n))))))]
 
  [Block
   ;; Python doesn't have a stand-alone block construct, so we'll fake it.
@@ -152,7 +191,6 @@
                    colon
                    space
                    ($xsmith_render-node (ast-child 'body n))
-                   space
                    rparen))]
 
  [BoolLiteral (λ (n) (text (if (ast-child 'v n) "True" "False")))]
@@ -213,6 +251,7 @@
               (comma-list (map (λ (fieldname expression-node)
                                  (h-append dquote (text (format "~a" fieldname)) dquote
                                            colon
+                                           space
                                            ($xsmith_render-node expression-node)))
                                (ast-child 'fieldnames n)
                                (ast-children (ast-child 'expressions n))))
