@@ -293,6 +293,7 @@
                     [ProgramWithSequence
                      #f ([definitions : Definition *]
                          [ExpressionSequence])
+                     #:prop strict-child-order? #t
                      #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t)
@@ -756,6 +757,7 @@
                     [ProgramWithBlock
                      #f ([definitions : Definition *]
                          [Block])
+                     #:prop strict-child-order? #t
                      #:prop type-info
                      [(fresh-type-variable)
                       (λ (n t)
