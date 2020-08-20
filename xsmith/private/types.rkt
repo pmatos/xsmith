@@ -118,6 +118,11 @@ WIP checklist:
  type-contains-function-type?
  )
 
+(module+ for-private
+  (provide
+   type-variable->type
+   ))
+
 (require
  racket/match
  racket/dict
@@ -194,9 +199,7 @@ If a (transitive) upper bound is ever equal to a (transitive) lower bound, that 
   (match tv
     [(c-type-variable (list the-type) _ _)
      the-type]
-    [else (error 'type-variable->type
-                 "not a type variable resolved to a single type: ~v"
-                 tv)]))
+    [else #f]))
 (define (c-type-variable-type tv)
   (core-type-variable-type (variable-canonicalize tv)))
 (define (c-type-variable-lower-bounds tv)

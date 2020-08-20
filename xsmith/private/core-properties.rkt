@@ -68,6 +68,7 @@
  (submod "xsmith-utils.rkt" for-private)
  "scope-graph.rkt"
  "types.rkt"
+ (submod "types.rkt" for-private)
  "effects.rkt"
  clotho/math/distributions
  racr
@@ -1655,6 +1656,8 @@ The second arm is a function that takes the type that the node has been assigned
                              (not (ast-bud-node? c))
                              (let ([t (att-value 'xsmith_type c)])
                                (and
+                                (or (function-type? t)
+                                    (function-type? (type-variable->type t)))
                                 (can-unify? t
                                             (function-type (fresh-type-variable)
                                                            my-type))
