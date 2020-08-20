@@ -1488,7 +1488,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
   (match lower-bound-srt
     [(c-structural-record-type lb-f? lb-kf _ _)
      (or (and (not (dict-has-key? lb-kf field-key)) (not lb-f?))
-         (can-subtype-unify? (dict-ref lb-kf field-key) super-field-value))]))
+         (and (dict-has-key? lb-kf field-key)
+              (can-subtype-unify? (dict-ref lb-kf field-key) super-field-value)))]))
 
 
 (define (unify! t1* t2*)
