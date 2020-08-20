@@ -363,6 +363,13 @@ hole for the type.
                  (if binder-type-field
                      (let* ([t (hash-ref all-values-hash
                                          binder-type-field)]
+                            [_no-type-error
+                             (when (not (type? t))
+                               (error 'fresh
+                                      "Definition node ~a initialized with non-type value (~a) in its ~a field"
+                                      '#,node
+                                      t
+                                      binder-type-field))]
                             [concretized
                              (if (settled-type? t)
                                  t
@@ -1128,6 +1135,7 @@ few of these methods.
     (att-value '_xsmith_visible-bindings node))
   (define visibles-with-type
     (filter (λ (b) (and b
+                        (type? (binding-type b))
                         (settled-type? (binding-type b))
                         (can-unify? (binding-type b)
                                     type)))
@@ -1158,6 +1166,7 @@ few of these methods.
           (define my-choice-type-constraint (send self _xsmith_my-type-constraint))
           (define visibles-with-type
             (filter (λ (b) (and b
+                                (type? (binding-type b))
                                 (settled-type? (binding-type b))
                                 ;; Sometimes a reference choice may have a stricter
                                 ;; type requirement than the hole node.  So we ask
