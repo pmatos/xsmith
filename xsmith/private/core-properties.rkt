@@ -1320,6 +1320,11 @@ few of these methods.
              (ast-child binder-type-field node))
         (att-value '_xsmith_my-type-constraint node)))
   (define my-type (or my-type-constraint (fresh-type-variable)))
+  (when (and binder-type-field
+             (not (att-value 'xsmith_is-hole? node))
+             (not (bud-node? (ast-child binder-type-field node))))
+    ;; We still need to unify the annotation to be sure things stay in sync.
+    (unify! my-type (ast-child binder-type-field node)))
   (define my-type-from-parent
     (att-value '_xsmith_type-constraint-from-parent node))
   (define (debug-print-1 t1 t2)
