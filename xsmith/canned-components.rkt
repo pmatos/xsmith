@@ -3,6 +3,7 @@
 (provide
  add-basic-expressions
  add-basic-statements
+ add-loop-over-container
  ;; Type system stuff
  return-type
  no-return-type
@@ -177,9 +178,12 @@
           component
           ;; TODO - where to put Definition and FormalParameter?
           [Definition #f ([type]
-                          [name]
+                          [name = (fresh-var-name "b_")]
                           Expression)
             #:prop binder-info (name type definition)]
+          [DefinitionNoRhs #f ([type]
+                               [name])
+            #:prop binder-info (name type definition #:lift-target? #f)]
           [FormalParameter #f (type [name = (fresh-var-name "arg_")])
                            #:prop binder-info (name type parameter)]
 
@@ -222,6 +226,7 @@
           component
           type-info
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
+          [DefinitionNoRhs [(fresh-type-variable) no-child-types]]
           [FormalParameter [(fresh-type-variable) no-child-types]]
 
           ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
@@ -716,7 +721,6 @@
           [Block Statement ([definitions : Definition *]
                             [statements : Statement * = (add1 (random 5))])
                  #:prop strict-child-order? #t]
-          ;; TODO - these languages all have some kind of loop.  What kind of loop should I model here?  Maybe just “loop over an array”?
           [IfElseStatement Statement
                            ([test : Expression] [then : Block] [else : Block])
                            #:prop strict-child-order? #t])
@@ -828,6 +832,87 @@
 
 
          )]))
+
+
+(define-syntax (add-loop-over-container stx)
+  (syntax-parse stx
+    [(_ component
+        (~or
+         (~optional (~seq #:name loop-node-name)
+                    #:defaults ([loop-node-name #'LoopOverContainer]))
+         (~optional (~seq #:loop-ast-type loop-ast-type)
+                    #:defaults ([loop-ast-type #'Expression]))
+         (~optional (~seq #:loop-body-ast-type loop-body-ast-type)
+                    #:defaults ([loop-body-ast-type #'Expression]))
+         (~optional (~seq #:bind-whole-collection? bind-whole-collection?)
+                    #:defaults ([bind-whole-collection? #'#f]))
+         (~optional (~seq #:collection-type-constructor
+                          collection-type-constructor-stx)
+                    #:defaults ([collection-type-constructor-stx
+                                 #'(λ (inner-type)
+                                     (immutable (array-type inner-type)))]))
+         (~optional (~seq #:loop-type-constructor
+                          loop-type-constructor-stx)
+                    #:defaults ([loop-type-constructor-stx
+                                 #'collection-type-constructor-stx]))
+         (~optional (~seq #:body-type-constructor body-type-constructor-stx)
+                    #:defaults ([body-type-constructor-stx
+                                 #'(λ (element-type) element-type)])))
+        ...)
+     (define/syntax-parse collection-node-ast-type
+       (syntax-parse #'bind-whole-collection?
+         [#t #'Definition]
+         [#f #'Expression]))
+     #'(begin
+         (define collection-type-constructor collection-type-constructor-stx)
+         (define loop-type-function loop-type-constructor-stx)
+         (define body-type-function body-type-constructor-stx)
+         (add-to-grammar
+          component
+          [loop-node-name
+           loop-ast-type
+           ([collection : collection-node-ast-type]
+            [elemname : DefinitionNoRhs = (create-ast-bud)]
+            [body : loop-body-ast-type = (create-ast-bud)])
+           #:prop strict-child-order? #t
+           #:prop edit
+           ;; Fill in elemname after collection
+           (λ (n)
+             (and (ast-bud-node? (ast-child 'elemname n))
+                  (att-value 'xsmith_no-holes-in-subtree?
+                             (ast-child 'collection n))
+                  (let* ([collection-type (att-value 'xsmith_type
+                                                     (ast-child 'collection n))]
+                         [inner-type (fresh-type-variable)]
+                         [_void (unify! (collection-type-constructor inner-type)
+                                        collection-type)]
+                         ;; We have to force type exploration so that the type
+                         ;; field of the DefinitionNoRhs will match the
+                         ;; collection type properly.
+                         [_void (force-type-exploration-for-node!
+                                 (ast-child 'collection n))]
+                         [new-def (make-fresh-node
+                                   'DefinitionNoRhs
+                                   (hash 'name (fresh-var-name "loopvar_")
+                                         'type (concretize-type inner-type)))])
+                    (λ () (rewrite-subtree (ast-child 'elemname n)
+                                           new-def)))))
+           #:prop edit
+           ;; Fill in body after elemname
+           (λ (n)
+             (and (ast-bud-node? (ast-child 'body n))
+                  (not (ast-bud-node? (ast-child 'elemname n)))
+                  (not (att-value 'xsmith_is-hole? (ast-child 'elemname n)))
+                  (λ () (rewrite-subtree (ast-child 'body n)
+                                         (make-hole 'loop-body-ast-type)))))
+           #:prop type-info
+           [(λ (n) (loop-type-function (fresh-type-variable)))
+            (λ (n t)
+              (define elemtype (fresh-type-variable))
+              (hash 'body (body-type-function elemtype)
+                    'elemname elemtype
+                    'collection (collection-type-constructor elemtype)))]
+           ]))]))
 
 
 

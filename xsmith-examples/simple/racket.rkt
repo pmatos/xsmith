@@ -32,6 +32,55 @@
                        #:ImmutableStructuralRecord #t
                        )
 
+(define (build-any-collection-type inner)
+  ;; We can only have one of each generic type in a type variable at the moment,
+  ;; so to get around that we'll put the inner decision inside another type variable.
+  (fresh-type-variable (immutable (fresh-type-variable (array-type inner)
+                                                       (list-type inner)))
+                       (mutable (array-type inner))))
+
+(define (make-for-with-outer-def-printer for-name)
+  (λ (n)
+    (define cd (ast-child 'collection n))
+    (define cd-name (ast-child 'name cd))
+    `(let ([,(string->symbol cd-name) ,(render-child 'Expression cd)])
+       (,for-name ([,(string->symbol (ast-child 'name (ast-child 'elemname n)))
+                    ,(string->symbol cd-name)])
+                  ,(render-child 'body n)))))
+
+(add-loop-over-container
+ racket-comp
+ #:name ForList
+ #:collection-type-constructor build-any-collection-type
+ #:loop-type-constructor (λ (inner) (immutable (list-type inner)))
+ )
+(add-prop racket-comp
+          render-node-info
+          [ForList (make-for-with-outer-def-printer 'for/list)])
+(add-loop-over-container
+ racket-comp
+ #:name ForVector
+ #:collection-type-constructor build-any-collection-type
+ #:loop-type-constructor (λ (inner) (mutable (array-type inner)))
+ #:bind-whole-collection? #t
+ )
+(add-prop racket-comp
+          render-node-info
+          [ForVector (make-for-with-outer-def-printer 'for/vector)])
+(add-loop-over-container
+ racket-comp
+ #:name ForVoid
+ #:collection-type-constructor build-any-collection-type
+ #:loop-type-constructor (λ (inner) void-type)
+ #:body-type-constructor (λ (elem-type) void-type)
+ )
+(add-prop racket-comp
+          render-node-info
+          [ForVoid
+           (λ (n)
+             `(for ([,(string->symbol (ast-child 'name (ast-child 'elemname n)))
+                     ,(render-child 'collection n)])
+                ,(render-child 'body n)))])
 
 
 (add-prop
