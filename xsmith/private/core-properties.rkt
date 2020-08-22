@@ -362,15 +362,17 @@ hole for the type.
                       (if (procedure? v) (v) v)))))
                (define all-values-hash/binder-sanitized
                  (if binder-type-field
-                     (let* ([t (hash-ref all-values-hash
-                                         binder-type-field)]
-                            [_no-type-error
-                             (when (not (type? t))
-                               (error 'fresh
-                                      "Definition node ~a initialized with non-type value (~a) in its ~a field"
-                                      '#,node
-                                      t
-                                      binder-type-field))]
+                     (let* ([t-orig (hash-ref all-values-hash
+                                              binder-type-field)]
+                            [t (if (not t-orig)
+                                   (att-value 'xsmith_type (current-hole))
+                                   (if (not (type? t-orig))
+                                       (error 'fresh
+                                              "Definition node ~a initialized with non-type value (~a) in its ~a field"
+                                              '#,node
+                                              t-orig
+                                              binder-type-field)
+                                       t-orig))]
                             [concretized
                              (if (settled-type? t)
                                  t
