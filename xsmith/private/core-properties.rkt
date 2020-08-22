@@ -1428,6 +1428,7 @@ few of these methods.
 #|
 The type-info property is two-armed.
 The first arm is an expression that must return a type (which should be fresh if it is a [maybe constrained] variable) that the AST node can fulfill.
+OR the first arm may be a function that takes the node and returns a type as above.
 The second arm is a function that takes the type that the node has been assigned and must return a dictionary mapping the node's child fields to either:
 • its type
 • A function that takes the AST node for the child and returns its type. (This must be used for list children, IE those with a kleene star)
