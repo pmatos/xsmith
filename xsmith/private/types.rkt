@@ -445,7 +445,13 @@ The minimum may be #f to mean any subtype of the maximum type.
       (base-type-range max max)
       (base-type-range min max)))
 
-(struct function-type (arg-type return-type) #:transparent)
+(struct function-type (arg-type return-type)
+  #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc self port mode)
+     (fprintf port "#<function-type ~a → ~a>"
+              (function-type-arg-type self)
+              (function-type-return-type self)))])
 
 
 ;; Product types may have #f as the inner list to specify that the length and inner types are yet unconstrained.
@@ -460,7 +466,11 @@ upper-bounds and lower-bounds are lists of other product types that a given one 
   ([inner-type-list #:mutable]
    [lower-bounds #:mutable]
    [upper-bounds #:mutable])
-  #:transparent)
+  #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc self port mode)
+     (fprintf port "#<product-type ~a>"
+              (product-type-inner-type-list self)))])
 (define (mk-product-type inners)
   (if (not inners)
       (product-type #f '() '())
@@ -587,7 +597,13 @@ TODO - when generating a record ref, I'll need to compare something like (record
 ;; Generic types are given a name which is a symbol.  But it is just for printing.
 ;; They are compared with `eq?` on their constructor, which is bound to the name
 ;; by `define-generic-type`.
-(struct generic-type (name constructor type-arguments subtype-variances) #:transparent)
+(struct generic-type (name constructor type-arguments subtype-variances)
+  #:transparent
+  #:methods gen:custom-write
+  [(define (write-proc v output-port output-mode)
+     (match v
+       [(generic-type n ctor ts vs)
+        (fprintf output-port "#<~a ~s>" n ts)]))])
 
 (begin-for-syntax
   (define-syntax-class generic-field-spec
