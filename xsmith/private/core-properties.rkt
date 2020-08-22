@@ -175,6 +175,11 @@
          #`(λ (n)
              ;; Compute the node name so we get hole names.
              (define node-name (ast-node-type n))
+             (define (rec cn)
+               (if (and (ast-node? cn)
+                        (ast-bud-node? cn))
+                   '_RACR-BUD-NODE_
+                   (att-value '_xsmith_to-s-expression cn)))
              `(,node-name
                #,@(for/list ([gnfs gnfss])
                     (match gnfs
@@ -190,14 +195,13 @@
                                                   #f _)
                        ;; AST type, no kleene star
                        #`,(list '#,field-name
-                                (att-value '_xsmith_to-s-expression
-                                           (ast-child '#,field-name n)))]
+                                (rec (ast-child '#,field-name n)))]
                       [(grammar-node-field-struct field-name
                                                   ast-node-type
                                                   #t _)
                        ;; AST type, yes kleene star
                        #`,(list '#,field-name
-                                (map (λ (cn) (att-value '_xsmith_to-s-expression cn))
+                                (map rec
                                      (ast-children (ast-child '#,field-name n))))])))))))
     (list _xsmith_to-s-expression-info)))
 
