@@ -64,6 +64,61 @@
          (apply-infix (h-append comma space)
                       doc-list)))
 
+
+(add-loop-over-container
+ python-comp
+ ;; Sure, Python calls them lists, but my type system calls them arrays.
+ #:name ArrayComprehension
+ #:collection-type-constructor (λ (elem-type) (mutable (array-type elem-type))))
+(add-prop python-comp render-node-info
+          [ArrayComprehension
+           ;; [body for binder_name in collection]
+           (λ (n) (h-append (text "[")
+                            ($xsmith_render-node (ast-child 'body n))
+                            (text " for ")
+                            (text (ast-child 'name (ast-child 'elemname n)))
+                            (text " in ")
+                            ($xsmith_render-node (ast-child 'collection n))
+                            (text "]")))])
+
+(add-loop-over-container
+ python-comp
+ #:name LoopOverArray
+ #:collection-type-constructor (λ (elem-type) (mutable (array-type elem-type)))
+ #:loop-type-constructor (λ (elem-type) (fresh-maybe-return-type))
+ #:body-type-constructor (λ (loop-type elem-type) loop-type)
+ #:loop-ast-type Statement
+ #:body-ast-type Block
+ #:bind-whole-collection? #t
+ )
+(add-prop python-comp render-node-info
+          [LoopOverArray
+           (λ (n)
+             (define cd (ast-child 'collection n))
+             (define collection-name (ast-child 'name cd))
+             (define body (ast-child 'body n))
+             (v-append
+              (h-append (text collection-name)
+                        (text " = ")
+                        ($xsmith_render-node (ast-child 'Expression cd)))
+              (h-append (text "for ")
+                        (text (ast-child 'name (ast-child 'elemname n)))
+                        (text " in ")
+                        (text collection-name)
+                        (text ":"))
+              (nest nest-step
+                    (h-append
+                     ;; It doesn't seem to want to nest if I don't have a line here...
+                     line
+                     (v-concat
+                      (append
+                       (map (λ (cn) ($xsmith_render-node cn))
+                            (ast-children (ast-child 'definitions body)))
+                       (map (λ (cn) ($xsmith_render-node cn))
+                            (ast-children (ast-child 'statements body)))))))
+              line))])
+(add-prop python-comp choice-weight [LoopOverArray 1000])
+
 (add-prop
  python-comp
  render-node-info

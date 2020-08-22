@@ -838,11 +838,10 @@
   (syntax-parse stx
     [(_ component
         (~or
-         (~optional (~seq #:name loop-node-name)
-                    #:defaults ([loop-node-name #'LoopOverContainer]))
+         (~optional (~seq #:name loop-node-name))
          (~optional (~seq #:loop-ast-type loop-ast-type)
                     #:defaults ([loop-ast-type #'Expression]))
-         (~optional (~seq #:loop-body-ast-type loop-body-ast-type)
+         (~optional (~seq #:body-ast-type loop-body-ast-type)
                     #:defaults ([loop-body-ast-type #'Expression]))
          (~optional (~seq #:bind-whole-collection? bind-whole-collection?)
                     #:defaults ([bind-whole-collection? #'#f]))
@@ -851,13 +850,10 @@
                     #:defaults ([collection-type-constructor-stx
                                  #'(λ (inner-type)
                                      (immutable (array-type inner-type)))]))
-         (~optional (~seq #:loop-type-constructor
-                          loop-type-constructor-stx)
-                    #:defaults ([loop-type-constructor-stx
-                                 #'collection-type-constructor-stx]))
+         (~optional (~seq #:loop-type-constructor loop-type-constructor-stx))
          (~optional (~seq #:body-type-constructor body-type-constructor-stx)
                     #:defaults ([body-type-constructor-stx
-                                 #'(λ (element-type) element-type)])))
+                                 #'(λ (loop-type element-type) element-type)])))
         ...)
      (define/syntax-parse collection-node-ast-type
        (syntax-parse #'bind-whole-collection?
@@ -865,7 +861,8 @@
          [#f #'Expression]))
      #'(begin
          (define collection-type-constructor collection-type-constructor-stx)
-         (define loop-type-function loop-type-constructor-stx)
+         (define loop-type-function (~? loop-type-constructor-stx
+                                        collection-type-constructor-stx))
          (define body-type-function body-type-constructor-stx)
          (add-to-grammar
           component
@@ -909,7 +906,7 @@
            [(λ (n) (loop-type-function (fresh-type-variable)))
             (λ (n t)
               (define elemtype (fresh-type-variable))
-              (hash 'body (body-type-function elemtype)
+              (hash 'body (body-type-function t elemtype)
                     'elemname elemtype
                     'collection (collection-type-constructor elemtype)))]
            ]))]))

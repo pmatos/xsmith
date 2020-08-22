@@ -2036,6 +2036,60 @@ Type considerations:
 ]
 }
 
+@defform[(add-loop-over-container grammar-component kw-arg ...)
+#:grammar
+[(kw-arg
+  [#:name identifier]
+  [#:loop-ast-type identifier]
+  [#:body-ast-type identifier]
+  [#:bind-whole-collection? boolean]
+  [#:collection-type-constructor function]
+  [#:loop-type-constructor function]
+  [#:body-type-constructor function]
+  )]]{
+Adds a looping form named @racket[#:name] to @racket[grammar-component].
+The looping node will be of ast-type @racket[loop-ast-type], which defaults to @verb{Expression}.
+The looping node will have 3 children:
+@itemlist[
+@item{@verb{collection} - if @racket[#:bind-whole-collection?] is @racket[#t], it will be of AST node type @verb{Definition}, otherwise it will be of AST node type @verb{Expression} (the default).  This represents the collection to be looped over, and the @racket[#:bind-whole-collection?] is a convenience to make references to the whole collection available.}
+@item{@verb{elemname} - of AST node type @verb{DefinitionNoRhs} which itself has @verb{name} and @verb{type} fields but no @verb{Expression} field.  This node represents the binding to an element of the list in each iteration of the body.}
+@item{@verb{body} - of AST node type @racket[body-ast-type], which defaults to @verb{Expression}.  Changing this is useful to make loops whose body is a @verb{Statement} or @verb{Block}.}
+]
+
+The @racket[#:collection-type-constructor] should be a function from the type inside the collection to the type of the collection.
+
+The @racket[#:loop-type-constructor] should be a function from the type inside the collection to the type of the whole loop.
+By default @racket[#:loop-type-constructor] is the same as @racket[#:collection-type-constructor], which corresponds to a loop that forms a comprehension form with a result (similar to Racket's @racket[for/list] form).
+However, common values for @racket[#:loop-type-constructor] include @racket[(λ (elem-type) void-type)] for loop expressions that only side-effect, or @racket[(λ (elem-type) (fresh-maybe-return-type))] for loops in those silly statement languages.
+
+The @racket[#:body-type-constructor] should be a function from the loop type and the element type to the type of the loop body.
+By default @racket[#:body-type-constructor] returns the element type, but for side-effectful loops and/or statement-bodied loops it should be something else.
+For example, a statement-bodied loop should have @racket[#:body-type-constructor (λ (loop-type elem-type) loop-type)].
+
+
+Most keyword arguments are optional, but @racket[#:name] is required.
+
+Example:
+@racketblock[
+(add-loop-over-container
+ python-comp
+ (code:comment "Sure, Python calls them lists, but my type system calls them arrays.")
+ #:name ArrayComprehension
+ #:collection-type-constructor (λ (elem-type) (mutable (array-type elem-type))))
+(add-prop python-comp render-node-info
+          [ArrayComprehension
+           ;; [body for binder_name in collection]
+           (λ (n) (h-append (text "[")
+                            ($xsmith_render-node (ast-child 'body n))
+                            (text " for ")
+                            (text (ast-child 'name (ast-child 'elemname n)))
+                            (text " in ")
+                            ($xsmith_render-node (ast-child 'collection n))
+                            (text "]")))])
+]
+
+}
+
 
 @defproc[(return-type [t type?]) type?]{
 A type used for statements in return position.

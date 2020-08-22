@@ -72,7 +72,7 @@
  #:name ForVoid
  #:collection-type-constructor build-any-collection-type
  #:loop-type-constructor (λ (inner) void-type)
- #:body-type-constructor (λ (elem-type) void-type)
+ #:body-type-constructor (λ (loop-type elem-type) void-type)
  )
 (add-prop racket-comp
           render-node-info
