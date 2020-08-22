@@ -746,7 +746,9 @@ It just reads the values of several other properties and produces the results fo
              rule-info
              node
              #`(λ (n)
-                 (define children (filter ast-node? (ast-children/flat n)))
+                 (define children (filter (λ (cn) (and (ast-node? cn)
+                                                       (not (ast-bud-node? cn))))
+                                          (ast-children/flat n)))
                  (define children-bindings
                    (map (λ (c) (att-value 'xsmith_definition-binding c))
                         children))
