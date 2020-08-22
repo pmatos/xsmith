@@ -53,3 +53,24 @@
                               'source-line
                               'source-column))))))]))
   )
+
+(module+ racr
+  (provide
+   (rename-out [debug-ast-child ast-child])
+   (except-out (all-from-out racr) ast-child)
+   )
+  (require racr)
+  (define-syntax (debug-ast-child stx)
+    (syntax-parse stx
+      [(_ key node)
+       (with-syntax ([source-name (syntax-source stx)]
+                     [source-line (syntax-line stx)]
+                     [source-column (syntax-column stx)])
+         #'(let ([key-v key])
+             (with-handlers ([exn:fail?
+                              (λ (e)
+                                (eprintf "ast-child failure for key ~v at source: ~a:~a:~a\n"
+                                         key-v 'source-name 'source-line 'source-column)
+                                (raise e))])
+               (ast-child key-v node))))]))
+  )
