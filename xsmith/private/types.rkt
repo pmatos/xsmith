@@ -1473,7 +1473,11 @@ TODO - when generating a record ref, I'll need to compare something like (record
                   t))
         (match inner-matched
           [(list) #f]
-          [(list one) (inner-can-unify? one rtype)])])]))
+          [(list one) (inner-can-unify? one rtype)]
+          [(list one more ...)
+           (error 'xsmith
+                  "A type variable seems to have two generic types of the same type.  This is currently an error.  Type:  ~v"
+                  tv)])])]))
 
 (define (can-X-unify?/product-type l r inner-can-unify?)
   (match (list l r)
