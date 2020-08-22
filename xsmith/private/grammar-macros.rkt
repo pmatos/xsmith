@@ -681,6 +681,15 @@
                         lifting-hole-parent)))))
         name))))
 
+(define xsmith_no-holes-in-subtree?-function
+  (λ (n)
+    (and (not (att-value 'xsmith_is-hole? n))
+         (for/and ([c (ast-children/flat n)])
+           (if (and (ast-node? c)
+                    (not (ast-bud-node? c)))
+               (att-value 'xsmith_no-holes-in-subtree? c)
+               #t)))))
+
 (define _xsmith_hole->replacement-function
   (λ (n)
     (if (and (not (ast-bud-node? n))
@@ -1412,6 +1421,8 @@ Perform error checking:
                               [base-node-name (λ (n) #f)]
                               [ast-hole-name (λ (n) #t)]
                               ...)
+                     (ag-rule xsmith_no-holes-in-subtree?
+                              [base-node-name xsmith_no-holes-in-subtree?-function])
                      (ag-rule _xsmith_hole->replacement
                               [base-node-name _xsmith_hole->replacement-function])
                      (ag-rule _xsmith_make-lift-do-proc
