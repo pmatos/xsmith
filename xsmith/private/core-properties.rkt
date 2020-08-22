@@ -207,15 +207,33 @@
 
 (begin-for-syntax
   (define-syntax-class binder-info-clause
-    (pattern (name-field:id type-field:id (~and def/param
-                                                (~or (~datum definition)
-                                                     (~datum parameter))))
+    (pattern (name-field:id
+              type-field:id
+              (~and def/param
+                    (~or (~datum definition)
+                         (~datum parameter)))
+              (~or (~optional (~seq #:lift-target? lift-target-stx)
+                              #:defaults ([lift-target-stx #'#t])))
+              ...)
              #:attr definition? (syntax-parse #'def/param
                                   [(~datum definition) #t]
                                   [else #f])
              #:attr parameter? (syntax-parse #'def/param
                                  [(~datum parameter) #t]
                                  [else #f])
+             #:attr lift-target? (and (attribute definition?)
+                                      (syntax-parse #'lift-target-stx [#t #t] [#f #f]))
+             #:attr binder-info #t
+             )
+    (pattern #f
+             #:attr name-field #'#f
+             #:attr type-field #'#f
+             #:attr binding-style #'#f
+             #:attr def/param #'#f
+             #:attr definition? #f
+             #:attr parameter? #f
+             #:attr lift-target? #f
+             #:attr binder-info #f
              )))
 
 #|
@@ -254,8 +272,7 @@ hole for the type.
                 (syntax-parse (dict-ref binder-info-info node #'#f)
                   [x:binder-info-clause
                    (list #''x.name-field
-                         #''x.type-field)]
-                  [else (list #'#f #'#f)]))))
+                         #''x.type-field)]))))
 
     (define reference-field-names-dict
       (for/hash ([node nodes])
@@ -621,8 +638,7 @@ It just reads the values of several other properties and produces the results fo
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref binder-info-info node #'#f)
-                  [x:binder-info-clause (syntax->datum #'x.def/param)]
-                  [else #f]))))
+                  [x:binder-info-clause (syntax->datum #'x.def/param)]))))
     (define binder-nodes (filter (λ (n) (dict-ref node-binder-types n)) nodes))
     (define definition-nodes (filter (λ (n) (equal? (dict-ref node-binder-types n)
                                                     'definition))
@@ -797,9 +813,9 @@ It just reads the values of several other properties and produces the results fo
       (for/hash ([node (cons #f nodes)])
         (values node
                 (syntax-parse (dict-ref this-prop-info node #f)
-                  [#f #f]
                   [x:binder-info-clause
-                   (list #'x.name-field #'x.type-field #'x.def/param)]))))
+                   (and (attribute x.binder-info)
+                        (list #'x.name-field #'x.type-field #'x.def/param))]))))
     (define _xsmith_binder-type-field
       (for/hash ([node (cons #f nodes)])
         (cond [(dict-ref name+type+d/p-hash node #f)
@@ -963,8 +979,7 @@ It just reads the values of several other properties and produces the results fo
   (λ (this-prop-info binder-info)
     (define definitions (filter (λ (n) (syntax-parse (dict-ref binder-info n)
                                          [x:binder-info-clause
-                                          (attribute x.definition?)]
-                                         [else #f]))
+                                          (attribute x.lift-target?)]))
                                 (dict-keys binder-info)))
     (define single-definition (and (equal? 1 (length definitions)) (car definitions)))
 
@@ -1544,19 +1559,16 @@ The second arm is a function that takes the type that the node has been assigned
     (define binder-type-field
       (for/hash ([n nodes])
         (values n (syntax-parse (dict-ref binder-info-info n #'#f)
-                    [x:binder-info-clause #''x.type-field]
-                    [else #'#f]))))
+                    [x:binder-info-clause #''x.type-field]))))
     (define binder-name-field
       (for/hash ([n nodes])
         (values n (syntax-parse (dict-ref binder-info-info n #'#f)
-                    [x:binder-info-clause #''x.name-field]
-                    [else #'#f]))))
+                    [x:binder-info-clause #''x.name-field]))))
     (define parameter?-hash
       (for/hash ([n nodes])
         (values n (syntax-parse (dict-ref binder-info-info n #'#f)
                     [x:binder-info-clause
-                     (datum->syntax #'here (attribute x.parameter?))]
-                    [else #'#f]))))
+                     (datum->syntax #'here (attribute x.parameter?))]))))
 
     (define _xsmith_children-type-dict-info
       (for/hash ([n (dict-keys node-child-dict-funcs)])
