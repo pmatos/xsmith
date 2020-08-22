@@ -1116,13 +1116,14 @@ This property is used to mark nodes that define bindings.
 The property consists of a length-3 list.
 The first two are field names, one for the name of the field that stores the binding name, one for the name of the field that stores the binding type.
 The last field is either @verb{definition} or @verb{parameter}, reflecting whether the binding is a function parameter.
+There is an optional keyword argument @racket[#:lift-target?] that defaults to @racket[#t].  When @racket[#:lift-target?] is true @emph{and} the binding style is @verb{definition} and not @verb{parameter} then the binder is eligible to be lifted automatically.
 This is used by some Xsmith analyses about higher order values.
 
 Example:
 @racketblock[
 (add-to-grammar
  my-spec-component
- [Definition #f (name type Expression)]
+ [Definition #f (name type Expression #:lift-target? #t)]
  [Reference #f (name)])
 (add-prop
  my-spec-component
