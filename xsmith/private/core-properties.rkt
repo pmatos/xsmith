@@ -100,6 +100,63 @@
                                                k* src line
                                                )))))]))
 
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Property syntax classes
+
+
+;; This property should be a list containing:
+;; the identifier `read` or the identifier `write`,
+;; the field name that references use (as an identifier)
+(begin-for-syntax
+  (define-syntax-class reference-info-class
+    (pattern ((~and ref-type (~or (~datum write) (~datum read)))
+              field-name:id
+              (~optional (~seq #:unifies (~or target:id #f))))
+             #:with unify-target (or (and (attribute target) #''target)
+                                     #'#t)
+             #:with is-read? (eq? (syntax->datum #'ref-type) 'read))))
+
+(begin-for-syntax
+  (define-syntax-class binder-info-clause
+    (pattern (name-field:id
+              type-field:id
+              (~and def/param
+                    (~or (~datum definition)
+                         (~datum parameter)))
+              (~or (~optional (~seq #:lift-target? lift-target-stx)
+                              #:defaults ([lift-target-stx #'#t])))
+              ...)
+             #:attr definition? (syntax-parse #'def/param
+                                  [(~datum definition) #t]
+                                  [else #f])
+             #:attr parameter? (syntax-parse #'def/param
+                                 [(~datum parameter) #t]
+                                 [else #f])
+             #:attr lift-target? (and (attribute definition?)
+                                      (syntax-parse #'lift-target-stx [#t #t] [#f #f]))
+             #:attr binder-info #t
+             )
+    (pattern #f
+             #:attr name-field #'#f
+             #:attr type-field #'#f
+             #:attr binding-style #'#f
+             #:attr def/param #'#f
+             #:attr definition? #f
+             #:attr parameter? #f
+             #:attr lift-target? #f
+             #:attr binder-info #f
+             )))
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;; Properties
+
+
+
 (define-non-inheriting-rule-property
   may-be-generated
   choice-rule
@@ -204,37 +261,6 @@
                                 (map rec
                                      (ast-children (ast-child '#,field-name n))))])))))))
     (list _xsmith_to-s-expression-info)))
-
-(begin-for-syntax
-  (define-syntax-class binder-info-clause
-    (pattern (name-field:id
-              type-field:id
-              (~and def/param
-                    (~or (~datum definition)
-                         (~datum parameter)))
-              (~or (~optional (~seq #:lift-target? lift-target-stx)
-                              #:defaults ([lift-target-stx #'#t])))
-              ...)
-             #:attr definition? (syntax-parse #'def/param
-                                  [(~datum definition) #t]
-                                  [else #f])
-             #:attr parameter? (syntax-parse #'def/param
-                                 [(~datum parameter) #t]
-                                 [else #f])
-             #:attr lift-target? (and (attribute definition?)
-                                      (syntax-parse #'lift-target-stx [#t #t] [#f #f]))
-             #:attr binder-info #t
-             )
-    (pattern #f
-             #:attr name-field #'#f
-             #:attr type-field #'#f
-             #:attr binding-style #'#f
-             #:attr def/param #'#f
-             #:attr definition? #f
-             #:attr parameter? #f
-             #:attr lift-target? #f
-             #:attr binder-info #f
-             )))
 
 #|
 The fresh property will take an expression (to be the body of a method
@@ -850,18 +876,6 @@ It just reads the values of several other properties and produces the results fo
                           (unify! type (att-value 'xsmith_type n)))
                         (binding name n type 'def-or-param))))))])))
     (list _xsmith_binder-type-field xsmith_definition-binding-info)))
-
-;; This property should be a list containing:
-;; the identifier `read` or the identifier `write`,
-;; the field name that references use (as an identifier)
-(begin-for-syntax
-  (define-syntax-class reference-info-class
-    (pattern ((~and ref-type (~or (~datum write) (~datum read)))
-              field-name:id
-              (~optional (~seq #:unifies (~or target:id #f))))
-             #:with unify-target (or (and (attribute target) #''target)
-                                     #'#t)
-             #:with is-read? (eq? (syntax->datum #'ref-type) 'read))))
 
 (define-property reference-info
   #:reads (grammar)
