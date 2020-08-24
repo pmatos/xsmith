@@ -1929,9 +1929,19 @@ For some examples that use these canned components, see the @tt{xsmith-examples/
 
 Note that these bindings are @italic{not} provided by the main @tt{xsmith} module.
 
+@defform[(add-basic-grammar-parts grammar-component)]{
+Adds @verb{Definition}, @verb{FormalParameter}, and @verb{DefinitionNoRhs}.
+
+Each of these has a @verb{type} field and a @verb{name} field.
+@verb{Definition} also has an @verb{Expression} field.
+
+@verb{DefinitionNoRhs} is for use in forms that implicitly add a definition to sub-forms but whose definition is not necessarily of the same type as a child the definition comes from, such as a loop form where you bind a variable to each element of the given list.
+}
+
 @defform[(add-basic-expressions grammar-component optional ...)
          #:grammar
          [(optional
+           [#:add-basic-grammar-parts? boolean]
            [#:ProgramWithSequence boolean]
            [#:VoidExpression boolean]
            [#:AssignmentExpression boolean]
@@ -1961,13 +1971,13 @@ The following top-level node types are always added to the grammar:
 
 @itemlist[
 @item{An abstract @tt{Expression} node (IE @racket[may-be-generated] is false).}
-@item{@tt{Definition} with children @tt{type}, @tt{name}}
-@item{@tt{FormalParameter} with @tt{type}, @tt{name}}
 ]
 
 If @racket[#:ProgramWithSequence] is true,
 @tt{(ProgramWithSequence #f ([definitions : Definition *] ExpressionSequence))}
 is added.  Use this when your language is free from the nonsense of statements.
+
+If @racket[#:add-basic-grammar-parts?] is true (the default), @racket[add-basic-grammar-parts] is run as well, adding @verb{Definition}, @verb{FormalParameter}, and @verb{DefinitionNoRhs}, which are needed for some other expression nodes.
 
 The following @tt{Expression} node types are always added:
 

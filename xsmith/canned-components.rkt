@@ -1,6 +1,7 @@
 #lang clotho
 
 (provide
+ add-basic-grammar-parts
  add-basic-expressions
  add-basic-statements
  add-loop-over-container
@@ -131,10 +132,32 @@
                  [#f #t])
                (~? default #f)))])))
 
+(define-syntax (add-basic-grammar-parts stx)
+  (syntax-parse stx
+    [(_ component)
+     #`(begin
+         (add-to-grammar
+          component
+          [Definition #f ([type]
+                          [name = (fresh-var-name "b_")]
+                          Expression)
+            #:prop binder-info (name type definition)
+            #:prop type-info [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
+          [DefinitionNoRhs #f ([type]
+                               [name])
+            #:prop binder-info (name type definition #:lift-target? #f)
+            #:prop type-info [(fresh-type-variable) no-child-types]]
+          [FormalParameter #f (type [name = (fresh-var-name "arg_")])
+                           #:prop binder-info (name type parameter)
+                           #:prop type-info [(fresh-type-variable) no-child-types]]
+          ))]))
+
 (define-syntax (add-basic-expressions stx)
   (syntax-parse stx
     [(_ component
         (~or
+         (~optional (~seq #:add-basic-grammar-parts? add-basics?:boolean)
+                    #:defaults ([add-basics? #'#t]))
          (~optional (~seq #:ProgramWithSequence use-program-with-sequence:boolean))
          (~optional (~seq #:VoidExpression use-void-expression:boolean))
          (~optional (~seq #:AssignmentExpression use-assignment-expression:boolean))
@@ -167,27 +190,19 @@
          )
         ...
         )
+     (define/syntax-parse add-basics
+       (syntax-parse #'add-basics?
+         [#t #'(add-basic-grammar-parts component)]
+         [#f #'(void)]))
      #`(begin
          (define bool bool-type-e)
          (define number number-type-e)
          (define int int-type-e)
          (define index-and-length-type (~? index-and-length-type-e int))
          ;; Core grammar
-
+         add-basics
          (add-to-grammar
           component
-          ;; TODO - where to put Definition and FormalParameter?
-          [Definition #f ([type]
-                          [name = (fresh-var-name "b_")]
-                          Expression)
-            #:prop binder-info (name type definition)]
-          [DefinitionNoRhs #f ([type]
-                               [name])
-            #:prop binder-info (name type definition #:lift-target? #f)]
-          [FormalParameter #f (type [name = (fresh-var-name "arg_")])
-                           #:prop binder-info (name type parameter)]
-
-
           [Expression #f ()
                       #:prop may-be-generated #f]
           [VariableReference Expression (name)
@@ -225,10 +240,6 @@
          (add-prop
           component
           type-info
-          [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
-          [DefinitionNoRhs [(fresh-type-variable) no-child-types]]
-          [FormalParameter [(fresh-type-variable) no-child-types]]
-
           ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
           [Expression [(error 'type-info "Trying to type check as an expression without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Expression.")
                        no-child-types]]
