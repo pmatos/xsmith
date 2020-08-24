@@ -116,7 +116,6 @@
                                  (map (λ (cn) ($xsmith_render-node cn))
                                       (ast-children (ast-child 'statements body))))))))
               line))])
-(add-prop python-comp choice-weight [LoopOverArray 1000])
 
 (add-prop
  python-comp
