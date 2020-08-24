@@ -1123,12 +1123,12 @@ Example:
 @racketblock[
 (add-to-grammar
  my-spec-component
- [Definition #f (name type Expression #:lift-target? #t)]
+ [Definition #f (name type Expression)]
  [Reference #f (name)])
 (add-prop
  my-spec-component
  binder-info
- [Definition (name type definition)])
+ [Definition (name type definition #:lift-target? #t)])
 ]
 
 Note that when definitions are lifted automatically, the @verb{name} and @verb{type} fields are given automatically.
