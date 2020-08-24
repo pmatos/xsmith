@@ -853,7 +853,11 @@
          (~optional (~seq #:loop-type-constructor loop-type-constructor-stx))
          (~optional (~seq #:body-type-constructor body-type-constructor-stx)
                     #:defaults ([body-type-constructor-stx
-                                 #'(λ (loop-type element-type) element-type)])))
+                                 #'(λ (loop-type element-type) element-type)]))
+         (~optional (~seq #:loop-variable-type-constructor
+                          loop-variable-type-constructor-stx)
+                    #:defaults ([loop-variable-type-constructor-stx
+                                 #'(λ (element-type) element-type)])))
         ...)
      (define/syntax-parse collection-node-ast-type
        (syntax-parse #'bind-whole-collection?
@@ -864,6 +868,7 @@
          (define loop-type-function (~? loop-type-constructor-stx
                                         collection-type-constructor-stx))
          (define body-type-function body-type-constructor-stx)
+         (define loop-variable-type-constructor loop-variable-type-constructor-stx)
          (add-to-grammar
           component
           [loop-node-name
@@ -891,7 +896,9 @@
                          [new-def (make-fresh-node
                                    'DefinitionNoRhs
                                    (hash 'name (fresh-var-name "loopvar_")
-                                         'type (concretize-type inner-type)))])
+                                         'type (concretize-type
+                                                (loop-variable-type-constructor
+                                                 inner-type))))])
                     (λ () (rewrite-subtree (ast-child 'elemname n)
                                            new-def)))))
            #:prop edit
@@ -907,7 +914,7 @@
             (λ (n t)
               (define elemtype (fresh-type-variable))
               (hash 'body (body-type-function t elemtype)
-                    'elemname elemtype
+                    'elemname (loop-variable-type-constructor elemtype)
                     'collection (collection-type-constructor elemtype)))]
            ]))]))
 

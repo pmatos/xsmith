@@ -2046,6 +2046,7 @@ Type considerations:
   [#:collection-type-constructor function]
   [#:loop-type-constructor function]
   [#:body-type-constructor function]
+  [#:loop-variable-type-constructor function]
   )]]{
 Adds a looping form named @racket[#:name] to @racket[grammar-component].
 The looping node will be of ast-type @racket[loop-ast-type], which defaults to @verb{Expression}.
@@ -2065,6 +2066,11 @@ However, common values for @racket[#:loop-type-constructor] include @racket[(λ 
 The @racket[#:body-type-constructor] should be a function from the loop type and the element type to the type of the loop body.
 By default @racket[#:body-type-constructor] returns the element type, but for side-effectful loops and/or statement-bodied loops it should be something else.
 For example, a statement-bodied loop should have @racket[#:body-type-constructor (λ (loop-type elem-type) loop-type)].
+
+The @racket[#:loop-variable-type-constructor] should be a function from the type inside the collection to the type of the loop variable.
+By default this is the identity function.
+However, you can override this to make a loop over a container where the loop variable is, say, an integer that indexes the collection rather than an element of the collection.
+The details of how you make the bound name match the type are essentially up to the @racket[render-node-info] rules you write.
 
 
 Most keyword arguments are optional, but @racket[#:name] is required.
