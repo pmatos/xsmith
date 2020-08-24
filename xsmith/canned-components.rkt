@@ -141,14 +141,14 @@
           [Definition #f ([type]
                           [name = (fresh-var-name "b_")]
                           Expression)
-            #:prop binder-info (name type definition)
+            #:prop binder-info ()
             #:prop type-info [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [DefinitionNoRhs #f ([type]
                                [name])
-            #:prop binder-info (name type definition #:lift-target? #f)
+            #:prop binder-info (#:lift-target? #f)
             #:prop type-info [(fresh-type-variable) no-child-types]]
           [FormalParameter #f (type [name = (fresh-var-name "arg_")])
-                           #:prop binder-info (name type parameter)
+                           #:prop binder-info (#:binder-style parameter)
                            #:prop type-info [(fresh-type-variable) no-child-types]]
           ))]))
 
@@ -206,7 +206,7 @@
           [Expression #f ()
                       #:prop may-be-generated #f]
           [VariableReference Expression (name)
-                             #:prop reference-info (read name)]
+                             #:prop reference-info (read)]
 
           ;; TODO - procedure application should require at least one kind of lambda...
           [ProcedureApplication
@@ -322,7 +322,7 @@
                     component
                     [AssignmentExpression
                      Expression (name [newvalue : Expression])
-                     #:prop reference-info (write name #:unifies newvalue)
+                     #:prop reference-info (write #:unifies newvalue)
                      #:prop type-info
                      [void-type
                       (λ (n t) (hash 'newvalue (fresh-type-variable)))]]))
@@ -796,7 +796,7 @@
                     component
                     [AssignmentStatement
                      Statement (name Expression)
-                     #:prop reference-info (write name #:unifies Expression)
+                     #:prop reference-info (write #:unifies Expression)
                      #:prop wont-over-deepen #t
                      #:prop type-info
                      [no-return-type

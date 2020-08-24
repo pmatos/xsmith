@@ -44,7 +44,7 @@
 (add-to-grammar
  arith
  [Definition #f (name type Expression)
-   #:prop binder-info (name type definition)]
+   #:prop binder-info ()]
  [Expression #f ()
              #:prop may-be-generated #f]
  [LetStar Expression ([definitions : Definition *]
@@ -52,9 +52,9 @@
                       Expression)
           #:prop strict-child-order? #t]
  [VariableReference Expression (name)
-                    #:prop reference-info (read name)]
+                    #:prop reference-info (read)]
  [SetBangRet Expression (name Expression)
-             #:prop reference-info (write name)]
+             #:prop reference-info (write)]
  [Tuple Expression ([expressions : Expression * =
                                  (let* ([t (att-value 'xsmith_type (current-hole))]
                                         [pt (product-type #f)]

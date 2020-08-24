@@ -57,7 +57,7 @@
  [Definition #f ([type]
                  [name]
                  Expression)
-   #:prop binder-info (name type definition)]
+   #:prop binder-info ()]
 
  [Expression #f ()
              #:prop may-be-generated #f]
@@ -72,17 +72,17 @@
                      )
          #:prop wont-over-deepen #t]
  [FormalParam #f (type [name = (fresh-var-name "arg-")])
-              #:prop binder-info (name type parameter)]
+              #:prop binder-info (#:binder-style parameter)]
 
  [LetStar Expression ([definitions : Definition * = 0 #;(random 3)]
                       [body : DefinitionContext])
           #:prop strict-child-order? #t]
 
  [VariableReference Expression (name)
-                    #:prop reference-info (read name)
+                    #:prop reference-info (read)
                     #:prop choice-weight 10]
  [SetBangRet Expression (name Expression)
-             #:prop reference-info (write name)]
+             #:prop reference-info (write)]
 
  [LiteralBool Expression ([v = (even? (random 2))])]
  [Not Expression ([Expression])]

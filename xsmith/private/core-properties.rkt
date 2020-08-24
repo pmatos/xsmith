@@ -71,7 +71,8 @@
  (submod "types.rkt" for-private)
  "effects.rkt"
  clotho/math/distributions
- racr
+ ;racr
+ (submod "debug-util.rkt" racr)
  racket/class
  ;racket/dict
  racket/list
@@ -112,21 +113,34 @@
 (begin-for-syntax
   (define-syntax-class reference-info-class
     (pattern ((~and ref-type (~or (~datum write) (~datum read)))
-              field-name:id
-              (~optional (~seq #:unifies (~or target:id #f))))
-             #:with unify-target (or (and (attribute target) #''target)
+              (~or
+               (~optional (~seq #:name-field field-name:id)
+                          #:defaults ([field-name #'name]))
+               (~optional (~seq #:unifies (~or target:id #f))))
+              ...)
+             #:attr unify-target (or (and (attribute target) #''target)
                                      #'#t)
-             #:with is-read? (eq? (syntax->datum #'ref-type) 'read))))
+             #:attr is-read? (eq? (syntax->datum #'ref-type) 'read)
+             #:attr is-reference? #t)
+    (pattern #f
+             #:attr ref-type #f
+             #:attr unify-target #f
+             #:attr is-read? #f
+             #:attr is-reference? #f
+             #:attr field-name #'#f)))
 
 (begin-for-syntax
   (define-syntax-class binder-info-clause
-    (pattern (name-field:id
-              type-field:id
-              (~and def/param
-                    (~or (~datum definition)
-                         (~datum parameter)))
-              (~or (~optional (~seq #:lift-target? lift-target-stx)
-                              #:defaults ([lift-target-stx #'#t])))
+    (pattern ((~or (~optional (~seq #:lift-target? lift-target-stx)
+                              #:defaults ([lift-target-stx #'#t]))
+                   (~optional (~seq #:name-field name-field:id)
+                              #:defaults ([name-field #'name]))
+                   (~optional (~seq #:type-field type-field:id)
+                              #:defaults ([type-field #'type]))
+                   (~optional (~seq #:binder-style (~and def/param
+                                                         (~or (~datum definition)
+                                                              (~datum parameter))))
+                              #:defaults ([def/param #'definition])))
               ...)
              #:attr definition? (syntax-parse #'def/param
                                   [(~datum definition) #t]
@@ -304,8 +318,9 @@ hole for the type.
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref reference-info-info node #'#f)
-                  [(_ name:id (~optional (~seq #:unifies target))) (syntax->datum #'name)]
-                  [else #f]))))
+                  [x:reference-info-class #:when (attribute x.is-reference?)
+                                          (syntax->datum #'x.field-name)]
+                  [x:reference-info-class #f]))))
 
     (define _xsmith_field-names-info
       (for/hash ([node nodes])
@@ -893,16 +908,18 @@ It just reads the values of several other properties and produces the results fo
                 (syntax-parse (dict-ref this-prop-info
                                         node
                                         #'#f)
-                  [prop:reference-info-class #:when (attribute prop.is-read?) #''prop.field-name]
-                  [else #'#f]))))
+                  [prop:reference-info-class #:when (attribute prop.is-read?)
+                                             #''prop.field-name]
+                  [prop:reference-info-class #'#f]))))
     (define _xsmith_is-reference-info
       (for/hash ([node nodes])
         (values node
                 (syntax-parse (dict-ref this-prop-info
                                         node
                                         #'#f)
-                  [prop:reference-info-class #''prop.field-name]
-                  [else #'#f]))))
+                  [prop:reference-info-class #:when (attribute prop.is-reference?)
+                                             #''prop.field-name]
+                  [prop:reference-info-class #'#f]))))
     (define _xsmith_is-read-reference-choice?-info
       (for/hash ([node nodes])
         (values node #`(λ () #,(dict-ref _xsmith_is-read-reference-info node)))))
@@ -1556,9 +1573,10 @@ The second arm is a function that takes the type that the node has been assigned
     (define node-reference-info-cleansed
       (for/list ([n nodes])
         (syntax-parse (dict-ref reference-info-info n #'#f)
-          [#f (list #'#f #'#f #'#t)]
           [prop:reference-info-class
-           (list #''prop.ref-type #''prop.field-name #'prop.unify-target)])))
+           #:when (attribute prop.is-reference?)
+           (list #''prop.ref-type #''prop.field-name #'prop.unify-target)]
+          [prop:reference-info-class (list #'#f #'#f #'#t)])))
     (define node-r/w-type (for/hash ([n nodes]
                                      [i node-reference-info-cleansed])
                             (values n (first i))))
@@ -1947,9 +1965,10 @@ The second arm is a function that takes the type that the node has been assigned
           (syntax-parse (dict-ref reference-info n #'#f)
             [prop:reference-info-class #:when (attribute prop.is-read?)
                                        (values #'effect-read-variable #'prop.field-name)]
-            [prop:reference-info-class #:when (not (attribute prop.is-read?))
+            [prop:reference-info-class #:when (and (attribute prop.is-reference?)
+                                                   (not (attribute prop.is-read?)))
                                        (values #'effect-write-variable #'prop.field-name)]
-            [#f (values #f #f)]))
+            [prop:reference-info-class (values #f #f)]))
         (values
          n
          #`(λ (n)
@@ -1969,9 +1988,10 @@ The second arm is a function that takes the type that the node has been assigned
           (syntax-parse (dict-ref reference-info n #'#f)
             [prop:reference-info-class #:when (attribute prop.is-read?)
                                        (values #'effect-read-variable #'prop.field-name)]
-            [prop:reference-info-class #:when (not (attribute prop.is-read?))
+            [prop:reference-info-class #:when (and (attribute prop.is-reference?)
+                                                   (not (attribute prop.is-read?)))
                                        (values #'effect-write-variable #'prop.field-name)]
-            [#f (values #f #f)]))
+            [prop:reference-info-class (values #f #f)]))
         (values
          n
          #`(λ (n)
@@ -2095,6 +2115,7 @@ The second arm is a function that takes the type that the node has been assigned
                                               (ast-parent (current-hole))
                                               (current-hole))))))]
            [(#f prop:reference-info-class)
+            #:when (attribute prop.is-reference?)
             ;; References are disallowed when there is a conflict of any-effect.
             ;; Here we're cheating a little, because this isn't really an IO conflict.
             ;; Maybe I should move this into a different choice method...

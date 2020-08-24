@@ -185,17 +185,17 @@ Fixes:
 (add-prop
  pythonesque-grammar
  binder-info
- [Decl (name type definition)]
- [FuncDecl (name type definition)]
- [ParamDecl (name type definition)]
- [VarDecl (name type definition)]
+ [Decl ()]
+ [FuncDecl ()]
+ [ParamDecl ()]
+ [VarDecl ()]
  )
 
 (add-prop
  pythonesque-grammar
  reference-info
- [AssignStmt (write name #:unifies Expr)]
- [VarRefExpr (read name)]
+ [AssignStmt (write #:unifies Expr)]
+ [VarRefExpr (read)]
  )
 
 ; Fresh generation.

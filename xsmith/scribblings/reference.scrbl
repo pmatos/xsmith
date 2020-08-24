@@ -1113,34 +1113,48 @@ The property accepts expressions which will evaluate to booleans (IE anything bu
 
 @defform[#:kind "spec-property" #:id binder-info binder-info]{
 This property is used to mark nodes that define bindings.
-The property consists of a length-3 list.
-The first two are field names, one for the name of the field that stores the binding name, one for the name of the field that stores the binding type.
-The last field is either @verb{definition} or @verb{parameter}, reflecting whether the binding is a function parameter.
-There is an optional keyword argument @racket[#:lift-target?] that defaults to @racket[#t].  When @racket[#:lift-target?] is true @emph{and} the binding style is @verb{definition} and not @verb{parameter} then the binder is eligible to be lifted automatically.
+The property consists of a list of optional keyword arguments.
+@itemlist[
+@item{
+@racket[#:name-field] specifies the name of a field in the node that contains the name of the definition, and defaults to @verb{name}.
+}
+@item{
+@racket[#:type-field] specifies the name of a field in the node that contains a type annotation for the definition, and defaults to @verb{type}.
+}
+@item{
+@racket[#:binder-style] must be either @verb{definition} or @verb{parameter}, reflecting whether the binding is a function parameter (default: @verb{definition}).
 This is used by some Xsmith analyses about higher order values.
+}
+@item{
+@racket[#:lift-target?] defaults to @racket[#t].  When @racket[#:lift-target?] is true @emph{and} the binding style is @verb{definition} and not @verb{parameter} then the binder is eligible to be lifted automatically.
+}
+]
+
+Note that for a basic definition with default name fields, the property need only contain an empty list to mark that the node is in fact a binder.
 
 Example:
 @racketblock[
 (add-to-grammar
  my-spec-component
- [Definition #f (name type Expression)]
- [Reference #f (name)])
-(add-prop
- my-spec-component
- binder-info
- [Definition (name type definition #:lift-target? #t)])
+ [Definition #f (name type Expression)
+   #:prop binder-info ()]
+ [FormalParameter #f (name type)
+   #:prop binder-info (#:binder-style parameter)]
+ [Reference #f (name)
+            #:prop reference-info (read)])
 ]
 
 Note that when definitions are lifted automatically, the @verb{name} and @verb{type} fields are given automatically.
 But if definition nodes are filled in normally (not via lifting), values must be provided by the @racket[fresh] property.
 }
 @defform[#:kind "spec-property" #:id reference-info reference-info]{
-This property marks nodes that are reference nodes.  The argument for the property is a list containing:
+This property marks nodes that are reference nodes.
+The argument for the property is a list containing:
 
 @itemlist[
 @item{The identifier @verb{read} or the identifier @verb{write}, indicating whether the reference reads or writes the variable}
-@item{The name of the field that stores the reference name (as an identifier).}
-@item{An optional keyword field @racket[#:unifies], which accepts the name of a field that the type checker unifies with respect to.  The default value, @racket[#t], unifies the node itself instead of one of its fields.  Use @racket[#f] to disable automated unification for this node.  (If you disable unification, you should implement your own manually!)
+@item{(Optional) @racket[#:name-field]:  The name of the field that stores the reference name (as an identifier).  Defaults to @verb{name}.}
+@item{(Optionaly) @racket[#:unifies]:  Accepts the name of a field that the type checker unifies with respect to.  The default value, @racket[#t], unifies the node itself instead of one of its fields.  Use @racket[#f] to disable automated unification for this node.  (If you disable unification, you should implement your own manually!)
 
 If you give a field for the unification target, that field's type rule must NOT depend on the parent node's type.
 Essentially, the @racket[#:unifies] argument is meant for writes to any type in a node that itself has type void.}
@@ -1151,7 +1165,7 @@ Example:
 (add-prop
  my-spec-component
  reference-info
- [Reference (read name)]
+ [Reference (read)]
  [Assignment (write name #:unifies Expression)])
 ]
 }

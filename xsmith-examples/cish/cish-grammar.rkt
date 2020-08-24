@@ -317,15 +317,15 @@
 
 (add-prop cish-grammar
           binder-info
-          [Declaration (name type definition)]
-          [VariableDeclaration (name type definition)]
-          [FunctionDefinition (name type definition)]
-          [StructDefinition (name type definition)]
-          [FormalParam (name type parameter)])
+          [Declaration ()]
+          [VariableDeclaration ()]
+          [FunctionDefinition ()]
+          [StructDefinition ()]
+          [FormalParam (#:binder-style parameter)])
 (add-prop cish-grammar
           reference-info
-          [VariableReference (read name)]
-          [AssignmentExpression (write name)]
+          [VariableReference (read)]
+          [AssignmentExpression (write)]
           )
 (add-prop cish-grammar
           mutable-container-access
