@@ -105,17 +105,16 @@
                         (text (ast-child 'name (ast-child 'elemname n)))
                         (text " in ")
                         (text collection-name)
-                        (text ":"))
-              (nest nest-step
-                    (h-append
-                     ;; It doesn't seem to want to nest if I don't have a line here...
-                     line
-                     (v-concat
-                      (append
-                       (map (λ (cn) ($xsmith_render-node cn))
-                            (ast-children (ast-child 'definitions body)))
-                       (map (λ (cn) ($xsmith_render-node cn))
-                            (ast-children (ast-child 'statements body)))))))
+                        (text ":")
+                        (nest nest-step
+                              (h-append
+                               line
+                               (v-concat
+                                (append
+                                 (map (λ (cn) ($xsmith_render-node cn))
+                                      (ast-children (ast-child 'definitions body)))
+                                 (map (λ (cn) ($xsmith_render-node cn))
+                                      (ast-children (ast-child 'statements body))))))))
               line))])
 (add-prop python-comp choice-weight [LoopOverArray 1000])
 
