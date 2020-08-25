@@ -204,9 +204,14 @@
          (add-to-grammar
           component
           [Expression #f ()
-                      #:prop may-be-generated #f]
+                      #:prop may-be-generated #f
+                      #:prop type-info
+                      ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
+                      [(error 'type-info "Trying to type check as an expression without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Expression.")
+                       no-child-types]]
           [VariableReference Expression (name)
-                             #:prop reference-info (read)]
+                             #:prop reference-info (read)
+                             #:prop type-info [(fresh-type-variable) no-child-types]]
 
           ;; TODO - procedure application should require at least one kind of lambda...
           [ProcedureApplication
@@ -234,18 +239,8 @@
                         (if (list? arg-types)
                             (map (λ (x) (make-hole 'Expression)) arg-types)
                             (build-list (arg-length)
-                                        (λ (x) (make-hole 'Expression))))))))))]
-          )
-
-         (add-prop
-          component
-          type-info
-          ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
-          [Expression [(error 'type-info "Trying to type check as an expression without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Expression.")
-                       no-child-types]]
-          [VariableReference [(fresh-type-variable) no-child-types]]
-
-          [ProcedureApplication
+                                        (λ (x) (make-hole 'Expression))))))))))
+           #:prop type-info
            [(fresh-type-variable)
             (λ (n t)
               (define proc (ast-child 'procedure n))
@@ -726,29 +721,24 @@
          (add-to-grammar
           component
           [Statement #f ()
-                     #:prop may-be-generated #f]
-          [ReturnStatement Statement (Expression)
-                           #:prop wont-over-deepen #t]
-          [Block Statement ([definitions : Definition *]
-                            [statements : Statement * = (add1 (random 5))])
-                 #:prop strict-child-order? #t]
-          [IfElseStatement Statement
-                           ([test : Expression] [then : Block] [else : Block])
-                           #:prop strict-child-order? #t])
-         (add-prop
-          component
-          type-info
-          ;;; Statements
-
-          ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
-          [Statement [(error 'type-info "Trying to type check as a statement without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Statement.")
+                     #:prop may-be-generated #f
+                     #:prop type-info
+                     ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
+                     [(error 'type-info "Trying to type check as a statement without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Statement.")
                       no-child-types]]
-          [ReturnStatement [(return-type (fresh-type-variable))
+          [ReturnStatement Statement (Expression)
+                           #:prop wont-over-deepen #t
+                           #:prop type-info
+                           [(return-type (fresh-type-variable))
                             (λ (n t)
                               (define inner (fresh-type-variable))
                               (unify! (return-type inner) t)
                               (hash 'Expression inner))]]
-          [Block [(fresh-maybe-return-type)
+          [Block Statement ([definitions : Definition *]
+                            [statements : Statement * = (add1 (random 5))])
+                 #:prop strict-child-order? #t
+                 #:prop type-info
+                 [(fresh-maybe-return-type)
                   (λ (n t)
                     (define statements (ast-children (ast-child 'statements n)))
                     (define last-statement (car (reverse statements)))
@@ -761,10 +751,13 @@
                     (for/fold ([dict statement-dict])
                               ([d (ast-children (ast-child 'definitions n))])
                       (dict-set dict d (fresh-type-variable))))]]
-          [IfElseStatement [(fresh-maybe-return-type)
-                            (λ (n t) (hash 'test bool
-                                           'then t
-                                           'else t))]])
+          [IfElseStatement Statement
+                           ([test : Expression] [then : Block] [else : Block])
+                           #:prop strict-child-order? #t
+                           #:prop type-info [(fresh-maybe-return-type)
+                                             (λ (n t) (hash 'test bool
+                                                            'then t
+                                                            'else t))]])
 
          #,@(if (use? use-program-with-block)
                 #'((add-to-grammar
