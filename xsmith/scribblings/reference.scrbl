@@ -2079,6 +2079,22 @@ Type considerations:
 ]
 }
 
+@defform[#:kind "spec-property" #:id block-user? block-user?]{
+Property for nodes that use the Block node as a child to support definition children as well as a list of statements.
+When given @racket[#t], the child Block won't increase the calculated AST depth.
+
+@racketblock[
+(add-basic-statements my-component
+                      ...
+                      #:Block #t
+                      ...)
+(add-to-grammar my-component
+                [OneArmedIfStatement Statement
+                                     ([test : Expression] [then : Block])
+                                     #:prop block-user? #t])
+]
+}
+
 @defform[(add-loop-over-container grammar-component kw-arg ...)
 #:grammar
 [(kw-arg

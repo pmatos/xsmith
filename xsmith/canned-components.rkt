@@ -5,6 +5,8 @@
  add-basic-expressions
  add-basic-statements
  add-loop-over-container
+ ;; property to tell child blocks not to increase depth
+ block-user?
  ;; Type system stuff
  return-type
  no-return-type
@@ -408,6 +410,7 @@
                     [LambdaWithBlock
                      Expression ([parameters : FormalParameter * = (arg-length)]
                                  [body : Block])
+                     #:prop block-user? #t
                      #:prop wont-over-deepen #t
                      #:prop choice-weight 1
                      #:prop fresh
@@ -706,6 +709,14 @@
          )]))
 
 
+(define-simple-property
+  block-user?
+  att-rule
+  #:rule-name _xsmith_block-user?
+  #:default #f
+  #:transformer (syntax-parser [#t #'(λ (n) #t)] [#f #'(λ (n) #f)]))
+
+
 (define-syntax (add-basic-statements stx)
   (syntax-parse stx
     [(_ component
@@ -761,6 +772,7 @@
                                      ([test : Expression]
                                       [then : Block]
                                       [else : Block])
+                                     #:prop block-user? #t
                                      #:prop strict-child-order? #t
                                      #:prop type-info [(fresh-maybe-return-type)
                                                        (λ (n t) (hash 'test bool
@@ -775,6 +787,18 @@
                     [Block Statement ([definitions : Definition *]
                                       [statements : Statement * = (add1 (random 5))])
                            #:prop strict-child-order? #t
+                           #:prop depth-increase
+                           ;; Many nodes have blocks as children to
+                           ;; implicitly have multiple statements and
+                           ;; allow definitions. Let's assume blocks
+                           ;; are always used that way unless they are
+                           ;; themselves under blocks.
+                           (λ (n)
+                             (if (and (parent-node n)
+                                      (att-value '_xsmith_block-user?
+                                                 (parent-node n)))
+                                 0
+                                 1))
                            #:prop type-info
                            [(fresh-maybe-return-type)
                             (λ (n t)
@@ -799,6 +823,7 @@
                     [ProgramWithBlock
                      #f ([definitions : Definition *]
                          [Block])
+                     #:prop block-user? #t
                      #:prop strict-child-order? #t
                      #:prop type-info
                      [(fresh-type-variable)
