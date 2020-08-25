@@ -1085,7 +1085,8 @@ Example:
 @defform[#:kind "spec-property" #:id depth-increase depth-increase]{
 This property defines the @rule[xsmith_ast-depth] non-inheriting att-rule.
 
-The property accepts an expression which much evaluate to a function of one argument (the @(racr) AST node) which returns a truthy value for nodes which increase the depth of the AST and #f otherwise.  The default is @racket[(λ (n) #t)].
+The property accepts an expression which much evaluate to a function of one argument (the @(racr) AST node) which returns an integer for the depth increase.
+The default is @racket[(λ (n) 1)].
 This property is NOT inherited by subclasses.
 
 This is useful to allow node re-use.  For example, the body of an @verb{if} or @verb{for} statement might be a block and have the same semantics, but you might want a block inside an @verb{if} to only be considered a depth increase of 1, not 2.
