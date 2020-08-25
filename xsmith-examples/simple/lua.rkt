@@ -14,6 +14,8 @@
 
 (add-basic-expressions lua-comp
                        #:LambdaWithBlock #t
+                       #:VariableReference #t
+                       #:ProcedureApplication #t
                        #:Numbers #t
                        #:Booleans #t
                        #:Strings #t

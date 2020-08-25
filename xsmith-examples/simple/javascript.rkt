@@ -12,6 +12,8 @@
 (define-spec-component javascript-comp)
 
 (add-basic-expressions javascript-comp
+                       #:VariableReference #t
+                       #:ProcedureApplication #t
                        #:LambdaWithBlock #t
                        #:Numbers #t
                        #:Booleans #t

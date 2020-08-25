@@ -159,11 +159,13 @@
          (~optional (~seq #:add-basic-grammar-parts? add-basics?:boolean)
                     #:defaults ([add-basics? #'#t]))
          (~optional (~seq #:ProgramWithSequence use-program-with-sequence:boolean))
+         (~optional (~seq #:VariableReference use-variable-reference:boolean))
          (~optional (~seq #:VoidExpression use-void-expression:boolean))
          (~optional (~seq #:AssignmentExpression use-assignment-expression:boolean))
          (~optional (~seq #:IfExpression use-if-expression:boolean))
          (~optional (~seq #:LambdaWithExpression use-LWE:boolean))
          (~optional (~seq #:LambdaWithBlock use-LWB:boolean))
+         (~optional (~seq #:ProcedureApplication use-procedure-application:boolean))
          (~optional (~seq #:LetSequential use-let-sequential:boolean))
          (~optional (~seq #:ExpressionSequence use-expression-sequence:boolean))
          (~optional (~seq #:Numbers use-numbers:boolean))
@@ -209,61 +211,71 @@
                       ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
                       [(error 'type-info "Trying to type check as an expression without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Expression.")
                        no-child-types]]
-          [VariableReference Expression (name)
-                             #:prop reference-info (read)
-                             #:prop type-info [(fresh-type-variable) no-child-types]]
-
-          ;; TODO - procedure application should require at least one kind of lambda...
-          [ProcedureApplication
-           Expression
-           ([procedure : Expression]
-            [arguments : Expression * = (create-ast-bud)])
-           #:prop edit
-           (λ (n)
-             (and
-              (ast-bud-node? (ast-child 'arguments n))
-              (not (att-value 'xsmith_is-hole?
-                              (ast-child 'procedure n)))
-              (λ () (rewrite-subtree
-                     (ast-child 'arguments n)
-                     (let* ([ft (att-value 'xsmith_type
-                                           (ast-child 'procedure n))]
-                            [ft-access (function-type (product-type #f)
-                                                      (fresh-type-variable))]
-                            [_ (begin (unify! ft ft-access)
-                                      (force-type-exploration-for-node!
-                                       (ast-child 'procedure n)))]
-                            [arg-types (product-type-inner-type-list
-                                        (function-type-arg-type ft-access))])
-                       (create-ast-list
-                        (if (list? arg-types)
-                            (map (λ (x) (make-hole 'Expression)) arg-types)
-                            (build-list (arg-length)
-                                        (λ (x) (make-hole 'Expression))))))))))
-           #:prop type-info
-           [(fresh-type-variable)
-            (λ (n t)
-              (define proc (ast-child 'procedure n))
-              (define args-node (ast-child 'arguments n))
-              (define args-done? (not (ast-bud-node? args-node)))
-              (define args (and args-done? (ast-children args-node)))
-              (define args-type (if args-done?
-                                    (product-type
-                                     (map (λ(x)(fresh-type-variable))
-                                          args))
-                                    (product-type #f)))
-              (hash-set
-               (if args-done?
-                   (for/hash ([arg args]
-                              [arg-type (product-type-inner-type-list args-type)])
-                     (values arg arg-type))
-                   (hash))
-               'procedure
-               (function-type args-type t)))]]
           )
 
+         #,@(if (use? use-variable-reference)
+                #'((add-to-grammar
+                    component
+                    [VariableReference Expression (name)
+                                       #:prop reference-info (read)
+                                       #:prop type-info
+                                       [(fresh-type-variable) no-child-types]]))
+                #'())
 
          ;;; Optional components
+         #,@(if (use? use-procedure-application)
+                #'((add-to-grammar
+                    component
+                    [ProcedureApplication
+                     Expression
+                     ([procedure : Expression]
+                      [arguments : Expression * = (create-ast-bud)])
+                     #:prop edit
+                     (λ (n)
+                       (and
+                        (ast-bud-node? (ast-child 'arguments n))
+                        (not (att-value 'xsmith_is-hole?
+                                        (ast-child 'procedure n)))
+                        (λ () (rewrite-subtree
+                               (ast-child 'arguments n)
+                               (let* ([ft (att-value 'xsmith_type
+                                                     (ast-child 'procedure n))]
+                                      [ft-access (function-type
+                                                  (product-type #f)
+                                                  (fresh-type-variable))]
+                                      [_ (begin (unify! ft ft-access)
+                                                (force-type-exploration-for-node!
+                                                 (ast-child 'procedure n)))]
+                                      [arg-types (product-type-inner-type-list
+                                                  (function-type-arg-type ft-access))])
+                                 (create-ast-list
+                                  (if (list? arg-types)
+                                      (map (λ (x) (make-hole 'Expression)) arg-types)
+                                      (build-list
+                                       (arg-length)
+                                       (λ (x) (make-hole 'Expression))))))))))
+                     #:prop type-info
+                     [(fresh-type-variable)
+                      (λ (n t)
+                        (define proc (ast-child 'procedure n))
+                        (define args-node (ast-child 'arguments n))
+                        (define args-done? (not (ast-bud-node? args-node)))
+                        (define args (and args-done? (ast-children args-node)))
+                        (define args-type (if args-done?
+                                              (product-type
+                                               (map (λ(x)(fresh-type-variable))
+                                                    args))
+                                              (product-type #f)))
+                        (hash-set
+                         (if args-done?
+                             (for/hash ([arg args]
+                                        [arg-type (product-type-inner-type-list
+                                                   args-type)])
+                               (values arg arg-type))
+                             (hash))
+                         'procedure
+                         (function-type args-type t)))]]))
+                #'())
 
          #,@(if (use? use-numbers)
                 #'((add-to-grammar

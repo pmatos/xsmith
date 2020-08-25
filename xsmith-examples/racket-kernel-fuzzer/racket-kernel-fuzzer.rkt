@@ -48,6 +48,8 @@
 
 (add-basic-expressions racket-comp
                        #:ProgramWithSequence #t
+                       #:VariableReference #t
+                       #:ProcedureApplication #t
                        #:VoidExpression #t
                        #:AssignmentExpression #t
                        #:IfExpression #t

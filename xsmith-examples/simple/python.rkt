@@ -13,6 +13,8 @@
 (define-spec-component python-comp)
 
 (add-basic-expressions python-comp
+                       #:VariableReference #t
+                       #:ProcedureApplication #t
                        #:LambdaWithExpression #t
                        #:LambdaWithBlock #t
                        #:Numbers #t

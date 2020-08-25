@@ -16,6 +16,8 @@
                        #:ProgramWithSequence #t
                        #:VoidExpression #t
                        #:AssignmentExpression #t
+                       #:VariableReference #t
+                       #:ProcedureApplication #t
                        #:IfExpression #t
                        #:ExpressionSequence #t
                        #:LetSequential #t
