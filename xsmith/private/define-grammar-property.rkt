@@ -33,6 +33,7 @@
 (provide
  define-property
  define-non-inheriting-rule-property
+ define-simple-property
  )
 (require
  (for-syntax
@@ -112,6 +113,37 @@
                          (transformer
                           (or prop-vals (quote-syntax default-value))))))
              (list rule-info))))]))
+
+(define-syntax (define-simple-property stx)
+  (define-syntax-class rule-type
+    (pattern (~or (~datum choice-rule) (~datum att-rule))))
+  (syntax-parse stx
+    [(_ property-name:id
+        rt:rule-type
+        (~or
+         (~optional (~seq #:rule-name rule-name:id))
+         (~optional (~seq #:default default-value:expr))
+         (~optional (~seq #:transformer value-transformer:expr))
+         )
+        ...)
+     (with-syntax ([transformer (or (attribute value-transformer) #'(λ (x) x))]
+                   [rule-name (or (attribute rule-name) #'property-name)]
+                   [has-default? (if (attribute default-value) #'#t #'#f)]
+                   [default-use #'(~? #'default-value #'#f)])
+       #'(define-property property-name
+           #:appends (rt rule-name)
+           #:transformer
+           (λ (this-prop-info)
+             (define rule-info
+               (for/hash ([node-name (dict-keys this-prop-info)])
+                 (values node-name
+                         (transformer (dict-ref this-prop-info node-name)))))
+             (define rule-info-with-default
+               (if (and has-default?
+                        (not (hash-has-key? rule-info #f)))
+                   (hash-set rule-info #f (transformer default-use))
+                   rule-info))
+             (list rule-info-with-default))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

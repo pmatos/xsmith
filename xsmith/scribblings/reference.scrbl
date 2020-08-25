@@ -508,6 +508,24 @@ Generally they are big, hairy macros.
 
 }
 
+@defform[(define-simple-property property-name rule-type optionals)
+#:grammar [(rule-type att-rule choice-rule)
+(optionals (code:line)
+           (code:line #:rule-name rule-name)
+           (code:line #:default default)
+           (code:line #:transformer transformer))]]{
+This provides a simpler interface to quickly define properties that have no dependencies on other properties.
+
+Defines a property that generates an att-rule or choice-rule according to @racket[rule-type].
+The optional @racket[#:default] value will be associated with the implicit @racket[#f] node (and thus be inherited by other nodes unless overrided).
+The default is given as literal syntax (IE no hash-quote or @racket[syntax] form needed).
+The optional transformer should be a syntax parser, or in other words, it must be a function from a syntax object to a syntax object.
+The default transformer is the identity function, meaning the rule is written verbatim.
+Note that using the default transformer means there is little reason to use a property, since you can just use @racket[add-att-rule] or @racket[add-choice-rule] directly instead.
+
+By default the name of the generated @verb{att-rule} or @verb{choice-rule} is the same as the name of the property, but this may be overrided by providing @racket[#:rule-name].
+}
+
 @defform[(define-non-inheriting-rule-property property-name
                                               rule-type
                                               maybe-rule-name
@@ -518,13 +536,13 @@ Generally they are big, hairy macros.
            (default-value (code:line #:default default-expr))
            (maybe-transformer (code:line)
                               (code:line #:transformer transformer-func))]]{
-Defines a property that generates an att-rule or a choice-rule that does NOT inherit its implementation from its superclass.
+Like @racket[define-simple-property], but it defines a property that generates an att-rule or a choice-rule that does NOT inherit its implementation from its superclass.
 
 @racket[rule-type] must be either @verb{att-rule} or @verb{choice-rule}.
 
 @racket[rule-name] defaults to @racket[property-name], but you can make it give the rule a different name than the property.
 
-@racket[default-expr] is the default value of the property.  Any nonterminal that does not have a different value specified gets this one.
+@racket[default-expr] is the default value of the property.  Any nonterminal that does not have a different value specified gets this one.  Note that the default is required, not optional, despite being a keyword argument.
 
 @racket[transformer-func] is an optional transformer to transform the value.
 It is not called with a dictionary like the transformers of @racket[define-property], but rather it receives each value individually.
