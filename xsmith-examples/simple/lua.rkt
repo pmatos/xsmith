@@ -24,6 +24,9 @@
                        )
 (add-basic-statements lua-comp
                       #:ProgramWithBlock #t
+                      #:Block #t
+                      #:ReturnStatement #t
+                      #:IfElseStatement #t
                       #:AssignmentStatement #t
                       #:NullStatement #t
                       #:MutableArraySafeAssignmentStatement #t

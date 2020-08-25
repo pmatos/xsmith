@@ -23,6 +23,9 @@
                        )
 (add-basic-statements javascript-comp
                       #:ProgramWithBlock #t
+                      #:Block #t
+                      #:ReturnStatement #t
+                      #:IfElseStatement #t
                       #:ExpressionStatement #t
                       #:AssignmentStatement #t
                       #:NullStatement #t

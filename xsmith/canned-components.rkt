@@ -711,6 +711,9 @@
     [(_ component
         (~or
          (~optional (~seq #:ProgramWithBlock use-program-with-block:boolean))
+         (~optional (~seq #:IfElseStatement use-if-else-statement:boolean))
+         (~optional (~seq #:Block use-block-statement:boolean))
+         (~optional (~seq #:ReturnStatement use-return-statement:boolean))
          (~optional (~seq #:AssignmentStatement use-assignment-statement:boolean))
          (~optional (~seq #:NullStatement use-null-statement:boolean))
          (~optional (~seq #:ExpressionStatement use-expression-statement:boolean))
@@ -737,40 +740,59 @@
                      #:prop type-info
                      ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
                      [(error 'type-info "Trying to type check as a statement without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Statement.")
-                      no-child-types]]
-          [ReturnStatement Statement (Expression)
-                           #:prop wont-over-deepen #t
-                           #:prop type-info
-                           [(return-type (fresh-type-variable))
-                            (λ (n t)
-                              (define inner (fresh-type-variable))
-                              (unify! (return-type inner) t)
-                              (hash 'Expression inner))]]
-          [Block Statement ([definitions : Definition *]
-                            [statements : Statement * = (add1 (random 5))])
-                 #:prop strict-child-order? #t
-                 #:prop type-info
-                 [(fresh-maybe-return-type)
-                  (λ (n t)
-                    (define statements (ast-children (ast-child 'statements n)))
-                    (define last-statement (car (reverse statements)))
-                    (define statement-dict
-                      (for/hash ([s (ast-children (ast-child 'statements n))])
-                        (values s
-                                (if (eq? s last-statement)
-                                    t
-                                    no-return-type))))
-                    (for/fold ([dict statement-dict])
-                              ([d (ast-children (ast-child 'definitions n))])
-                      (dict-set dict d (fresh-type-variable))))]]
-          [IfElseStatement Statement
-                           ([test : Expression] [then : Block] [else : Block])
-                           #:prop strict-child-order? #t
-                           #:prop type-info [(fresh-maybe-return-type)
-                                             (λ (n t) (hash 'test bool
-                                                            'then t
-                                                            'else t))]])
+                      no-child-types]])
 
+         #,@(if (use? use-return-statement)
+                #'((add-to-grammar
+                    component
+                    [ReturnStatement Statement (Expression)
+                                     #:prop wont-over-deepen #t
+                                     #:prop type-info
+                                     [(return-type (fresh-type-variable))
+                                      (λ (n t)
+                                        (define inner (fresh-type-variable))
+                                        (unify! (return-type inner) t)
+                                        (hash 'Expression inner))]]))
+                #'())
+         #,@(if (use? use-if-else-statement)
+                #'((add-to-grammar
+                    component
+                    [IfElseStatement Statement
+                                     ([test : Expression]
+                                      [then : Block]
+                                      [else : Block])
+                                     #:prop strict-child-order? #t
+                                     #:prop type-info [(fresh-maybe-return-type)
+                                                       (λ (n t) (hash 'test bool
+                                                                      'then t
+                                                                      'else t))]]))
+                #'())
+         #,@(if (or (use? use-block-statement)
+                    (use? use-if-else-statement)
+                    (use? use-program-with-block))
+                #'((add-to-grammar
+                    component
+                    [Block Statement ([definitions : Definition *]
+                                      [statements : Statement * = (add1 (random 5))])
+                           #:prop strict-child-order? #t
+                           #:prop type-info
+                           [(fresh-maybe-return-type)
+                            (λ (n t)
+                              (define statements (ast-children
+                                                  (ast-child 'statements n)))
+                              (define last-statement (car (reverse statements)))
+                              (define statement-dict
+                                (for/hash ([s (ast-children
+                                               (ast-child 'statements n))])
+                                  (values s
+                                          (if (eq? s last-statement)
+                                              t
+                                              no-return-type))))
+                              (for/fold ([dict statement-dict])
+                                        ([d (ast-children
+                                             (ast-child 'definitions n))])
+                                (dict-set dict d (fresh-type-variable))))]]))
+                #'())
          #,@(if (use? use-program-with-block)
                 #'((add-to-grammar
                     component
