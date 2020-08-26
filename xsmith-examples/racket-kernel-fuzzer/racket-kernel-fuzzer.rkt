@@ -44,7 +44,7 @@
 (define exact-bool (base-type 'exact-bool bool))
 
 
-(define-spec-component racket-comp)
+(define-basic-spec-component racket-comp)
 
 (add-basic-expressions racket-comp
                        #:ProgramWithSequence #t

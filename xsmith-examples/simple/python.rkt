@@ -10,7 +10,7 @@
  racket/string
  )
 
-(define-spec-component python-comp)
+(define-basic-spec-component python-comp)
 
 (add-basic-expressions python-comp
                        #:VariableReference #t

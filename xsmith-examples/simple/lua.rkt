@@ -10,7 +10,7 @@
  racket/string
  )
 
-(define-spec-component lua-comp)
+(define-basic-spec-component lua-comp)
 
 (add-basic-expressions lua-comp
                        #:LambdaWithBlock #t

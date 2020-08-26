@@ -9,7 +9,7 @@
  racket/string
  )
 
-(define-spec-component javascript-comp)
+(define-basic-spec-component javascript-comp)
 
 (add-basic-expressions javascript-comp
                        #:VariableReference #t

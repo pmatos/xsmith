@@ -1,7 +1,7 @@
 #lang clotho
 
 (provide
- add-basic-grammar-parts
+ define-basic-spec-component
  add-basic-expressions
  add-basic-statements
  add-loop-over-container
@@ -134,12 +134,25 @@
                  [#f #t])
                (~? default #f)))])))
 
-(define-syntax (add-basic-grammar-parts stx)
+(define-syntax (define-basic-spec-component stx)
   (syntax-parse stx
     [(_ component)
      #`(begin
+         (define-spec-component component)
          (add-to-grammar
           component
+          [Expression #f ()
+                      #:prop may-be-generated #f
+                      #:prop type-info
+                      ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
+                      [(error 'type-info "Trying to type check as an expression without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Expression.")
+                       no-child-types]]
+          [Statement #f ()
+                     #:prop may-be-generated #f
+                     #:prop type-info
+                     ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
+                     [(error 'type-info "Trying to type check as a statement without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Statement.")
+                      no-child-types]]
           [Definition #f ([type]
                           [name = (fresh-var-name "b_")]
                           Expression)
@@ -158,8 +171,6 @@
   (syntax-parse stx
     [(_ component
         (~or
-         (~optional (~seq #:add-basic-grammar-parts? add-basics?:boolean)
-                    #:defaults ([add-basics? #'#t]))
          (~optional (~seq #:ProgramWithSequence use-program-with-sequence:boolean))
          (~optional (~seq #:VariableReference use-variable-reference:boolean))
          (~optional (~seq #:VoidExpression use-void-expression:boolean))
@@ -194,27 +205,12 @@
          )
         ...
         )
-     (define/syntax-parse add-basics
-       (syntax-parse #'add-basics?
-         [#t #'(add-basic-grammar-parts component)]
-         [#f #'(void)]))
      #`(begin
          (define bool bool-type-e)
          (define number number-type-e)
          (define int int-type-e)
          (define index-and-length-type (~? index-and-length-type-e int))
-         ;; Core grammar
-         add-basics
-         (add-to-grammar
-          component
-          [Expression #f ()
-                      #:prop may-be-generated #f
-                      #:prop type-info
-                      ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
-                      [(error 'type-info "Trying to type check as an expression without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Expression.")
-                       no-child-types]]
-          )
-
+         ;;; Optional components
          #,@(if (use? use-variable-reference)
                 #'((add-to-grammar
                     component
@@ -224,7 +220,6 @@
                                        [(fresh-type-variable) no-child-types]]))
                 #'())
 
-         ;;; Optional components
          #,@(if (use? use-procedure-application)
                 #'((add-to-grammar
                     component
@@ -744,14 +739,6 @@
          (define bool bool-type-e)
          (define int int-type-e)
          (define index-and-length-type (~? index-and-length-type-e int))
-         (add-to-grammar
-          component
-          [Statement #f ()
-                     #:prop may-be-generated #f
-                     #:prop type-info
-                     ;; TODO - this error message is dumb, because it doesn't say WHICH node is falling back like this.  It should be able to, but I would need to be able to access the current choice object, which is not available here.
-                     [(error 'type-info "Trying to type check as a statement without a specialized implementation.  You probably forgot to add a type-info property for a subtype of Statement.")
-                      no-child-types]])
 
          #,@(if (use? use-return-statement)
                 #'((add-to-grammar
