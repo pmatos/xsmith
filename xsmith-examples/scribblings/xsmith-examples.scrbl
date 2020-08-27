@@ -46,7 +46,29 @@ racket/list
 
 Version @xsmith-version-string
 
-When Xsmith is installed as a Racket package, executables for the bundled generators are placed in your Racket package @verb{bin} directory.
+The @tt{xsmith-examples} package has some pre-built fuzzers that @emph{vary in their level of quality and/or utility as a learning aid}.
+
+Included examples:
+
+@itemlist[
+@item{The @tt{simple} directory, with several fuzzers using the @tt{canned-components} library.  These are the best fuzzers to look at if you want to build a new fuzzer using canned-components (recommended).
+  @itemlist[
+    @item{simple/python}
+    @item{simple/javascript}
+    @item{simple/lua}
+    @item{simple/racket}
+  ]}
+@item{The @tt{racket-kernel} fuzzer is another fuzzer built using the @tt{canned-components} library, but is a bigger fuzzer aimed at lower-level code.}
+@item{The @tt{schemely} fuzzer, which is really a Racket fuzzer because I haven't yet bothered to turn it into a generic scheme fuzzer instead.  It is the best example of a fuzzer that does @emph{not} use the @tt{canned-components} library.  It is recommended that you @emph{do} use that library, but if you really don't want to, the best code to read is in @tt{schemely} and in the implementation of @tt{canned-components}.  However, everything that @tt{schemely} does, the @tt{simple/racket} fuzzer does as well, and simpler.}
+@item{The @tt{cish} fuzzer, which is a C fuzzer.  @tt{cish} was the first fuzzer, and it is a little rougher than the others and less useful as a guide for what you ought to do with Xsmith.  That said, it does use more of the analysis and refinery machinery than other fuzzers.}
+
+@item{The @tt{verilog} fuzzer is not very featureful, it hasn't yet had enough work to generate anything interesting.}
+@item{The @tt{pythonesque} fuzzer was started before @tt{canned-components}, and has been superceded by @tt{simple/python}.}
+@item{The @tt{future} directory has some experiments revolving around the design of the @tt{refiners} feature, and are not really for pedagogical consumption.}
+]
+
+
+When xsmith-examples is installed as a Racket package, executables for some of the bundled generators are placed in your Racket package @verb{bin} directory.
 Usually this directory is @verb{$HOME/.racket/racket-<version>/bin} on Linux, maybe @verb{$HOME/Library/Racket/<version>/bin} on normal MacOS installs, and maybe @verb{/usr/local/bin} for MacOS Homebrew installs.
 
 These fuzzers can be run on the command line to generate a single program or as an http server that generates one program per request.
