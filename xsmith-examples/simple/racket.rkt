@@ -55,6 +55,7 @@
  #:name ForList
  #:collection-type-constructor build-any-collection-type
  #:loop-type-constructor (λ (inner) (immutable (list-type inner)))
+ #:bind-whole-collection? #t
  )
 (add-prop racket-comp
           render-node-info
