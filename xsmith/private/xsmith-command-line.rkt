@@ -37,6 +37,7 @@
  (only-in racket/base [random racket:random])
  racket/string
  racket/pretty
+ (submod "types.rkt" for-private)
  )
 
 (define (dash-dash-string? s)
@@ -58,6 +59,7 @@
                                             parameter?
                                             (or/c procedure? #f)))
          #:default-max-depth number?
+         #:default-type-max-depth number?
          #:format-render (-> any/c string?))
         void?)]
   )
@@ -97,6 +99,7 @@
                              #:features [features-list '()]
                              #:extra-parameters [extra-parameters (list)]
                              #:default-max-depth [default-max-depth 5]
+                             #:default-type-max-depth [default-type-max-depth 3]
                              #:format-render [format-render-func #f])
 
   (define true-strings  '("true"  "t" "#t" "yes" "y"))
@@ -132,6 +135,7 @@
   (define seq-to-file #f)
   (define seq-from-file #f)
   (define max-depth default-max-depth)
+  (define type-max-depth default-type-max-depth)
   (define generation-timeout #f)
   (define options (xsmith-options-defaults))
 
@@ -298,7 +302,13 @@
       [("--max-depth")
        ,(λ (flag n) (set! max-depth (string->number n)))
        (,(format "Set maximum tree depth (default ~a)" default-max-depth)
-        "number")])
+        "number")]
+      [("--type-max-depth")
+       ,(λ (flag n) (set! max-depth (string->number n)))
+       (,(format "Set maximum depth for type concretization (default ~a)"
+                 default-type-max-depth)
+        "number")]
+      )
      ,@features-command-line-segment
      ,@extra-parameters-command-line-segment
 
@@ -328,6 +338,7 @@
   (define (generate-and-print!/xsmith-parameterized
            #:random-source [random-input initial-random-source])
     (parameterize ([current-xsmith-max-depth max-depth]
+                   [type-max-concretization-depth type-max-depth]
                    [current-xsmith-features features]
                    [xsmith-options options]
                    [xsmith-state (make-generator-state)]

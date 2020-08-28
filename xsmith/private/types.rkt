@@ -121,6 +121,8 @@ WIP checklist:
 (module+ for-private
   (provide
    type-variable->type
+   record-type-max-fields
+   type-max-concretization-depth
    ))
 
 (require
@@ -1646,8 +1648,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
 (define current-xsmith-type-constructor-thunks
   (make-parameter (list default-base-type)))
 ;; TODO - this should be configurable.
-(define type-max-depth 5)
-(define record-type-max-fields 5)
+(define type-max-concretization-depth (make-parameter 5))
+(define record-type-max-fields (make-parameter 5))
 
 (define (concretize-type t
                          #:at-node [node #f])
@@ -1662,7 +1664,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                            (filter-map (λ (x) (and x (x)))
                                        (current-xsmith-type-constructor-thunks))))
        (define options-filtered
-         (if (< depth type-max-depth)
+         (if (< depth (type-max-concretization-depth))
              options
              (filter base-type? options)))
        (define options-use (if (null? options-filtered) options options-filtered))
@@ -1710,7 +1712,7 @@ TODO - when generating a record ref, I'll need to compare something like (record
                  t)]
          [else
           (let* ([needed (dict-ref known-fields #f (λ () (fresh-type-variable)))]
-                 [n-random-fields (random record-type-max-fields)]
+                 [n-random-fields (random (record-type-max-fields))]
                  [field-list (cons needed
                                    (map (λ (x) (fresh-type-variable))
                                         (make-list n-random-fields #f)))])
