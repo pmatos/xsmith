@@ -508,10 +508,15 @@
     (if on-time?
         (display (get-output-string out))
         (begin
-          (kill-thread work-thread)
+          ;; Instead of killing the work thread, we send a break, which will
+          ;; cause an exception that will then give us some debugging info.
+          ;; This is important if we think our fuzzer is in an infinite loop somewhere.
+          (break-thread work-thread)
           (displayln
-           (comment-func
-            (list "Generation failed because timeout was exceeded."))))))
+           (comment-func (list "Generation failed because timeout was exceeded.")))
+          (sync work-thread)
+          (displayln (comment-func (string-split (get-output-string out) "\n")))
+          (displayln (comment-func (string-split (get-xsmith-debug-log!) "\n"))))))
 
   (cond [(and server? netstring-server-path)
          (error 'server? "--server and --netstring-server are mutually exclusive")]
