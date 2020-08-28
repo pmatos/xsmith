@@ -175,6 +175,15 @@ Property transformers can not statically access attribute or choice rule values,
 
 Remember:  Attributes and choice rules are functions used (and usable) within specific contexts within Xsmith fuzzers.  Properties are compile-time macros for generating attributes and choice rules.
 
+@section{Lifting}
+
+The term “lift” is used throughout this document.
+In the context of Xsmith, lifting refers to creating a definition after it's needed by a reference.
+In other words, when a reference node is created and there is not an available definition that satisfies the type system and effect system, a new definition is “lifted” to a binding form that is visible from that reference location.
+Additionally, with some probability, new definitions may be lifted even when there is a suitable definition available.
+This probability can be controlled with the @racket[reference-choice-info] property.
+
+
 @section{Minimal Example}
 
 @(nested-flow
