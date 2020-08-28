@@ -1978,23 +1978,23 @@ For example, a loop form where you bind a variable to each element of a given li
 @defform[(add-basic-expressions grammar-component optional ...)
          #:grammar
          [(optional
-           [#:ProgramWithSequence boolean]
-           [#:VoidExpression boolean]
-           [#:AssignmentExpression boolean]
-           [#:IfExpression boolean]
-           [#:LambdaWithExpression boolean]
-           [#:LambdaWithBlock boolean]
-           [#:LetSequential boolean]
-           [#:ExpressionSequence boolean]
-           [#:Booleans boolean]
-           [#:Strings boolean]
-           [#:MutableArray boolean]
-           [#:MutableArraySafeAssignmentExpression boolean]
-           [#:ImmutableArray boolean]
-           [#:ImmutableList boolean]
-           [#:MutableStructuralRecord boolean]
-           [#:MutableStructuralRecordAssignmentExpression boolean]
-           [#:ImmutableStructuralRecord boolean]
+           [code:line #:ProgramWithSequence boolean]
+           [code:line #:VoidExpression boolean]
+           [code:line #:AssignmentExpression boolean]
+           [code:line #:IfExpression boolean]
+           [code:line #:LambdaWithExpression boolean]
+           [code:line #:LambdaWithBlock boolean]
+           [code:line #:LetSequential boolean]
+           [code:line #:ExpressionSequence boolean]
+           [code:line #:Booleans boolean]
+           [code:line #:Strings boolean]
+           [code:line #:MutableArray boolean]
+           [code:line #:MutableArraySafeAssignmentExpression boolean]
+           [code:line #:ImmutableArray boolean]
+           [code:line #:ImmutableList boolean]
+           [code:line #:MutableStructuralRecord boolean]
+           [code:line #:MutableStructuralRecordAssignmentExpression boolean]
+           [code:line #:ImmutableStructuralRecord boolean]
            )]]{
 Extends @racket[grammar-component] with an expression language.
 All nodes added come with @racket[type-info] and other necessary properties specified, but they lack the @racket[render-node-info].
@@ -2048,11 +2048,11 @@ Type considerations:
 @defform[(add-basic-statements grammar-component optional ...)
          #:grammar
          [(optional
-           [#:ProgramWithBlock boolean]
-           [#:AssignmentStatement boolean]
-           [#:ExpressionStatement boolean]
-           [#:MutableArraySafeAssignmentStatement boolean]
-           [#:MutableStructuralRecordAssignmentStatement boolean]
+           [code:line #:ProgramWithBlock boolean]
+           [code:line #:AssignmentStatement boolean]
+           [code:line #:ExpressionStatement boolean]
+           [code:line #:MutableArraySafeAssignmentStatement boolean]
+           [code:line #:MutableStructuralRecordAssignmentStatement boolean]
            )]]{
 Like @racket[add-basic-expressions], extends @racket[grammar-component] with a statement language, providing all necessary properties except @racket[render-node-info].
 If you use @racket[add-basic-statements], you must use @racket[add-basic-expressions] as well.
@@ -2099,14 +2099,14 @@ When given @racket[#t], the child Block won't increase the calculated AST depth.
 @defform[(add-loop-over-container grammar-component kw-arg ...)
 #:grammar
 [(kw-arg
-  [#:name identifier]
-  [#:loop-ast-type identifier]
-  [#:body-ast-type identifier]
-  [#:bind-whole-collection? boolean]
-  [#:collection-type-constructor function]
-  [#:loop-type-constructor function]
-  [#:body-type-constructor function]
-  [#:loop-variable-type-constructor function]
+  [code:line #:name identifier]
+  [code:line #:loop-ast-type identifier]
+  [code:line #:body-ast-type identifier]
+  [code:line #:bind-whole-collection? boolean]
+  [code:line #:collection-type-constructor function]
+  [code:line #:loop-type-constructor function]
+  [code:line #:body-type-constructor function]
+  [code:line #:loop-variable-type-constructor function]
   )]]{
 Adds a looping form named @racket[#:name] to @racket[grammar-component].
 The looping node will be of ast-type @racket[loop-ast-type], which defaults to @verb{Expression}.
