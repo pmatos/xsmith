@@ -226,7 +226,13 @@
  javascript-comp)
 
 (define (type-thunks-for-concretization)
-  (list #;(λ()float-type) #;(λ()number-type) (λ()int-type) (λ()bool-type) (λ()string-type)))
+  (list
+   (λ()int-type)
+   (λ()bool-type)
+   (λ()string-type)
+   (λ()(mutable (array-type (fresh-type-variable))))
+   (λ()(mutable (fresh-structural-record-type)))
+   ))
 
 (define (javascript-generate)
   (parameterize ([current-xsmith-type-constructor-thunks
