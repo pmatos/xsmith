@@ -1659,8 +1659,8 @@ TODO - when generating a record ref, I'll need to compare something like (record
        (r one-type)]
       [(c-type-variable (and maybe-options (or #f (list _ ...))) _ _)
        (define options (or maybe-options
-                           (map (λ (x) (x))
-                                (current-xsmith-type-constructor-thunks))))
+                           (filter-map (λ (x) (and x (x)))
+                                       (current-xsmith-type-constructor-thunks))))
        (define options-filtered
          (if (< depth type-max-depth)
              options
