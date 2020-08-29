@@ -42,6 +42,8 @@
 @(define-runtime-path minimal-example-path "minimal-example.rkt")
 @(define-runtime-path minimal-example-with-variables-path
   "minimal-example-with-variables.rkt")
+@(define-runtime-path minimal-example-with-canned-components-path
+  "minimal-example-with-canned-components.rkt")
 
 
 @title{Xsmith Guide}
@@ -184,7 +186,147 @@ Additionally, with some probability, new definitions may be lifted even when the
 This probability can be controlled with the @racket[reference-choice-info] property.
 
 
+@section[#:tag"getting-started"]{Getting Started}
+
+This gives a small walkthrough of creating a simple fuzzer @italic{without} the canned components library.
+Then we will build a simple fuzzer @italic{with} the canned components library.
+Using the canned components is preferred.
+
+
+First, we must require some Xsmith and related modules.
+In particular, we need @tt{xsmith} and @tt{racr}.
+Other modules may also be convenient.
+@racketblock[
+(require xsmith racr racket/string)
+]
+
+To define a fuzzer, first define a @italic{spec component} with @racket[define-spec-component].
+@racketblock[
+(define-spec-component arith)
+]
+
+The spec component is essentially a place we can store definitions of the grammar and related info.
+Let's add to the grammar defined by this spec component.
+We need a main node where generation must start, we'll call it @tt{Program}, and it will have a single @tt{Expression}.
+Note that the names of node types should be capitalized camel case (punctuation characters like @tt{-} and @tt{_} are disallowed).
+When adding nodes, we list the node name, its supertype, and a list of children.
+
+@racketblock[
+(add-to-grammar
+ arith
+ [Program #f (Expression)]
+ [Expression #f ()]
+ )
+]
+
+Program and Expression are not subtypes of some other node type, so their parent node type is the top node type, @racket[#f].
+Since the Program node only has one child of Expression type, we may write just @tt{Expression} for both the name and type of the node.
+
+We want the @tt{Expression} node to be abstract and not generated itself.
+@racketblock[
+(add-prop arith
+          may-be-generated
+          [Expression #f])
+]
+
+We can put properties inline with the grammar definition when we want, replacing the above definition:
+
+@racketblock[
+(add-to-grammar
+ arith
+ [Program #f (Expression)]
+ [Expression #f ()
+             #:prop may-be-generated #f]
+ )
+]
+
+If we add node types that are subtypes of Expression, they can be generated in Expression holes.
+Let's add a node for literal integers.
+
+@racketblock[
+(add-to-grammar
+ arith
+ [LiteralInt Expression ([v = (random 100)])])
+]
+
+Note that the literal node contains a child @tt{v} that is a normal Racket value, not a grammar node type.
+It is initialized with the expression on the right-hand side of the @tt{=} sign.
+Well, our literal integers will only be values from 0 to 99.
+Note that we can add the initialization expression inline as above or with the @racket[fresh] property.
+If we don't add an initialization expression, then non-node fields will be initialized with @racket[#f], while node fields will be initialized with hole nodes of the appropriate type..
+
+Let's add addition.
+Because we have multiple Expressions, we need to give them names.
+Note that we aren't supplying initialization code.
+Because they are grammar node typed, they will be initialized with Expression Hole nodes (same with the Program node's Expression child).
+
+@racketblock[
+(add-to-grammar
+ arith
+ [Addition Expression ([l : Expression] [r : Expression])])
+]
+
+Our language only has one type.
+This means we don't necessarily have to add type rules.
+However, let's add rules anyway since any real language will have multiple types.
+
+@racketblock[
+(define int (base-type 'int))
+(add-prop arith type-info
+          [Program [int (λ (n t) (hash 'Expression int))]]
+          [LiteralInt [int (λ (n t) (hash))]]
+          [Addition [int (λ (n t) (hash 'l int 'r int))]])
+]
+
+The left hand side of each rule is an expression that returns the type the node can inhabit.
+If a node can inhabit multiple types, @racket[fresh-type-variable] can be used to specify an unconstrained or partially constrained type.
+
+The right hand side is a function that returns a dictionary mapping children (by name or by node object) to a type.
+Note that type variables are unified during the type analysis, so you should take care with object/pointer equality (IE @racket[eq?]) of type variables.
+
+
+Now we need to specify how to print our programs, or “render” them.
+
+@racketblock[
+(add-prop arith render-node-info
+          [Program (λ (n) (att-value 'xsmith_render-node (ast-child 'Expression n)))]
+          [LiteralInt (λ (n) (number->string (ast-child 'v n)))]
+          [Addition (λ (n) (format "(~a + ~a)"
+                                   (att-value 'xsmith_render-node (ast-child 'l n))
+                                   (att-value 'xsmith_render-node (ast-child 'r n))))])
+]
+
+In this case are rendering directly to a string, but that's not usually the best approach.
+Rather, programs may be rendered to any intermediate data structure, such as s-expressions (convenient for lisp generators) or nodes from the @tt{pprint} library.
+
+We put everything together with the @racket[assemble-spec-components] macro.
+@racketblock[
+(assemble-spec-components arithmetic arith)
+]
+Note that in our case we only have one component, but in principle we could define multiple, perhaps in different files, and combine them.
+The @racket[assemble-spec-components] macro defines the @tt{arithmetic-generate-ast} function (named based on the name given as the first argument).
+
+To turn it into a complete program we can run, we hook it up to the command-line machinery.
+OK, honestly, this following part is not a great design.
+Just cargo cult it and live with it for now.
+The @racket[xsmith-command-line] takes a thunk to generate the program, which we create by simply wrapping the @tt{arithmetic-generate-ast} function and giving it the name of the node to generate.
+The @tt{arithmetic-generate-ast} may be called with the name of a node, in our case we want to generate Program nodes.
+We also give it (optionally, but recommended) a function that takes a list of strings and formats them as comments for our language.
+
+@racketblock[
+(xsmith-command-line
+ (λ () (arithmetic-generate-ast 'Program))
+ #:comment-wrap (λ (lines)
+                  (string-join
+                   (map (λ (x) (format "// ~a" x)) lines)
+                   "\n")))
+]
+
+
 @section{Minimal Example}
+
+Here follows a generator more-or-less the same as what we defined in @secref{getting-started}.
+Note that we use @tt{#lang clotho} instead of @tt{#lang racket}, which allows us to capture, replay, and modify random choices during generation.
 
 @(nested-flow
 (style 'code-inset '())
@@ -197,7 +339,18 @@ This probability can be controlled with the @racket[reference-choice-info] prope
    #:context #'here
    (file->string minimal-example-path)))))
 
+
+
 @section{Another Small Example With Variables}
+
+Here is a bigger example that contains variables.
+
+Note that instead of a @tt{Program} node, we use the @tt{LetStar} node as the node to generate.
+The real reason to have a specific @tt{Program} node is to be sure that the top-level node can have definitions lifted to it.
+The @tt{LetStar} node in the following example satisfies that.
+
+This example also renders to s-expressions rather than directly to strings.
+We give @racket[xsmith-command-line] another optional argument specifying how we convert our rendered format into strings.
 
 @(nested-flow
 (style 'code-inset '())
@@ -209,6 +362,24 @@ This probability can be controlled with the @racket[reference-choice-info] prope
    #:indent 0
    #:context #'here
    (file->string minimal-example-with-variables-path)))))
+
+
+
+@section{Upgrading to use Canned Components}
+
+The @tt{xsmith/canned-components} library provides a lot of boilerplate stuff for us, and has a bunch of type rules and such already written correctly.
+Let's just use it.
+
+@(nested-flow
+(style 'code-inset '())
+(list
+ (filebox
+  "minimal-example-with-canned-components.rkt"
+  (typeset-code
+   #:keep-lang-line? #t
+   #:indent 0
+   #:context #'here
+   (file->string minimal-example-with-canned-components-path)))))
 
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
