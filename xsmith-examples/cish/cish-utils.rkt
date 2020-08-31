@@ -140,6 +140,7 @@
 #|
 New types
 |#
+
 (define int (base-type 'int))
 (define (int-type? x) (can-unify? x int))
 (define float (base-type 'float))

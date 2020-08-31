@@ -221,10 +221,6 @@
 
 
 
-(assemble-spec-components
- javascript
- javascript-comp)
-
 (define (type-thunks-for-concretization)
   (list
    (λ()int-type)
@@ -234,18 +230,16 @@
    (λ()(mutable (fresh-structural-record-type)))
    ))
 
-(define (javascript-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (javascript-generate-ast 'ProgramWithBlock)))
-
 (define (javascript-format-render doc)
   (pretty-format doc 120))
 
-(module+ main
-  (xsmith-command-line
-   javascript-generate
-   #:format-render javascript-format-render
-   #:comment-wrap (λ (lines) (string-join (map (λ (l) (format "// ~a" l)) lines)
-                                          "\n"))
-   ))
+(define-xsmith-interface-functions
+  [javascript-comp]
+  #:fuzzer-name javascript
+  #:type-thunks type-thunks-for-concretization
+  #:program-node ProgramWithBlock
+  #:format-render javascript-format-render
+  #:comment-wrap (λ (lines) (string-join (map (λ (l) (format "// ~a" l)) lines)
+                                         "\n")))
+
+(module+ main (javascript-command-line))

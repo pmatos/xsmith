@@ -152,7 +152,7 @@
          (~optional (~seq #:fuzzer-name fuzzer-name-given:id))
          (~optional (~seq #:command-line-name command-line-name-given:id))
          (~optional (~seq #:function-name function-name-given:id))
-         (~optional (~seq #:fuzzer-version fuzzer-version-given:str))
+         (~optional (~seq #:fuzzer-version fuzzer-version-given))
          (~optional (~seq #:comment-wrap comment-wrap))
          (~optional (~seq #:features [feature:feature-class ...]))
          (~optional (~seq #:extra-parameters ([extra-param-name:id

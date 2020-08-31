@@ -516,13 +516,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;
-;;
-;;
-(define (verilog-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (verilog-generate-ast 'Source)))
 
 ;;
 ;;
@@ -540,53 +533,54 @@
 (define (verilog-comment-wrap strings)
   (string-join strings "\n// " #:before-first "// "))
 
+(define-xsmith-interface-functions
+  [verilog-core]
+  #:fuzzer-name verilog
+  #:fuzzer-version	"0.0"
+  #:program-node Source
+  #:type-thunks type-thunks-for-concretization
+  #:comment-wrap	verilog-comment-wrap
+  #:format-render	verilog-format-render
+  #:extra-parameters
+  (;;
+   ;; Options that set code-size limits
+   ;;
+   [min-modules
+    "The minimum number of Verilog modules in the generated program"
+    min-modules
+    string->number]
+   [max-modules
+    "The maximum number of Verilog modules in the generated program"
+    max-modules
+    string->number]
+   [min-module-items
+    "The minimum number of items in a Verilog module"
+    min-module-items
+    string->number]
+   [max-module-items
+    "The maximum number of items in a Verilog module"
+    max-module-items
+    string->number]
+   [min-block-statements
+    "The minimum number of statements within a block statement"
+    min-block-statements
+    string->number]
+   [max-block-statements
+    "The maximum number of statements within a block statement"
+    max-block-statements
+    string->number]
+   ;;
+   ;; Options that control pretty-printing
+   ;;
+   [indent-spaces
+    "The number of spaces per level of indentation"
+    indent-spaces
+    string->number]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (module+ main
-  (xsmith-command-line
-   verilog-generate
-   #:fuzzer-name	"verilog"
-   #:fuzzer-version	"0.0"
-   #:comment-wrap	verilog-comment-wrap
-   #:format-render	verilog-format-render
-   #:extra-parameters
-   (list
-    ;;
-    ;; Options that set code-size limits
-    ;;
-    (list "--min-modules"
-          "The minimum number of Verilog modules in the generated program"
-          min-modules
-          string->number)
-    (list "--max-modules"
-          "The maximum number of Verilog modules in the generated program"
-          max-modules
-          string->number)
-    (list "--min-module-items"
-          "The minimum number of items in a Verilog module"
-          min-module-items
-          string->number)
-    (list "--max-module-items"
-          "The maximum number of items in a Verilog module"
-          max-module-items
-          string->number)
-    (list "--min-block-statements"
-          "The minimum number of statements within a block statement"
-          min-block-statements
-          string->number)
-    (list "--max-block-statements"
-          "The maximum number of statements within a block statement"
-          max-block-statements
-          string->number)
-    ;;
-    ;; Options that control pretty-printing
-    ;;
-    (list "--indent-spaces"
-          "The number of spaces per level of indentation"
-          indent-spaces
-          string->number)
-    )
-   ))
+  (verilog-command-line))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

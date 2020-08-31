@@ -735,10 +735,6 @@
 
 
 
-(assemble-spec-components
- racket
- racket-comp)
-
 (define (type-thunks-for-concretization)
   (list
    (λ()bool)
@@ -754,11 +750,6 @@
    (λ() (mutable (box-type (fresh-type-variable))))
    ))
 
-(define (racket-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (racket-generate-ast 'ProgramWithSequence)))
-
 (define (racket-format-render s-exps)
   (define out (open-output-string))
   (for ([symex s-exps])
@@ -766,10 +757,15 @@
   (format "(module random-fuzzing-module '#%kernel\n~a\n)\n"
           (get-output-string out)))
 
-(module+ main
-  (xsmith-command-line
-   racket-generate
-   #:format-render racket-format-render
-   #:comment-wrap (λ (lines) (string-join (map (λ (l) (format ";; ~a" l)) lines)
-                                          "\n"))
-   ))
+(define-xsmith-interface-functions
+  [racket-comp]
+  #:fuzzer-name racket
+  #:program-node ProgramWithSequence
+  #:type-thunks type-thunks-for-concretization
+  #:format-render racket-format-render
+  #:comment-wrap (λ (lines) (string-join (map (λ (l) (format ";; ~a" l)) lines)
+                                         "\n"))
+
+  )
+
+(module+ main (racket-command-line))

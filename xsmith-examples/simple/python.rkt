@@ -330,10 +330,6 @@
 
 
 
-(assemble-spec-components
- python
- python-comp)
-
 (define (type-thunks-for-concretization)
   (list
    (λ()int-type)
@@ -343,18 +339,17 @@
    (λ()(mutable (fresh-structural-record-type)))
    ))
 
-(define (python-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (python-generate-ast 'ProgramWithBlock)))
-
 (define (python-format-render doc)
   (pretty-format doc 120))
 
-(module+ main
-  (xsmith-command-line
-   python-generate
-   #:format-render python-format-render
-   #:comment-wrap (λ (lines) (string-join (map (λ (l) (format "# ~a" l)) lines)
-                                          "\n"))
-   ))
+
+(define-xsmith-interface-functions
+  [python-comp]
+  #:fuzzer-name python
+  #:type-thunks type-thunks-for-concretization
+  #:program-node ProgramWithBlock
+  #:format-render python-format-render
+  #:comment-wrap (λ (lines) (string-join (map (λ (l) (format "# ~a" l)) lines)
+                                         "\n")))
+
+(module+ main (python-command-line))

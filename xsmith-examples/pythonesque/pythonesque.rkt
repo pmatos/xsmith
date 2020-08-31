@@ -555,25 +555,22 @@ Fixes:
 ;;;;
 ;; Assemble.
 
-(assemble-spec-components pythonesque pythonesque-grammar)
-
 (define concretized-types
   (map (λ (t) (λ () t))
        (list int bool)))
 
-(define (pythonesque-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks concretized-types])
-    (pythonesque-generate-ast 'Program)))
+(define-xsmith-interface-functions
+  [pythonesque-grammar]
+  #:fuzzer-name pythonesque
+  #:default-max-depth 8
+  #:comment-wrap (λ (lines) (string-join
+                             (map (λ (l) (format "# ~a" l)) lines)
+                             "\n"))
+  #:format-render (λ (d) (pretty-format d 120))
+  #:type-thunks concretized-types
+  )
 
-(xsmith-command-line
- pythonesque-generate
- #:fuzzer-name "pythonesque"
- #:default-max-depth 8
- #:comment-wrap (λ (lines) (string-join
-                            (map (λ (l) (format "# ~a" l)) lines)
-                            "\n"))
- #:format-render (λ (d) (pretty-format d 120))
- )
+(module+ main (pythonesque-command-line))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

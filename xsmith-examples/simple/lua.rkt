@@ -261,10 +261,6 @@
 
 
 
-(assemble-spec-components
- lua
- lua-comp)
-
 (define (type-thunks-for-concretization)
   (list
    (λ()int-type)
@@ -274,18 +270,17 @@
    (λ()(mutable (fresh-structural-record-type)))
    ))
 
-(define (lua-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (lua-generate-ast 'ProgramWithBlock)))
 
 (define (lua-format-render doc)
   (pretty-format doc 120))
 
-(module+ main
-  (xsmith-command-line
-   lua-generate
-   #:format-render lua-format-render
-   #:comment-wrap (λ (lines) (string-join (map (λ (l) (format "-- ~a" l)) lines)
-                                          "\n"))
-   ))
+(define-xsmith-interface-functions
+  [lua-comp]
+  #:fuzzer-name lua
+  #:type-thunks type-thunks-for-concretization
+  #:program-node ProgramWithBlock
+  #:format-render lua-format-render
+  #:comment-wrap (λ (lines) (string-join (map (λ (l) (format "-- ~a" l)) lines)
+                                         "\n")))
+
+(module+ main (lua-command-line))
