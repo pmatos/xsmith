@@ -264,9 +264,10 @@ Note that the names of node types should be capitalized camel case (punctuation 
 We want the @tt{Expression} node to be abstract and not generated itself, so we'll use the @racket[may-be-generated] property to restrict it.
 
 @racketblock[
-(add-prop arith
-          may-be-generated
-          [Expression #f])
+(add-prop
+ arith
+ may-be-generated
+ [Expression #f])
 ]
 
 We can also put properties inline with the grammar definition if we prefer.
@@ -382,7 +383,7 @@ We also give it (optionally, but recommended) a function that takes a list of st
 
 @section{Minimal Example}
 
-Here follows a generator more-or-less the same as what we defined in @secref{getting-started}.
+Below is a complete generator of arithmetic expressions, following the implementation we just outlined in @secref{getting-started}.
 Note that we use @tt{#lang clotho} instead of @tt{#lang racket}, which allows us to capture, replay, and modify random choices during generation.
 
 @(nested-flow
