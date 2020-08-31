@@ -111,16 +111,19 @@ Full RACR documentation is @hyperlink["https://github.com/christoff-buerger/racr
 
 @section{Holes and Choice Objects}
 Hole nodes are @(racr) AST nodes.
-For every node type in the grammar, a hole node is created as a subclass of it, inheriting all of its @(racr) attributes.
+For every node type in the grammar, a hole node is created as a subclass of that node, inheriting all of its @(racr) attributes.
 A hole can be recognized by the @rule[xsmith_is-hole?] attribute.
 
-Consider the following (partial) grammar:
+Consider the following (partial) grammar defined in the @verbatim|{my-spec-component}| grammar specification:
+
 @racketblock[
 (add-to-grammar
  my-spec-component
  [Expression #f ()]
  [LiteralInt Expression (v = (random 1000))]
- [AdditionExpression Expression ([left : Expression] [right : Expression])])
+ [AdditionExpression Expression
+                     ([left : Expression]
+                      [right : Expression])])
 ]
 
 When a fresh AdditionExpression is created, it will include two Expression hole nodes.
@@ -128,7 +131,29 @@ When the generator gets to those holes, a choice object is created for each subc
 The choice objects have types corresponding to LiteralInt and AdditionExpression, and therefore may have different implementations for various choice methods.
 The choice objects all have access to the Expression hole (through @racket[current-hole]), but while choice objects have access to their specialized choice method implementations, the hole is of type Expression, and so all @(racr) attributes (att-rules) that may be queried are specialized only as far as Expression, not to LiteralInt or AdditionExpression.
 
-Note that hole node types are created for every type in the grammar (including LiteralInt and AdditionExpression), but more specialized holes are only used if the grammar specifies that a node's child must be specifically that kind of expression, or if a custom @racket[fresh] implementation uses @racket[make-hole] with the specific kind of expression.
+Although Xsmith @italic{can} create holes for any type of production defined in the grammar, by default it will only generate more general holes.
+In the case of this example, the default behavior would be for Xsmith to generate Expression holes, but not LiteralInt or AdditionExpression holes.
+More specific holes are used either when a grammar production specifies that a child must be of a specific kind, or when a custom @racket[fresh] implementation uses @racket[make-hole] with a specific kind of production.
+For example, we could extend the above example:
+
+@racketblock[
+(define-spec-component my-spec-component)
+
+(add-to-grammar
+ my-spec-component
+ [Expression #f ()]
+ [LiteralInt Expression (v = (random 1000))]
+ [AdditionExpression Expression
+                     ([left : Expression]
+                      [right : Expression])]
+ [LiteralSubtractionExpression Expression
+                               ([left : LiteralInt]
+                                [right : LiteralInt])])
+]
+
+Now, an Expression hole could be filled with LiteralInt, AdditionExpression, or LiteralSubtractionExpression.
+However, where the AdditionExpression's two Expression child holes could be filled with any kind of Expression, the LiteralSubtractionExpression's children will only be LiteralInts.
+
 
 
 @section[#:tag "scope-graph"]{Scope Graphs}
