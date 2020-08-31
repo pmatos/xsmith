@@ -1946,7 +1946,7 @@ Additionally, @racket[prefix] is used instead of @tt{$}.  @racket[prefix] is giv
 @racketblock[(define-xsmith-app my-xsmith-app #%plain-app $^!)]
 }
 
-@section{Canned Components}
+@section[#:tag "canned-components"]{Canned Components}
 @defmodule[xsmith/canned-components]
 
 The abstract grammars for many languages are very similar.

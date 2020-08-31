@@ -227,28 +227,31 @@ This probability can be controlled with the @racket[reference-choice-info] prope
 
 @section[#:tag"getting-started"]{Getting Started}
 
-This gives a small walkthrough of creating a simple fuzzer @italic{without} the canned components library.
-Then we will build a simple fuzzer @italic{with} the canned components library.
-Using the canned components is preferred.
+This section is a small walkthrough of creating a simple fuzzer using only basic Xsmith forms to show the fundamentals.
+However, we recommend using @seclink["canned-components"]{Canned Components} for any serious fuzzer implementation.
 
-
-First, we must require some Xsmith and related modules.
-In particular, we need @tt{xsmith} and @tt{racr}.
-Other modules may also be convenient.
+To get started, we must require @tt{xsmith} and @tt{racr}.
+Other modules may also be convenient, such as @tt{racket/string}.
 @racketblock[
-(require xsmith racr racket/string)
+(require xsmith
+         racr
+         racket/string)
 ]
 
 To define a fuzzer, first define a @italic{spec component} with @racket[define-spec-component].
+We're going to create a simple arithmetic language, so we'll name our spec component @tt{arith} for short.
 @racketblock[
 (define-spec-component arith)
 ]
 
-The spec component is essentially a place we can store definitions of the grammar and related info.
-Let's add to the grammar defined by this spec component.
-We need a main node where generation must start, we'll call it @tt{Program}, and it will have a single @tt{Expression}.
+The spec component is where we store definitions of the grammar productions, properties, attributes, and choice rules.
+Let's add some productions to the grammar defined by this spec component!
+When adding nodes, we must always specify three components: the node's name, its supertype (also called a "parent type"), and a list of children nodes.
+We'll define a top-level node that we will later use to specify where to start program generation, which we'll call @tt{Program}.
+The @tt{Program} production will have a single child: an @tt{Expression}.
+Therefore, we will also need to provide a base @tt{Expression} production.
+Neither of these nodes has a supertype, so we will supply @racket[#f] in the supertype field after the node name.
 Note that the names of node types should be capitalized camel case (punctuation characters like @tt{-} and @tt{_} are disallowed).
-When adding nodes, we list the node name, its supertype, and a list of children.
 
 @racketblock[
 (add-to-grammar
@@ -258,17 +261,16 @@ When adding nodes, we list the node name, its supertype, and a list of children.
  )
 ]
 
-Program and Expression are not subtypes of some other node type, so their parent node type is the top node type, @racket[#f].
-Since the Program node only has one child of Expression type, we may write just @tt{Expression} for both the name and type of the node.
+We want the @tt{Expression} node to be abstract and not generated itself, so we'll use the @racket[may-be-generated] property to restrict it.
 
-We want the @tt{Expression} node to be abstract and not generated itself.
 @racketblock[
 (add-prop arith
           may-be-generated
           [Expression #f])
 ]
 
-We can put properties inline with the grammar definition when we want, replacing the above definition:
+We can also put properties inline with the grammar definition if we prefer.
+We can replace the above definition using this style:
 
 @racketblock[
 (add-to-grammar
@@ -278,6 +280,8 @@ We can put properties inline with the grammar definition when we want, replacing
              #:prop may-be-generated #f]
  )
 ]
+
+(Note that we cannot use both forms, as this will produce an error due to conflicting definitions of a property value for a given grammar production.)
 
 If we add node types that are subtypes of Expression, they can be generated in Expression holes.
 Let's add a node for literal integers.
@@ -290,11 +294,12 @@ Let's add a node for literal integers.
 
 Note that the literal node contains a child @tt{v} that is a normal Racket value, not a grammar node type.
 It is initialized with the expression on the right-hand side of the @tt{=} sign.
-Well, our literal integers will only be values from 0 to 99.
+
+The literal integers generated in our language will only be values from 0 to 99.
 Note that we can add the initialization expression inline as above or with the @racket[fresh] property.
 If we don't add an initialization expression, then non-node fields will be initialized with @racket[#f], while node fields will be initialized with hole nodes of the appropriate type..
 
-Let's add addition.
+Let's add addition expressions.
 Because we have multiple Expressions, we need to give them names.
 Note that we aren't supplying initialization code.
 Because they are grammar node typed, they will be initialized with Expression Hole nodes (same with the Program node's Expression child).
@@ -302,48 +307,61 @@ Because they are grammar node typed, they will be initialized with Expression Ho
 @racketblock[
 (add-to-grammar
  arith
- [Addition Expression ([l : Expression] [r : Expression])])
+ [Addition Expression ([l : Expression]
+                       [r : Expression])])
 ]
 
-Our language only has one type.
-This means we don't necessarily have to add type rules.
-However, let's add rules anyway since any real language will have multiple types.
+Our language only has one type: integers.
+This means we don't @italic{need} to add type rules, but we will anyway for the sake of a complete tutorial.
+We will call the type @tt{int} and add an implementation of the @racket[type-info] property for our language so far.
 
 @racketblock[
 (define int (base-type 'int))
-(add-prop arith type-info
-          [Program [int (λ (n t) (hash 'Expression int))]]
-          [LiteralInt [int (λ (n t) (hash))]]
-          [Addition [int (λ (n t) (hash 'l int 'r int))]])
+(add-prop
+ arith
+ type-info
+ [Program [int (λ (n t) (hash 'Expression int))]]
+ [LiteralInt [int (λ (n t) (hash))]]
+ [Addition [int (λ (n t) (hash 'l int 'r int))]])
 ]
 
-The left hand side of each rule is an expression that returns the type the node can inhabit.
+Each rule supplied to the property is surrounded in square brackets, @tt{[]}.
+
+The left-hand side of each of these rules is an expression that returns the type the node can inhabit.
+Most often, this will just be the name of the node type, such as @tt{Program} and @tt{LiteralInt} in this example.
 If a node can inhabit multiple types, @racket[fresh-type-variable] can be used to specify an unconstrained or partially constrained type.
 
-The right hand side is a function that returns a dictionary mapping children (by name or by node object) to a type.
-Note that type variables are unified during the type analysis, so you should take care with object/pointer equality (IE @racket[eq?]) of type variables.
-
+On the right-hand side is a function with two parameters: the node currently being evaluated, and the type that is currently being used to confine generation of that node.
+The body of the function returns a dictionary mapping children (by name or by node object) to a type.
+Note that type variables are unified during the type analysis, so you should take care with object/pointer equality (i.e., @racket[eq?]) of type variables.
 
 Now we need to specify how to print our programs, or “render” them.
+For this, we use the @racket[render-node-info] property.
 
 @racketblock[
-(add-prop arith render-node-info
-          [Program (λ (n) (att-value 'xsmith_render-node (ast-child 'Expression n)))]
-          [LiteralInt (λ (n) (number->string (ast-child 'v n)))]
-          [Addition (λ (n) (format "(~a + ~a)"
-                                   (att-value 'xsmith_render-node (ast-child 'l n))
-                                   (att-value 'xsmith_render-node (ast-child 'r n))))])
+(add-prop
+ arith
+ render-node-info
+ [Program (λ (n) (att-value 'xsmith_render-node (ast-child 'Expression n)))]
+ [LiteralInt (λ (n) (number->string (ast-child 'v n)))]
+ [Addition (λ (n) (format "(~a + ~a)"
+                          (att-value 'xsmith_render-node (ast-child 'l n))
+                          (att-value 'xsmith_render-node (ast-child 'r n))))])
 ]
 
-In this case are rendering directly to a string, but that's not usually the best approach.
-Rather, programs may be rendered to any intermediate data structure, such as s-expressions (convenient for lisp generators) or nodes from the @tt{pprint} library.
+In this case, we are rendering each node directly to a string, but that's not usually the best approach.
+More often, we render programs with some intermediate data structure and convert that to a string only as a last step.
+Most Xsmith fuzzers either use s-expressions for rendering Lisp-like languages, or else the @tt{pprint} Racket library's document objects.
+You can, of course, use your own custom implementation if you prefer.
 
-We put everything together with the @racket[assemble-spec-components] macro.
+We put everything together with the @racket[assemble-spec-components] macro, which compiles our language specification and gives it a name (@tt{arithmetic}, in this case).
+
 @racketblock[
 (assemble-spec-components arithmetic arith)
 ]
-Note that in our case we only have one component, but in principle we could define multiple, perhaps in different files, and combine them.
-The @racket[assemble-spec-components] macro defines the @tt{arithmetic-generate-ast} function (named based on the name given as the first argument).
+
+Note that in our case we only have one component, but in principle we could define multiple components, perhaps implemented in different files, and combine them.
+The @racket[assemble-spec-components] macro defines the @tt{arithmetic-generate-ast} function (named based on the name given as the first argument, i.e., @racket[(assemble-spec-components name first second)] combines the @tt{first} and @tt{second} spec components into a language specification named @tt{name}, and the function @tt{name-generate-ast} would be produced as a result).
 
 To turn it into a complete program we can run, we hook it up to the command-line machinery.
 OK, honestly, this following part is not a great design.
