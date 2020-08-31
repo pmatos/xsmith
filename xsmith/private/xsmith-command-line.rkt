@@ -721,9 +721,10 @@
                  ;;;;
                  ;; Convert an AST to a string.
                  (define (ast->string root)
-                   (let ([ppr (att-value 'xsmith_render-node root)])
-                     (if format-render-func
-                         (format-render-func ppr)
+                   (let ([ppr (att-value 'xsmith_render-node root)]
+                         [fmt (~? format-render-func #f)])
+                     (if fmt
+                         (fmt ppr)
                          (format "~a\n" ppr))))
                  ;; Attempt to generate the AST.
                  (define error? #f)
