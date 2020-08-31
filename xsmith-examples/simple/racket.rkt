@@ -57,7 +57,7 @@
  #:loop-type-constructor (λ (inner) (immutable (list-type inner)))
  #:bind-whole-collection? #t
  )
-(add-prop racket-comp
+(add-property racket-comp
           render-node-info
           [ForList (make-for-with-outer-def-printer 'for/list)])
 (add-loop-over-container
@@ -67,7 +67,7 @@
  #:loop-type-constructor (λ (inner) (mutable (array-type inner)))
  #:bind-whole-collection? #t
  )
-(add-prop racket-comp
+(add-property racket-comp
           render-node-info
           [ForVector (make-for-with-outer-def-printer 'for/vector)])
 (add-loop-over-container
@@ -77,7 +77,7 @@
  #:loop-type-constructor (λ (inner) void-type)
  #:body-type-constructor (λ (loop-type elem-type) void-type)
  )
-(add-prop racket-comp
+(add-property racket-comp
           render-node-info
           [ForVoid
            (λ (n)
@@ -86,7 +86,7 @@
                 ,(render-child 'body n)))])
 
 
-(add-prop
+(add-property
  racket-comp
  render-hole-info
  [#f (λ (h) '_HOLE_)])
@@ -99,7 +99,7 @@
 (define ((binary-op-renderer op) n)
   `(,op ,(render-child 'l n) ,(render-child 'r n)))
 
-(add-prop
+(add-property
  racket-comp
  render-node-info
 

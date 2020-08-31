@@ -49,7 +49,7 @@
                (equal? (ast-node-type parent-node)
                        'Definition))))])
 
-(add-prop
+(add-property
  python-comp
  choice-filters-to-apply
  [LambdaWithBlock (lwb-must-be-under-definition)])
@@ -59,7 +59,7 @@
   (λ (n) (h-append lparen ($xsmith_render-node (ast-child 'l n))
                    space op-rendered space
                    ($xsmith_render-node (ast-child 'r n)) rparen)))
-(add-prop
+(add-property
  python-comp
  render-hole-info
  [#f (λ (h) (text "«HOLE»"))])
@@ -75,7 +75,7 @@
  ;; Sure, Python calls them lists, but my type system calls them arrays.
  #:name ArrayComprehension
  #:collection-type-constructor (λ (elem-type) (mutable (array-type elem-type))))
-(add-prop python-comp render-node-info
+(add-property python-comp render-node-info
           [ArrayComprehension
            ;; [body for binder_name in collection]
            (λ (n) (h-append (text "[")
@@ -96,7 +96,7 @@
  #:body-ast-type Block
  #:bind-whole-collection? #t
  )
-(add-prop python-comp render-node-info
+(add-property python-comp render-node-info
           [LoopOverArray
            (λ (n)
              (define cd (ast-child 'collection n))
@@ -122,7 +122,7 @@
                                       (ast-children (ast-child 'statements body))))))))
               line))])
 
-(add-prop
+(add-property
  python-comp
  render-node-info
 

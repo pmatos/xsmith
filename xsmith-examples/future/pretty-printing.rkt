@@ -67,7 +67,7 @@
  [Return #f (Expr)]
  )
 
-(add-prop
+(add-property
  pycalc-grammar
  render-hole
  [#f (λ (h) (node-type h))])  ;; TODO - is this valid?
@@ -75,7 +75,7 @@
 (define (tab d)
   (indent 4 d))
 
-(add-prop
+(add-property
  pycalc-grammar
  render-node
  #:render-hole (λ (h) (text (pycalc-render-hole h)))

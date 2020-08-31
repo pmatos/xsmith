@@ -72,7 +72,7 @@
 (define number (base-type 'number #:leaf? #f))
 (define int (base-type 'int number))
 (define float (base-type 'float number))
-(add-prop arith type-info
+(add-property arith type-info
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [LetStar [(fresh-type-variable)
                     (λ (n t) (hash 'definitions (λ (cn) (fresh-type-variable))
@@ -97,7 +97,7 @@
           [SetBangRet [number (λ (n t) (hash 'Expression t))]]
           [Addition [number (λ (n t) (hash 'es t))]])
 
-(add-prop arith render-node-info
+(add-property arith render-node-info
           [LetStar
            (λ (n)
              `(let* (,@(map (λ (d)
@@ -123,7 +123,7 @@
           [Addition (λ (n) `(+ ,@(map (λ (c) (att-value 'xsmith_render-node c))
                                       (ast-children (ast-child 'es n)))))])
 
-(add-prop arith fresh
+(add-property arith fresh
           [Lambda (let* ([type (att-value 'xsmith_type current-hole)]
                          [atype (fresh-type-variable)]
                          [rtype (fresh-type-variable)]

@@ -44,7 +44,7 @@
       #:prop wont-over-deepen #t]
  )
 
-(add-prop
+(add-property
  tg
  render-node-info
  [Prog (λ (n) (render-node (ast-child 'val n)))]

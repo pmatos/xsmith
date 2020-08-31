@@ -2,7 +2,7 @@ This is a quick-and-dirty overview explanation of the macro design as it current
 
 The design of Xsmith's grammar macros so far is as follows:
 
-There are forms for defining a grammar, ag-rules, choice-rules, and properties.  Specifically, `declare-spec` defines a new grammar specification that can be added to, `add-to-grammar` appends nodes to the spec, `add-ag-rule` adds ag-rules, `add-choice-rule` adds choice-rules, `add-prop` adds properties.  The `add-*` forms can be used in any module that can reference the declared spec.
+There are forms for defining a grammar, ag-rules, choice-rules, and properties.  Specifically, `declare-spec` defines a new grammar specification that can be added to, `add-to-grammar` appends nodes to the spec, `add-ag-rule` adds ag-rules, `add-choice-rule` adds choice-rules, `add-property` adds properties.  The `add-*` forms can be used in any module that can reference the declared spec.
 
 Ag-rules are the attribute grammar rules -- they are methods that nodes in an AST have after they are constructed.
 Choice-rules are methods on choice objects which are created when the generator must make a choice about what node to generate.  They act as filters to remove choices from the running, provide an AST node constructor, and constrain the way the choice of node can be created.

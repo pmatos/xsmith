@@ -33,7 +33,7 @@
  [UnsafeDivideOp UnsafeArithOp ()]
  )
 
-(add-prop
+(add-property
  sm
  may-be-generated
  ;; Abstract nodes.
@@ -52,7 +52,7 @@
     ,(render-node (ast-child 'lhs n))
     ,(render-node (ast-child 'rhs n))))
 
-(add-prop
+(add-property
  sm
  render-node-info
  [Prog (λ (n) (render-node (ast-child 'arith n)))]
@@ -69,7 +69,7 @@
  [UnsafeDivideOp (λ (n) (render-arith-op '!/ n))]
  )
 
-(add-prop
+(add-property
  sm
  render-hole-info
  [#f (λ (h) `(HOLE ,(node-type h)))])

@@ -69,7 +69,7 @@
 (define int (base-type 'int))
 (define string (base-type 'string))
 (define bool (base-type 'bool))
-(add-prop arith type-info
+(add-property arith type-info
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [LetStar [(fresh-type-variable)
                     (λ (n t) (hash 'definitions (λ (cn) (fresh-type-variable))
@@ -89,7 +89,7 @@
           [StringLength [int (λ (n t) (hash 'Expression string))]]
           )
 
-(add-prop arith render-node-info
+(add-property arith render-node-info
           [LetStar
            (λ (n)
              `(let* (,@(map (λ (d)

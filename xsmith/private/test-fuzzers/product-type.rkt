@@ -73,7 +73,7 @@
  [Addition Expression ([es : Expression * = (+ 1 (random 5))])
            #:prop choice-weight 50])
 
-(add-prop arith fresh
+(add-property arith fresh
           [TupleRef (let ([len (add1 (random 5))])
                       (hash 'tuplelength len
                             'index (random len)))])
@@ -88,11 +88,11 @@
                  [Tuple (λ () (not (> (att-value 'tuple-depth (current-hole))
                                       4)))])
 
-(add-prop arith choice-filters-to-apply
+(add-property arith choice-filters-to-apply
           [#f [tuple-not-too-deep?]])
 
 (define int (base-type 'int))
-(add-prop arith type-info
+(add-property arith type-info
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [LetStar [(fresh-type-variable)
                     (λ (n t) (hash 'definitions (λ (cn) (fresh-type-variable))
@@ -122,7 +122,7 @@
           [SetBangRet [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [Addition [int (λ (n t) (hash 'es t))]])
 
-(add-prop arith render-node-info
+(add-property arith render-node-info
           [LetStar
            (λ (n)
              `(let* (,@(map (λ (d)

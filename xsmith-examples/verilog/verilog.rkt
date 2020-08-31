@@ -246,7 +246,7 @@
 ;;
 ;;
 ;;
-(add-prop
+(add-property
  verilog-core
  wont-over-deepen
  [ArrowStatement #t]
@@ -337,7 +337,7 @@
 ;;
 ;;
 ;;
-(add-prop
+(add-property
  verilog-core
  render-node-info
  [Source

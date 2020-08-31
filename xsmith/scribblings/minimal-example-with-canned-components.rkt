@@ -48,7 +48,7 @@
   `(,op ,(render-child 'l n) ,(render-child 'r n)))
 
 
-(add-prop
+(add-property
  somelisp-comp
  render-node-info
 

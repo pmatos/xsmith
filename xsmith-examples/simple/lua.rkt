@@ -33,7 +33,7 @@
                       #:MutableStructuralRecordAssignmentStatement #t
                       )
 
-(add-prop
+(add-property
  lua-comp
  choice-weight
  [ProcedureApplication 50])
@@ -43,7 +43,7 @@
   (λ (n) (h-append lparen ($xsmith_render-node (ast-child 'l n))
                    space op-rendered space
                    ($xsmith_render-node (ast-child 'r n)) rparen)))
-(add-prop
+(add-property
  lua-comp
  render-hole-info
  [#f (λ (h) (text "«HOLE»"))])
@@ -59,7 +59,7 @@
             (text " end") rparen
             lparen binding-expr rparen rparen))
 
-(add-prop
+(add-property
  lua-comp
  render-node-info
 

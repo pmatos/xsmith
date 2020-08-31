@@ -42,7 +42,7 @@
 (define (random-field-name)
   (random-ref fieldname-options))
 
-(add-prop arith fresh
+(add-property arith fresh
           [LiteralDict (let* ([t (begin (force-type-exploration-for-node!
                                          (current-hole))
                                         (att-value 'xsmith_type (current-hole)))]
@@ -59,7 +59,7 @@
                                'vals (length all-fields)))])
 
 (define int (base-type 'int))
-(add-prop arith type-info
+(add-property arith type-info
           [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
           [LetStar [(fresh-type-variable)
                     (λ (n t) (hash 'definitions (λ (cn) (fresh-type-variable))
@@ -94,7 +94,7 @@
                                    'newval t))]]
           )
 
-(add-prop arith render-node-info
+(add-property arith render-node-info
           [LetStar
            (λ (n)
              `(let* (,@(map (λ (d)

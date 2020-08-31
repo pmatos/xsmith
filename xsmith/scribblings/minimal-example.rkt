@@ -17,14 +17,14 @@
            #:prop choice-weight 20])
 
 (define int (base-type 'int))
-(add-prop
+(add-property
  arith
  type-info
  [Program [int (λ (n t) (hash 'Expression int))]]
  [LiteralInt [int (λ (n t) (hash))]]
  [Addition [int (λ (n t) (hash 'l int 'r int))]])
 
-(add-prop
+(add-property
  arith
  render-node-info
  [Program

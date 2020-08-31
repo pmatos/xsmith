@@ -147,7 +147,7 @@
               [UnsafeDivisionExpression (λ (n) #t)]
               [UnsafeModulusExpression (λ (n) #t)])
 
-(add-prop cish-grammar
+(add-property cish-grammar
           may-be-generated
           ;; abstract nodes
           [Declaration #f]
@@ -168,7 +168,7 @@
           [UnsafeModulusExpression #f]
           )
 
-(add-prop cish-grammar
+(add-property cish-grammar
           depth-increase
           [Block (λ (n) (if (member (node-type (parent-node n))
                                     '(IfStatement
@@ -186,7 +186,7 @@
           [VolatileInitializer (λ(n)0)]
           [Declaration (λ(n)0)])
 
-(add-prop cish-grammar
+(add-property cish-grammar
           wont-over-deepen
           [LiteralStruct #t]
           [VolatileVariableReference #t]
@@ -194,7 +194,7 @@
           )
 
 
-(add-prop cish-grammar
+(add-property cish-grammar
           fresh
           [IfElseStatement (hash
                             'then
@@ -315,33 +315,33 @@
                                           -1)))]
           )
 
-(add-prop cish-grammar
+(add-property cish-grammar
           binder-info
           [Declaration ()]
           [VariableDeclaration ()]
           [FunctionDefinition ()]
           [StructDefinition ()]
           [FormalParam (#:binder-style parameter)])
-(add-prop cish-grammar
+(add-property cish-grammar
           reference-info
           [VariableReference (read)]
           [AssignmentExpression (write)]
           )
-(add-prop cish-grammar
+(add-property cish-grammar
           mutable-container-access
           [StructSetField (write 'struct)]
           [StructReference (read 'struct)])
-(add-prop cish-grammar
+(add-property cish-grammar
           io
           [VolatileVariableReference #t])
-(add-prop cish-grammar
+(add-property cish-grammar
           strict-child-order?
           [Program #t]
           [Block #t]
           [IfStatement #t]
           [IfExpression #t]
           [LoopStatement #t])
-(add-prop cish-grammar
+(add-property cish-grammar
           lift-predicate
           [FunctionDefinition #f]
           ;[FunctionDefinition (λ (n type) #f)]
@@ -349,7 +349,7 @@
           ;; TODO - not function types AND not struct types
           [Block (λ (n type) (and (not (function-type? type))
                                   (not (nominal-record-definition-type? type))))])
-(add-prop cish-grammar
+(add-property cish-grammar
           lift-type->ast-binder-type
           [#f (λ (type) (cond [(function-type? type)
                                'FunctionDefinition]
@@ -363,7 +363,7 @@ Type definitions are in cish-utils.rkt
 |#
 
 ;; TODO - this property is wonky because it needs more info than I originally anticipated due to shortsightedness in wanting to design something easy to write.  It needs to take the node as well as its type, or maybe have an option to take its node.
-(add-prop
+(add-property
  cish-grammar
  type-info
  [#f [(error 'typing-base-node) (no-child-types)]]
@@ -537,7 +537,7 @@ Type definitions are in cish-utils.rkt
             (nominal-record-definition-type t)))))]]
  )
 
-(add-prop
+(add-property
  cish-grammar
  choice-filters-to-apply
  [#f (

@@ -58,7 +58,7 @@
 
 (define int (base-type 'int))
 (define none (base-type 'none))
-(add-prop
+(add-property
  mathy-grammar
  type-info
  [Program [none (λ (n t) (hash 'maths (λ (c) (fresh-type-variable))))]]
@@ -73,7 +73,7 @@
    (text op)
    (render-node (ast-child 'r n))))
 
-(add-prop
+(add-property
  mathy-grammar
  render-node-info
  [Program (λ (n) (v-concat
@@ -195,7 +195,7 @@
        (map (get-transformer fast-math)
             (ast-children n)))))
 
-(add-prop
+(add-property
  mathy-grammar
  render-hole-info
  [#f (λ (h) (h-append (text "<")

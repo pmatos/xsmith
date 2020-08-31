@@ -35,7 +35,7 @@
  add-to-grammar
  add-attribute
  add-choice-rule
- add-prop
+ add-property
  define-refiner
  add-refiner
  assemble-spec-components/core
@@ -453,12 +453,12 @@
                 (for/list ([p (syntax->list #'(clause.prop ...))])
                   (syntax-parse p
                     [(prop:grammar-inline-prop-clause)
-                     #`(add-prop component
+                     #`(add-property component
                                  prop.name
                                  [#,node-name prop.val])]))])))
        )])
 
-(define-for-syntax (add-prop-generic component-getter component-setter arg-stx)
+(define-for-syntax (add-property-generic component-getter component-setter arg-stx)
   (syntax-parse arg-stx
     [(component:spec-component
       prop/refiner/ag/cm-name:id
@@ -469,22 +469,22 @@
                            #'((prop/refiner/ag/cm-name node-name) ...)
                            #'([prop/refiner/ag/cm-name node-name prop] ...))]))
 (define-syntax-parser add-attribute
-  [(_ arg ...) (add-prop-generic
+  [(_ arg ...) (add-property-generic
                 #'spec-component-struct-att-rule-info
                 #'set-spec-component-struct-att-rule-info
                 #'(arg ...))])
 (define-syntax-parser add-choice-rule
-  [(_ arg ...) (add-prop-generic
+  [(_ arg ...) (add-property-generic
                 #'spec-component-struct-choice-rule-info
                 #'set-spec-component-struct-choice-rule-info
                 #'(arg ...))])
-(define-syntax-parser add-prop
-  [(_ arg ...) (add-prop-generic
+(define-syntax-parser add-property
+  [(_ arg ...) (add-property-generic
                 #'spec-component-struct-property-info
                 #'set-spec-component-struct-property-info
                 #'(arg ...))])
 (define-syntax-parser add-refiner
-  [(_ arg ...) (add-prop-generic
+  [(_ arg ...) (add-property-generic
                 #'spec-component-struct-refiner-info
                 #'set-spec-component-struct-refiner-info
                 #'(arg ...))])

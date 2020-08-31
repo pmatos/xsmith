@@ -289,7 +289,7 @@
                     [SafeDivide Expression ([l : Expression] [r : Expression])]
                     [LessThan Expression ([l : Expression] [r : Expression])]
                     [GreaterThan Expression ([l : Expression] [r : Expression])])
-                   (add-prop
+                   (add-property
                     component type-info
                     [IntLiteral [int no-child-types]]
                     [Plus [number numeric-bin-op-subtype]]
@@ -355,7 +355,7 @@
                     [Not Expression ([Expression])]
                     [And Expression ([l : Expression] [r : Expression])]
                     [Or Expression ([l : Expression] [r : Expression])])
-                   (add-prop
+                   (add-property
                     component
                     type-info
                     [BoolLiteral [bool no-child-types]]
@@ -375,7 +375,7 @@
                      #:prop choice-weight 1]
                     [StringAppend Expression ([l : Expression] [r : Expression])]
                     [StringLength Expression (Expression)])
-                   (add-prop
+                   (add-property
                     component
                     type-info
                     [StringLiteral [string-type (no-child-types)]]
@@ -462,7 +462,7 @@
                      Expression ([array : Expression]
                                  [index : Expression]
                                  [newvalue : Expression])])
-                   (add-prop
+                   (add-property
                     component
                     type-info
                     [ImmutableArrayLiteral [(immutable (fresh-array-type))

@@ -118,7 +118,7 @@
 
  )
 
-(add-prop schemely-core fresh
+(add-property schemely-core fresh
           [LiteralInt (hash 'v (* (random 1000000)
                                   (if (equal? 0 (random 2)) -1 1)))]
           [LiteralFloat (hash 'v (* (random)
@@ -134,7 +134,7 @@
   (λ (n) `(,sym ,@(map (λ (x) (att-value 'xsmith_render-node x))
                        (ast-children (ast-child children-ref n))))))
 
-(add-prop
+(add-property
  schemely-core
  render-node-info
  [Program (λ (n) `(,@(map (λ (x) (att-value 'xsmith_render-node x))
@@ -194,7 +194,7 @@
  [If (->se 'if 'test 'then 'else)]
  )
 
-(add-prop
+(add-property
  schemely-core
  render-hole-info
  [#f (λ (h) (list 'HOLE (ast-node-type h)))])
@@ -230,7 +230,7 @@
   (λ (n t)
     (hash 'l t 'r t)))
 
-(add-prop
+(add-property
  schemely-core
  type-info
  [DefinitionContext [(fresh-type-variable)
@@ -326,7 +326,7 @@
         (hash 'test bool 'then t 'else t))]]
  )
 
-(add-prop
+(add-property
  schemely-core
  fresh
  [Lambda (let* ([type (att-value 'xsmith_type current-hole)]

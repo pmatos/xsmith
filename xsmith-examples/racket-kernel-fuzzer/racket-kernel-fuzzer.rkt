@@ -71,7 +71,7 @@
                        )
 
 
-(add-prop
+(add-property
  racket-comp
  render-hole-info
  [#f (λ (h) '_HOLE_)])
@@ -148,7 +148,7 @@
 (define no-child-types (λ (n t) (hash)))
 
 (define-syntax-parser ag [(_ arg ...) #'(add-to-grammar racket-comp arg ...)])
-(define-syntax-parser ap [(_ arg ...) #'(add-prop racket-comp arg ...)])
+(define-syntax-parser ap [(_ arg ...) #'(add-property racket-comp arg ...)])
 
 
 (ag
@@ -551,7 +551,7 @@
 ;;;;; Rendering for basic expressions (IE add-basic-expression)
 ;;;;; Mostly this is from the simple/racket fuzzer.
 
-(add-prop
+(add-property
  racket-comp
  render-node-info
 

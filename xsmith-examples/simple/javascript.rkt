@@ -39,7 +39,7 @@
   (λ (n) (h-append lparen (att-value 'xsmith_render-node (ast-child 'l n))
                    space op-rendered space
                    (att-value 'xsmith_render-node (ast-child 'r n)) rparen)))
-(add-prop
+(add-property
  javascript-comp
  render-hole-info
  [#f (λ (h) (text "«HOLE»"))])
@@ -49,7 +49,7 @@
          (apply-infix (h-append comma space)
                       doc-list)))
 
-(add-prop
+(add-property
  javascript-comp
  render-node-info
 

@@ -132,7 +132,7 @@ Fixes:
 ;;;;
 ;; Properties.
 
-(add-prop
+(add-property
  pythonesque-grammar
  may-be-generated
  [Node #f]
@@ -145,7 +145,7 @@ Fixes:
  [Val #f]
  )
 
-(add-prop
+(add-property
  pythonesque-grammar
  strict-child-order?
  [Program #t]
@@ -156,7 +156,7 @@ Fixes:
 (define (no-increase)
   (λ (n) 0))
 
-(add-prop
+(add-property
  pythonesque-grammar
  depth-increase
  [Program (no-increase)]
@@ -171,7 +171,7 @@ Fixes:
  [ExprStmt (no-increase)]
  )
 
-(add-prop
+(add-property
  pythonesque-grammar
  wont-over-deepen
  [VarDecl #t]
@@ -182,7 +182,7 @@ Fixes:
 
 ; Binding and reference information.
 
-(add-prop
+(add-property
  pythonesque-grammar
  binder-info
  [Decl ()]
@@ -191,7 +191,7 @@ Fixes:
  [VarDecl ()]
  )
 
-(add-prop
+(add-property
  pythonesque-grammar
  reference-info
  [AssignStmt (write #:unifies Expr)]
@@ -206,7 +206,7 @@ Fixes:
   (concretize-type (function-type (product-type #f)
                                   (fresh-type-variable))))
 
-(add-prop
+(add-property
  pythonesque-grammar
  fresh
  ; Declarations.
@@ -264,7 +264,7 @@ Fixes:
 
 ; Lifting.
 
-(add-prop
+(add-property
  pythonesque-grammar
  lift-predicate
  [Program (λ (n t) #t)]
@@ -273,7 +273,7 @@ Fixes:
  [FuncDecl #f]
  )
 
-(add-prop
+(add-property
  pythonesque-grammar
  lift-type->ast-binder-type
  [#f (λ (t) (cond
@@ -287,7 +287,7 @@ Fixes:
 ;; TODO - allow a separate default weight specification that #f relies on by default
 ;; TODO - investigate other properties that are intended for #f-only implementations and rewrite specification
 
-(add-prop
+(add-property
  pythonesque-grammar
  choice-weight
  [#f 100]
@@ -331,7 +331,7 @@ Fixes:
   (λ (n t) (hash 'lhs t
                  'rhs t)))
 
-(add-prop
+(add-property
  pythonesque-grammar
  type-info
  ; Special nodes.
@@ -433,7 +433,7 @@ Fixes:
 (define (pretty-print-children cns)
   (map (λ (cn) ($xsmith_render-node cn)) cns))
 
-(add-prop
+(add-property
  pythonesque-grammar
  render-node-info
  ; Special nodes.
@@ -544,7 +544,7 @@ Fixes:
                 (text "False")))]
  )
 
-(add-prop
+(add-property
  pythonesque-grammar
  render-hole-info
  [#f (λ (h) (h-append

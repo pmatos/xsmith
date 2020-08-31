@@ -51,7 +51,7 @@
 
 (define int (base-type 'int))
 
-(add-prop
+(add-property
  btree-grammar
  type-info
  [Branch [int
@@ -65,7 +65,7 @@
  [Val [int (λ (n t) (hash))]]
  )
 
-(add-prop
+(add-property
  btree-grammar
  render-node-info
  [Branch (λ (n)
@@ -87,7 +87,7 @@
         (text (number->string (ast-child 'v n))))]
  )
 
-(add-prop
+(add-property
  btree-grammar
  render-hole-info
  [#f (λ (h) (h-append

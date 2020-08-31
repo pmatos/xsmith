@@ -55,7 +55,7 @@
 
 ;; Trivial type system.
 (define int (base-type 'int))
-(add-prop
+(add-property
  stree-grammar
  type-info
  [Branch [int (λ (n t) (hash 'l t
@@ -67,7 +67,7 @@
  )
 
 ;; Rendering (using pprint).
-(add-prop
+(add-property
  stree-grammar
  render-node-info
  [Branch (λ (n) (v-append
@@ -86,7 +86,7 @@
  [Val (λ (n) (text (number->string (ast-child 'v n))))]
  )
 
-(add-prop
+(add-property
  stree-grammar
  render-hole-info
  [#f (λ (h) (h-append (text "<")

@@ -81,7 +81,7 @@ Defined by the @racket[render-node-info] property.
 
 Example:
 @racketblock[
-(add-prop
+(add-property
  my-spec-component
  render-node-info
  (code:comment "assuming we're outputting for a lispy language")
@@ -210,12 +210,12 @@ The names of symbols used or defined by the xsmith library start with @verb{xsmi
 @section{Forms for Defining a Grammar and Its Attributes}
 
 @defform[(define-spec-component component-name)]{
-Defines a spec component.  Spec components include information about a language grammar and attributes, and can be combined to generate an xsmith fuzzer.  You add grammar productions with @racket[add-to-grammar], you add properties with @racket[add-prop], and you can add att-rules and choice-rules with @racket[add-attribute] and @racket[add-choice-rule], respectively.  Spec components are combined with @racket[assemble-spec-components].
+Defines a spec component.  Spec components include information about a language grammar and attributes, and can be combined to generate an xsmith fuzzer.  You add grammar productions with @racket[add-to-grammar], you add properties with @racket[add-property], and you can add att-rules and choice-rules with @racket[add-attribute] and @racket[add-choice-rule], respectively.  Spec components are combined with @racket[assemble-spec-components].
 
 Example:
 @racketblock[
 (define-spec-component my-spec-component)
-(code:comment "Now use add-to-grammar, add-prop, etc.")
+(code:comment "Now use add-to-grammar, add-property, etc.")
 (code:comment "Then use my-spec-component in assemble-part-specs.")
 ]
 }
@@ -354,7 +354,7 @@ This is a poor example, but it demonstrates how att-rules and choice-rules can b
   (λ () (if (att-value 'my-helper-att-rule (current-hole))
             20
             5))])
-(add-prop
+(add-property
  my-spec-component
  choice-weight
  [#f (send this my-weight-helper)])
@@ -362,7 +362,7 @@ This is a poor example, but it demonstrates how att-rules and choice-rules can b
 
 }
 
-@defform[(add-prop spec-component prop-name prop-clause ...)
+@defform[(add-property spec-component prop-name prop-clause ...)
 #:grammar [(prop-clause (nonterminal-name prop-value))]]{
 Adds property values to the spec-component.
 
@@ -378,7 +378,7 @@ Elsewhere it raises a syntax error.
 }
 
 @defform[(make-hole hole-type-expression)]{
-Within the context of a spec component (eg. in the body of @racket[add-attribute], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-hole] is a function to generate a hole of a given type.
+Within the context of a spec component (eg. in the body of @racket[add-attribute], @racket[add-property], @racket[add-to-grammar], etc), @racket[make-hole] is a function to generate a hole of a given type.
 
 For example, to make a hole node that will eventually be replaced with some type of @verb{Expression} node:
 @racketblock[(make-hole 'Expression)]
@@ -389,7 +389,7 @@ Outside of a spec component context, it raises a syntax error.
 }
 
 @defform[(make-fresh-node node-type-expression optional-field-value-dict)]{
-Within the context of a spec component (eg. in the body of @racket[add-attribute], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-fresh-node] is a function to generate a fresh node of the given type.
+Within the context of a spec component (eg. in the body of @racket[add-attribute], @racket[add-property], @racket[add-to-grammar], etc), @racket[make-fresh-node] is a function to generate a fresh node of the given type.
 Construction of the new node is guided by the @racket[fresh] property.
 
 For example, to generate a fresh @verb{AdditionExpression} node, specifying values for some of its fields:
@@ -429,13 +429,13 @@ Custom properties are probably only useful for shared infrastructure for multipl
                                  (choice-rule rule-name)
                                  (grammar))
            ]]{
-Defines a property for use with @racket[add-prop].
+Defines a property for use with @racket[add-property].
 
 Properties can have a transformer function that produce att-rules, choice-rules, or other property values.
-Property transformers can read the values set for the property by @racket[add-prop], and optionally the values of other properties as well.
+Property transformers can read the values set for the property by @racket[add-property], and optionally the values of other properties as well.
 Not all properties must have a transformer -- some properties may just be a single place to store information that is used by (multiple) other properties.
 
-The transformer function accepts a dictionary mapping grammar node names (as symbols) to the syntax objects from the right-hand-side of @racket[add-prop] uses for each property that it reads.
+The transformer function accepts a dictionary mapping grammar node names (as symbols) to the syntax objects from the right-hand-side of @racket[add-property] uses for each property that it reads.
 The transformer function must return a list of dictionaries mapping grammar node names (as symbols) to syntax objects for the properties, att-rules, and choice-rules that it writes.
 
 Property transformers are run during @racket[assemble-spec-components] in an order determined by the read/write dependencies among the properties.
@@ -479,8 +479,8 @@ A dictionary may even be empty.
 In addition to nonterminals, each dictionary may include a mapping for the value @racket[#f], which will define a default value used for the (super secret) parent node that @racket[assemble-spec-components] defines.
 If nothing is specified for #f, att-rules and choice-rules will have a default which errors, providing a helpful error message.
 
-If the @racket[#:allow-duplicates?] argument is supplied and is @racket[#t], then @racket[add-prop] may be used more than once for the property for the same node, and the syntax object in the dictionary for the property will be a syntax list of the syntax objects specified in the various @racket[add-prop] calls.
-But by default only one use of @racket[add-prop] is allowed per property per node type, and the syntax object in the dict is the single syntax object from the one call.
+If the @racket[#:allow-duplicates?] argument is supplied and is @racket[#t], then @racket[add-property] may be used more than once for the property for the same node, and the syntax object in the dictionary for the property will be a syntax list of the syntax objects specified in the various @racket[add-property] calls.
+But by default only one use of @racket[add-property] is allowed per property per node type, and the syntax object in the dict is the single syntax object from the one call.
 
 Here is a simple example that basically desugars straight to an att-rule with a default:
 
@@ -563,7 +563,7 @@ Example:
  [A #f ()]
  [B A ()]
  [C B ()])
-(add-prop
+(add-property
  a-spec-component
  some-bool-flag
  [A #t]
@@ -681,7 +681,7 @@ The @racket[#:global-predicate] parameter allows for this.
 Similar to @racket[refiner-predicate], @racket[#:global-predicate] accepts a single predicate function as argument.
 This function will be prepended to the list of functions for each clause.
 
-The @racket[refiner-clause]s are similar to those used by the @racket[add-prop] (and similar) functions.
+The @racket[refiner-clause]s are similar to those used by the @racket[add-property] (and similar) functions.
 One key difference with refiners is that there is always a @racket[#f] clause given.
 (The default implementation of this clause if omitted by the user is @racket[[(λ (n) #f)]], which means the refiner has no effect for any node which does not have a matching clause defined.)
 The predicate defined by @racket[#:global-predicate] (if present) will not ever be applied to the @racket[#f] clause.
@@ -879,7 +879,7 @@ This property is NOT inherited by subclasses.
 
 Example:
 @racketblock[
-(add-prop
+(add-property
  my-spec-component
  may-be-generated
  (code:comment "Expression is abstract and should not be instantiated,")
@@ -907,7 +907,7 @@ Example:
 (define int (base-type 'int number))
 (define float (base-type 'float number))
 (define bool (base-type 'bool))
-(add-prop
+(add-property
  my-spec-component
  type-info
  [AdditionExpression [(fresh-subtype-of number)
@@ -954,7 +954,7 @@ For example:
 (add-to-grammar
  my-spec-component
  [Cons Expression ([newval : Expression] [list : Expression])])
-(add-prop
+(add-property
  my-spec-component
  type-info
  [Cons [(list-type (fresh-type-variable))
@@ -972,7 +972,7 @@ Here's an example of a subtly broken type rule:
 (add-to-grammar
  my-spec-component
  [Convert Expression (Expression)])
-(add-prop
+(add-property
  my-spec-component
  type-info
  [Convert [(fresh-type-variable int float)
@@ -998,7 +998,7 @@ You could split @tt{Convert} into two rules that accept one type each.
  my-spec-component
  [IntToFloat Expression (Expression)]
  [FloatToInt Expression (Expression)])
-(add-prop
+(add-property
  my-spec-component
  type-info
  [IntToFloat [int (λ (n t) float)]]
@@ -1014,7 +1014,7 @@ You could save the choice in a field of the @tt{Convert} node and re-unify in la
 (add-to-grammar
  my-spec-component
  [Convert Expression (Expression outputtype)])
-(add-prop
+(add-property
  my-spec-component
  type-info
  [Convert [(fresh-type-variable int float)
@@ -1056,7 +1056,7 @@ Example:
  [Expression #f ()]
  [LiteralInt Expression (v = (random 1000))]
  [AdditionExpression Expression ([left : Expression] [right : Expression])])
-(add-prop
+(add-property
  my-spec-component
  fresh
  (code:comment "Make AdditionExpressions always be generated with a literal 7 argument.")
@@ -1085,7 +1085,7 @@ Choice weights should be positive integer values.  The default weight is 10 unle
 
 Example:
 @racketblock[
-(add-prop
+(add-property
  my-spec-component
  choice-weight
  (code:line "The default choice weight.")
@@ -1113,7 +1113,7 @@ Example:
 @racketblock[
 (define no-depth-if-body-is-block
   (λ (n) (if (node-subtype? (ast-child 'body n) 'Block) 0 1)))
-(add-prop
+(add-property
  my-spec-component
  depth-increase
  [IfStatement no-depth-if-body-is-block]
@@ -1181,7 +1181,7 @@ Essentially, the @racket[#:unifies] argument is meant for writes to any type in 
 
 Example:
 @racketblock[
-(add-prop
+(add-property
  my-spec-component
  reference-info
  [Reference (read)]
@@ -1209,7 +1209,7 @@ You can give different values to different nodes, but a default on @racket[#f] i
 
 Here is an example that randomly chooses any option available, that only lifts when there are no existing options:
 @racketblock[
-(add-prop
+(add-property
  my-spec-component
  reference-choice-info
  [#f (λ (n options lift-available?)
@@ -1233,7 +1233,7 @@ Example:
  [Letstar #f ([definitions : Definition *] Expression)]
  [Letrec #f ([definitions : Definition *] Expression)]
  )
-(add-prop
+(add-property
  my-spec-component
  binding-structure
  [Let 'parallel]
@@ -1253,7 +1253,7 @@ Setting this property is unnecessary, but using it allows more liberal use of re
 
 Example:
 @racketblock[
-(add-prop
+(add-property
  my-spec-component
  strict-child-order?
  (code:comment "Most languages have some sort of sequential construct, like a block")
@@ -1273,7 +1273,7 @@ Eg. you could use the type constructor, or just a symbol for the name of the typ
 
 Example:
 @racketblock[
-(add-prop
+(add-property
  my-spec-component
  mutable-container-access
  [MutableRecordGetField (read 'MutableRecord)]
@@ -1287,7 +1287,7 @@ Used to specify that a node has some kind of IO effect, such as printing or read
 
 Example:
 @racketblock[
-(add-prop
+(add-property
  my-spec-component
  io
  [Print #t])
@@ -1306,7 +1306,7 @@ Example:
  [Letstar #f ([definitions : Definition *] Expression)]
  [Letrec #f ([definitions : Definition *] Expression)]
  )
-(add-prop
+(add-property
  my-spec-component
  lift-predicate
  (code:comment
@@ -1337,7 +1337,7 @@ Example:
  [VariableDefinition #f (name type Expression)]
  [FunctionDefinition #f (name type Body)]
  )
-(add-prop
+(add-property
  my-spec-component
  lift-type->ast-binder-type
  [#f (λ (type) (if (function-type? type)
@@ -1369,7 +1369,7 @@ In this code snippet, we define a choice method encoding this restriction, and a
                 (parent-node (parent-node current-hole))
                 (equal? (ast-node-type (parent-node (parent-node current-hole)))
                         'Program)))])
-(add-prop my-component
+(add-property my-component
           choice-filters-to-apply
           [#f (no-lambda-except-global-def)])
 ]
@@ -1420,7 +1420,7 @@ The rendering function is defined as the @rule[xsmith_render-node] attribute.
 
 Example:
 @racketblock[
-(add-prop
+(add-property
  my-spec-component
  render-node-info
  [#f (λ (node) (symbol->string (ast-node-type node)))])
@@ -1435,7 +1435,7 @@ By default, this function simply returns a string containing the type of the hol
 
 Example:
 @racketblock[
-(add-prop
+(add-property
  render-hole-info
  [#f (λ (hole) (format "<~a>" (symbol->string (ast-node-type hole))))])
 ]
@@ -1657,7 +1657,7 @@ Example:
  ...
  )
 
-(add-prop
+(add-property
  my-grammar
  type-info
  ...
@@ -2142,7 +2142,7 @@ Example:
  (code:comment "Sure, Python calls them lists, but my type system calls them arrays.")
  #:name ArrayComprehension
  #:collection-type-constructor (λ (elem-type) (mutable (array-type elem-type))))
-(add-prop python-comp render-node-info
+(add-property python-comp render-node-info
           [ArrayComprehension
            ;; [body for binder_name in collection]
            (λ (n) (h-append (text "[")

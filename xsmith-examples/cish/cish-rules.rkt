@@ -1327,7 +1327,7 @@
     [FunctionDefinition
      (equal? (node-type (parent-node current-hole)) 'Program)])
 
-(add-prop
+(add-property
  cish-rules
  choice-weight
  [Node 10]
@@ -1352,7 +1352,7 @@
                         15)]
  )
 
-(add-prop
+(add-property
  cish-rules
  wont-over-deepen
  [ExpressionStatement #t]
@@ -1376,7 +1376,7 @@
                                     (type->string (volatile-type-type t)))]
         [else (error 'type->string "not yet implemented for type ~a" t)]))
 
-(add-prop
+(add-property
  cish-rules
  render-node-info
  [Program (λ (n)
@@ -1680,7 +1680,7 @@
  [LessOrEqualExpression {binary-expression-print/infix (h-append less eqsign)}]
  )
 
-(add-prop
+(add-property
  cish-rules
  render-hole-info
  [#f (λ (h) (h-append

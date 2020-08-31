@@ -28,7 +28,7 @@
 
 
 (define int (base-type 'int))
-(add-prop
+(add-property
  arith
  type-info
  [Definition [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
@@ -41,7 +41,7 @@
  [SetBangRet [(fresh-type-variable) (λ (n t) (hash 'Expression t))]]
  [Addition [int (λ (n t) (hash 'es t))]])
 
-(add-prop
+(add-property
  arith
  render-node-info
  ;; Note that we've imported xsmith/app, so our #%app allows quoted

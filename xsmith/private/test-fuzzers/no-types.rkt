@@ -59,7 +59,7 @@
            #:prop choice-weight 50])
 
 
-(add-prop arith render-node-info
+(add-property arith render-node-info
           [LetStar
            (λ (n)
              `(let* (,@(map (λ (d)

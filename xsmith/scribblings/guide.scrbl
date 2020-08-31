@@ -51,7 +51,7 @@
 Xsmith uses @(racr), an attribute grammar library, in its implementation, and some knowledge of @(racr) is necessary when using Xsmith.
 
 To create a fuzzer with Xsmith, users create a specification by combining @italic{specification components} (more commonly referred to as @italic{spec components}), defined with @racket[define-spec-component].
-A spec component can define productions of a grammar with @racket[add-to-grammar], or it can provide @italic{properties} of grammar productions with @racket[add-prop].
+A spec component can define productions of a grammar with @racket[add-to-grammar], or it can provide @italic{properties} of grammar productions with @racket[add-property].
 The grammar and properties are used to generate a @(racr) grammar, @italic{attributes} for the grammar, and @italic{choice objects}, which guide AST generation.
 
 Program generation starts by generating an AST hole for a given grammar production.
@@ -84,7 +84,7 @@ The attributes are queried to determine how to generate the AST.
 RACR caches the results of attribute queries and keeps track of the nodes accessed for any attribute.
 When nodes used in an attribute computation are changed, future queries to that attribute are re-computed.
 
-Users can specify new RACR attributes for Xsmith generators, but they should use @racket[add-attribute] or @racket[add-prop] from Xsmith rather than using RACR functions directly.
+Users can specify new RACR attributes for Xsmith generators, but they should use @racket[add-attribute] or @racket[add-property] from Xsmith rather than using RACR functions directly.
 In expressions evaluated in the context of RACR attributes (att-rules) or choice rules, RACR attributes may be queried.
 
 The main RACR APIs of interest are:
@@ -164,7 +164,7 @@ The theory of scope graphs is described in the paper “A Theory of Name Resolut
 
 @section{Attributes, Choices, and Properties, Oh My!}
 
-Aside from the grammar productions themselves, Xsmith language specifications deal with @italic{attributes} (eg. via @racket[add-attribute]), @italic{choice rules} (via @racket[add-choice-rule]), and @italic{properties} (via @racket[add-prop]).
+Aside from the grammar productions themselves, Xsmith language specifications deal with @italic{attributes} (eg. via @racket[add-attribute]), @italic{choice rules} (via @racket[add-choice-rule]), and @italic{properties} (via @racket[add-property]).
 The exact nature of these terms and how they relate to one another can be confusing, so let's talk about them.
 
 @itemlist[
@@ -197,7 +197,7 @@ During evaluation of a choice rule, the hole in question is available as @racket
 }
 
 @item{
-@bold{Properties}, written with @racket[add-prop], are macros that automatically generate attributes and choice rules using a syntax that is often more convenient than manually implementing the attributes and choice rules separately yourself.
+@bold{Properties}, written with @racket[add-property], are macros that automatically generate attributes and choice rules using a syntax that is often more convenient than manually implementing the attributes and choice rules separately yourself.
 Properties are evaluated statically, but the attributes and choice rules they define are evaluated dynamically.
 Each property may require its arguments to be given in a different way, so it is important to read the documentation for each property careful to know how to implement it correctly.
 
@@ -264,7 +264,7 @@ Note that the names of node types should be capitalized camel case (punctuation 
 We want the @tt{Expression} node to be abstract and not generated itself, so we'll use the @racket[may-be-generated] property to restrict it.
 
 @racketblock[
-(add-prop
+(add-property
  arith
  may-be-generated
  [Expression #f])
@@ -318,7 +318,7 @@ We will call the type @tt{int} and add an implementation of the @racket[type-inf
 
 @racketblock[
 (define int (base-type 'int))
-(add-prop
+(add-property
  arith
  type-info
  [Program [int (λ (n t) (hash 'Expression int))]]
@@ -340,7 +340,7 @@ Now we need to specify how to print our programs, or “render” them.
 For this, we use the @racket[render-node-info] property.
 
 @racketblock[
-(add-prop
+(add-property
  arith
  render-node-info
  [Program
