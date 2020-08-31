@@ -109,7 +109,7 @@ Relevant RACR functions for performing AST rewrites include:
 Full RACR documentation is @hyperlink["https://github.com/christoff-buerger/racr/blob/master/racr/documentation/contents.md"]{here}.
 
 
-@section{Holes and Choice Objects}
+@section[#:tag "holes-and-choice-objects"]{Holes and Choice Objects}
 Hole nodes are @(racr) AST nodes.
 For every node type in the grammar, a hole node is created as a subclass of that node, inheriting all of its @(racr) attributes.
 A hole can be recognized by the @rule[xsmith_is-hole?] attribute.
@@ -164,8 +164,8 @@ The theory of scope graphs is described in the paper “A Theory of Name Resolut
 
 @section{Attributes, Choices, and Properties, Oh My!}
 
-When creating fuzzers with Xsmith, you will deal with attributes (eg. via @racket[add-att-rule]), choice rules (via @racket[add-choice-rule]), and properties (via @racket[add-prop]).
-Exactly what these are and how they relate can be confusing.
+Aside from the grammar productions themselves, Xsmith language specifications deal with @italic{attributes} (eg. via @racket[add-att-rule]), @italic{choice rules} (via @racket[add-choice-rule]), and @italic{properties} (via @racket[add-prop]).
+The exact nature of these terms and how they relate to one another can be confusing, so let's talk about them.
 
 @itemlist[
 @item{
@@ -174,39 +174,47 @@ They are evaluated dynamically by traversing the generated tree.
 RACR caches the results of attribute evaluation, flushing the cache when there are changes to parts of the tree that were previously used in computing an attribute.
 For a full understanding of attributes, you must also read @hyperlink["https://github.com/christoff-buerger/racr/blob/master/racr/documentation/contents.md"]{the RACR documentation.}
 
-You can get the values of attributes with code such as: @racket[(att-value 'xsmith_type node-in-question)].
+Attributes are evaluated using @racket[att-value].
+For example, if you have a node @verbatim|{my-node}| and wish to evaluate the attribute @verbatim|{xsmith_type}| on that node, you would do: @racket[(att-value 'xsmith_type my-node)].
+
 Some attributes are defined automatically by properties.
-You may or may not need to write custom attributes while creating a fuzzer.
+You may or may not need to write custom attributes while creating a fuzzer, though we have tried to provide as many useful attributes as possible to avoid this.
+
 Attributes generally can not directly access choice rules or properties.
 }
+
 @item{
-@bold{Choice Rules}, written with @racket[add-choice-rule], are methods on choice objects.
-When Xsmith fills in a hole node, it creates a choice object for each grammar production that could fit in the given hole.
+@bold{Choice Rules}, written with @racket[add-choice-rule], are methods on @seclink["holes-and-choice-objects"]{choice objects}.
+When Xsmith begins filling in a hole node, it creates a choice object for each grammar production that could fit in that hole.
 Choice rules are used to filter and choose which of those productions to generate and guide generation.
 
-You can call choice rules with code such as: @racket[(send xsmith_choice-weight some-choice-object)].
+Choice rules are run using the @racket[send] method-calling syntax on the choice object.
+For example, if you wish to run the @verbatim|{xsmith_choice-weight}| rule on @verbatim|{some-choice-object}|, you would do: @racket[(send xsmith_choice-weight some-choice-object)].
+
 Choice rules are just Racket class methods.
-You may or may not need to write custom choice rules while creating a fuzzer, but custom choice rules are probably less likely to be needed than custom attributes.
+You may or may not need to write custom choice rules while creating a fuzzer, but custom choice rules are less likely to be needed than custom attributes.
 During evaluation of a choice rule, the hole in question is available as @racket[current-hole], so attributes may still be queried in the context of choice rules, but choice rules can not directly access properties.
 }
-@item{
-@bold{Properties} are basically macros that generate attributes and choice rules.
-The values of properties are written with @racket[add-prop].
-Properties have associated transformers that desugar the values they get from @racket[add-prop], essentially turning them into @racket[add-att-rule] and @racket[add-choice-rule] invocations, but transforming their bodies on the way.
-Properties are evaluated statically, but define attributes and choice rules that are evaluated dynamically.
-The values that you write as the right-hand-side of an @racket[add-prop] form often include code that will be included verbatim inside one or more attributes or choice rules, but they are also often values read statically to generate completely different code.
-Each property can behave differently, so you must read the documentation for each property to know what kind of right-hand-side to write, whether it can access a node to evaluate attributes on, or whether it can access a @racket[current-hole]!
 
-Generally, core attributes and choice rules used in Xsmith are defined by properties, such as the @racket[fresh] property and the @racket[type-info] property.
-While you certainly need to write property values with @racket[add-prop] for various built-in properties to create an Xsmith fuzzer, you probably don't need to define a custom property with @racket[define-property] unless you want to use it in multiple fuzzers, since writing the attributes and choice rules directly is simpler than defining a new property with an associated transformer.
-However, if you are writing multiple fuzzers, properties may help you create useful abstractions for use in multiple fuzzers.
-Property transformers can read the static values of other properties, and generate any number of attributes and choice rules.
-Property transformers can not statically access attribute or choice rule values, but they may generate code that uses them dynamically.
+@item{
+@bold{Properties}, written with @racket[add-prop], are macros that automatically generate attributes and choice rules using a syntax that is often more convenient than manually implementing the attributes and choice rules separately yourself.
+Properties are evaluated statically, but the attributes and choice rules they define are evaluated dynamically.
+Each property may require its arguments to be given in a different way, so it is important to read the documentation for each property careful to know how to implement it correctly.
+
+Most of the core attributes and choice rules provided by Xsmith, such as @racket[fresh] and @racket[type-info], are actually defined in terms of properties.
+These properties are provided by Xsmith to make it easy to define a language specification, and many of them are required to use Xsmith successfully.
+For the majority of programming languages in the mainstream, these supplied properties are sufficient for a full specification.
+
+It is unlikely that you will need to implement custom properties.
+Generally, you will want a custom property when you have some common set of attributes or choice rules that you would like to use in multiple separate fuzzers, in which case it may be worth defining a custom property for those fuzzers to share.
+Such custom properties can be implemented with @racket[define-property].
+A property can read the static specifications of other properties, and generate any number of attributes and choice rules, but it cannot statically access attribute or choice rules values because those are only available during AST generation.
+However, a property can use the values of attributes and choice rules dynamically.
 }
 ]
 
-Remember: Attributes and choice rules are functions used (and usable) within specific contexts within Xsmith fuzzers.
-Properties are compile-time macros for generating attributes and choice rules.
+Remember: Attributes and choice rules are functions that can be used within specific contexts of Xsmith fuzzers.
+On ther other hand, properties are compile-time macros for generating attributes and choice rules and so are not themselves used during generation.
 
 @section{Lifting}
 
