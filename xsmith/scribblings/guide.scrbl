@@ -384,7 +384,7 @@ We also give it (optionally, but recommended) a function that takes a list of st
 ]
 
 
-@section{Minimal Example}
+@section[#:tag "minimal-example"]{Minimal Example}
 
 Below is a complete generator of arithmetic expressions, following the implementation we just outlined in @secref{getting-started}.
 Note that we use @tt{#lang clotho} instead of @tt{#lang racket}, which allows us to capture, replay, and modify random choices during generation.
@@ -402,16 +402,16 @@ Note that we use @tt{#lang clotho} instead of @tt{#lang racket}, which allows us
 
 
 
-@section{Another Small Example With Variables}
+@section{Another Small Example with Variables}
 
-Here is a bigger example that contains variables.
+Here is a bigger example that contains variables and references to those variables.
 
-Note that instead of a @tt{Program} node, we use the @tt{LetStar} node as the node to generate.
-The real reason to have a specific @tt{Program} node is to be sure that the top-level node can have definitions lifted to it.
-The @tt{LetStar} node in the following example satisfies that.
+Note that instead of a @tt{Program} node, we use the @tt{LetStar} node as the base node from which to begin generation.
+The purpose in having a specific top-level @tt{Program} node is to be sure that the top-level node can have definitions lifted to it.
+The @tt{LetStar} node in the following example satisfies this purpose.
 
-This example also renders to s-expressions rather than directly to strings.
-We give @racket[xsmith-command-line] another optional argument specifying how we convert our rendered format into strings.
+This example also renders to s-expressions rather than directly to strings like the @seclink["minimal-example"]{previous example}.
+Because of this change, we have to give @racket[xsmith-command-line] another optional argument, called @tt{format-render}, specifying how we convert our rendered format into strings.
 
 @(nested-flow
 (style 'code-inset '())
