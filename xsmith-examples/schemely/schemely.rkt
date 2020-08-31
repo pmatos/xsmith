@@ -362,16 +362,6 @@
  )
 
 
-(assemble-spec-components
- ;; TODO - have this macro check the name -- it can't have dashes or other things that RACR doesn't allow...
- schemely
- schemely-core)
-
-(define (schemely-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (schemely-generate-ast 'Program)))
-
 (define (schemely-format-render forms)
   (with-output-to-string
     (λ ()
@@ -395,8 +385,12 @@
       (for ([form forms])
         (pp form)))))
 
+(define-xsmith-interface-functions
+  [schemely-core]
+  #:fuzzer-name schemely
+  #:format-render schemely-format-render
+  #:type-thunks type-thunks-for-concretization
+  )
+
 (module+ main
-  (xsmith-command-line
-   schemely-generate
-   #:format-render schemely-format-render
-   ))
+  (schemely-command-line))

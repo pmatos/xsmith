@@ -270,9 +270,6 @@
 
 
 
-(assemble-spec-components
- racket
- racket-comp)
 
 (define (type-thunks-for-concretization)
   (list
@@ -286,10 +283,6 @@
    (λ()(immutable (fresh-structural-record-type)))
    ))
 
-(define (racket-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (racket-generate-ast 'ProgramWithSequence)))
 
 (define (racket-format-render s-exps)
   (define out (open-output-string))
@@ -298,10 +291,13 @@
   (format "#lang racket/base\n~a"
           (get-output-string out)))
 
-(module+ main
-  (xsmith-command-line
-   racket-generate
-   #:format-render racket-format-render
-   #:comment-wrap (λ (lines) (string-join (map (λ (l) (format ";; ~a" l)) lines)
-                                          "\n"))
-   ))
+(define-xsmith-interface-functions
+  [racket-comp]
+  #:fuzzer-name racket
+  #:type-thunks type-thunks-for-concretization
+  #:program-node ProgramWithSequence
+  #:format-render racket-format-render
+  #:comment-wrap (λ (lines) (string-join (map (λ (l) (format ";; ~a" l)) lines)
+                                         "\n")))
+
+(module+ main (racket-command-line))

@@ -48,20 +48,52 @@
  )
 
 
-(assemble-spec-components
- cish
- cish-grammar
- cish-rules
- )
+(define-xsmith-interface-functions
+  [cish-grammar cish-rules]
+  #:fuzzer-name cish
+  #:fuzzer-version xsmith-version-string/no-name
+  #:comment-wrap (λ (lines) (format "/*\n~a\n*/"
+                                    (string-join lines "\n")))
+  #:default-max-depth 9
+  #:format-render (λ (d) (pretty-format d 120))
+  #:type-thunks type-thunks-for-concretization
+
+  #:features (
+              [int #t]
+              [float #t]
+
+              [addition #t]
+              [subtraction #t]
+              [multiplication #t]
+              [division #t]
+              [modulus #t]
+
+              [comparisons #t]
+
+              [if-expression #t]
+              [if-statement #t]
+              [loop-statement #t]
+              [null-statement #t]
+
+              [structs #t]
+              [volatile #t]
+
+              [unsafe-math/range  ;; TODO - this feature no longer correlates to anything
+               #f ("Replace “safe math” operations with raw C operators"
+                   "where a range analysis proves they're safe.")]
+              #;[unsafe-math/symbolic  ;; TODO - fix bugs in symbolic interpretation
+                 #f ("Replace “safe math” operations with raw C operators"
+                     "where a symbolic interpretation proves they're safe.")]
+              )
+  )
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(define (cish-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (cish-generate-ast 'Program)))
+;; TODO - I'm leaving this because it's used in the documentation, but it
+;;        should ideally be done in a way that I can re-use it again in
+;;        the define-xsmith-interface-functions macro.
 
 (define cish-features-list
   '([int #t]
@@ -91,17 +123,7 @@
          "where a symbolic interpretation proves they're safe.")]
     ))
 
-(module+ main
-  (require xsmith)
-  (xsmith-command-line
-   cish-generate
-   #:fuzzer-name "cish"
-   #:fuzzer-version xsmith-version-string/no-name
-   #:comment-wrap (λ (lines) (format "/*\n~a\n*/"
-                                     (string-join lines "\n")))
-   #:features cish-features-list
-   #:default-max-depth 9
-   #:format-render (λ (d) (pretty-format d 120))))
+(module+ main (cish-command-line))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
