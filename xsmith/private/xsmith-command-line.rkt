@@ -87,6 +87,41 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define-syntax (xsmith-interface stx)
+  (syntax-parse stx
+    [(_ [component1 component ...]
+        (~or
+         (~optional (~seq #:properties [prop-name:id ...])
+                    #:defaults ([(prop-name ...) #'()]))
+         (~optional (~seq #:fuzzer-name fuzzer-name:id)
+                    #:defaults ([fuzzer-name #'component1]))
+         (~optional (~seq #:command-line-name command-line-name:id)
+                    #:defaults ([command-line-name
+                                 (format-id stx "~a-command-line" #'fuzzer-name)]))
+         (~optional (~seq #:function-name function-name:id)
+                    #:defaults ([function-name
+                                 (format-id stx "~a-generate" #'fuzzer-name)]))
+         (~optional (~seq #:fuzzer-version fuzzer-version:str))
+         (~optional (~seq #:comment-wrap comment-wrap))
+         (~optional (~seq #:features [feature ...])
+                    #:defaults ([(feature ...) #'()]))
+         (~optional (~seq #:extra-paramaters ([extra-param-kw:keyword
+                                               extra-param-docstring
+                                               extra-param-param
+                                               extra-param-converter]))
+                    #:defaults ([(extra-param-kw ...) #'()]
+                                [(extra-param-docstring ...) #'()]
+                                [(extra-param-param ...) #'()]
+                                [(extra-param-converter ...) #'()]))
+         (~optional (~seq #:default-max-depth default-max-depth)
+                    #:defaults ([default-max-depth #'5]))
+         (~optional (~seq #:default-type-max-depth default-type-max-depth)
+                    #:defaults ([default-type-max-depth #'4]))
+         (~optional (~seq #:format-render format-render-func))
+         (~optional (~seq #:type-constructor-thunks type-constructor-thunks))
+         )
+        ...)
+     TODO-implement]))
 
 (define (xsmith-command-line generate-func
                              #:fuzzer-name [fuzzer-name #f]
