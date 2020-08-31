@@ -343,11 +343,14 @@ For this, we use the @racket[render-node-info] property.
 (add-prop
  arith
  render-node-info
- [Program (λ (n) (att-value 'xsmith_render-node (ast-child 'Expression n)))]
- [LiteralInt (λ (n) (number->string (ast-child 'v n)))]
- [Addition (λ (n) (format "(~a + ~a)"
-                          (att-value 'xsmith_render-node (ast-child 'l n))
-                          (att-value 'xsmith_render-node (ast-child 'r n))))])
+ [Program
+  (λ (n) (att-value 'xsmith_render-node (ast-child 'Expression n)))]
+ [LiteralInt
+  (λ (n) (number->string (ast-child 'v n)))]
+ [Addition
+  (λ (n) (format "(~a + ~a)"
+                 (att-value 'xsmith_render-node (ast-child 'l n))
+                 (att-value 'xsmith_render-node (ast-child 'r n))))])
 ]
 
 In this case, we are rendering each node directly to a string, but that's not usually the best approach.
