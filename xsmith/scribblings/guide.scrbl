@@ -218,9 +218,9 @@ On ther other hand, properties are compile-time macros for generating attributes
 
 @section{Lifting}
 
-The term “lift” is used throughout this document.
-In the context of Xsmith, lifting refers to creating a definition after it's needed by a reference.
-In other words, when a reference node is created and there is not an available definition that satisfies the type system and effect system, a new definition is “lifted” to a binding form that is visible from that reference location.
+The term “lift” is used throughout this document and the Xsmith library.
+In the context of Xsmith, "lifting" refers to creating a binding definition after it's needed by a reference.
+In other words, when a reference node (i.e., a node which implements the @racket[reference-info] property) is created and there is not an available definition that satisfies the type system and effect system, a new definition is “lifted” to a binding form that is visible from that reference location.
 Additionally, with some probability, new definitions may be lifted even when there is a suitable definition available.
 This probability can be controlled with the @racket[reference-choice-info] property.
 
