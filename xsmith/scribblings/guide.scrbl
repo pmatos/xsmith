@@ -57,7 +57,7 @@ The grammar and properties are used to generate a @(racr) grammar, @italic{attri
 Program generation starts by generating an AST hole for a given grammar production.
 Generation continues by filling holes with concrete AST nodes, which may introduce new holes as child nodes.
 The grammar specification is used to determine how to fill holes in the AST.
-For example, in a grammar with addition and subtraction expressions, a generic @verbatim|{Expression}| hole may be replaced by an @verbatim|{Addition}| or @verbatim|{Subtraction}| node.
+For example, in a grammar with addition and subtraction expressions, a generic Expression hole may be replaced by an Addition or Subtraction node.
 A choice object is created for each valid possible replacement.
 Choice objects have methods (called @italic{choice-rules}) which aid in choosing a concrete replacement.
 Some of these methods act as predicates to filter out choices that are not legal in a particular context, such as choices that introduce more holes when the maximum tree depth has been reached.
