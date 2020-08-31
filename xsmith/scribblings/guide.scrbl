@@ -50,16 +50,16 @@
 
 Xsmith uses @(racr), an attribute grammar library, in its implementation, and some knowledge of @(racr) is necessary when using Xsmith.
 
-To create a fuzzer with Xsmith, users create a specification by combining @italic{spec components}, defined with @racket[define-spec-component].
-Each spec component can have portions of grammar as well as @italic{properties} added to them (using @racket[add-to-grammar] and @racket[add-prop]).
-The grammar and properties are used to generate a @(racr) grammar, attributes for the grammar, and @italic{choice objects}, which guide AST generation.
+To create a fuzzer with Xsmith, users create a specification by combining @italic{specification components} (more commonly referred to as @italic{spec components}), defined with @racket[define-spec-component].
+A spec component can define productions of a grammar with @racket[add-to-grammar], or it can provide @italic{properties} of grammar productions with @racket[add-prop].
+The grammar and properties are used to generate a @(racr) grammar, @italic{attributes} for the grammar, and @italic{choice objects}, which guide AST generation.
 
 Program generation starts by generating an AST hole for a given grammar production.
-Generation continues by filling holes with concrete AST nodes (which may introduce new holes as child nodes).
-Each time a hole is to be filled, the grammar specification is used to determine potential replacements.
-For example, in a grammar with addition and subtraction expressions, an expression hole may be replaced by an addition or subtraction node.
-A choice object is created for each legal replacement.
-Choice objects have methods (choice-rules) which aid in choosing a concrete replacement.
+Generation continues by filling holes with concrete AST nodes, which may introduce new holes as child nodes.
+The grammar specification is used to determine how to fill holes in the AST.
+For example, in a grammar with addition and subtraction expressions, a generic @verbatim|{Expression}| hole may be replaced by an @verbatim|{Addition}| or @verbatim|{Subtraction}| node.
+A choice object is created for each valid possible replacement.
+Choice objects have methods (called @italic{choice-rules}) which aid in choosing a concrete replacement.
 Some of these methods act as predicates to filter out choices that are not legal in a particular context, such as choices that introduce more holes when the maximum tree depth has been reached.
 The @racket[choice-weight] property defines a method which determines the relative probability of each choice being chosen.
 The @racket[fresh] property defines a method which determines how the choice is instantiated as a @(racr) node.
@@ -70,7 +70,7 @@ Choice object classes follow the same hierarchy as the grammar, so method inheri
 @(racr) attributes and choice object methods may be added directly with @racket[add-att-rule] and @racket[add-choice-rule], respectively, but many are defined indirectly by various Xsmith properties.
 Properties allow users to specify various attributes and choice rules in a more declarative fashion.
 
-The primary intended use case of Xsmith is differential compiler/interpreter testing.
+Xsmith was primarily designed for the implementation of language specifications for differential compiler/interpreter testing.
 Therefore Xsmith takes pains to avoid producing programs that rely on commonly unspecified behaviors, such as the order of evaluation of function or operator arguments.
 Because the language-agnostic analysis within Xsmith is quite conservative, there are many valid programs that will not be generated.
 However, Xsmith makes it easy to create a fuzzer that obeys such rules without much language-specific work.
