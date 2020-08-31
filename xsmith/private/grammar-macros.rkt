@@ -33,7 +33,7 @@
 (provide
  define-spec-component
  add-to-grammar
- add-att-rule
+ add-attribute
  add-choice-rule
  add-prop
  define-refiner
@@ -166,7 +166,7 @@
 (begin-for-syntax
 
   ;;;; This begin-for-syntax includes a few syntax classes for parsing
-  ;;;; add-att-rule, add-to-grammar, etc,
+  ;;;; add-attribute, add-to-grammar, etc,
   ;;;; then it has a bunch of helper functions for the spec assembly macro.
 
   (define-syntax-class prop-clause
@@ -468,7 +468,7 @@
                            component-setter
                            #'((prop/refiner/ag/cm-name node-name) ...)
                            #'([prop/refiner/ag/cm-name node-name prop] ...))]))
-(define-syntax-parser add-att-rule
+(define-syntax-parser add-attribute
   [(_ arg ...) (add-prop-generic
                 #'spec-component-struct-att-rule-info
                 #'set-spec-component-struct-att-rule-info

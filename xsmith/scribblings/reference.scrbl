@@ -210,7 +210,7 @@ The names of symbols used or defined by the xsmith library start with @verb{xsmi
 @section{Forms for Defining a Grammar and Its Attributes}
 
 @defform[(define-spec-component component-name)]{
-Defines a spec component.  Spec components include information about a language grammar and attributes, and can be combined to generate an xsmith fuzzer.  You add grammar productions with @racket[add-to-grammar], you add properties with @racket[add-prop], and you can add att-rules and choice-rules with @racket[add-att-rule] and @racket[add-choice-rule], respectively.  Spec components are combined with @racket[assemble-spec-components].
+Defines a spec component.  Spec components include information about a language grammar and attributes, and can be combined to generate an xsmith fuzzer.  You add grammar productions with @racket[add-to-grammar], you add properties with @racket[add-prop], and you can add att-rules and choice-rules with @racket[add-attribute] and @racket[add-choice-rule], respectively.  Spec components are combined with @racket[assemble-spec-components].
 
 Example:
 @racketblock[
@@ -312,14 +312,14 @@ When an @verb{AditionExpression} node is generated, it will be populated with an
 When a fresh @verb{SumExpression} is generated, its @verb{addends} field will be populated with a list of zero to four @verb{Expression} hole nodes.
 }
 
-@defform[(add-att-rule spec-component rule-name rule-clause ...)
+@defform[(add-attribute spec-component rule-name rule-clause ...)
 #:grammar [(rule-clause (nonterminal-name rule-function))]]{
 Adds a @(racr) attribute rule to the spec-component.
 The format for each rule is similar to that required by @(racr)'s @verb{ag-rule} form.
 
 Example:
 @racketblock[
-(add-att-rule
+(add-attribute
  my-spec-component
  interp
  [LiteralInt (λ (n) (ast-child 'v n))]
@@ -378,7 +378,7 @@ Elsewhere it raises a syntax error.
 }
 
 @defform[(make-hole hole-type-expression)]{
-Within the context of a spec component (eg. in the body of @racket[add-att-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-hole] is a function to generate a hole of a given type.
+Within the context of a spec component (eg. in the body of @racket[add-attribute], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-hole] is a function to generate a hole of a given type.
 
 For example, to make a hole node that will eventually be replaced with some type of @verb{Expression} node:
 @racketblock[(make-hole 'Expression)]
@@ -389,7 +389,7 @@ Outside of a spec component context, it raises a syntax error.
 }
 
 @defform[(make-fresh-node node-type-expression optional-field-value-dict)]{
-Within the context of a spec component (eg. in the body of @racket[add-att-rule], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-fresh-node] is a function to generate a fresh node of the given type.
+Within the context of a spec component (eg. in the body of @racket[add-attribute], @racket[add-prop], @racket[add-to-grammar], etc), @racket[make-fresh-node] is a function to generate a fresh node of the given type.
 Construction of the new node is guided by the @racket[fresh] property.
 
 For example, to generate a fresh @verb{AdditionExpression} node, specifying values for some of its fields:
@@ -521,7 +521,7 @@ The optional @racket[#:default] value will be associated with the implicit @rack
 The default is given as literal syntax (IE no hash-quote or @racket[syntax] form needed).
 The optional transformer should be a syntax parser, or in other words, it must be a function from a syntax object to a syntax object.
 The default transformer is the identity function, meaning the rule is written verbatim.
-Note that using the default transformer means there is little reason to use a property, since you can just use @racket[add-att-rule] or @racket[add-choice-rule] directly instead.
+Note that using the default transformer means there is little reason to use a property, since you can just use @racket[add-attribute] or @racket[add-choice-rule] directly instead.
 
 By default the name of the generated @verb{att-rule} or @verb{choice-rule} is the same as the name of the property, but this may be overrided by providing @racket[#:rule-name].
 }

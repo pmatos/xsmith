@@ -138,7 +138,7 @@
 
  )
 
-(add-att-rule cish-grammar
+(add-attribute cish-grammar
               is-unsafe?
               [#f (λ (n) #f)]
               [UnsafeAdditionExpression (λ (n) #t)]

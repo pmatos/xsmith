@@ -85,7 +85,7 @@
 ;; upwards, requiring that any operation whose operand is unsafe must itself be
 ;; unsafe.
 
-(add-att-rule
+(add-attribute
  sm
  is-unsafe-type?
  [#f (λ (n) #f)]

@@ -78,7 +78,7 @@
                       (hash 'tuplelength len
                             'index (random len)))])
 
-(add-att-rule arith tuple-depth
+(add-attribute arith tuple-depth
               [#f (λ (n) (if (ast-has-parent? n)
                              (att-value 'tuple-depth (parent-node n))
                              0))]

@@ -67,7 +67,7 @@ Additional methods may be defined as helpers.
 Choice objects have access to the @racket[current-hole], so they may query @(racr) attributes in method bodies.
 Choice object classes follow the same hierarchy as the grammar, so method inheritance for choice objects is similar to attribute inheritance for @(racr) nodes.
 
-@(racr) attributes and choice object methods may be added directly with @racket[add-att-rule] and @racket[add-choice-rule], respectively, but many are defined indirectly by various Xsmith properties.
+@(racr) attributes and choice object methods may be added directly with @racket[add-attribute] and @racket[add-choice-rule], respectively, but many are defined indirectly by various Xsmith properties.
 Properties allow users to specify various attributes and choice rules in a more declarative fashion.
 
 Xsmith was primarily designed for the implementation of language specifications for differential compiler/interpreter testing.
@@ -84,7 +84,7 @@ The attributes are queried to determine how to generate the AST.
 RACR caches the results of attribute queries and keeps track of the nodes accessed for any attribute.
 When nodes used in an attribute computation are changed, future queries to that attribute are re-computed.
 
-Users can specify new RACR attributes for Xsmith generators, but they should use @racket[add-att-rule] or @racket[add-prop] from Xsmith rather than using RACR functions directly.
+Users can specify new RACR attributes for Xsmith generators, but they should use @racket[add-attribute] or @racket[add-prop] from Xsmith rather than using RACR functions directly.
 In expressions evaluated in the context of RACR attributes (att-rules) or choice rules, RACR attributes may be queried.
 
 The main RACR APIs of interest are:
@@ -164,12 +164,12 @@ The theory of scope graphs is described in the paper “A Theory of Name Resolut
 
 @section{Attributes, Choices, and Properties, Oh My!}
 
-Aside from the grammar productions themselves, Xsmith language specifications deal with @italic{attributes} (eg. via @racket[add-att-rule]), @italic{choice rules} (via @racket[add-choice-rule]), and @italic{properties} (via @racket[add-prop]).
+Aside from the grammar productions themselves, Xsmith language specifications deal with @italic{attributes} (eg. via @racket[add-attribute]), @italic{choice rules} (via @racket[add-choice-rule]), and @italic{properties} (via @racket[add-prop]).
 The exact nature of these terms and how they relate to one another can be confusing, so let's talk about them.
 
 @itemlist[
 @item{
-@bold{Attributes}, written with @racket[add-att-rule], are RACR attributes.
+@bold{Attributes}, written with @racket[add-attribute], are RACR attributes.
 They are evaluated dynamically by traversing the generated tree.
 RACR caches the results of attribute evaluation, flushing the cache when there are changes to parts of the tree that were previously used in computing an attribute.
 For a full understanding of attributes, you must also read @hyperlink["https://github.com/christoff-buerger/racr/blob/master/racr/documentation/contents.md"]{the RACR documentation.}

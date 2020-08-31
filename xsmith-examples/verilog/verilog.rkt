@@ -278,7 +278,7 @@
 ;;
 ;;
 ;;
-(add-att-rule
+(add-attribute
  verilog-core
  module-params
  [ModuleDecl
@@ -297,7 +297,7 @@
 ;;
 ;;
 ;;
-(add-att-rule
+(add-attribute
  verilog-core
  used-regs
  [InitialConstruct
