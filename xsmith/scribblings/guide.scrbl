@@ -358,29 +358,29 @@ More often, we render programs with some intermediate data structure and convert
 Most Xsmith fuzzers either use s-expressions for rendering Lisp-like languages, or else the @tt{pprint} Racket library's document objects.
 You can, of course, use your own custom implementation if you prefer.
 
-We put everything together with the @racket[assemble-spec-components] macro, which compiles our language specification and gives it a name (@tt{arithmetic}, in this case).
+We put everything together with the @racket[define-xsmith-interface-functions] macro, which compiles our language specification and defines the @tt{arith-command-line} function.
 
 @racketblock[
-(assemble-spec-components arithmetic arith)
+(define-xsmith-interface-functions
+  [arith]
+  #:comment-wrap (λ (lines)
+                   (string-join
+                    (map (λ (x) (format "// ~a" x)) lines)
+                    "\n")))
 ]
 
-Note that in our case we only have one component, but in principle we could define multiple components, perhaps implemented in different files, and combine them.
-The @racket[assemble-spec-components] macro defines the @tt{arithmetic-generate-ast} function (named based on the name given as the first argument, i.e., @racket[(assemble-spec-components name first second)] combines the @tt{first} and @tt{second} spec components into a language specification named @tt{name}, and the function @tt{name-generate-ast} would be produced as a result).
+Note that we give it a function for how it wraps comments.
+Specifically it is a function that takes a list of single-line strings and returns a single string that's been appropriately formatted to be commented in your language.
+There are many optional arguments to the @racket[define-xsmith-interface-functions] that changes the way it behaves.
 
-To turn it into a complete program we can run, we hook it up to the command-line machinery.
-OK, honestly, this following part is not a great design.
-Just cargo cult it and live with it for now.
-The @racket[xsmith-command-line] takes a thunk to generate the program, which we create by simply wrapping the @tt{arithmetic-generate-ast} function and giving it the name of the node to generate.
-The @tt{arithmetic-generate-ast} may be called with the name of a node, in our case we want to generate Program nodes.
-We also give it (optionally, but recommended) a function that takes a list of strings and formats them as comments for our language.
+To actually run our fuzzer, we need to run the @tt{arith-command-line} function.
+Let's put it in our main submodule.
+Then when we run our program from the command line it will generate a program.
+It automatically has @tt{--help} support, and has various options, such as setting a seed, a max depth, etc.
 
 @racketblock[
-(xsmith-command-line
- (λ () (arithmetic-generate-ast 'Program))
- #:comment-wrap (λ (lines)
-                  (string-join
-                   (map (λ (x) (format "// ~a" x)) lines)
-                   "\n")))
+(module+ main
+  (arith-command-line))
 ]
 
 
