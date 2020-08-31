@@ -36,15 +36,12 @@
                  (att-value 'xsmith_render-node (ast-child 'l n))
                  (att-value 'xsmith_render-node (ast-child 'r n))))])
 
-;; This line defines `arithmetic-generate-ast`.
-(assemble-spec-components arithmetic arith)
+;; This line defines `arith-command-line`.
+(define-xsmith-interface-functions
+  [arith]
+  #:comment-wrap (λ (lines)
+                   (string-join
+                    (map (λ (x) (format "// ~a" x)) lines)
+                    "\n")))
 
-(define (arithmetic-generate)
-  (arithmetic-generate-ast 'Program))
-
-(xsmith-command-line
- arithmetic-generate
- #:comment-wrap (λ (lines)
-                  (string-join
-                   (map (λ (x) (format "// ~a" x)) lines)
-                   "\n")))
+(module+ main (arith-command-line))

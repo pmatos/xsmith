@@ -11,9 +11,9 @@
 
 ;; We first define a basic component and add a bunch of expressions.
 
-(define-basic-spec-component somelisp-comp)
+(define-basic-spec-component somelisp)
 
-(add-basic-expressions somelisp-comp
+(add-basic-expressions somelisp
                        #:ProgramWithSequence #t
                        #:VoidExpression #t
                        #:AssignmentExpression #t
@@ -29,7 +29,7 @@
                        #:ImmutableList #t)
 
 (add-loop-over-container
- somelisp-comp
+ somelisp
  #:name Map
  #:collection-type-constructor (λ (inner) (immutable (list-type inner)))
  #:loop-type-constructor (λ (inner) (immutable (list-type inner))))
@@ -49,7 +49,7 @@
 
 
 (add-property
- somelisp-comp
+ somelisp
  render-node-info
 
  [ProgramWithSequence
@@ -159,10 +159,6 @@
 
 
 
-(assemble-spec-components
- somelisp
- somelisp-comp)
-
 ;; Sometimes we have a type variable that is not concrete but needs to be.
 ;; Here we provide a list of options we can pick for an unconstrained
 ;; type variable.
@@ -173,22 +169,21 @@
    (λ()string-type)
    (λ()(immutable (list-type (fresh-type-variable))))))
 
-(define (somelisp-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks
-                  (type-thunks-for-concretization)])
-    (somelisp-generate-ast 'ProgramWithSequence)))
-
 (define (somelisp-format-render s-exps)
   (define out (open-output-string))
   (for ([symex s-exps])
     (pretty-print symex out 1))
   (get-output-string out))
 
-(module+ main
-  (xsmith-command-line
-   somelisp-generate
-   #:format-render somelisp-format-render
-   #:comment-wrap (λ (lines)
-                    (string-join
-                     (map (λ (l) (format ";; ~a" l)) lines)
-                     "\n"))))
+
+(define-xsmith-interface-functions
+  [somelisp]
+  #:program-node ProgramWithSequence
+  #:type-thunks type-thunks-for-concretization
+  #:comment-wrap (λ (lines)
+                   (string-join
+                    (map (λ (l) (format ";; ~a" l)) lines)
+                    "\n"))
+  #:format-render somelisp-format-render)
+
+(module+ main (somelisp-command-line))
