@@ -7,8 +7,7 @@
  xsmith/canned-components
  racket/string
  racket/list
- racket/pretty
- )
+ racket/pretty)
 
 ;; We first define a basic component and add a bunch of expressions.
 
@@ -27,15 +26,13 @@
                        #:Numbers #t
                        #:Booleans #t
                        #:Strings #t
-                       #:ImmutableList #t
-                       )
+                       #:ImmutableList #t)
 
 (add-loop-over-container
  somelisp-comp
  #:name Map
  #:collection-type-constructor (λ (inner) (immutable (list-type inner)))
- #:loop-type-constructor (λ (inner) (immutable (list-type inner)))
- )
+ #:loop-type-constructor (λ (inner) (immutable (list-type inner))))
 
 
 ;; Now we basically just add the render property unless we want to manually
@@ -45,7 +42,8 @@
 (define (render-child sym n)
   (att-value 'xsmith_render-node (ast-child sym n)))
 (define (render-children sym n)
-  (map (λ (cn) (att-value 'xsmith_render-node cn)) (ast-children (ast-child sym n))))
+  (map (λ (cn) (att-value 'xsmith_render-node cn))
+       (ast-children (ast-child sym n))))
 (define ((binary-op-renderer op) n)
   `(,op ,(render-child 'l n) ,(render-child 'r n)))
 
@@ -57,8 +55,8 @@
  [ProgramWithSequence
   (λ (n)
     ;; Unless our language has a well-defined exception interface that
-    ;; we are trying to fuzz, we need to provide “safe” versions of functions
-    ;; that aren't total.
+    ;; we are trying to fuzz, we need to provide “safe” versions of
+    ;; functions that aren't total.
     ;; Canned components uses safe functions and requires us to provide
     ;; definitions.
     ;; Here we provide some before the generated program.
@@ -157,8 +155,7 @@
  [VoidExpression (λ (n) '(void))]
  [Map (λ (n) `(map (λ (,(ast-child 'name (ast-child 'elemname n)))
                      ,(render-child 'body n))
-                   ,(render-child 'collection n)))]
- )
+                   ,(render-child 'collection n)))])
 
 
 
@@ -167,14 +164,14 @@
  somelisp-comp)
 
 ;; Sometimes we have a type variable that is not concrete but needs to be.
-;; Here we provide a list of options we can pick for an unconstrained type variable.
+;; Here we provide a list of options we can pick for an unconstrained
+;; type variable.
 (define (type-thunks-for-concretization)
   (list
    (λ()int-type)
    (λ()bool-type)
    (λ()string-type)
-   (λ()(immutable (list-type (fresh-type-variable))))
-   ))
+   (λ()(immutable (list-type (fresh-type-variable))))))
 
 (define (somelisp-generate)
   (parameterize ([current-xsmith-type-constructor-thunks
@@ -191,6 +188,7 @@
   (xsmith-command-line
    somelisp-generate
    #:format-render somelisp-format-render
-   #:comment-wrap (λ (lines) (string-join (map (λ (l) (format ";; ~a" l)) lines)
-                                          "\n"))
-   ))
+   #:comment-wrap (λ (lines)
+                    (string-join
+                     (map (λ (l) (format ";; ~a" l)) lines)
+                     "\n"))))

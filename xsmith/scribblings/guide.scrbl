@@ -426,10 +426,12 @@ Because of this change, we have to give @racket[xsmith-command-line] another opt
 
 
 
-@section{Upgrading to use Canned Components}
+@section{An Upgrade: Using Canned Components}
 
-The @tt{xsmith/canned-components} library provides a lot of boilerplate stuff for us, and has a bunch of type rules and such already written correctly.
-Let's just use it.
+Many programming languages share various features in common, such as binding scope, arithmetic expressions, functions, etc.
+The @seclink["canned-components"]{@tt{xsmith/canned-components}} library in Xsmith provides tools for quickly building this common infrastructure for your language specification with minimal effort.
+It supplies the ability to enable various productions as needed, as well as default implementations of the @racket[type-info] and @racket[fresh] properties for those nodes.
+Here is an example of a fuzzer built using Canned Components.
 
 @(nested-flow
 (style 'code-inset '())
