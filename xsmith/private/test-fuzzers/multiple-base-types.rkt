@@ -123,22 +123,23 @@
           )
 
 
-(assemble-spec-components arithmetic arith)
 
-(define (arithmetic-generate)
-  (parameterize ([current-xsmith-type-constructor-thunks (list (λ () int))])
-    (arithmetic-generate-ast 'LetStar)))
+(define-xsmith-interface-functions
+  [arith]
+  #:program-node LetStar
+  #:type-thunks (list (λ () int))
+  #:comment-wrap (λ (lines)
+                   (string-join
+                    (map (λ (x) (format ";; ~a" x)) lines)
+                    "\n"))
+  #:format-render (λ (ast)
+                    (with-output-to-string
+                      (λ ()
+                        (pretty-print ast (current-output-port) 1)))))
 
-(xsmith-command-line
- arithmetic-generate
- #:comment-wrap (λ (lines)
-                  (string-join
-                   (map (λ (x) (format ";; ~a" x)) lines)
-                   "\n"))
- #:format-render (λ (ast)
-                  (with-output-to-string
-                    (λ ()
-                      (pretty-print ast (current-output-port) 1)))))
+
+(module+ main
+  (arith-command-line))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

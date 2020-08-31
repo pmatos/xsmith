@@ -79,37 +79,38 @@
           [Addition (λ (n) `(+ ,@(map (λ (c) ($xsmith_render-node c))
                                       (ast-children (ast-child 'es n)))))])
 
-
-(assemble-spec-components arithmetic arith)
-
 (define extra-print-1-param (make-parameter #f))
 (define extra-print-2-param (make-parameter #f))
 
-(define (arithmetic-generate)
-  (and (extra-print-1-param)
-       (eprintf "extra-print-1: ~a\n" (extra-print-1-param)))
-  (and (extra-print-2-param)
-       (eprintf "extra-print-2: ~a\n" (extra-print-2-param)))
-  (arithmetic-generate-ast 'LetStar))
 
-(xsmith-command-line
- arithmetic-generate
- #:comment-wrap (λ (lines)
-                  (string-join
-                   (map (λ (x) (format ";; ~a" x)) lines)
-                   "\n"))
- #:format-render (λ (ast)
-                   (with-output-to-string
-                     (λ ()
-                       (pretty-print ast (current-output-port) 1))))
- #:features (list '(test-feature #f))
- #:extra-parameters
- (list
-  (list "--extra-print-1" "print an extra thing with no normalizer"
-        extra-print-1-param #f)
-  (list "--extra-print-2" "print an extra thing backwards"
-        extra-print-2-param (λ (s) (apply string (reverse (string->list s))))))
- )
+(define-xsmith-interface-functions
+  [arith]
+  #:program-node LetStar
+  #:comment-wrap (λ (lines)
+                   (string-join
+                    (map (λ (x) (format ";; ~a" x)) lines)
+                    "\n"))
+  #:format-render (λ (ast)
+                    (and (extra-print-1-param)
+                         (eprintf "extra-print-1: ~a\n" (extra-print-1-param)))
+                    (and (extra-print-2-param)
+                         (eprintf "extra-print-2: ~a\n" (extra-print-2-param)))
+                    (with-output-to-string
+                      (λ ()
+                        (pretty-print ast (current-output-port) 1))))
+  #:features ([test-feature #f])
+  #:extra-parameters ([extra-print-1
+                       "print an extra thing with no normalizer"
+                       extra-print-1-param
+                       #f]
+                      [extra-print-2
+                       "print an extra thing backwards"
+                       extra-print-2-param
+                       (λ (s) (apply string (reverse (string->list s))))])
+  )
+
+(module+ main
+  (arith-command-line))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
