@@ -77,11 +77,15 @@ However, Xsmith makes it easy to create a fuzzer that obeys such rules without m
 
 @section[#:tag "racr"]{RACR Overview}
 
-RACR is a library for Reference Attribute Grammars.  Xsmith's DSL defines a RACR grammar specification as well as various attributes.  The attributes are queried to determine how to generate the AST.
+RACR is a library for Reference Attribute Grammars.
+Xsmith's DSL defines a RACR grammar specification as well as various attributes.
+The attributes are queried to determine how to generate the AST.
 
-RACR caches the results of attribute queries and keeps track of the nodes accessed for any attribute.  When nodes used in an attribute computation are changed, future queries to that attribute are re-computed.
+RACR caches the results of attribute queries and keeps track of the nodes accessed for any attribute.
+When nodes used in an attribute computation are changed, future queries to that attribute are re-computed.
 
-Users can specify new RACR attributes for Xsmith generators, but they should use @racket[add-att-rule] or @racket[add-prop] from Xsmith rather than using RACR functions directly.  In expressions evaluated in the context of RACR attributes (att-rules) or choice rules, RACR attributes may be queried.
+Users can specify new RACR attributes for Xsmith generators, but they should use @racket[add-att-rule] or @racket[add-prop] from Xsmith rather than using RACR functions directly.
+In expressions evaluated in the context of RACR attributes (att-rules) or choice rules, RACR attributes may be queried.
 
 The main RACR APIs of interest are:
 
@@ -94,7 +98,8 @@ Functions for querying the AST:
 @item{ast-parent}
 ]
 
-Xsmith provides a function which generates a complete AST, but users can also perform AST rewrites after initial program generation.  Relevant RACR functions for performing AST rewrites include:
+Xsmith provides a function which generates a complete AST, but users can also perform AST rewrites after initial program generation.
+Relevant RACR functions for performing AST rewrites include:
 
 @itemlist[
 @item{perform-rewrites}
@@ -175,7 +180,8 @@ Property transformers can not statically access attribute or choice rule values,
 }
 ]
 
-Remember:  Attributes and choice rules are functions used (and usable) within specific contexts within Xsmith fuzzers.  Properties are compile-time macros for generating attributes and choice rules.
+Remember: Attributes and choice rules are functions used (and usable) within specific contexts within Xsmith fuzzers.
+Properties are compile-time macros for generating attributes and choice rules.
 
 @section{Lifting}
 
