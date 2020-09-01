@@ -173,7 +173,7 @@
 
 (define-non-inheriting-rule-property
   may-be-generated
-  choice-rule
+  choice-method
   #:rule-name _xsmith_may-be-generated
   #:default #t
   #:transformer (syntax-parser [#t #'(λ () this)]
@@ -199,8 +199,8 @@
 
 (define-property choice-weight
   #:appends
-  (choice-rule _xsmith_choice-weight)
-  (choice-rule _xsmith_nonzero-weight?)
+  (choice-method _xsmith_choice-weight)
+  (choice-method _xsmith_nonzero-weight?)
   #:transformer
   (λ (this-prop-info)
     (define this-prop/defaulted
@@ -295,9 +295,9 @@ hole for the type.
   (property binder-info)
   (property reference-info)
   #:appends
-  (choice-rule _xsmith_fresh)
+  (choice-method _xsmith_fresh)
   (attribute _xsmith_field-names)
-  (choice-rule _xsmith_current-hole)
+  (choice-method _xsmith_current-hole)
   #:transformer
   (λ (this-prop-info grammar-info binder-info-info reference-info-info)
     (define nodes (dict-keys grammar-info))
@@ -527,7 +527,7 @@ hole for the type.
 
 (define-property wont-over-deepen
   #:reads (grammar)
-  #:appends (choice-rule _xsmith_wont-over-deepen)
+  #:appends (choice-method _xsmith_wont-over-deepen)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -895,7 +895,7 @@ It just reads the values of several other properties and produces the results fo
 (define-property reference-info
   #:reads (grammar)
   #:appends
-  (choice-rule _xsmith_is-read-reference-choice?)
+  (choice-method _xsmith_is-read-reference-choice?)
   (attribute _xsmith_is-read-reference-node?)
   (attribute _xsmith_is-reference-node?)
   (attribute _xsmith_resolve-reference)
@@ -1036,7 +1036,7 @@ It just reads the values of several other properties and produces the results fo
 (define-property binding-structure)
 
 (define-property choice-filters-to-apply
-  #:appends (choice-rule _xsmith_apply-choice-filters)
+  #:appends (choice-method _xsmith_apply-choice-filters)
   #:transformer
   (λ (this-prop-info)
 
@@ -1496,19 +1496,19 @@ The second arm is a function that takes the type that the node has been assigned
   (property binder-info)
   #:appends
   (attribute _xsmith_my-type-constraint)
-  (choice-rule _xsmith_my-type-constraint)
-  ;_xsmith_my-type-constraint -- returns the type that a node must fulfill (the first half of the type info property), both in attribute and choice-rule form.
+  (choice-method _xsmith_my-type-constraint)
+  ;_xsmith_my-type-constraint -- returns the type that a node must fulfill (the first half of the type info property), both in attribute and choice-method form.
   (attribute _xsmith_children-type-dict)
   ;_xsmith_children-type-dict -- returns a dict mapping nodes (or node field names) to types
   (attribute _xsmith_type-constraint-from-parent)
   (attribute xsmith_type)
-  (choice-rule _xsmith_satisfies-type-constraint?)
+  (choice-method _xsmith_satisfies-type-constraint?)
   ;_xsmith_satisfies-type-constraint? -- choice predicate -- tests if a hole's type and a choice object are compatible
-  (choice-rule _xsmith_reference-options!)
+  (choice-method _xsmith_reference-options!)
   ;_xsmith_reference-options! -- returns a list of options for a variable to reference that are type compatible.  BUT - it unifies the type of the reference with a fully settled version.  One of the list members is a thunk that can be applied to get a lifted binding.
-  (choice-rule xsmith_get-reference!)
+  (choice-method xsmith_get-reference!)
   ;xsmith_get-reference! -- like xsmith_reference-options! but it just returns one (pre-called in the case of lifts).
-  (choice-rule xsmith_get-reference-for-child!)
+  (choice-method xsmith_get-reference-for-child!)
   ;xsmith_get-reference-for-child! -- returns a reference name like xsmith_reference-options! but it must be called with a (settled) type and a boolean for whether or not the reference will be a write reference.  Can be used to build multiple references at once.
   (attribute _xsmith_function-application)
   #:transformer
@@ -1549,7 +1549,7 @@ The second arm is a function that takes the type that the node has been assigned
           (for/hash ([n (dict-keys get-constraints-checked)])
             (values n #`(λ (node)
                           (#,(dict-ref get-constraints-checked n) node 'att))))))
-    (define _xsmith_my-type-constraint-info/choice-rule
+    (define _xsmith_my-type-constraint-info/choice-method
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ () default-base-type))
           (for/hash ([n (dict-keys get-constraints-checked)])
@@ -1734,7 +1734,7 @@ The second arm is a function that takes the type that the node has been assigned
 
     (list
      _xsmith_my-type-constraint-info/attribute
-     _xsmith_my-type-constraint-info/choice-rule
+     _xsmith_my-type-constraint-info/choice-method
      _xsmith_children-type-dict-info
      _xsmith_type-constraint-from-parent-info
      xsmith_type-info
@@ -1900,7 +1900,7 @@ The second arm is a function that takes the type that the node has been assigned
 (define-property mutable-container-access
   #:appends
   (attribute _xsmith_mutable-container-effects)
-  (choice-rule _xsmith_no-mutable-container-effect-conflict?)
+  (choice-method _xsmith_no-mutable-container-effect-conflict?)
   #:transformer
   (λ (this-prop-info)
     (define nodes (remove-duplicates (cons #f (dict-keys this-prop-info))))
@@ -1951,7 +1951,7 @@ The second arm is a function that takes the type that the node has been assigned
   (attribute _xsmith_function-application-effects/no-children)
   (attribute _xsmith_function-application-effects)
   (attribute _xsmith_effect-constraints-for-child)
-  (choice-rule _xsmith_no-io-conflict?)
+  (choice-method _xsmith_no-io-conflict?)
   #:transformer
   (λ (this-prop-info grammar-info reference-info)
     (define nodes (dict-keys grammar-info))

@@ -49,7 +49,7 @@ Grammar property names are bound with define-syntax to grammar-property structs 
  property-arg
  property-arg-property
  property-arg-attribute
- property-arg-choice-rule
+ property-arg-choice-method
  property-arg-grammar
  )
 
@@ -70,15 +70,15 @@ Grammar property names are bound with define-syntax to grammar-property structs 
   (pattern ((~datum property) name:id)))
 (define-syntax-class property-arg-attribute
   (pattern ((~datum attribute) name:id)))
-(define-syntax-class property-arg-choice-rule
-  (pattern ((~datum choice-rule) name:id)))
+(define-syntax-class property-arg-choice-method
+  (pattern ((~datum choice-method) name:id)))
 (define-syntax-class property-arg-grammar
   (pattern (~and ((~datum grammar)) grammar-flag)))
 (define-syntax-class property-arg
-  #:datum-literals (property attribute choice-rule grammar)
+  #:datum-literals (property attribute choice-method grammar)
   (pattern (~or prop:property-arg-property
                 ag:property-arg-attribute
-                cm:property-arg-choice-rule
+                cm:property-arg-choice-method
                 gram:property-arg-grammar)))
 
 ;;; For sorting properties to run in an appropriate order.
@@ -125,7 +125,7 @@ This function is only used in one place, so its interface is tightly bound with 
       [p:property-arg-attribute (hash-ref (hash-ref infos-hash 'ag-info)
                                          (syntax->datum #'p.name)
                                          (hash))]
-      [p:property-arg-choice-rule (hash-ref (hash-ref infos-hash 'cm-info)
+      [p:property-arg-choice-method (hash-ref (hash-ref infos-hash 'cm-info)
                                             (syntax->datum #'p.name)
                                             (hash))]
       [p:property-arg-grammar (hash-ref infos-hash 'grammar-info)]))
@@ -154,7 +154,7 @@ This function is only used in one place, so its interface is tightly bound with 
                                 ;;        for a rule right-hand-side.
                                 (hash-set combined k new-val))))
           (raise-syntax-error 'grammar-property-transform
-                              "rewrite is not supported for attributes or choice-rules"
+                              "rewrite is not supported for attributes or choice-methods"
                               grammar-prop-name-stx)))
     ;; Parse the prop-arg (which tells what type the hash is) to merge it back in
     ;; to the right section of the infos-hash.
@@ -183,7 +183,7 @@ This function is only used in one place, so its interface is tightly bound with 
                                new-hash)))]
       [p:property-arg-attribute
        (ag/cm-branch #'p.name 'ag-info)]
-      [p:property-arg-choice-rule
+      [p:property-arg-choice-method
        (ag/cm-branch #'p.name 'cm-info)]
       [p:property-arg-grammar
        (if append?
@@ -245,7 +245,7 @@ This function is only used in one place, so its interface is tightly bound with 
   #|
   * reads, rewrites, and appends are all lists of property-args, specifically
     they refer to grammar-property instances, the grammar, or attribute
-    or choice-rule names.  They specify the argument and return types
+    or choice-method names.  They specify the argument and return types
     of the property transformer.
   * transformer is a function that receives as arguments a hash for the
     property values of the property it is a transformer for, a hash for each
@@ -253,7 +253,7 @@ This function is only used in one place, so its interface is tightly bound with 
     list.  It must return a list of hashes, one for each property in the
     rewrite list, then one for each property in the appends list.
 
-    The hashes that are returned for attributes or choice-rules must be
+    The hashes that are returned for attributes or choice-methods must be
     hashes of grammar-node-name->rule-stx (IE syntax for a lambda),
     the hashes that are returned for properties must be
     grammar-node-name->(val-stx-list-as-stx) (IE a syntax object encapsulating

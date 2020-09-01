@@ -83,7 +83,7 @@
                              (att-value 'tuple-depth (parent-node n))
                              0))]
               [Tuple (λ (n) (add1 (att-value 'tuple-depth (parent-node n))))])
-(add-choice-rule arith tuple-not-too-deep?
+(add-choice-method arith tuple-not-too-deep?
                  [#f (λ () (not #f))]
                  [Tuple (λ () (not (> (att-value 'tuple-depth (current-hole))
                                       4)))])

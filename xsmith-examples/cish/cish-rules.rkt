@@ -1274,7 +1274,7 @@
 
 (define-syntax-parser cm
   [(_ method [node-name lambda-body] ...+)
-   #'(add-choice-rule cish-rules method [node-name (λ () lambda-body)] ...)])
+   #'(add-choice-method cish-rules method [node-name (λ () lambda-body)] ...)])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1305,12 +1305,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (misc-constraints-choice-rule-default cur-hole)
+(define (misc-constraints-choice-method-default cur-hole)
   (let ([cs (att-value 'misc-constraints cur-hole)])
     (not (set-member? cs 'constant))))
 
 (cm misc-constraints
-    [Node (misc-constraints-choice-rule-default (current-hole))]
+    [Node (misc-constraints-choice-method-default (current-hole))]
     [LiteralInt #t]
     [LiteralFloat #t]
     [LiteralStruct #t]

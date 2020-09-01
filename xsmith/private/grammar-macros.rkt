@@ -34,7 +34,7 @@
  define-spec-component
  add-to-grammar
  add-attribute
- add-choice-rule
+ add-choice-method
  add-property
  define-refiner
  add-refiner
@@ -397,7 +397,7 @@
     (for/fold ([bighash (hash)])
               ([component-project (list spec-component-struct-grammar-info
                                         spec-component-struct-attribute-info
-                                        spec-component-struct-choice-rule-info
+                                        spec-component-struct-choice-method-info
                                         spec-component-struct-property-info
                                         spec-component-struct-refiner-info)]
                [subhash-key '(grammar-info ag-info cm-info props-info refiners-info)])
@@ -473,10 +473,10 @@
                 #'spec-component-struct-attribute-info
                 #'set-spec-component-struct-attribute-info
                 #'(arg ...))])
-(define-syntax-parser add-choice-rule
+(define-syntax-parser add-choice-method
   [(_ arg ...) (add-property-generic
-                #'spec-component-struct-choice-rule-info
-                #'set-spec-component-struct-choice-rule-info
+                #'spec-component-struct-choice-method-info
+                #'set-spec-component-struct-choice-method-info
                 #'(arg ...))])
 (define-syntax-parser add-property
   [(_ arg ...) (add-property-generic
@@ -805,7 +805,7 @@ Additionally, it defines the following attributes within the RACR spec:
 * _xsmith_resolve-reference-name
 * _xsmith_visible-bindings
 
-It also defines within the RACR spec all attributes and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
+It also defines within the RACR spec all attributes and choice-methods added by property transformers run (either because they were listed or because they were referenced in a spec component).
 |#
 
 (define-syntax-parser assemble-spec-components/core
@@ -1119,7 +1119,7 @@ Perform error checking:
                (length (grammar-node-name->field-info-list
                         node-name
                         grammar-hash)))))
-   (define choice-rule-name->node-name->rule-body
+   (define choice-method-name->node-name->rule-body
      (ag/cm-list->hash (syntax->list #'(cm-clause ...))))
 
    (with-syntax* ([base-node-name (format-id #'spec "XsmithBaseNode~a" #'spec)]
@@ -1241,7 +1241,7 @@ Perform error checking:
                ;; choice rule methods for the implicit parent node can be
                ;; specified but otherwise need to inherit a default.
                (map (λ (rule-name rule-default-impl)
-                      (dict-ref (dict-ref choice-rule-name->node-name->rule-body
+                      (dict-ref (dict-ref choice-method-name->node-name->rule-body
                                           rule-name)
                                 #f
                                 rule-default-impl))

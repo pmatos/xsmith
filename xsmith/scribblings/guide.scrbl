@@ -59,7 +59,7 @@ Generation continues by filling holes with concrete AST nodes, which may introdu
 The grammar specification is used to determine how to fill holes in the AST.
 For example, in a grammar with addition and subtraction expressions, a generic Expression hole may be replaced by an Addition or Subtraction node.
 A choice object is created for each valid possible replacement.
-Choice objects have methods (called @italic{choice-rules}) which aid in choosing a concrete replacement.
+Choice objects have methods (called @italic{choice-methods}) which aid in choosing a concrete replacement.
 Some of these methods act as predicates to filter out choices that are not legal in a particular context, such as choices that introduce more holes when the maximum tree depth has been reached.
 The @racket[choice-weight] property defines a method which determines the relative probability of each choice being chosen.
 The @racket[fresh] property defines a method which determines how the choice is instantiated as a @(racr) node.
@@ -67,8 +67,8 @@ Additional methods may be defined as helpers.
 Choice objects have access to the @racket[current-hole], so they may query @(racr) attributes in method bodies.
 Choice object classes follow the same hierarchy as the grammar, so method inheritance for choice objects is similar to attribute inheritance for @(racr) nodes.
 
-@(racr) attributes and choice object methods may be added directly with @racket[add-attribute] and @racket[add-choice-rule], respectively, but many are defined indirectly by various Xsmith properties.
-Properties allow users to specify various attributes and choice rules in a more declarative fashion.
+@(racr) attributes and choice object methods may be added directly with @racket[add-attribute] and @racket[add-choice-method], respectively, but many are defined indirectly by various Xsmith properties.
+Properties allow users to specify various attributes and choice methods in a more declarative fashion.
 
 Xsmith was primarily designed for the implementation of language specifications for differential compiler/interpreter testing.
 Therefore Xsmith takes pains to avoid producing programs that rely on commonly unspecified behaviors, such as the order of evaluation of function or operator arguments.
@@ -85,7 +85,7 @@ RACR caches the results of attribute queries and keeps track of the nodes access
 When nodes used in an attribute computation are changed, future queries to that attribute are re-computed.
 
 Users can specify new RACR attributes for Xsmith generators, but they should use @racket[add-attribute] or @racket[add-property] from Xsmith rather than using RACR functions directly.
-In expressions evaluated in the context of RACR attributes (attributes) or choice rules, RACR attributes may be queried.
+In expressions evaluated in the context of RACR attributes (attributes) or choice methods, RACR attributes may be queried.
 
 The main RACR APIs of interest are:
 
@@ -164,7 +164,7 @@ The theory of scope graphs is described in the paper “A Theory of Name Resolut
 
 @section{Attributes, Choices, and Properties, Oh My!}
 
-Aside from the grammar productions themselves, Xsmith language specifications deal with @italic{attributes} (eg. via @racket[add-attribute]), @italic{choice rules} (via @racket[add-choice-rule]), and @italic{properties} (via @racket[add-property]).
+Aside from the grammar productions themselves, Xsmith language specifications deal with @italic{attributes} (eg. via @racket[add-attribute]), @italic{choice methods} (via @racket[add-choice-method]), and @italic{properties} (via @racket[add-property]).
 The exact nature of these terms and how they relate to one another can be confusing, so let's talk about them.
 
 @itemlist[
@@ -180,41 +180,41 @@ For example, if you have a node @verbatim|{my-node}| and wish to evaluate the at
 Some attributes are defined automatically by properties.
 You may or may not need to write custom attributes while creating a fuzzer, though we have tried to provide as many useful attributes as possible to avoid this.
 
-Attributes generally can not directly access choice rules or properties.
+Attributes generally can not directly access choice methods or properties.
 }
 
 @item{
-@bold{Choice Rules}, written with @racket[add-choice-rule], are methods on @seclink["holes-and-choice-objects"]{choice objects}.
+@bold{Choice Methods}, written with @racket[add-choice-method], are methods on @seclink["holes-and-choice-objects"]{choice objects}.
 When Xsmith begins filling in a hole node, it creates a choice object for each grammar production that could fit in that hole.
-Choice rules are used to filter and choose which of those productions to generate and guide generation.
+choice methods are used to filter and choose which of those productions to generate and guide generation.
 
-Choice rules are run using the @racket[send] method-calling syntax on the choice object.
+choice methods are run using the @racket[send] method-calling syntax on the choice object.
 For example, if you wish to run the @verbatim|{xsmith_choice-weight}| rule on @verbatim|{some-choice-object}|, you would do: @racket[(send xsmith_choice-weight some-choice-object)].
 
-Choice rules are just Racket class methods.
-You may or may not need to write custom choice rules while creating a fuzzer, but custom choice rules are less likely to be needed than custom attributes.
-During evaluation of a choice rule, the hole in question is available as @racket[current-hole], so attributes may still be queried in the context of choice rules, but choice rules can not directly access properties.
+choice methods are just Racket class methods.
+You may or may not need to write custom choice methods while creating a fuzzer, but custom choice methods are less likely to be needed than custom attributes.
+During evaluation of a choice method, the hole in question is available as @racket[current-hole], so attributes may still be queried in the context of choice methods, but choice methods can not directly access properties.
 }
 
 @item{
-@bold{Properties}, written with @racket[add-property], are macros that automatically generate attributes and choice rules using a syntax that is often more convenient than manually implementing the attributes and choice rules separately yourself.
-Properties are evaluated statically, but the attributes and choice rules they define are evaluated dynamically.
+@bold{Properties}, written with @racket[add-property], are macros that automatically generate attributes and choice methods using a syntax that is often more convenient than manually implementing the attributes and choice methods separately yourself.
+Properties are evaluated statically, but the attributes and choice methods they define are evaluated dynamically.
 Each property may require its arguments to be given in a different way, so it is important to read the documentation for each property careful to know how to implement it correctly.
 
-Most of the core attributes and choice rules provided by Xsmith, such as @racket[fresh] and @racket[type-info], are actually defined in terms of properties.
+Most of the core attributes and choice methods provided by Xsmith, such as @racket[fresh] and @racket[type-info], are actually defined in terms of properties.
 These properties are provided by Xsmith to make it easy to define a language specification, and many of them are required to use Xsmith successfully.
 For the majority of programming languages in the mainstream, these supplied properties are sufficient for a full specification.
 
 It is unlikely that you will need to implement custom properties.
-Generally, you will want a custom property when you have some common set of attributes or choice rules that you would like to use in multiple separate fuzzers, in which case it may be worth defining a custom property for those fuzzers to share.
+Generally, you will want a custom property when you have some common set of attributes or choice methods that you would like to use in multiple separate fuzzers, in which case it may be worth defining a custom property for those fuzzers to share.
 Such custom properties can be implemented with @racket[define-property].
-A property can read the static specifications of other properties, and generate any number of attributes and choice rules, but it cannot statically access attribute or choice rules values because those are only available during AST generation.
-However, a property can use the values of attributes and choice rules dynamically.
+A property can read the static specifications of other properties, and generate any number of attributes and choice methods, but it cannot statically access attribute or choice methods values because those are only available during AST generation.
+However, a property can use the values of attributes and choice methods dynamically.
 }
 ]
 
-Remember: Attributes and choice rules are functions that can be used within specific contexts of Xsmith fuzzers.
-On ther other hand, properties are compile-time macros for generating attributes and choice rules and so are not themselves used during generation.
+Remember: Attributes and choice methods are functions that can be used within specific contexts of Xsmith fuzzers.
+On ther other hand, properties are compile-time macros for generating attributes and choice methods and so are not themselves used during generation.
 
 @section{Lifting}
 
@@ -244,7 +244,7 @@ We're going to create a simple arithmetic language, so we'll name our spec compo
 (define-spec-component arith)
 ]
 
-The spec component is where we store definitions of the grammar productions, properties, attributes, and choice rules.
+The spec component is where we store definitions of the grammar productions, properties, attributes, and choice methods.
 Let's add some productions to the grammar defined by this spec component!
 When adding nodes, we must always specify three components: the node's name, its supertype (also called a "parent type"), and a list of children nodes.
 We'll define a top-level node that we will later use to specify where to start program generation, which we'll call @tt{Program}.

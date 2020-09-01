@@ -36,11 +36,11 @@
                       )
 
 ;; We use LambdaWithBlock as an easy way to implement function definitions.
-;; This choice-rule restricts them from being generated anywhere other than in
+;; This choice-method restricts them from being generated anywhere other than in
 ;; a Definition context.
 ;; Then, the render-node-info implementation for Definitions is adjusted to
 ;; properly render function definitions accordingly.
-(add-choice-rule
+(add-choice-method
  python-comp
  lwb-must-be-under-definition
  [LambdaWithBlock
