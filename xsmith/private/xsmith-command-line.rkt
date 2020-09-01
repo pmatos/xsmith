@@ -145,11 +145,11 @@
   (syntax-parse stx
     [(_ [component1 component ...]
         (~or
+         (~optional (~seq #:fuzzer-name fuzzer-name-given:id))
          (~optional (~seq #:program-node program-node:id)
                     #:defaults ([program-node #'Program]))
          (~optional (~seq #:properties [prop-name:id ...])
                     #:defaults ([(prop-name 1) '()]))
-         (~optional (~seq #:fuzzer-name fuzzer-name-given:id))
          (~optional (~seq #:command-line-name command-line-name-given:id))
          (~optional (~seq #:function-name function-name-given:id))
          (~optional (~seq #:fuzzer-version fuzzer-version-given))
