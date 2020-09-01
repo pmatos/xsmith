@@ -1,6 +1,6 @@
 ## -*- mode: Makefile -*-
 ##
-## Copyright (c) 2018-2019 The University of Utah
+## Copyright (c) 2018-2020 The University of Utah
 ## All rights reserved.
 ##
 ## This file is part of Xsmith, a generator of highly effective fuzz testers.
