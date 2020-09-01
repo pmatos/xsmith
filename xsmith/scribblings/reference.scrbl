@@ -306,41 +306,6 @@ In other words, if you have a property that defines an attribute on the default 
 
 }
 
-@; TODO - this is outdated, but I don't want to remove it until I've added all the new documentation.
-@;@defform[(assemble-spec-components spec-name
-@;                                   maybe-properties
-@;                                   spec-component ...)
-@;#:grammar [(maybe-properties (code:line)
-@;                             (code:line #:properties list-of-properties))]
-@;          @;[list-of-properties (property ...)]
-@;          ]{
-@;
-@;Combines spec components and generates a @(racr) specification.
-@;
-@;Defines @racket[spec-name] as a @(racr) specification.
-@;
-@;Defines @verb{<spec-name>-generate-ast} as a function.  The function accepts the name of a grammar production as a symbol and produces a random tree starting from a fresh node of that nonterminal.  Essentially, given the name of the top-level program node, this function generates a random program.
-@;
-@;Various att-rules are automatically defined within the spec, see @secref{generated-rules}.
-@;
-@;Properties (defined with @racket[define-property]) are used to derive more @(racr) att-rules as well as Xsmith choice-rules.
-@;Each property may have a transformer function that alters other properties, att-rules, or choice-rules.
-@;All properties referenced within a spec-component are used to generate att-rules and choice-rules, as well as any properties specified in the @racket[maybe-properties] list.
-@;Unless values for that property have also been specified within a spec component, properties in the @racket[maybe-properties] list will only be able to generate rules based on the default value for the property.
-@;
-@;Example:
-@;@racketblock[
-@;(assemble-spec-components
-@; my-spec
-@; #:properties (depth-increase fresh wont-over-deepen introduces-scope)
-@; my-spec-component
-@; my-other-spec-component
-@; )
-@;(code:comment "Now `my-spec` is defined as a RACR spec,")
-@;(code:comment "and `my-spec-generate-ast` is defined as a function which")
-@;(code:comment "accepts a symbol argument representing the name of an AST node.")
-@;]
-@;}
 
 @defform[(add-to-grammar spec-component grammar-clause ...)
 #:grammar [(grammar-clause (node-name parent-name (field ...) maybe-prop ..))
@@ -1848,14 +1813,6 @@ Because the type algorithm imperatively unifies types, this causes mayhem.  Don'
 Note that to use this function you must pass a value in to the @racket[#:type-thunks] argument of @racket[define-xsmith-interface-functions].
 }
 
-@; TODO - I think this is unnecessary and can go, though perhaps it should be copied somewhere internally.
-@;@defparam[current-xsmith-type-constructor-thunks thunk-list (listof (-> type?))]{
-@;This needs to be parameterized for @racket[concretize-type], which is needed in code dealing with variable definition and reference.
-@;It should consist of a list of thunks that each produce a fully concrete type when called.
-@;
-@;The @verb{generate} function passed to @racket[xsmith-command-line] needs to parameterize this.
-@;}
-
 
 @section{Miscellaneous Utilities}
 
@@ -1894,70 +1851,7 @@ A wrapper for RACR's @racket[att-value] function that prints trace info using @r
 
 @section{Turning Your Grammar Specification Into a Program}
 
-@; TODO - this is outdated, but I don't want to remove it until I've added all the new documentation.
-@;@defproc[(xsmith-command-line
-@;[generate-func (-> ast-node?)]
-@;[#:comment-wrap comment-wrap (-> (listof string?) string?)]
-@;[#:fuzzer-name fuzzer-name (or/c #f string?)]
-@;[#:fuzzer-version fuzzer-version (or/c #f string?)]
-@;[#:features features (listof (or/c (list/c symbol? boolean?)
-@;                                   (list/c symbol? boolean? string?)))]
-@;[#:extra-parameters param-specs
-@;                    (listof (list/c string?
-@;                                    string?
-@;                                    parameter?
-@;                                    (or/c #f procedure?)))]
-@;[#:default-max-depth default-max-depth number?]
-@;[#:format-render format-func (-> any/c string?)])
-@;any/c]{
-@;This function parses the current command-line arguments for xsmith fuzzers.  It is basically to be used in the main function of a fuzzer.
-@;Based on options supplied, it may print a help message and terminate the program, generate a single program, or start a web server to generate many programs.
-@;
-@;@racket[generate-func] must be a function that generates a single AST.  It is called with @racket[xsmith-command-line] with the random seed parameterized according to command-line options (and for the web server reset and incremented for each call), and with all xsmith-options parameterized according to the command line.  The @racket[generate-func] needs to parameterize @racket[current-type-thunks-for-concretization] if your language is to support variable definitions and references.
-@;
-@;@racket[comment-wrap] takes a list of strings which contain info about the generated program, such as the command line used to generate it, the @racket[fuzzer-name], the @racket[fuzzer-version], and the random seed number.  It should return a string representing those lines commented out.  Such as the following, assuming the "#" character is the line-comment character in your language:
-@;
-@;@racketblock[
-@;(λ (lines)
-@;  (string-join
-@;   (map (λ (x) (format "# ~a" x)) lines)
-@;   "\n"))]
-@;
-@;@racket[fuzzer-name] takes a string giving the name of the current fuzzer, used in automatically-generated output.
-@;
-@;@racket[fuzzer-version] takes a string describing the version of the current fuzzer, used in automatically-generated output.
-@;
-@;@racket[features] takes a list of lists containing a feature name (as a symbol) and a default value (as a boolean), and optionally a list of documentation strings.
-@;Each feature will be included in the command-line options as @verb{--with-<feature-name>}.
-@;Documentation strings will be displayed in the @verb{--help} text, one per line.
-@;The values of these features is available via @racket[xsmith-feature-enabled?].
-@;
-@;@racket[param-specs] is a list of specifications for extra custom command line parameters.
-@;Each list contains the switch string (which must begin with @racket["--"] and have no spaces), a documentation string, a parameter, and a normalization function (or @racket[#f]).
-@;The following example defines a @racket["--max-widgets"] parameter with a default of 3:
-@;
-@;@racketblock[(define widget-parameter
-@;               (make-parameter 3))
-@;
-@;             ...
-@;
-@;             (xsmith-command-line
-@;               ...
-@;               #:extra-parameters (list
-@;                                    (list "--max-widgets"
-@;                                          "The maximum number of widgets"
-@;                                          widget-parameter
-@;                                          string->number)))]
-@;
-@;@racket[default-max-depth] is a positive (non-zero) number that limits the maximum depth of your language's generated AST.  The larger this number, the more complex the programs generated can be.
-@;
-@;@racket[format-render] is a function which takes the output of your @racket[render-node-info] property as input and should return a string representing the program (perhaps by use of a pretty-printing function).  If your @racket[render-node-info] property produces a string already, you will not need to specify the @racket[format-render] parameter.
-@;
-@;
-@;The command-line options given by @racket[xsmith-command-line] are:
-@;@(command-line-options-table)
-@;
-@;}
+Use the @racket[xsmith-define-interface-functions] macro.  This section used to have more before things were rearranged.  Maybe things should be rearranged more.
 
 @defproc[(xsmith-feature-enabled? [feature symbol?]) boolean?]{
 Returns the value set by the user via @racket[define-xsmith-interface-functions] for the given feature.
