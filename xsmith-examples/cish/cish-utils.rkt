@@ -337,7 +337,7 @@ New types
 
 (define current-abstract-interp-call-stack (make-parameter '()))
 
-;;; wrapper for the att-rule to prevent function cycles
+;;; wrapper for the attribute to prevent function cycles
 (define (abstract-interp-wrap do-function
                               store-member-to-top-func
                               get-result-hash-func

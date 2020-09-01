@@ -46,7 +46,7 @@
 (provide
  (struct-out grammar-refiner)
  sort-refiners
- refiner-stx->att-rule-name
+ refiner-stx->attribute-name
  refiner-stx->ref-pred-func
  grammar-refiner-transform)
 
@@ -178,17 +178,17 @@ on their indicated #:follows dependencies.
        sorted-names))
 
 #|
-Given a refiner (as a syntax object), produce a name for the att-rule that will
+Given a refiner (as a syntax object), produce a name for the attribute that will
 correspond to this refiner. For a refiner named "my-refiner", this will produce:
 
-    #'(att-rule _xsmith_auto-ref_my-refiner)
+    #'(attribute _xsmith_auto-ref_my-refiner)
 |#
-(define (refiner-stx->att-rule-name ref-stx)
+(define (refiner-stx->attribute-name ref-stx)
   (let ([ref-name (grammar-refiner-name ref-stx)])
     (with-syntax
-      ([att-rule-name
+      ([attribute-name
         (format-id #'ref-name #:source #'ref-name "_xsmith_auto-ref_~a" ref-name)])
-      #'att-rule-name)))
+      #'attribute-name)))
 
 
 #|
@@ -222,7 +222,7 @@ large function to be used with RACR's `perform-rewrites` function.
 
 #|
 Given a grammar refiner and an infos hash, transforms the refiner into an
-att-rule and puts it in the infos-hash in the appropriate position.
+attribute and puts it in the infos-hash in the appropriate position.
 
 The infos hash is a hash containing (at least) two keys ('refs-info and
 'ag-info), each of which themselves contain hashes mapping names of properties
@@ -234,13 +234,13 @@ to whatever is needed.
   (syntax-parse grammar-ref-name-stx
     [gr:grammar-refiner-stx
      (let* ([ref-stx (syntax-local-value #'gr)]
-            [ref-name (syntax->datum (refiner-stx->att-rule-name ref-stx))]
+            [ref-name (syntax->datum (refiner-stx->attribute-name ref-stx))]
             [global-pred (grammar-refiner-global-predicate ref-stx)]
             [ref-hash (hash-ref (hash-ref infos-hash 'refs-info)
                                 ref-stx
                                 (hash))]
-            [att-rules-hash (hash-ref infos-hash 'ag-info)]
-            [this-rules-hash (hash-ref att-rules-hash ref-name (hash))])
+            [attributes-hash (hash-ref infos-hash 'ag-info)]
+            [this-rules-hash (hash-ref attributes-hash ref-name (hash))])
        (for ([k (dict-keys ref-hash)])
          (spell-check-grammar-name k (dict-ref ref-hash k)))
        ;; Provide a default clause that has no effect.
@@ -252,7 +252,7 @@ to whatever is needed.
        (when (not (dict-has-key? ref-hash #f))
          (set! ref-hash (dict-set ref-hash #f #'[(λ (n) #f)])))
        (hash-set infos-hash 'ag-info
-                 (hash-set att-rules-hash
+                 (hash-set attributes-hash
                            ref-name
                            (for/fold ([combined this-rules-hash])
                                      ([k (dict-keys ref-hash)])

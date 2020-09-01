@@ -396,7 +396,7 @@
   (define (spec-component-merge spec-components)
     (for/fold ([bighash (hash)])
               ([component-project (list spec-component-struct-grammar-info
-                                        spec-component-struct-att-rule-info
+                                        spec-component-struct-attribute-info
                                         spec-component-struct-choice-rule-info
                                         spec-component-struct-property-info
                                         spec-component-struct-refiner-info)]
@@ -470,8 +470,8 @@
                            #'([prop/refiner/ag/cm-name node-name prop] ...))]))
 (define-syntax-parser add-attribute
   [(_ arg ...) (add-property-generic
-                #'spec-component-struct-att-rule-info
-                #'set-spec-component-struct-att-rule-info
+                #'spec-component-struct-attribute-info
+                #'set-spec-component-struct-attribute-info
                 #'(arg ...))])
 (define-syntax-parser add-choice-rule
   [(_ arg ...) (add-property-generic
@@ -796,7 +796,7 @@ It defines:
 * the spec name as a RACR spec
 * spec-generate-ast (with `spec` replaced for the id given as spec), which is a function that accepts the symbol name of a node and generates an AST starting at that node.  IE you give it the top level node name and it gives you a program.
 
-Additionally, it defines the following att-rules within the RACR spec:
+Additionally, it defines the following attributes within the RACR spec:
 * _xsmith_hole->choice-list
 * xsmith_is-hole?
 * _xsmith_hole->replacement
@@ -805,7 +805,7 @@ Additionally, it defines the following att-rules within the RACR spec:
 * _xsmith_resolve-reference-name
 * _xsmith_visible-bindings
 
-It also defines within the RACR spec all att-rules and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
+It also defines within the RACR spec all attributes and choice-rules added by property transformers run (either because they were listed or because they were referenced in a spec component).
 |#
 
 (define-syntax-parser assemble-spec-components/core
@@ -851,7 +851,7 @@ It also defines within the RACR spec all att-rules and choice-rules added by pro
 Stage 3
 
 Perform error checking:
- - check for duplicates in grammar clauses, att-rules, and choice rules
+ - check for duplicates in grammar clauses, attributes, and choice rules
 |#
 
 (define-syntax-parser assemble_stage3
@@ -873,7 +873,7 @@ Perform error checking:
       cm-clauses
       prop-clauses
       refiners-clauses)
-   (raise-syntax-error #f "duplicate definitions for att-rule"
+   (raise-syntax-error #f "duplicate definitions for attribute"
                        #'ag1 #f (list #'ag2))]
   [(_ spec
       extra-props
@@ -1037,7 +1037,7 @@ Perform error checking:
        (grammar-refiner-transform (hash-ref r-canonical-ids r-struct r-struct)
                                   ih
                                   spell-check-grammar-name)))
-   (define ref-att-rule-names (map refiner-stx->att-rule-name r-structs))
+   (define ref-attribute-names (map refiner-stx->attribute-name r-structs))
    (define ref-pred-funcs (map refiner-stx->ref-pred-func r-structs))
 
    ;; TODO - Check duplicates again? Perform other checks?
@@ -1059,7 +1059,7 @@ Perform error checking:
                           (dict-ref infos-hash 'ag-info))]
       [(n-cm-clause ...) (rule-hash->clause-list
                           (dict-ref infos-hash 'cm-info))]
-      [(r-name ...) ref-att-rule-names]
+      [(r-name ...) ref-attribute-names]
       [(rp-func ...) ref-pred-funcs])
      #'(assemble_stage4
         spec
@@ -1124,7 +1124,7 @@ Perform error checking:
 
    (with-syntax* ([base-node-name (format-id #'spec "XsmithBaseNode~a" #'spec)]
                   [base-node-choice (node->choice #'base-node-name)]
-                  [(att-rule-name/with-false ...)
+                  [(attribute-name/with-false ...)
                    (remove-duplicates
                     (syntax->datum #'(ag-clause.prop-name ...)))]
                   ;; Generate some default ag-clauses for the base node where they
@@ -1148,7 +1148,7 @@ Perform error checking:
                                      "no default implementation (called on ~a node)"
                                      (node-type n))))
                                #f))
-                         (syntax->list #'(att-rule-name/with-false ...))))]
+                         (syntax->list #'(attribute-name/with-false ...))))]
                   ;; Add the fresh ag-clauses to the original ones.
                   [(ag-clause ...) #`(#,@#'(ag-clause ...)
                                       #,@#'(fresh-ag-clause-for-base ...))]
@@ -1213,7 +1213,7 @@ Perform error checking:
                    (map (syntax-parser [#f #'base-node-choice]
                                        [p (node->choice #'p)])
                         (syntax->list #'(g-part.parent ...)))]
-                  [(att-rule-name ...) (remove-duplicates
+                  [(attribute-name ...) (remove-duplicates
                                         (syntax->datum #'(ag-clause.prop-name ...)))]
                   [choice-hash-name (format-id #'spec "~a-choice-hash" #'spec)]
                   )
@@ -1224,9 +1224,9 @@ Perform error checking:
                                      (equal? (syntax->datum #'c.prop-name)
                                              rule-name)])
                                   (syntax->list #'(ag-clause ...))))
-                        (syntax->datum #'(att-rule-name ...)))
-       ;; att-rule-node is now grouped by rule name
-       [((att-rule-node:prop-clause ...) ...)
+                        (syntax->datum #'(attribute-name ...)))
+       ;; attribute-node is now grouped by rule name
+       [((attribute-node:prop-clause ...) ...)
         (syntax-parse (map (λ (node-name)
                              (filter (syntax-parser
                                        [c:prop-clause
@@ -1342,7 +1342,7 @@ Perform error checking:
                      ...
                      (compile-ast-specifications 'base-node-name)
 
-                     ;; Define the att-rules for the grammar nodes
+                     ;; Define the attributes for the grammar nodes
                      (splicing-syntax-parameterize
                          ([make-fresh-node
                            (syntax-parser [(_ node-sym:expr (~optional dict-expr:expr))
@@ -1361,8 +1361,8 @@ Perform error checking:
                                                     #'(hash)))]
                                           [just-symbol:id
                                            #'replacement-node-func])])
-                       (ag-rule att-rule-name
-                                [att-rule-node.node-name att-rule-node.prop-val]
+                       (ag-rule attribute-name
+                                [attribute-node.node-name attribute-node.prop-val]
                                 ...)
                        ...
 
@@ -1409,7 +1409,7 @@ Perform error checking:
                      ;; outside.  So we `set!` it in place.
                      (set! fresh-node-func fresh-node-func-impl)
 
-                     ;; define some core att-rules
+                     ;; define some core attributes
                      (ag-rule _xsmith_hole->choice-list
                               [base-node-name
                                (λ (n) (error '_xsmith_hole->choice-list

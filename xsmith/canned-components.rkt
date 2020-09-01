@@ -706,7 +706,7 @@
 
 (define-simple-property
   block-user?
-  att-rule
+  attribute
   #:rule-name _xsmith_block-user?
   #:default #f
   #:transformer (syntax-parser [#t #'(λ (n) #t)] [#f #'(λ (n) #f)]))

@@ -85,7 +85,7 @@ RACR caches the results of attribute queries and keeps track of the nodes access
 When nodes used in an attribute computation are changed, future queries to that attribute are re-computed.
 
 Users can specify new RACR attributes for Xsmith generators, but they should use @racket[add-attribute] or @racket[add-property] from Xsmith rather than using RACR functions directly.
-In expressions evaluated in the context of RACR attributes (att-rules) or choice rules, RACR attributes may be queried.
+In expressions evaluated in the context of RACR attributes (attributes) or choice rules, RACR attributes may be queried.
 
 The main RACR APIs of interest are:
 
@@ -129,7 +129,7 @@ Consider the following (partial) grammar defined in the @verbatim|{my-spec-compo
 When a fresh AdditionExpression is created, it will include two Expression hole nodes.
 When the generator gets to those holes, a choice object is created for each subclass of Expression (including Expression itself unless it is disabled with the @racket[may-be-generated] property).
 The choice objects have types corresponding to LiteralInt and AdditionExpression, and therefore may have different implementations for various choice methods.
-The choice objects all have access to the Expression hole (through @racket[current-hole]), but while choice objects have access to their specialized choice method implementations, the hole is of type Expression, and so all @(racr) attributes (att-rules) that may be queried are specialized only as far as Expression, not to LiteralInt or AdditionExpression.
+The choice objects all have access to the Expression hole (through @racket[current-hole]), but while choice objects have access to their specialized choice method implementations, the hole is of type Expression, and so all @(racr) attributes that may be queried are specialized only as far as Expression, not to LiteralInt or AdditionExpression.
 
 Although Xsmith @italic{can} create holes for any type of production defined in the grammar, by default it will only generate more general holes.
 In the case of this example, the default behavior would be for Xsmith to generate Expression holes, but not LiteralInt or AdditionExpression holes.

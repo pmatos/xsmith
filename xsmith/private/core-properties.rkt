@@ -181,7 +181,7 @@
 
 (define-non-inheriting-rule-property
   depth-increase
-  att-rule
+  attribute
   #:rule-name xsmith_ast-depth
   #:default (λ (n) 1)
   #:transformer (syntax-parser
@@ -229,7 +229,7 @@
 (define-property serialize
   #:reads (grammar)
   #:appends
-  (att-rule _xsmith_to-s-expression)
+  (attribute _xsmith_to-s-expression)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -296,7 +296,7 @@ hole for the type.
   (property reference-info)
   #:appends
   (choice-rule _xsmith_fresh)
-  (att-rule _xsmith_field-names)
+  (attribute _xsmith_field-names)
   (choice-rule _xsmith_current-hole)
   #:transformer
   (λ (this-prop-info grammar-info binder-info-info reference-info-info)
@@ -499,7 +499,7 @@ hole for the type.
 
 (define-property child-node-name-dict
   #:reads (grammar)
-  #:appends (att-rule _xsmith_child-node-name-dict)
+  #:appends (attribute _xsmith_child-node-name-dict)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -659,10 +659,10 @@ It just reads the values of several other properties and produces the results fo
   (property lift-predicate)
   (property binding-structure)
   #:appends
-  (att-rule _xsmith_scope-graph-child-scope-dict)
-  (att-rule _xsmith_scope-graph-scope)
-  (att-rule _xsmith_lift-predicate)
-  (att-rule _xsmith_lift-destinations)
+  (attribute _xsmith_scope-graph-child-scope-dict)
+  (attribute _xsmith_scope-graph-scope)
+  (attribute _xsmith_lift-predicate)
+  (attribute _xsmith_lift-destinations)
   #:transformer
   (λ (this-prop-info
       grammar-info
@@ -845,8 +845,8 @@ It just reads the values of several other properties and produces the results fo
 (define-property binder-info
   #:reads (grammar)
   #:appends
-  (att-rule _xsmith_binder-type-field)
-  (att-rule xsmith_definition-binding)
+  (attribute _xsmith_binder-type-field)
+  (attribute xsmith_definition-binding)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -896,9 +896,9 @@ It just reads the values of several other properties and produces the results fo
   #:reads (grammar)
   #:appends
   (choice-rule _xsmith_is-read-reference-choice?)
-  (att-rule _xsmith_is-read-reference-node?)
-  (att-rule _xsmith_is-reference-node?)
-  (att-rule _xsmith_resolve-reference)
+  (attribute _xsmith_is-read-reference-node?)
+  (attribute _xsmith_is-reference-node?)
+  (attribute _xsmith_resolve-reference)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -986,7 +986,7 @@ It just reads the values of several other properties and produces the results fo
 
 (define-property reference-choice-info
   #:reads (grammar)
-  #:appends (att-rule _xsmith_reference-choice)
+  #:appends (attribute _xsmith_reference-choice)
   #:transformer
   (λ (this-prop-info grammar-info)
     (define nodes (dict-keys grammar-info))
@@ -1005,7 +1005,7 @@ It just reads the values of several other properties and produces the results fo
 ;; ast node a lifted definition should be.
 (define-property lift-type->ast-binder-type
   #:reads (property binder-info)
-  #:appends (att-rule _xsmith_lift-type-to-ast-binder-type)
+  #:appends (attribute _xsmith_lift-type-to-ast-binder-type)
   #:transformer
   (λ (this-prop-info binder-info)
     (define definitions (filter (λ (n) (syntax-parse (dict-ref binder-info n)
@@ -1495,13 +1495,13 @@ The second arm is a function that takes the type that the node has been assigned
   (property reference-info)
   (property binder-info)
   #:appends
-  (att-rule _xsmith_my-type-constraint)
+  (attribute _xsmith_my-type-constraint)
   (choice-rule _xsmith_my-type-constraint)
-  ;_xsmith_my-type-constraint -- returns the type that a node must fulfill (the first half of the type info property), both in att-rule and choice-rule form.
-  (att-rule _xsmith_children-type-dict)
+  ;_xsmith_my-type-constraint -- returns the type that a node must fulfill (the first half of the type info property), both in attribute and choice-rule form.
+  (attribute _xsmith_children-type-dict)
   ;_xsmith_children-type-dict -- returns a dict mapping nodes (or node field names) to types
-  (att-rule _xsmith_type-constraint-from-parent)
-  (att-rule xsmith_type)
+  (attribute _xsmith_type-constraint-from-parent)
+  (attribute xsmith_type)
   (choice-rule _xsmith_satisfies-type-constraint?)
   ;_xsmith_satisfies-type-constraint? -- choice predicate -- tests if a hole's type and a choice object are compatible
   (choice-rule _xsmith_reference-options!)
@@ -1510,7 +1510,7 @@ The second arm is a function that takes the type that the node has been assigned
   ;xsmith_get-reference! -- like xsmith_reference-options! but it just returns one (pre-called in the case of lifts).
   (choice-rule xsmith_get-reference-for-child!)
   ;xsmith_get-reference-for-child! -- returns a reference name like xsmith_reference-options! but it must be called with a (settled) type and a boolean for whether or not the reference will be a write reference.  Can be used to build multiple references at once.
-  (att-rule _xsmith_function-application)
+  (attribute _xsmith_function-application)
   #:transformer
   (λ (this-prop-info grammar-info reference-info-info binder-info-info)
     (define nodes (cons #f (dict-keys grammar-info)))
@@ -1543,7 +1543,7 @@ The second arm is a function that takes the type that the node has been assigned
                             t-prime
                             (do-error t-prime)))]
                      [else (do-error t)]))))))
-    (define _xsmith_my-type-constraint-info/att-rule
+    (define _xsmith_my-type-constraint-info/attribute
       (if (dict-empty? this-prop-info)
           (hash #f #'(λ () default-base-type))
           (for/hash ([n (dict-keys get-constraints-checked)])
@@ -1733,7 +1733,7 @@ The second arm is a function that takes the type that the node has been assigned
                         function-children))))
 
     (list
-     _xsmith_my-type-constraint-info/att-rule
+     _xsmith_my-type-constraint-info/attribute
      _xsmith_my-type-constraint-info/choice-rule
      _xsmith_children-type-dict-info
      _xsmith_type-constraint-from-parent-info
@@ -1882,7 +1882,7 @@ The second arm is a function that takes the type that the node has been assigned
 
 
 (define-property strict-child-order?
-  #:appends (att-rule _xsmith_strict-child-order?)
+  #:appends (attribute _xsmith_strict-child-order?)
   #:transformer
   (λ (this-prop-info)
     (define _xsmith_strict-child-order?-info
@@ -1899,7 +1899,7 @@ The second arm is a function that takes the type that the node has been assigned
 
 (define-property mutable-container-access
   #:appends
-  (att-rule _xsmith_mutable-container-effects)
+  (attribute _xsmith_mutable-container-effects)
   (choice-rule _xsmith_no-mutable-container-effect-conflict?)
   #:transformer
   (λ (this-prop-info)
@@ -1945,12 +1945,12 @@ The second arm is a function that takes the type that the node has been assigned
   (grammar)
   (property reference-info)
   #:appends
-  (att-rule _xsmith_effects/no-children) ;; effects directly caused by a node
-  (att-rule _xsmith_effects) ;; effects caused by a node and its children
+  (attribute _xsmith_effects/no-children) ;; effects directly caused by a node
+  (attribute _xsmith_effects) ;; effects caused by a node and its children
   ;; effects when the node is applied as a function
-  (att-rule _xsmith_function-application-effects/no-children)
-  (att-rule _xsmith_function-application-effects)
-  (att-rule _xsmith_effect-constraints-for-child)
+  (attribute _xsmith_function-application-effects/no-children)
+  (attribute _xsmith_function-application-effects)
+  (attribute _xsmith_effect-constraints-for-child)
   (choice-rule _xsmith_no-io-conflict?)
   #:transformer
   (λ (this-prop-info grammar-info reference-info)
@@ -2162,7 +2162,7 @@ called instead.
 
 (define-property render-node-info
   #:appends
-  (att-rule xsmith_render-node)
+  (attribute xsmith_render-node)
   #:transformer
   (λ (this-prop-info)
     (define xsmith_render-node-info
@@ -2184,7 +2184,7 @@ called instead.
 
 (define-property render-hole-info
   #:appends
-  (att-rule xsmith_render-hole)
+  (attribute xsmith_render-hole)
   #:transformer
   (λ (this-prop-info)
     (define xsmith_render-hole-info
@@ -2208,8 +2208,8 @@ TODO - add proper documentation.
 (define-property edit
   #:allow-duplicates? #t
   #:appends
-  (att-rule _xsmith_edit-single)
-  (att-rule _xsmith_edit-walk)
+  (attribute _xsmith_edit-single)
+  (attribute _xsmith_edit-walk)
   #:transformer
   (λ (this-prop-info)
     (when (dict-has-key? this-prop-info #f)
