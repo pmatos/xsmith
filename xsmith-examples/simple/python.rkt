@@ -75,16 +75,17 @@
  ;; Sure, Python calls them lists, but my type system calls them arrays.
  #:name ArrayComprehension
  #:collection-type-constructor (λ (elem-type) (mutable (array-type elem-type))))
-(add-property python-comp render-node-info
-          [ArrayComprehension
-           ;; [body for binder_name in collection]
-           (λ (n) (h-append (text "[")
-                            ($xsmith_render-node (ast-child 'body n))
-                            (text " for ")
-                            (text (ast-child 'name (ast-child 'elemname n)))
-                            (text " in ")
-                            ($xsmith_render-node (ast-child 'collection n))
-                            (text "]")))])
+(add-property
+ python-comp render-node-info
+ [ArrayComprehension
+  ;; [body for binder_name in collection]
+  (λ (n) (h-append (text "[")
+                   ($xsmith_render-node (ast-child 'body n))
+                   (text " for ")
+                   (text (ast-child 'name (ast-child 'elemname n)))
+                   (text " in ")
+                   ($xsmith_render-node (ast-child 'collection n))
+                   (text "]")))])
 
 (add-loop-over-container
  python-comp
@@ -96,31 +97,32 @@
  #:body-ast-type Block
  #:bind-whole-collection? #t
  )
-(add-property python-comp render-node-info
-          [LoopOverArray
-           (λ (n)
-             (define cd (ast-child 'collection n))
-             (define collection-name (ast-child 'name cd))
-             (define body (ast-child 'body n))
-             (v-append
-              (h-append (text collection-name)
-                        (text " = ")
-                        ($xsmith_render-node (ast-child 'Expression cd)))
-              (h-append (text "for ")
-                        (text (ast-child 'name (ast-child 'elemname n)))
-                        (text " in ")
-                        (text collection-name)
-                        (text ":")
-                        (nest nest-step
-                              (h-append
-                               line
-                               (v-concat
-                                (append
-                                 (map (λ (cn) ($xsmith_render-node cn))
-                                      (ast-children (ast-child 'definitions body)))
-                                 (map (λ (cn) ($xsmith_render-node cn))
-                                      (ast-children (ast-child 'statements body))))))))
-              line))])
+(add-property
+ python-comp render-node-info
+ [LoopOverArray
+  (λ (n)
+    (define cd (ast-child 'collection n))
+    (define collection-name (ast-child 'name cd))
+    (define body (ast-child 'body n))
+    (v-append
+     (h-append (text collection-name)
+               (text " = ")
+               ($xsmith_render-node (ast-child 'Expression cd)))
+     (h-append (text "for ")
+               (text (ast-child 'name (ast-child 'elemname n)))
+               (text " in ")
+               (text collection-name)
+               (text ":")
+               (nest nest-step
+                     (h-append
+                      line
+                      (v-concat
+                       (append
+                        (map (λ (cn) ($xsmith_render-node cn))
+                             (ast-children (ast-child 'definitions body)))
+                        (map (λ (cn) ($xsmith_render-node cn))
+                             (ast-children (ast-child 'statements body))))))))
+     line))])
 
 (add-property
  python-comp

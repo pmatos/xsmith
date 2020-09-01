@@ -118,12 +118,13 @@
 
  )
 
-(add-property schemely-core fresh
-          [LiteralInt (hash 'v (* (random 1000000)
-                                  (if (equal? 0 (random 2)) -1 1)))]
-          [LiteralFloat (hash 'v (* (random)
-                                    (random 1000000)
-                                    (if (equal? 0 (random 2)) -1 1)))])
+(add-property
+ schemely-core fresh
+ [LiteralInt (hash 'v (* (random 1000000)
+                         (if (equal? 0 (random 2)) -1 1)))]
+ [LiteralFloat (hash 'v (* (random)
+                           (random 1000000)
+                           (if (equal? 0 (random 2)) -1 1)))])
 
 
 ;; helper for render-node-info

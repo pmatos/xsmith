@@ -57,9 +57,10 @@
  #:loop-type-constructor (λ (inner) (immutable (list-type inner)))
  #:bind-whole-collection? #t
  )
-(add-property racket-comp
-          render-node-info
-          [ForList (make-for-with-outer-def-printer 'for/list)])
+(add-property
+ racket-comp
+ render-node-info
+ [ForList (make-for-with-outer-def-printer 'for/list)])
 (add-loop-over-container
  racket-comp
  #:name ForVector
@@ -67,9 +68,10 @@
  #:loop-type-constructor (λ (inner) (mutable (array-type inner)))
  #:bind-whole-collection? #t
  )
-(add-property racket-comp
-          render-node-info
-          [ForVector (make-for-with-outer-def-printer 'for/vector)])
+(add-property
+ racket-comp
+ render-node-info
+ [ForVector (make-for-with-outer-def-printer 'for/vector)])
 (add-loop-over-container
  racket-comp
  #:name ForVoid
@@ -77,13 +79,14 @@
  #:loop-type-constructor (λ (inner) void-type)
  #:body-type-constructor (λ (loop-type elem-type) void-type)
  )
-(add-property racket-comp
-          render-node-info
-          [ForVoid
-           (λ (n)
-             `(for ([,(string->symbol (ast-child 'name (ast-child 'elemname n)))
-                     ,(render-child 'collection n)])
-                ,(render-child 'body n)))])
+(add-property
+ racket-comp
+ render-node-info
+ [ForVoid
+  (λ (n)
+    `(for ([,(string->symbol (ast-child 'name (ast-child 'elemname n)))
+            ,(render-child 'collection n)])
+       ,(render-child 'body n)))])
 
 
 (add-property
