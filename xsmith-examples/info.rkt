@@ -54,7 +54,11 @@
     "racr"
     "xsmith"
     "rosette"
+    "clotho"
+    "math-lib"
     ))
+(define build-deps '("scribble-lib"
+                     ))
 
 (define compile-omit-paths '("future"))
 
