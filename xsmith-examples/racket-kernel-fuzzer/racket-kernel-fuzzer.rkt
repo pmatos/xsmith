@@ -567,15 +567,18 @@
       ;; TODO - add safe/NoException wrappers
       (define-values (NE/atan-2)
         (λ (x y)
-          (if (or (equal? x 0)
-                  (equal? y 0))
+          (if (equal? x 0)
               0
-              (atan x y))))
+              (if (equal? y 0)
+                  0
+                  (atan x y)))))
       (define-values (NE/atan-1)
-        (λ (x) (if (or (equal? x 0+1i)
-                       (equal? x 0-1i))
-                   0
-                   (atan x))))
+        (λ (x)
+          (if (equal? x 0+1i)
+              0
+              (if (equal? x 0-1i)
+                  0
+                  (atan x)))))
       (define-values (safe-car)
         (λ (list fallback)
           (if (null? list)
