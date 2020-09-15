@@ -530,13 +530,13 @@
 
 (ag/two-arg equal?
             #:type bool
-            #:ctype (λ (n t) 'l (fresh-type-variable) 'r (fresh-type-variable)))
+            #:ctype (λ (n t) (hash 'l (fresh-type-variable) 'r (fresh-type-variable))))
 (ag/two-arg eqv?
             #:type bool
-            #:ctype (λ (n t) 'l (fresh-type-variable) 'r (fresh-type-variable)))
+            #:ctype (λ (n t) (hash 'l (fresh-type-variable) 'r (fresh-type-variable))))
 (ag/two-arg eq?
             #:type bool
-            #:ctype (λ (n t) 'l (fresh-type-variable) 'r (fresh-type-variable)))
+            #:ctype (λ (n t) (hash 'l (fresh-type-variable) 'r (fresh-type-variable))))
 (ag/two-arg make-polar
             #:type number
             ;; TODO - should be real real, once I fix the numeric tower
