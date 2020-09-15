@@ -565,7 +565,17 @@
                   (/ arg1))
               (apply / arg1 (map (λ (x) (if (eq? 0 x) 1 x)) args)))))
       ;; TODO - add safe/NoException wrappers
-      ;; TODO - NE/atan
+      (define-values (NE/atan)
+        (λ (x [y 'no])
+          (if (eq? y 'no)
+              (if (or (equal? x 0+1i)
+                      (equal? x 0-1i))
+                  0
+                  (atan x))
+              (if (or (equal? x 0)
+                      (equal? y 0))
+                  0
+                  (atan x y)))))
       (define-values (safe-car)
         (λ (list fallback)
           (if (null? list)
