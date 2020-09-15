@@ -430,29 +430,29 @@
 (ag/converter seconds->date int date*)
 (ag/single-arg vector->list
                #:racr-name ImmutableVectorToList
-               #:type (immutable (array-type (fresh-type-variable)))
+               #:type (immutable (list-type (fresh-type-variable)))
                #:ctype (λ (n t)
                          (define inner-type (fresh-type-variable))
-                         (unify! t (immutable (array-type inner-type)))
-                         (hash 'Expression (immutable (list-type inner-type)))))
+                         (unify! t (immutable (list-type inner-type)))
+                         (hash 'Expression (immutable (array-type inner-type)))))
 (ag/single-arg vector->list
                #:racr-name MutableVectorToList
-               #:type (mutable (array-type (fresh-type-variable)))
+               #:type (immutable (list-type (fresh-type-variable)))
                #:ctype (λ (n t)
                          (define inner-type (fresh-type-variable))
-                         (unify! t (mutable (array-type inner-type)))
-                         (hash 'Expression (immutable (list-type inner-type)))))
+                         (unify! t (immutable (list-type inner-type)))
+                         (hash 'Expression (mutable (array-type inner-type)))))
 ;; This one is kinda dumb, it probably checks and is just identity.
 #;(ag/single-arg vector->immutable-vector
                #:racr-name ImmutableVectorToImmutableVector
                #:type (immutable (array-type (fresh-type-variable))))
 (ag/single-arg vector->immutable-vector
                #:racr-name MutableVectorToImmutableVector
-               #:type (mutable (array-type (fresh-type-variable)))
+               #:type (immutable (array-type (fresh-type-variable)))
                #:ctype (λ (n t)
                          (define inner-type (fresh-type-variable))
-                         (unify! t (mutable (array-type inner-type)))
-                         (hash 'Expression (immutable (array-type inner-type)))))
+                         (unify! t (immutable (array-type inner-type)))
+                         (hash 'Expression (mutable (array-type inner-type)))))
 
 (define-syntax-parser ag/type-predicate
   [(_ name:id)
