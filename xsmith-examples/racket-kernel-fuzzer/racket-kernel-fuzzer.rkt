@@ -557,46 +557,114 @@
 
  [ProgramWithSequence
   (λ (n)
-    `((define-values (NE/)
-        (λ (arg1 . args)
-          (if (null? args)
-              (if (eq? arg1 0)
-                  0
-                  (/ arg1))
-              (apply / arg1 (map (λ (x) (if (eq? 0 x) 1 x)) args)))))
-      ;; TODO - add safe/NoException wrappers
-      (define-values (NE/atan-2)
-        (λ (x y)
-          (if (equal? x 0)
-              0
-              (if (equal? y 0)
-                  0
-                  (atan x y)))))
-      (define-values (NE/atan-1)
-        (λ (x)
-          (if (equal? x 0+1i)
-              0
-              (if (equal? x 0-1i)
-                  0
-                  (atan x)))))
-      (define-values (safe-car)
-        (λ (list fallback)
-          (if (null? list)
-              fallback
-              (car list))))
-      (define-values (safe-cdr)
-        (λ (list fallback)
-          (if (null? list)
-              fallback
-              (cdr list))))
-      #;(define-values (immutable-vector-set)
-        (λ (vec index-raw val)
-          (define-values (index) (modulo index-raw (vector-length vec)))
-          (vector->immutable-vector
-           (build-vector (vector-length vec)
-                         (λ (i) (if (equal? i index)
-                                    val
-                                    (vector-ref vec i)))))))
+    `(
+      ;; I'm sick of trying to write wrappers in #lang kernel.
+      ;; Let's use a submodule in racket/base instead.
+      (module wrappers-and-helpers racket/base
+        (provide (all-defined-out))
+        (require
+         racket/match
+         racket/format
+         racket/string
+         )
+        (define-values (NE/)
+          (λ (arg1 . args)
+            (if (null? args)
+                (if (eq? arg1 0)
+                    0
+                    (/ arg1))
+                (apply / arg1 (map (λ (x) (if (eq? 0 x) 1 x)) args)))))
+        ;; TODO - add safe/NoException wrappers
+        (define-values (NE/atan-2)
+          (λ (x y)
+            (if (equal? x 0)
+                0
+                (if (equal? y 0)
+                    0
+                    (atan x y)))))
+        (define-values (NE/atan-1)
+          (λ (x)
+            (if (equal? x 0+1i)
+                0
+                (if (equal? x 0-1i)
+                    0
+                    (atan x)))))
+        (define-values (safe-car)
+          (λ (list fallback)
+            (if (null? list)
+                fallback
+                (car list))))
+        (define-values (safe-cdr)
+          (λ (list fallback)
+            (if (null? list)
+                fallback
+                (cdr list))))
+        #;(define-values (immutable-vector-set)
+            (λ (vec index-raw val)
+              (define-values (index) (modulo index-raw (vector-length vec)))
+              (vector->immutable-vector
+               (build-vector (vector-length vec)
+                             (λ (i) (if (equal? i index)
+                                        val
+                                        (vector-ref vec i)))))))
+
+        (define (my-format/hash-inner the-hash)
+          (define (hash-sort-lt l r)
+            (match (list l r)
+              [(list (? number?) (? number?)) (< l r)]
+              [(list (? string?) (? string?)) (string<? l r)]
+              [(list (? symbol?) (? symbol?)) (string<? (symbol->string l)
+                                                        (symbol->string r))]
+              [(list (? keyword?) (? keyword?)) (string<? (keyword->string l)
+                                                          (keyword->string r))]
+              [else (error 'fuzzer-format "TODO - add more ways to sort for hash tables.  Given: ~v and ~v" l r)]))
+          (string-join
+           (for/list ([k (sort (hash-keys the-hash) hash-sort-lt)])
+             (format "[~a . ~a]"
+                     (my-format k)
+                     (my-format (hash-ref the-hash k))))))
+        (define (my-format val)
+          (define (mutable? x)
+            (not (immutable? x)))
+          (match val
+            [(list v ...) (format "(~a)" (string-join (map my-format v)))]
+            [(and (? immutable?) (vector v ...))
+             (format "#{vector-immutable ~a}" (string-join (map my-format v)))]
+            [(vector v ...)
+             (format "#{vector-mutable ~a}" (string-join (map my-format v)))]
+            [(and (? immutable?) (? hash?) (? hash-eq?))
+             (format "#{immutable-hasheq ~a}" (my-format/hash-inner val))]
+            [(and (? immutable?) (? hash?) (? hash-eqv?))
+             (format "#{immutable-hasheqv ~a}" (my-format/hash-inner val))]
+            [(and (? immutable?) (? hash?) (? hash-equal?))
+             (format "#{immutable-hashequal ~a}" (my-format/hash-inner val))]
+            [(and (? mutable?) (? hash?) (? hash-eq?))
+             (format "#{mutable-hasheq ~a}" (my-format/hash-inner val))]
+            [(and (? mutable?) (? hash?) (? hash-eqv?))
+             (format "#{mutable-hasheqv ~a}" (my-format/hash-inner val))]
+            [(and (? mutable?) (? hash?) (? hash-equal?))
+             (format "#{mutable-hashequal ~a}" (my-format/hash-inner val))]
+            [(and (? immutable?) (box v))
+             (format "#{immutable-box ~a}" (my-format v))]
+            [(and (? mutable?) (box v))
+             (format "#{mutable-box ~a}" (my-format v))]
+            [(or (? void?)
+                 (? number?)
+                 (? string?)
+                 (? symbol?)
+                 (? keyword?)
+                 #t #f
+                 (? char?)
+                 ;; Dates are structs, but they can only contain atomic data.
+                 ;; So we don't need to worry about applying a specialized
+                 ;; printer recursively.
+                 (? date?)
+                 )
+             (~a val)]))
+        (define (my-print x)
+          (println (my-format x)))
+        )
+      (#%require (submod "." wrappers-and-helpers))
       ,@(render-children 'definitions n)
       (define-values (program-result) ,(render-child 'ExpressionSequence n))
       (begin
@@ -609,9 +677,9 @@
                      #:when #t #;(base-type? (concretize-type
                                               (att-value 'xsmith_type c)))
                      )
-            `(printf "Variable ~a value: ~v\n"
+            `(printf "Var ~a: ~a\n"
                      ',(string->symbol (ast-child 'name c))
-                     ,(string->symbol (ast-child 'name c)))))))]
+                     (my-format ,(string->symbol (ast-child 'name c))))))))]
 
  [Definition (λ (n)
                `(define-values (,(string->symbol (ast-child 'name n)))
