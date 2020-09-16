@@ -208,7 +208,7 @@
 (ag/variadic * 0 #:racr-name Times)
 (ag/variadic + 0 #:racr-name Plus)
 (ag/variadic - 1 #:racr-name Minus)
-(ag/variadic / 1 #:racr-name Divide #:NE-name NE/)
+(ag/variadic / 1 #:racr-name Divide #:NE-name NE/ #:type real)
 (ag/variadic bitwise-and 0 #:type int)
 (ag/variadic bitwise-ior 0 #:type int)
 (ag/variadic bitwise-xor 0 #:type int)
