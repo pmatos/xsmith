@@ -214,7 +214,7 @@
 (ag/variadic bitwise-xor 0 #:type int)
 (ag/variadic lcm 0 #:type int)
 (ag/variadic gcd 0 #:type int)
-(ag/variadic min 1 #:type number)
+(ag/variadic min 1 #:type real)
 (ag/variadic max 1 #:type real)
 (ag/variadic append 0 #:type (immutable (list-type (fresh-type-variable))))
 (ag/variadic string 0 #:type string
