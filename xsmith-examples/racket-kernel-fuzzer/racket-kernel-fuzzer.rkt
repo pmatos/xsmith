@@ -837,7 +837,7 @@
   (define out (open-output-string))
   (for ([symex s-exps])
     (pretty-print symex out 1))
-  (format "(module random-fuzzing-module '#%kernel\n~a\n)\n"
+  (format "\n(module random-fuzzing-module '#%kernel\n~a\n)\n"
           (get-output-string out)))
 
 (define-xsmith-interface-functions
