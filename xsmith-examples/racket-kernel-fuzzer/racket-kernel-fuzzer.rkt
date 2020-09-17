@@ -648,6 +648,8 @@
              (format "#{immutable-box ~a}" (my-format v))]
             [(and (? mutable?) (box v))
              (format "#{mutable-box ~a}" (my-format v))]
+            [(? procedure?)
+             (format "#<procedure:~a>" (object-name val))]
             [(or (? void?)
                  (? number?)
                  (? string?)
@@ -659,7 +661,6 @@
                  ;; So we don't need to worry about applying a specialized
                  ;; printer recursively.
                  (? date?)
-                 (? procedure?)
                  )
              (~a val)]))
         (define (my-print x)
