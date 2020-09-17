@@ -659,6 +659,7 @@
                  ;; So we don't need to worry about applying a specialized
                  ;; printer recursively.
                  (? date?)
+                 (? procedure?)
                  )
              (~a val)]))
         (define (my-print x)
