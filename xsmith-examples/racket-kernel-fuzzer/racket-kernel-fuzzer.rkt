@@ -228,7 +228,7 @@
    #'(ag [name VariadicExpression ()
                #:prop fresh (hash 'minargs 1)
                #:prop type-info
-               [bool (λ (n t) (hash 'minargs number 'moreargs number))]
+               [bool (λ (n t) (hash 'minargs real 'moreargs real))]
                #:prop render-node-info (render-variadic symbol)])])
 (ag/number-compare LessThan '<)
 (ag/number-compare LessThanEqual '<=)
