@@ -654,8 +654,14 @@
              ;; Different versions of Racket can have different results for
              ;; `object-name`, so let's just print all procedures equally.
              (format "#<procedure>")]
+            [(or (? integer?) (? rational?)) (~a val)]
+            ;; For floating point numbers, let's round them to ameliorate minor
+            ;; differences...
+            [(? real?) (~a (round val))]
+            ;; For complex numbers, let's round both parts.
+            [(? number?) (~a (make-rectangular (round (real-part val))
+                                               (round (imag-part val))))]
             [(or (? void?)
-                 (? number?)
                  (? string?)
                  (? symbol?)
                  (? keyword?)
