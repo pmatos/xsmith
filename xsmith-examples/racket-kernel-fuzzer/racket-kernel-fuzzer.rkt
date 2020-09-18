@@ -202,7 +202,7 @@
       ...)
    #'(ag [racr-name VariadicExpression ()
                #:prop fresh (hash 'minargs min-args)
-               #:prop type-info [type (λ (n t) (hash 'minargs t 'moreargs t))]
+               #:prop type-info [type ctype]
                #:prop render-node-info (render-variadic
                                         (if NE? 'NE-name 'racket-name))])])
 (ag/variadic * 0 #:racr-name Times)
