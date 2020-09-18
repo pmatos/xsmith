@@ -649,7 +649,9 @@
             [(and (? mutable?) (box v))
              (format "#{mutable-box ~a}" (my-format v))]
             [(? procedure?)
-             (format "#<procedure:~a>" (object-name val))]
+             ;; Different versions of Racket can have different results for
+             ;; `object-name`, so let's just print all procedures equally.
+             (format "#<procedure>")]
             [(or (? void?)
                  (? number?)
                  (? string?)
