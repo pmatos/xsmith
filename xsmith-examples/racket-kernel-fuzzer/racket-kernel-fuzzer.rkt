@@ -62,7 +62,7 @@
                        #:ImmutableList #t
                        #:MutableArray #t
                        #:MutableArraySafeAssignmentExpression #t
-                       ;#:ImmutableArray #t
+                       #:ImmutableArray #t
                        #:MutableStructuralRecord #t
                        #:MutableStructuralRecordAssignmentExpression #t
                        #:ImmutableStructuralRecord #t
@@ -443,7 +443,7 @@
                          (unify! t (immutable (list-type inner-type)))
                          (hash 'Expression (mutable (array-type inner-type)))))
 ;; This one is kinda dumb, it probably checks and is just identity.
-#;(ag/single-arg vector->immutable-vector
+(ag/single-arg vector->immutable-vector
                #:racr-name ImmutableVectorToImmutableVector
                #:type (immutable (array-type (fresh-type-variable))))
 (ag/single-arg vector->immutable-vector
@@ -599,14 +599,16 @@
             (if (null? list)
                 fallback
                 (cdr list))))
-        #;(define-values (immutable-vector-set)
-            (λ (vec index-raw val)
-              (define-values (index) (modulo index-raw (vector-length vec)))
-              (vector->immutable-vector
-               (build-vector (vector-length vec)
-                             (λ (i) (if (equal? i index)
-                                        val
-                                        (vector-ref vec i)))))))
+        (define (NE/vector-ref vec index)
+          (vector-ref vec (modulo index (vector-length vec))))
+        (define-values (immutable-vector-set)
+          (λ (vec index-raw val)
+            (define-values (index) (modulo index-raw (vector-length vec)))
+            (vector->immutable-vector
+             (build-vector (vector-length vec)
+                           (λ (i) (if (equal? i index)
+                                      val
+                                      (vector-ref vec i)))))))
 
         (define (my-format/hash-inner the-hash)
           (define (hash-sort-lt l r)
@@ -755,20 +757,12 @@
                 ,(render-child 'list n)))]
  [MutableArrayLiteral
   (λ (n) `(vector ,@(render-children 'expressions n)))]
- #;[ImmutableArrayLiteral
-  (λ (n) `(vector-immutable ,@(render-children 'expressions n)))]
+ [ImmutableArrayLiteral
+  (λ (n) `(vector->immutable-vector (vector ,@(render-children 'expressions n))))]
  [MutableArraySafeReference
-  (λ (n)
-    (define-values (array-rendered) (render-child 'array n))
-    `(vector-ref ,array-rendered
-                 (modulo ,(render-child 'index n)
-                         (vector-length ,array-rendered))))]
- #;[ImmutableArraySafeReference
-  (λ (n)
-    `(let ([vec ,(render-child 'array n)])
-       (vector-ref vec
-                   (modulo ,(render-child 'index n)
-                           (vector-length vec)))))]
+  (λ (n) `(NE/vector-ref ,(render-child 'array n) ,(render-child 'index n)))]
+ [ImmutableArraySafeReference
+  (λ (n) `(NE/vector-ref ,(render-child 'array n) ,(render-child 'index n)))]
  [MutableArraySafeAssignmentExpression
   (λ (n)
     (define-values (array-rendered) (render-child 'array n))
@@ -776,7 +770,7 @@
                   (modulo ,(render-child 'index n)
                           (vector-length ,array-rendered))
                   ,(render-child 'newvalue n)))]
- #;[ImmutableArraySafeSet
+ [ImmutableArraySafeSet
   (λ (n)
     `(immutable-vector-set ,(render-child 'array n)
                            ,(render-child 'index n)
@@ -825,7 +819,6 @@
    (λ()bool)
    (λ()number)
    (λ()int)
-   #;(λ()float)
    (λ()char)
    (λ()string)
    (λ()symbol)
