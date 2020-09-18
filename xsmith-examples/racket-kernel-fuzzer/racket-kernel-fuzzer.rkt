@@ -30,7 +30,7 @@
 (define real (base-type 'real complex #:leaf? #f))
 (define rational (base-type 'rational real #:leaf? #f))
 (define int (base-type 'int rational #:leaf? #f))
-(define nat (base-type 'nat int #:leaf? #f))
+(define nat (base-type 'nat int #:leaf? #t))
 
 (define char (base-type 'char bool))
 (define string (base-type 'string bool #:leaf? #f))
@@ -318,12 +318,13 @@
    #'(λ (n t) (hash 'l etypel 'r etyper))])
 
 (ag/single-arg abs #:type real)
-(ag/single-arg cos #:type real)
-(ag/single-arg acos #:type real)
-(ag/single-arg sin #:type real)
-(ag/single-arg asin #:type real)
-(ag/single-arg tan #:type real)
-(ag/single-arg atan #:racr-name AtanOne #:NE-name NE/atan-1 #:type real)
+(ag/single-arg cos #:type number #:ctype (Ectype real))
+(ag/single-arg acos #:type number #:ctype (Ectype real))
+(ag/single-arg sin #:type number #:ctype (Ectype real))
+(ag/single-arg asin #:type number #:ctype (Ectype real))
+(ag/single-arg tan #:type number #:ctype (Ectype real))
+(ag/single-arg atan #:racr-name AtanOne #:NE-name NE/atan-1 #:type number
+               #:ctype (Ectype real))
 (ag/single-arg add1)
 (ag/single-arg sub1)
 (ag/single-arg angle #:type real)
