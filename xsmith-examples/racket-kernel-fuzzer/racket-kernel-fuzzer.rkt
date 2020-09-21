@@ -630,6 +630,13 @@
              (format "[~a . ~a]"
                      (my-format k)
                      (my-format (hash-ref the-hash k))))))
+        (define (format-round x)
+          (if (or (equal? x +inf.0)
+                  (equal? x -inf.0)
+                  (equal? x +nan.0))
+              x
+              (integer->exact-integer (round x)))
+          (define rounded (round x)))
         (define (my-format val)
           (define (mutable? x)
             (not (immutable? x)))
@@ -662,10 +669,11 @@
             [(or (? integer?) (? rational?)) (~a val)]
             ;; For floating point numbers, let's round them to ameliorate minor
             ;; differences...
-            [(? real?) (~a (round val))]
+            [(? real?) (~a (format-round val))]
             ;; For complex numbers, let's round both parts.
-            [(? number?) (~a (make-rectangular (round (real-part val))
-                                               (round (imag-part val))))]
+            [(? number?) (format "#{complex ~a ~a}"
+                                 (format-round (real-part val))
+                                 (format-round (imag-part val)))]
             [(or (? void?)
                  (? string?)
                  (? symbol?)
