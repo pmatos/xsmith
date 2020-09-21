@@ -698,7 +698,7 @@
         ,(if #;(base-type? (att-value 'xsmith_type
                                       (ast-child 'ExpressionSequence n)))
              #t
-             '(printf "Program body result: ~v\n" program-result)
+             '(printf "Program body result: ~v\n" (my-format program-result))
              '(void))
         ,@(for/list ([c (ast-children (ast-child 'definitions n))]
                      #:when #t #;(base-type? (concretize-type
