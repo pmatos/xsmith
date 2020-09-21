@@ -635,8 +635,7 @@
                   (equal? x -inf.0)
                   (equal? x +nan.0))
               x
-              (integer->exact-integer (round x)))
-          (define rounded (round x)))
+              (integer->exact-integer (round x))))
         (define (my-format val)
           (define (mutable? x)
             (not (immutable? x)))
