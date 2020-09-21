@@ -665,7 +665,10 @@
              ;; Different versions of Racket can have different results for
              ;; `object-name`, so let's just print all procedures equally.
              (format "#<procedure>")]
-            [(and (? exact?) (or (? integer?) (? rational?))) (~a val)]
+            [(and (? number?)
+                  (? exact?)
+                  (or (? integer?) (? rational?)))
+             (~a val)]
             ;; For floating point numbers, let's round them to ameliorate minor
             ;; differences...
             [(? real?) (format-round val)]
