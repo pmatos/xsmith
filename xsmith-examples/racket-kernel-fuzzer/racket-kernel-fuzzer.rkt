@@ -635,7 +635,7 @@
                   (equal? x -inf.0)
                   (equal? x +nan.0))
               x
-              (inexact->exact (round x))))
+              (~a #:max-width +inf.0 (inexact->exact (round x)))))
         (define (my-format val)
           (define (mutable? x)
             (not (immutable? x)))
@@ -665,10 +665,10 @@
              ;; Different versions of Racket can have different results for
              ;; `object-name`, so let's just print all procedures equally.
              (format "#<procedure>")]
-            [(or (? integer?) (? rational?)) (~a val)]
+            [(and (? exact?) (or (? integer?) (? rational?))) (~a val)]
             ;; For floating point numbers, let's round them to ameliorate minor
             ;; differences...
-            [(? real?) (~a (format-round val))]
+            [(? real?) (format-round val)]
             ;; For complex numbers, let's round both parts.
             [(? number?) (format "#{complex ~a ~a}"
                                  (format-round (real-part val))
