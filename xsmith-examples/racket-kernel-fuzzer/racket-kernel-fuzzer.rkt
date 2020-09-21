@@ -327,7 +327,7 @@
                #:ctype (Ectype real))
 (ag/single-arg add1)
 (ag/single-arg sub1)
-(ag/single-arg angle #:type real)
+(ag/single-arg angle #:type real #:NE-name NE/angle)
 (ag/single-arg ceiling)
 (ag/single-arg floor)
 (ag/single-arg round)
@@ -590,6 +590,10 @@
                 (if (equal? x 0-1i)
                     0
                     (atan x)))))
+        (define (NE/angle x)
+          (if (equal? 0 x)
+              0
+              (angle x)))
         (define-values (safe-car)
           (λ (list fallback)
             (if (null? list)
