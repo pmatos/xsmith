@@ -138,6 +138,7 @@
 (define seq-to-file-default #f)
 (define seq-from-file-default #f)
 (define generation-timeout-default #f)
+(define print-debug-default #f)
 
 
 
@@ -296,6 +297,7 @@
            (define max-depth default-max-depth)
            (define type-max-depth default-type-max-depth)
            (define generation-timeout generation-timeout-default)
+           (define print-debug? print-debug-default)
            (define options (xsmith-options-defaults))
 
            (define command-line-to-print (current-command-line-arguments))
@@ -420,6 +422,12 @@
                 (["Print an s-expression representation of the tree if an error is encountered"
                   "Defaults to false."]
                  "show-s-exp-on-error?")]
+               [("--print-debug")
+                ,(λ (flag print-debug)
+                   (set! print-debug? (string->bool print-debug 'print-debug?)))
+                (["Print debug info even when generation is successful."
+                  "Defaults to false."]
+                 "print-debug?")]
                [("--seq-to-file")
                 ,(λ (flag filename) (set! seq-to-file filename))
                 (["Output the generated randomness sequence to a file at the given path."
@@ -496,6 +504,7 @@
             #:max-depth max-depth
             #:type-max-depth type-max-depth
             #:generation-timeout generation-timeout
+            #:print-debug print-debug?
 
             #:command-line-to-print command-line-to-print))
 
@@ -525,6 +534,7 @@
                   #:max-depth [max-depth-arg not-given]
                   #:type-max-depth [type-max-depth-arg not-given]
                   #:timeout [timeout-arg not-given]
+                  #:print-debug print-debug
                   )
 
 
@@ -593,6 +603,7 @@
                                       generation-timeout-default)
 
             #:command-line-to-print command-line-to-print
+            #:print-debug print-debug
             )
            )
 
@@ -619,6 +630,7 @@
                   #:type-max-depth type-max-depth
                   #:generation-timeout generation-timeout
                   #:command-line-to-print command-line-to-print
+                  #:print-debug print-debug-with-no-error?
                   )
 
 
@@ -778,11 +790,14 @@
                     (λ () (with-handlers ([(λ (e) #t)
                                            (λ (e) (set! error? e))])
                             (ast->string ast)))))
-                 (when error?
-                   ;; Something went wrong during printing.
-                   (printf "Error encountered while printing program.\n")
-                   (do-error-printing)
-                   (abort))
+                 (if error?
+                     (begin
+                       ;; Something went wrong during printing.
+                       (printf "Error encountered while printing program.\n")
+                       (do-error-printing)
+                       (abort))
+                     (when print-debug-with-no-error?
+                       (eprintf "~a\n\n" (get-xsmith-debug-log!))))
                  ;; Everything was successful!
                  (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
                                               option-lines)))
