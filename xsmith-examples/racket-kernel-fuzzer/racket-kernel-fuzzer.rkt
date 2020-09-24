@@ -614,6 +614,8 @@
                            (λ (i) (if (equal? i index)
                                       val
                                       (vector-ref vec i)))))))
+        (define (NE/vector-set! vec index val)
+          (vector-set! vec (modulo index (vector-length vec)) val))
 
         (define (my-format/hash-inner the-hash)
           (define (hash-sort-lt l r)
@@ -786,11 +788,9 @@
   (λ (n) `(NE/vector-ref ,(render-child 'array n) ,(render-child 'index n)))]
  [MutableArraySafeAssignmentExpression
   (λ (n)
-    (define-values (array-rendered) (render-child 'array n))
-    `(vector-set! ,array-rendered
-                  (modulo ,(render-child 'index n)
-                          (vector-length ,array-rendered))
-                  ,(render-child 'newvalue n)))]
+    `(NE/vector-set! ,(render-child 'array n)
+                     ,(render-child 'index n)
+                     ,(render-child 'newvalue n)))]
  [ImmutableArraySafeSet
   (λ (n)
     `(immutable-vector-set ,(render-child 'array n)
