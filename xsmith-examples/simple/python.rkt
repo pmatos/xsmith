@@ -16,7 +16,6 @@
                        #:VariableReference #t
                        #:ProcedureApplication #t
                        #:LambdaWithExpression #t
-                       #:LambdaWithBlock #t
                        #:Numbers #t
                        #:Booleans #t
                        #:Strings #t
@@ -25,6 +24,7 @@
                        )
 (add-basic-statements python-comp
                       #:ProgramWithBlock #t
+                      #:NamedFunctionDefinition #t
                       #:Block #t
                       #:ReturnStatement #t
                       #:IfElseStatement #t
@@ -34,25 +34,6 @@
                       #:MutableArraySafeAssignmentStatement #t
                       #:MutableStructuralRecordAssignmentStatement #t
                       )
-
-;; We use LambdaWithBlock as an easy way to implement function definitions.
-;; This choice-method restricts them from being generated anywhere other than in
-;; a Definition context.
-;; Then, the render-node-info implementation for Definitions is adjusted to
-;; properly render function definitions accordingly.
-(add-choice-method
- python-comp
- lwb-must-be-under-definition
- [LambdaWithBlock
-  (λ () (let ([parent-node (ast-parent (current-hole))])
-          (and (not (ast-list-node? parent-node))
-               (equal? (ast-node-type parent-node)
-                       'Definition))))])
-
-(add-property
- python-comp
- choice-filters-to-apply
- [LambdaWithBlock (lwb-must-be-under-definition)])
 
 (define nest-step 4)
 (define (binary-op-renderer op-rendered)
@@ -98,7 +79,9 @@
  #:bind-whole-collection? #t
  )
 (add-property
- python-comp render-node-info
+ python-comp
+ render-node-info
+
  [LoopOverArray
   (λ (n)
     (define cd (ast-child 'collection n))
@@ -122,11 +105,7 @@
                              (ast-children (ast-child 'definitions body)))
                         (map (λ (cn) ($xsmith_render-node cn))
                              (ast-children (ast-child 'statements body))))))))
-     line))])
-
-(add-property
- python-comp
- render-node-info
+     line))]
 
  [ProgramWithBlock
   (λ (n)
@@ -153,8 +132,9 @@
  [Definition
    (λ (n)
      (let ([expr-node (ast-child 'Expression n)])
+       ;; TODO: I would like this to be handled more elegantly.
        (if (equal? (ast-node-type expr-node)
-                   'LambdaWithBlock)
+                   'NamedFunctionDefinition)
            (let ([name (ast-child 'name n)]
                  [parameters (ast-children (ast-child 'parameters expr-node))]
                  [body (ast-child 'body expr-node)])
@@ -162,7 +142,6 @@
                    (v-append
                     (h-append (text "def ")
                               (text (format "~a" name))
-                              space
                               lparen
                               (h-concat (apply-infix
                                          (text ", ")
