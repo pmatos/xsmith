@@ -993,7 +993,7 @@
 (define bool-type (base-type 'bool))
 (define string-type (base-type 'string))
 
-(define-generic-type mutable ([type covariant]))
+(define-generic-type mutable ([type invariant]))
 (define-generic-type immutable ([type covariant]))
 
 (define-generic-type array-type ([type covariant]))
