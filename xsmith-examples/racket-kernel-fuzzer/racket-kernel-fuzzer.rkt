@@ -36,7 +36,8 @@
 (define (biased-random-string)
   (match (random 3)
     [0 (random-string)]
-    [1 (random-string-from-char-producing-proc (random-char-in-range (range 0 128)))]
+    [1 (random-string-from-char-producing-proc
+        (λ () (random-char-in-range (range 0 128))))]
     [2 (random-string-from-char-producing-proc biased-random-char)]))
 (define (biased-random-int)
   ;; The random function returns word-sized integers.
