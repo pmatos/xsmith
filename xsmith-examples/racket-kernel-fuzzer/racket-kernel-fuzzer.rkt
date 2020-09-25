@@ -8,6 +8,7 @@
  racket/string
  racket/list
  racket/pretty
+ racket/match
  syntax/parse/define
  (for-syntax
   clotho/racket/base
@@ -21,6 +22,33 @@
 
 (define random-max 4294967087)
 
+(define (moreargs-default)
+  (random 5))
+
+(define (biased-random-char)
+  ;; Random-char very rarely generates ascii, which is more common.
+  ;; More saliently, low-value characters are interned in Racket and
+  ;; high-value characters are not.  So I want to be sure to generate
+  ;; both to have some variety.
+  (if (random-bool)
+      (random-char)
+      (random-char-in-range 0 128)))
+(define (biased-random-string)
+  (match (random 3)
+    [0 (random-string)]
+    [1 (random-string-from-char-producing-proc (random-char-in-range 0 128))]
+    [2 (random-string-from-char-producing-proc biased-random-char)]))
+(define (biased-random-int)
+  ;; The random function returns word-sized integers.
+  ;; I want more variety, like bigints.
+  (match (random 6)
+    [0 (random-int)]
+    [1 (+ (* (random-int) (random-int)) (random-int))]
+    [2 (+ (* (random-int) (random-int) (random-int)) (random-int))]
+    [3 (+ (* (random-int) (random-int) (random-int) (random-int)) (random-int))]
+    [4 (random 255)]
+    [5 (random 10)]
+    ))
 
 (define-generic-type box-type ([type covariant]))
 (define bool (base-type 'bool #:leaf? #f))
@@ -143,8 +171,6 @@
 (define ((render-variadic variadic-function-name) n)
   `(,variadic-function-name ,@(render-children 'minargs n)
                            ,@(render-children 'moreargs n)))
-(define (moreargs-default)
-  (random 5))
 (define no-child-types (λ (n t) (hash)))
 
 (define-syntax-parser ag [(_ arg ...) #'(add-to-grammar racket-comp arg ...)])
@@ -157,7 +183,7 @@
                    #:prop type-info [(immutable (list-type (fresh-type-variable)))
                                      no-child-types]
                    #:prop render-node-info (λ (n) 'null)]
- [MutableStringLiteral Expression ([v = (random-string)])
+ [MutableStringLiteral Expression ([v = (biased-random-string)])
                        #:prop choice-weight 1
                        #:prop type-info [mutable-string no-child-types]
                        #:prop render-node-info (λ (n)
@@ -168,7 +194,7 @@
               ;; OK, so I'm just using seconds->date.  Not literally a date literal.
               #:prop render-node-info (λ (n) `(NE/seconds->date ,(ast-child 'v n)))]
  [VariadicExpression Expression ([minargs : Expression *]
-                                 [moreargs : Expression * = (random 5)])
+                                 [moreargs : Expression * = moreargs-default])
                      #:prop may-be-generated #f])
 
 
@@ -178,12 +204,14 @@
                #:prop choice-weight 1
                #:prop type-info [type no-child-types]
                #:prop render-node-info (λ (n) `(quote ,(ast-child 'v n)))])])
-(ag/atomic-literal IntLiteral int (random-int))
-(ag/atomic-literal CharLiteral char (random-char))
+(ag/atomic-literal IntLiteral int (biased-random-int))
+;; TODO - rational, real, complex literals.  Also, be sure I'm sometimes generating +/- infinity and NAN.
+;; TODO - maybe also bias generation to make some special values more common, such as size boundary or bignum boundary numbers, null our boundary characters, NAN, etc, to be more likely for them to collide in weird ways.
+(ag/atomic-literal CharLiteral char (biased-random-char))
 (ag/atomic-literal BoolLiteral exact-bool (random-bool))
-(ag/atomic-literal ImmutableStringLiteral immutable-string (random-string))
-(ag/atomic-literal SymbolLiteral symbol (string->symbol (random-string)))
-(ag/atomic-literal KeywordLiteral keyword (string->keyword (random-string)))
+(ag/atomic-literal ImmutableStringLiteral immutable-string (biased-random-string))
+(ag/atomic-literal SymbolLiteral symbol (string->symbol (biased-random-string)))
+(ag/atomic-literal KeywordLiteral keyword (string->keyword (biased-random-string)))
 
 (define-syntax-parser ag/variadic
   [(_ racket-name:id min-args:expr
