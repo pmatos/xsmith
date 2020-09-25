@@ -57,14 +57,14 @@
 
 
 
-(define (immutable-structural-record-type-constraint single?)
+(define (immutable-structural-record-type-constraint single? finalized?)
   (λ (n)
     (if (att-value 'xsmith_is-hole? n)
         (immutable
          (fresh-structural-record-type (hash)))
         (immutable
          (fresh-structural-record-type
-          #:finalized? #t
+          #:finalized? finalized?
           (for/hash ([k (if single?
                             (list (ast-child 'fieldname n))
                             (ast-child 'fieldnames n))])
@@ -594,7 +594,7 @@
                        (hash 'fieldnames all-fields
                              'expressions (length all-fields)))
                      #:prop type-info
-                     [(immutable-structural-record-type-constraint #f)
+                     [(immutable-structural-record-type-constraint #f #t)
                       (λ (n t)
                         (define fsrt (fresh-structural-record-type))
                         (define mfsrt (immutable fsrt))
@@ -620,7 +620,7 @@
                       [record : Expression]
                       [newvalue : Expression])
                      #:prop type-info
-                     [(immutable-structural-record-type-constraint #t)
+                     [(immutable-structural-record-type-constraint #t #f)
                       (λ (n t)
                         (define inner-t (fresh-type-variable))
                         (unify! (immutable (fresh-structural-record-type
