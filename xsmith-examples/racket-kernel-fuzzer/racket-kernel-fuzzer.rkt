@@ -629,8 +629,8 @@
           ;; The range is -67768040609715604 to 67768036191701999 inclusive, at least in racket 7.6-bc.
           (define min-second -67768040609715604)
           (define max-second 67768036191701999)
-          (cond [(< x min-second) (seconds->date min)]
-                [(> x max-second) (seconds->date max)]
+          (cond [(< x min-second) (seconds->date min-seconds)]
+                [(> x max-second) (seconds->date max-seconds)]
                 [else (seconds->date x)])
           )
         (define-values (safe-car)
