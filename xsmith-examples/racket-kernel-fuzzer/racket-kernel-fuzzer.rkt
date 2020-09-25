@@ -166,7 +166,7 @@
               #:prop choice-weight 1
               #:prop type-info [date* no-child-types]
               ;; OK, so I'm just using seconds->date.  Not literally a date literal.
-              #:prop render-node-info (λ (n) `(seconds->date ,(ast-child 'v n)))]
+              #:prop render-node-info (λ (n) `(NE/seconds->date ,(ast-child 'v n)))]
  [VariadicExpression Expression ([minargs : Expression *]
                                  [moreargs : Expression * = (random 5)])
                      #:prop may-be-generated #f])
@@ -415,8 +415,10 @@
                #:type mutable-string #:ctype (Ectype string))
 
 (define-syntax-parser ag/converter
-  [(_ name:id from:expr to:expr)
-   #'(ag/single-arg name #:type to #:ctype (Ectype from))])
+  [(_ name:id from:expr to:expr
+      (~optional (~seq #:NE-name NE-name)
+                 #:defaults ([NE-name #'name])))
+   #'(ag/single-arg name #:type to #:ctype (Ectype from) #:NE-name NE-name)])
 (ag/converter char->integer char int)
 (ag/converter string->symbol string symbol)
 (ag/converter string->uninterned-symbol string symbol)
@@ -428,7 +430,7 @@
 (ag/converter string->immutable-string string immutable-string)
 ;; TODO - should be real instead of int
 ;; TODO - needs a second boolean arg for whether it's local time (the default #t is local) -- or maybe I should always use UTC?
-(ag/converter seconds->date int date*)
+(ag/converter seconds->date real date* #:NE-name NE/seconds->date)
 (ag/single-arg vector->list
                #:racr-name ImmutableVectorToList
                #:type (immutable (list-type (fresh-type-variable)))
@@ -594,6 +596,14 @@
           (if (equal? 0 x)
               0
               (angle x)))
+        (define (NE/seconds->date x)
+          ;; The range is -67768040609715604 to 67768036191701999 inclusive, at least in racket 7.6-bc.
+          (define min-second -67768040609715604)
+          (define max-second 67768036191701999)
+          (cond [(< x min-second) (seconds->date min)]
+                [(> x max-second) (seconds->date max)]
+                [else (seconds->date x)])
+          )
         (define-values (safe-car)
           (λ (list fallback)
             (if (null? list)
