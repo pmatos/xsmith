@@ -1396,8 +1396,8 @@ few of these methods.
         ;(xd-printf "error unifying my-type with my-type-constraint\n")
         (xd-printf "error subtype-unifying my-type to my-type-from-parent\n")
         (xd-printf "type-from-parent: ~v\n" my-type-from-parent)
-        (xd-printf "my-type ~v\n" my-type)
-        (xd-printf "my-type-constraint ~v\n" my-type-constraint)
+        (xd-printf "my-type: ~v\n" my-type)
+        (xd-printf "my-type-constraint: ~v\n" my-type-constraint)
         (raise e))])
     (if (and definition-type-field
              parameter?)
