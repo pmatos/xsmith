@@ -649,12 +649,11 @@
                             [fd (structural-record-type-known-field-dict srt)]
                             [necessary-fields (dict-keys fd)]
                             ;; Let's inject extra fields.
-                            [new-fields (map (λ(_) (random-field-name))
-                                             (make-list (add1 (random 2)) #f))]
-                            [all-fields (remove-duplicates
-                                         (append necessary-fields new-fields))])
-                       (hash 'fieldnames all-fields
-                             'expressions (length all-fields)))
+                            ;; Actually not, mutable structural records are invariant
+                            ;; because they are mutable.
+                            )
+                       (hash 'fieldnames necessary-fields
+                             'expressions (length necessary-fields)))
                      #:prop type-info
                      [(λ (n)
                         (if (att-value 'xsmith_is-hole? n)
