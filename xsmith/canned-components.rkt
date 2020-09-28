@@ -715,6 +715,7 @@
   (syntax-parse stx
     [(_ component
         (~or
+         (~optional (~seq #:NamedFunctionDefinition use-named-function-definition:boolean))
          (~optional (~seq #:ProgramWithBlock use-program-with-block:boolean))
          (~optional (~seq #:IfElseStatement use-if-else-statement:boolean))
          (~optional (~seq #:Block use-block-statement:boolean))
@@ -738,6 +739,34 @@
          (define bool bool-type-e)
          (define int int-type-e)
          (define index-and-length-type (~? index-and-length-type-e int))
+
+         #,@(if (use? use-named-function-definition)
+                #'((add-to-grammar
+                    component
+                    [NamedFunctionDefinition
+                     Expression ([parameters : FormalParameter * = (arg-length)]
+                                 [body : Block])
+                     #:prop block-user? #t
+                     #:prop wont-over-deepen #t
+                     #:prop choice-weight 1
+                     #:prop fresh
+                     (lambda-fresh-implementation current-hole make-fresh-node)
+                     #:prop type-info
+                     [(function-type (product-type #f) (fresh-type-variable))
+                      (make-lambda-type-rhs (λ (rt) (return-type rt)))]])
+                   (add-choice-method
+                    component
+                    nfd-must-be-under-definition
+                    [NamedFunctionDefinition
+                     (λ () (let ([parent-node (ast-parent (current-hole))])
+                             (and (not (ast-list-node? parent-node))
+                                  (equal? (ast-node-type parent-node)
+                                          'Definition))))])
+                   (add-property
+                    component
+                    choice-filters-to-apply
+                    [NamedFunctionDefinition (nfd-must-be-under-definition)]))
+                #'())
 
          #,@(if (use? use-return-statement)
                 #'((add-to-grammar
