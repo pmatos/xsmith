@@ -54,6 +54,7 @@
   (random 6))
 (define (random-string-literal)
   (random-ref (list "foo" "bar" "baz" "quux")))
+(define variable-reference-weight 15)
 
 
 
@@ -217,7 +218,13 @@
                     [VariableReference Expression (name)
                                        #:prop reference-info (read)
                                        #:prop type-info
-                                       [(fresh-type-variable) no-child-types]]))
+                                       [(fresh-type-variable) no-child-types]
+                                       #:prop choice-weight
+                                       (λ () (if (ast-subtype? (parent-node
+                                                                current-hole)
+                                                               'Definition)
+                                                 1
+                                                 variable-reference-weight))]))
                 #'())
 
          #,@(if (use? use-procedure-application)
