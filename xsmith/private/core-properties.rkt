@@ -77,6 +77,7 @@
  ;racket/dict
  racket/list
  racket/match
+ memoize
  (for-syntax
   clotho/racket/base
   syntax/parse
@@ -1781,9 +1782,13 @@ The second arm is a function that takes the type that the node has been assigned
       (define binding-nodes-started '())
       (define binding-nodes-finished '())
       (define parent-nodes-done '())
+      (define/memo (->tv-list x)
+        (type->type-variable-list x))
       (define (relevant? other-type)
         (contains-type-variables? other-type
-                                  (type->type-variable-list hole-type)))
+                                  ;(type->type-variable-list hole-type)
+                                  (->tv-list hole-type)
+                                  ))
 
       (define (break?!)
         (when (settled-type? hole-type)
