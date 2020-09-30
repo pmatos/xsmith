@@ -1820,16 +1820,6 @@ The second arm is a function that takes the type that the node has been assigned
                    (at-least-as-settled hole-type type-constraint))
             (break!! #t)))
       (break?!)
-      ;;;;;;;;
-      ;; Optimization: I've turned on whole-tree type checking between each
-      ;; tree modification, so this won't need to walk any of the tree ever.
-      ;; So let's break here.
-      ;(break!! #t)
-      ;; However, this makes everything below dead code.  So far the optimization
-      ;; looks like a clear win.  But this code, if ultimately a bad idea, was
-      ;; hard to get right.  So I'm not going to delete it until I test this
-      ;; optimization more.
-      ;;;;;;;;
       (let parent-loop ([p (parent-node node-in-question)]
                         [child node-in-question])
         (define (resolve-types node)
