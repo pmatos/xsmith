@@ -1841,7 +1841,7 @@ The second arm is a function that takes the type that the node has been assigned
 
                          ;; If the node is a reference, the definition site
                          ;; may have nodes that will affect the type.
-                         (when (att-value '_xsmith_is-read-reference-node? n)
+                         (when (att-value '_xsmith_is-reference-node? n)
                            (let ([binding-node (binding-ast-node
                                                 (att-value
                                                  '_xsmith_resolve-reference n))])
