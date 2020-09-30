@@ -539,7 +539,7 @@
                   ;; here, because it wail fail due to eg. unbound references,
                   ;; and it shouldn't be necessary anyway.
                   (execute-inter-choice-transform-queue)
-                  (type-check!)
+                  ;(type-check!)
                   (let loop ()
                     (define edit (att-value '_xsmith_edit-walk root))
                     (when edit
@@ -547,7 +547,7 @@
                              ;; Same as above, don't type-check between
                              ;; a normal edit and the ICTQ.
                              (execute-inter-choice-transform-queue)
-                             (type-check!)
+                             ;(type-check!)
                              (loop))))
                   #t)]
                [else #f]))])

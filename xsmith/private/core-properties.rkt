@@ -1683,6 +1683,12 @@ The second arm is a function that takes the type that the node has been assigned
           (hash #f #'(λ (node) (void)))
           (hash #f #'(λ (node)
                        (att-value 'xsmith_type node)
+                       ;; If the node is a reference, type check the definition too.
+                       (when (and (att-value '_xsmith_is-reference-node? node)
+                                  (not (att-value 'xsmith_is-hole? node)))
+                         (att-value '_xsmith_type-check-tree
+                                    (binding-ast-node
+                                     (att-value '_xsmith_resolve-reference node))))
                        (for ([c (ast-children node)])
                          (cond [(or (not (ast-node? c))
                                     (ast-bud-node? c))
@@ -1818,7 +1824,7 @@ The second arm is a function that takes the type that the node has been assigned
       ;; Optimization: I've turned on whole-tree type checking between each
       ;; tree modification, so this won't need to walk any of the tree ever.
       ;; So let's break here.
-      (break!! #t)
+      ;(break!! #t)
       ;; However, this makes everything below dead code.  So far the optimization
       ;; looks like a clear win.  But this code, if ultimately a bad idea, was
       ;; hard to get right.  So I'm not going to delete it until I test this
@@ -1831,8 +1837,10 @@ The second arm is a function that takes the type that the node has been assigned
             [(? (λ (n) (not (ast-node? n)))) (void)]
             [(? ast-list-node?) (for-each resolve-types (ast-children node))]
             [(? ast-bud-node?) (void)]
-            [else (att-value 'xsmith_type node)]))
-        (define (sibling-loop nodes)
+            [else
+             (att-value '_xsmith_type-check-tree node)
+             #;(att-value 'xsmith_type node)]))
+        #;(define (sibling-loop nodes)
           (for ([n nodes]) (resolve-types n))
           ;; When we check the type of a new thing it may unify variables,
           ;; so we've maybe made progress.
@@ -1887,8 +1895,13 @@ The second arm is a function that takes the type that the node has been assigned
             ;; IE this is the first iteration.
             ;; The children of the original node may have relevant data that they
             ;; add to the parent.
-            (sibling-loop (ast-children node-in-question)))
-          (and p (sibling-loop (ast-children p)))
+            ;(sibling-loop (ast-children node-in-question))
+            (att-value '_xsmith_type-check-tree node-in-question)
+            )
+          (and p
+               ;(sibling-loop (ast-children p))
+               (att-value '_xsmith_type-check-tree p)
+               )
           (when (and p
                      (ast-has-parent? p)
                      (or
