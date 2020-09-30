@@ -1503,6 +1503,7 @@ The second arm is a function that takes the type that the node has been assigned
   ;_xsmith_children-type-dict -- returns a dict mapping nodes (or node field names) to types
   (attribute _xsmith_type-constraint-from-parent)
   (attribute xsmith_type)
+  (attribute _xsmith_type-check-tree)
   (choice-method _xsmith_satisfies-type-constraint?)
   ;_xsmith_satisfies-type-constraint? -- choice predicate -- tests if a hole's type and a choice object are compatible
   (choice-method _xsmith_reference-options!)
@@ -1677,6 +1678,19 @@ The second arm is a function that takes the type that the node has been assigned
                            #,(dict-ref binder-type-field n)
                            #,(dict-ref binder-name-field n)
                            #,(dict-ref parameter?-hash n)))))))
+    (define _xsmith_type-check-tree-info
+      (if (dict-empty? this-prop-info)
+          (hash #f #'(λ (node) (void)))
+          (hash #f #'(λ (node)
+                       (att-value 'xsmith_type node)
+                       (for ([c (ast-children node)])
+                         (cond [(or (not (ast-node? c))
+                                    (ast-bud-node? c))
+                                (void)]
+                               [(ast-list-node? c)
+                                (for ([gc (ast-children c)])
+                                  (att-value '_xsmith_type-check-tree gc))]
+                               [else (att-value '_xsmith_type-check-tree c)]))))))
     (define _xsmith_satisfies-type-constraint?-info
       (hash #f #'(λ ()
                    #;(eprintf "testing type for ~a\n" this)
@@ -1739,6 +1753,7 @@ The second arm is a function that takes the type that the node has been assigned
      _xsmith_children-type-dict-info
      _xsmith_type-constraint-from-parent-info
      xsmith_type-info
+     _xsmith_type-check-tree-info
      _xsmith_satisfies-type-constraint?-info
      _xsmith_reference-options!-info
      xsmith_get-reference!-info
@@ -1799,6 +1814,16 @@ The second arm is a function that takes the type that the node has been assigned
                    (at-least-as-settled hole-type type-constraint))
             (break!! #t)))
       (break?!)
+      ;;;;;;;;
+      ;; Optimization: I've turned on whole-tree type checking between each
+      ;; tree modification, so this won't need to walk any of the tree ever.
+      ;; So let's break here.
+      (break!! #t)
+      ;; However, this makes everything below dead code.  So far the optimization
+      ;; looks like a clear win.  But this code, if ultimately a bad idea, was
+      ;; hard to get right.  So I'm not going to delete it until I test this
+      ;; optimization more.
+      ;;;;;;;;
       (let parent-loop ([p (parent-node node-in-question)]
                         [child node-in-question])
         (define (resolve-types node)

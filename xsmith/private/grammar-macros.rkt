@@ -519,6 +519,7 @@
          node-name)
   ;; Generate a fresh root based on the input node type.
   (define root (fresh-node-func node-name))
+  (define (type-check!) (att-value '_xsmith_type-check-tree root))
   ;; Starting at the root, replace holes with valid nodes. If an error is
   ;; encountered, wrap it to be handled further up.
   (with-handlers ([(λ (e) #t)
@@ -531,12 +532,22 @@
                [(att-value 'xsmith_is-hole? n)
                 (let ([replacement (att-value '_xsmith_hole->replacement n)])
                   (rewrite-subtree n replacement)
+                  ;; The tree can be in a somewhat invalid state between
+                  ;; performing a replacement and doing the transform queue.
+                  ;; The transform queue should not perform any analysis,
+                  ;; just transform.  So we don't want to re type-check
+                  ;; here, because it wail fail due to eg. unbound references,
+                  ;; and it shouldn't be necessary anyway.
                   (execute-inter-choice-transform-queue)
+                  (type-check!)
                   (let loop ()
                     (define edit (att-value '_xsmith_edit-walk root))
                     (when edit
                       (begin (edit)
+                             ;; Same as above, don't type-check between
+                             ;; a normal edit and the ICTQ.
                              (execute-inter-choice-transform-queue)
+                             (type-check!)
                              (loop))))
                   #t)]
                [else #f]))])
