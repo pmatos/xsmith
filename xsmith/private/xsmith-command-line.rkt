@@ -139,6 +139,7 @@
 (define seq-from-file-default #f)
 (define generation-timeout-default #f)
 (define print-debug-default #f)
+(define verbose-default #f)
 
 
 
@@ -298,6 +299,7 @@
            (define type-max-depth default-type-max-depth)
            (define generation-timeout generation-timeout-default)
            (define print-debug? print-debug-default)
+           (define verbose? verbose-default)
            (define options (xsmith-options-defaults))
 
            (define command-line-to-print (current-command-line-arguments))
@@ -467,7 +469,13 @@
                 ,(λ (flag)
                    (displayln version-info)
                    (exit 0))
-                ("Show program version information and exit")])
+                ("Show program version information and exit")]
+               [("--verbose", "-V")
+                ,(λ (flag verbose-mode?)
+                   (set! verbose? (string->bool verbose-mode? 'verbose-mode?)))
+                (["Whether to activate verbose mode, which prints extra information during generation."
+                  "Defaults to false."]
+                 "verbose-mode?")])
               )
             ;; Finish-proc
             (λ (flag-accum)
@@ -505,6 +513,7 @@
             #:type-max-depth type-max-depth
             #:generation-timeout generation-timeout
             #:print-debug print-debug?
+            #:verbose verbose?
 
             #:command-line-to-print command-line-to-print))
 
@@ -535,6 +544,7 @@
                   #:type-max-depth [type-max-depth-arg not-given]
                   #:timeout [timeout-arg not-given]
                   #:print-debug print-debug
+                  #:verbose verbose?
                   )
 
 
@@ -604,6 +614,7 @@
 
             #:command-line-to-print command-line-to-print
             #:print-debug print-debug
+            #:verbose verbose?
             )
            )
 
@@ -631,6 +642,7 @@
                   #:generation-timeout generation-timeout
                   #:command-line-to-print command-line-to-print
                   #:print-debug print-debug-with-no-error?
+                  #:verbose verbose?
                   )
 
 
@@ -648,6 +660,11 @@
                                                               v)))])
                            (list b handler param))]))
                     extra-parameters))
+
+           (define (verbose-eprintf . args)
+             (if verbose?
+                 (apply eprintf args)
+                 #f))
 
            (define options (xsmith-options-defaults))
 
@@ -733,6 +750,7 @@
                  ;;;;
                  ;; Convert an AST to a string.
                  (define (ast->string root)
+                   (verbose-eprintf "Converting AST to string...\n")
                    (let ([ppr (att-value 'xsmith_render-node root)]
                          [fmt (~? format-render-func #f)])
                      (if fmt
@@ -741,6 +759,7 @@
                  ;; Attempt to generate the AST.
                  (define error? #f)
                  (define error-root #f)
+                 (verbose-eprintf "Generating the AST...\n")
                  (define ast
                    (capture-output!
                     (λ () (with-handlers
@@ -754,6 +773,7 @@
                             (generation-thunk)))))
                  (define (do-error-printing)
                    (when error?
+                     (verbose-eprintf "Encountered an error during program generation.\n")
                      (output-error
                       error?
                       "Error encountered while generating program!")
@@ -776,9 +796,11 @@
                                                                     (λ (e) (set! ppr-error? e))])
                                                      (ast->string error-root))))])
                          (if ppr-error?
-                             (output-error
-                              ppr-error?
-                              "Error encountered in printing while intercepting another error in AST generation.")
+                             (begin
+                               (verbose-eprintf "Encountered error while intercepting another error.\n")
+                               (output-error
+                                ppr-error?
+                                "Error encountered in printing while intercepting another error in AST generation."))
                              (printf "Partially generated program render:\n~a\n\n"
                                      partial-prog))))
                      ;; Quit further execution.
@@ -793,12 +815,14 @@
                  (if error?
                      (begin
                        ;; Something went wrong during printing.
+                       (verbose-eprintf "Encountered error while printing program.\n")
                        (printf "Error encountered while printing program.\n")
                        (do-error-printing)
                        (abort))
                      (when print-debug-with-no-error?
                        (eprintf "~a\n\n" (get-xsmith-debug-log!))))
                  ;; Everything was successful!
+                 (verbose-eprintf "Program successfully generated.\n")
                  (display (comment-func (cons "This is a RANDOMLY GENERATED PROGRAM."
                                               option-lines)))
                  (display (format "\n\n~a\n" program))
@@ -813,9 +837,11 @@
                  (display "\n"))
                ;; If the flag was set, output the random-source's byte sequence to file.
                (when seq-to-file
+                 (verbose-eprintf "Writing random-source bytes to sequence file.\n")
                  (write-bytes (get-current-random-source-byte-string)
                               (open-output-file seq-to-file #:exists 'replace)))
                ;; Update the seed. (This is used in server mode.)
+               (verbose-eprintf "Updating seed.\n")
                (dict-set! (xsmith-options)
                           'random-seed
                           (modulo (add1 (xsmith-option 'random-seed))
