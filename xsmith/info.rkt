@@ -43,6 +43,7 @@
                "clotho"
                "math-lib"
                "unix-socket-lib"
+               "memoize"
                ))
 (define build-deps '("scribble-lib"
                      "racket-doc"
